@@ -8,7 +8,7 @@
 
 ;;;; Screen management initialization.
 
-(declaim (special *echo-area-buffer*))
+(proclaim '(special *echo-area-buffer*))
 
 ;;; %INIT-SCREEN-MANAGER creates the initial windows and sets up the data
 ;;; structures used by the screen manager.  The "Main" and "Echo Area"

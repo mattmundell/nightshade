@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/generic/objdef.lisp,v 1.45 2001/02/11 14:22:03 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/generic/objdef.lisp,v 1.38.2.2 2000/05/23 16:37:33 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -96,11 +96,11 @@
 ;;; 
 (defenum (:suffix -type)
   even-fixnum
-  #-ppc function-pointer #+ppc instance-pointer
+  function-pointer
   other-immediate-0
   list-pointer
   odd-fixnum
-  #-ppc instance-pointer #+ppc function-pointer
+  instance-pointer
   other-immediate-1
   other-pointer)
 
@@ -303,7 +303,6 @@
 (define-primitive-object (function :type function
 				   :lowtag function-pointer-type
 				   :header function-header-type)
-  #+ppc (jump-insn)
   #-gengc (self :ref-trans %function-self :set-trans (setf %function-self))
   #+gengc (entry-point :c-type "char *")
   (next :type (or function null)
@@ -331,7 +330,6 @@
 
 (define-primitive-object (closure :lowtag function-pointer-type
 				  :header closure-header-type)
-  #+ppc (jump-insn)
   #-gengc (function :init :arg :ref-trans %closure-function)
   #+gengc (entry-point :c-type "char *")
   (info :rest-p t))
@@ -340,7 +338,6 @@
 			  :lowtag function-pointer-type
 			  :header funcallable-instance-header-type
 			  :alloc-trans %make-funcallable-instance)
-  #+ppc (jump-insn)
   #-gengc
   (function
    :ref-known (flushable) :ref-trans %funcallable-instance-function

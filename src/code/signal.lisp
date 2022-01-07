@@ -5,13 +5,13 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/signal.lisp,v 1.32 2001/04/10 13:42:45 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/code/signal.lisp,v 1.25.2.2 2000/08/24 16:40:14 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
 ;;;
 ;;; Code for handling UNIX signals.
-;;; 
+;;;
 ;;; Written by William Lott.
 ;;;
 
@@ -31,11 +31,11 @@
 (in-package "UNIX")
 
 ;;; These should probably be somewhere, but I don't know where.
-;;; 
+;;;
 (defconstant sig_dfl 0)
 (defconstant sig_ign 1)
 
-(declaim (special lisp::lisp-command-line-list))
+(proclaim '(special lisp::lisp-command-line-list))
 
 
 
@@ -57,7 +57,7 @@
   (let ((symbol (intern (symbol-name name))))
     `(progn
        (push (make-unix-signal ,name ,number ,description) *unix-signals*)
-       ;; 
+       ;;
        ;; This is to make the new signal lookup stuff compatible with
        ;; old code which expects the symbol with the same print name as
        ;; our keywords to be a constant with a value equal to the signal
@@ -91,7 +91,7 @@
   (unix-signal-%number (unix-signal-or-lose signal)))
 
 ;;; Known signals
-;;; 
+;;;
 (def-unix-signal :CHECK 0 "Check")
 
 (def-unix-signal :SIGHUP 1 "Hangup")
@@ -116,13 +116,13 @@
 (def-unix-signal :SIGSTKFLT 16 "Stack fault on coprocessor")
 (def-unix-signal :SIGURG #+svr4 21 #-(or hpux svr4 linux) 16 #+hpux 29
   #+linux 23 "Urgent condition present on socket")
-(def-unix-signal :SIGSTOP #-(or hpux svr4 linux) 17 #+hpux 24 #+svr4 23 
+(def-unix-signal :SIGSTOP #-(or hpux svr4 linux) 17 #+hpux 24 #+svr4 23
   #+linux 19 "Stop")
 (def-unix-signal :SIGTSTP #-(or hpux svr4 linux) 18 #+hpux 25 #+svr4 24
   #+linux 20 "Stop signal generated from keyboard")
 (def-unix-signal :SIGCONT #-(or hpux svr4 linux) 19 #+hpux 26 #+svr4 25
   #+linux 18 "Continue after stop")
-(def-unix-signal :SIGCHLD #-(or linux hpux svr4) 20 
+(def-unix-signal :SIGCHLD #-(or linux hpux svr4) 20
   #+(or hpux svr4) 18 #+linux 17 "Child status has changed")
 (def-unix-signal :SIGTTIN #-(or hpux svr4) 21 #+hpux 27 #+svr4 26
   "Background read attempted from control terminal")
@@ -145,7 +145,7 @@
   #+linux 10 "User defined signal 1")
 (def-unix-signal :SIGUSR2 #-(or hpux svr4 linux) 31 #+(or hpux svr4) 17
   #+linux 12 "User defined signal 2")
-;;; 
+;;;
 ;;; These are Mach Specific
 #+mach
 (def-unix-signal :SIGEMSG 30 "Mach Emergency message")
@@ -169,21 +169,20 @@
 
 ;;;; System calls that deal with signals.
 
-(declaim (inline real-unix-kill))
+(proclaim '(inline real-unix-kill))
 
 (alien:def-alien-routine ("kill" real-unix-kill) c-call:int
   (pid c-call:int)
   (signal c-call:int))
 
 (defun unix-kill (pid signal)
-  "Unix-kill sends the signal signal to the process with process 
+  "Unix-kill sends the signal signal to the process with process
    id pid.  Signal should be a valid signal number or a keyword of the
    standard UNIX signal name."
-  (if (minusp (real-unix-kill pid (unix-signal-number signal)))
-      (values nil unix-errno)
-      t))
+  (real-unix-kill pid (unix-signal-number signal)))
 
-(declaim (inline real-unix-killpg))
+
+(proclaim '(inline real-unix-killpg))
 
 (alien:def-alien-routine ("killpg" real-unix-killpg) c-call:int
   (pgrp c-call:int)
@@ -193,9 +192,8 @@
   "Unix-killpg sends the signal signal to the all the process in process
   group PGRP.  Signal should be a valid signal number or a keyword of
   the standard UNIX signal name."
-  (if (minusp (real-unix-killpg pgrp (unix-signal-number signal)))
-      (values nil unix-errno)
-      t))
+  (real-unix-killpg pgrp (unix-signal-number signal)))
+
 
 (alien:def-alien-routine ("sigblock" unix-sigblock) c-call:unsigned-long
   "Unix-sigblock cause the signals specified in mask to be
@@ -336,7 +334,7 @@
 ;;; DO-PENDING-INTERRUPT  --  internal
 ;;;
 ;;; Magically converted by the compiler into a break instruction.
-;;; 
+;;;
 (defun do-pending-interrupt ()
   (do-pending-interrupt))
 
@@ -346,7 +344,7 @@
 (defvar *interrupt-pending* nil)
 
 ;;; WITHOUT-INTERRUPTS  --  puiblic
-;;; 
+;;;
 (defmacro without-interrupts (&body body)
   "Execute BODY in a context impervious to interrupts."
   (let ((name (gensym)))

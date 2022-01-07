@@ -8,7 +8,7 @@
 	  *parse-value-must-exist* *parse-default* *parse-default-string*
 	  *parse-prompt* *parse-help* *parse-history* *parse-history-pointer*
 	  *echo-area-history* *echo-area-history-pointer*
-	  clear-echo-area message loud-message
+	  clear-echo-area message msg loud-message
 	  prompt-for-buffer prompt-for-file prompt-for-integer
 	  prompt-for-keyword prompt-for-expression prompt-for-string
 	  prompt-for-variable prompt-for-yes-or-no prompt-for-y-or-n
@@ -38,7 +38,7 @@
 (defvar *last-parse-input-string* ""
   "The previous text typed in, as a string.")
 
-(declaim (special *parse-starting-mark* *parse-input-region*))
+(proclaim '(special *parse-starting-mark* *parse-input-region*))
 
 
 
@@ -180,12 +180,18 @@
   nil)
 
 
+;;; Msg  --  Public
+;;;
+(defun msg (string &rest args)
+  "Short form of Message, for tracing."
+  (apply #'message string args))
+
 ;;; LOUD-MESSAGE -- Public.
 ;;;
 ;;; Like message, only more provocative.
 ;;;
 (defun loud-message (string &rest args)
-  "This is the same as MESSAGE, but it beeps and highlights the message."
+  "This is the same as MESSAGE, but it beeps and emphasizes the message."
   (beep)
   (apply #'message (format nil "** ~A **" string) args))
 
@@ -320,7 +326,7 @@
 			      '*file-prompt-history-pointer*))
   "Prompts for a filename."
   (let ((*parse-verification-function* #'file-verification-function)
-	(*parse-default* (if default (namestring default)))
+	(*parse-default* (if default (namestring default) #|FIX|# ""))
 	(*parse-type* :file)
 	(*parse-input-region* *echo-parse-input-region*)
 	(*parse-starting-mark* *echo-parse-starting-mark*))
@@ -330,13 +336,13 @@
   (let ((pn (pathname-or-lose (if string (ed::filter-tildes string)))))
     (if pn
 	(let ((merge
-	       (cond ((not *parse-default*) nil)
-		     ((directoryp pn)
-		      (merge-pathnames pn *parse-default*))
-		     (t
-		      (merge-pathnames pn
-				       (directory-namestring
-					*parse-default*))))))
+	       (when *parse-default*
+		 (cond ((directoryp pn)
+			(merge-pathnames pn *parse-default*))
+		       (t
+			(merge-pathnames pn
+					 (directory-namestring
+					  *parse-default*)))))))
 	  (cond ((probe-file pn) (list pn))
 		((and merge (probe-file merge)) (list merge))
 		((not *parse-value-must-exist*) (list (or merge pn)))

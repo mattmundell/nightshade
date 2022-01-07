@@ -1,4 +1,4 @@
-;;; This is the device independent redisplay entry points for the editor.
+;;; Device independent redisplay entry points for the editor.
 
 (in-package "HEMLOCK-INTERNALS")
 
@@ -10,7 +10,7 @@
 
 (defvar *things-to-do-once* ()
   "This is a list of lists of functions and args to be applied to.  The
-   functions are called with args supplied at the top of the command loop.")
+  functions are called with args supplied at the top of the command loop.")
 
 (defvar *screen-image-trashed* ()
   "This variable is set to true if the screen has been trashed by some screen
@@ -21,7 +21,7 @@
 ;;;
 (defvar *in-redisplay* nil)
 
-(declaim (special *window-list*))
+(proclaim '(special *window-list*))
 
 (eval-when (compile eval)
 
@@ -49,11 +49,11 @@
 ;;; sure we handle any events generated from redisplaying.  There wouldn't
 ;;; be a problem with handling these events if we were going in and out of
 ;;; the editors's event handling, but some user may loop over one of these
-;;; interface functions for a long time without going through Hemlock's
+;;; interface functions for a long time without going through the editor's
 ;;; input loop; when that happens, each call to redisplay may not result in
 ;;; a complete redisplay of the device.  Routines such as
-;;; INTERNAL-REDISPLAY don't want to worry about this since Hemlock calls
-;;; them while going in and out of the input/event-handling loop.
+;;; INTERNAL-REDISPLAY don't want to worry about this since the editor
+;;; calls them while going in and out of the input/event-handling loop.
 ;;;
 ;;; Around all of this, we establish the 'redisplay-catcher tag.  Some device
 ;;; redisplay methods throw to this to abort redisplay in addition to this
@@ -231,21 +231,6 @@
     (funcall (device-smart-redisplay (device-hunk-device (window-hunk window)))
 	     window)))
 
-#|
-(defun redisplay-window2 (window)
-  "Maybe updates the window's image and calls the device's smart redisplay
-   method.  NOTE: the smart redisplay method may throw to
-   'hi::redisplay-catcher to abort redisplay."
-  (maybe-update-window-image2 window)
-  (prog1
-      (not (eq (window-first-changed window) the-sentinel))
-;    (tty-smart-window-redisplay window))
-    (tty-smart-window-redisplay2 window))
-;     (funcall (device-smart-redisplay (device-hunk-device (window-hunk window)))
-; 	     window))
-)
-|#
-
 (defun redisplay-window-all (window)
   "Updates the window's image and calls the device's dumb redisplay method."
   (setf (window-tick window) (tick))
@@ -275,7 +260,7 @@
 ;;; smart method shouldn't do anything anyway.  NOTE: the smart redisplay
 ;;; method may throw to 'hi::redisplay-catcher to abort redisplay.
 ;;;
-;;; This returns t if there are any changed lines, nil otherwise.
+;;; This return t if there are any changed lines, nil otherwise.
 ;;;
 (defun redisplay-window-recentering (window)
   (setup-for-recentering-redisplay window)
@@ -311,14 +296,3 @@
     (setf (window-tick window) (tick))
     (update-window-image window)
     t))
-
-#|
-(defun maybe-update-window-image2 (window)
-  (when (or (> (buffer-modified-tick (window-buffer window))
-	       (window-tick window))
-	    (mark/= (window-display-start window)
-		    (window-old-start window)))
-    (setf (window-tick window) (tick))
-    (update-window-image2 window)
-    t))
-|#

@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/lispinit.lisp,v 1.67 2002/08/23 17:08:52 pmai Exp $")
+  "$Header: /home/CVS-cmucl/src/code/lispinit.lisp,v 1.49.2.5 2000/10/16 17:33:37 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -38,7 +38,8 @@
 
 ;;; Random information:
 
-(defvar *lisp-implementation-version* "0.0+")
+;; Set in worldload.lisp from target:VERSION.
+(defvar *lisp-implementation-version* "???")
 
 
 ;;; Must be initialized in %INITIAL-FUNCTION before the DEFVAR runs...
@@ -84,7 +85,6 @@
 ;;; Determine if key-list is a valid list of keyword/value pairs.  Do not
 ;;; signal the error directly, 'cause we don't know how it should be signaled.
 ;;;
-
 (defun verify-keywords (key-list valid-keys allow-other-keys)
   (do ((already-processed nil)
        (unknown-keyword nil)
@@ -99,7 +99,6 @@
 	   (return (values :dotted-list key-list)))
 	  ((null (cdr remaining))
 	   (return (values :odd-length key-list)))
-	  #+nil ;; Not ANSI compliant to disallow duplicate keywords.
 	  ((member (car remaining) already-processed)
 	   (return (values :duplicate (car remaining))))
 	  ((or (eq (car remaining) :allow-other-keys)
@@ -249,30 +248,6 @@
       (format *error-output* "~&~@<Warning:  ~3i~:_~A~:>~%" condition)))
   nil)
 
-;;; Utility functions
-
-(defun simple-program-error (datum &rest arguments)
-  "Invokes the signal facility on a condition formed from datum and arguments.
-   If the condition is not handled, the debugger is invoked.  This function
-   is just like error, except that the condition type defaults to the type
-   simple-program-error, instead of program-error."
-  (kernel:infinite-error-protect
-    (let ((condition (coerce-to-condition datum arguments
-					  'simple-program-error
-					  'simple-program-error))
-	  (debug:*stack-top-hint* debug:*stack-top-hint*))
-      (unless (and (condition-function-name condition) debug:*stack-top-hint*)
-	(multiple-value-bind
-	    (name frame)
-	    (kernel:find-caller-name)
-	  (unless (condition-function-name condition)
-	    (setf (condition-function-name condition) name))
-	  (unless debug:*stack-top-hint*
-	    (setf debug:*stack-top-hint* frame))))
-      (let ((debug:*stack-top-hint* nil))
-	(signal condition))
-      (invoke-debugger condition))))
-
 (in-package "LISP")
 
 
@@ -284,8 +259,8 @@
 ;;; %End-Of-The-World.  We quit this way so that all outstanding cleanup forms
 ;;; in Unwind-Protects will get executed.
 
-(declaim (special *lisp-initialization-functions*
-		  *load-time-values*))
+(proclaim '(special *lisp-initialization-functions*
+		    *load-time-values*))
 
 (eval-when (compile)
   (defmacro print-and-call (name)
@@ -457,19 +432,14 @@
 
 ;;;; Miscellaneous external functions:
 
-(defvar *cleanup-functions* nil
-  "Functions to be invoked during cleanup at Lisp exit.")
-
 ;;; Quit gets us out, one way or another.
 
 (defun quit (&optional recklessly-p)
   "Terminates the current Lisp.  Things are cleaned up unless Recklessly-P is
-  true."
+   true."
   (if recklessly-p
       (unix:unix-exit 0)
-      (progn
-        (mapc (lambda (fn) (ignore-errors (funcall fn))) *cleanup-functions*)
-        (throw '%end-of-the-world 0))))
+      (throw '%end-of-the-world 0)))
 
 
 #-mp ; Multi-processing version defined in multi-proc.lisp.
@@ -478,18 +448,14 @@
   be any non-negative, non-complex number."
   (when (or (not (realp n))
 	    (minusp n))
-    (error 'simple-type-error
-           :format-control
-           "Invalid argument to SLEEP: ~S.~%~
+    (error "Invalid argument to SLEEP: ~S.~%~
             Must be a non-negative, non-complex number."
-           :format-arguments (list n)
-           :datum n
-           :expected-type '(real 0)))
+	   n))
   (multiple-value-bind (sec usec)
     (if (integerp n)
 	(values n 0)
 	(multiple-value-bind (sec frac) (truncate n)
-	  (values sec (truncate frac 1e-6))))
+	  (values sec(truncate frac 1e-6))))
     (unix:unix-select 0 0 0 0 sec usec))
   nil)
 
@@ -571,10 +537,7 @@
   "Evaluate FORM, returning whatever it returns but adjust ***, **, *, +++, ++,
   +, ///, //, /, and -."
   (setf - form)
-  (let ((results (multiple-value-list
-		  (if (and (fboundp 'commandp) (funcall 'commandp form))
-		      (funcall 'invoke-command-interactive form)
-		      (eval form)))))
+  (let ((results (multiple-value-list (eval form))))
     (finish-standard-output-streams)
     (setf /// //
 	  // /
@@ -596,7 +559,7 @@
 (defconstant eofs-before-quit 10)
 
 (defun %top-level ()
-  "Top-level READ-EVAL-PRINT loop.  Do not call this."
+  "Top-level READ-EVAL-PRINT loop."
   (let  ((* nil) (** nil) (*** nil)
 	 (- nil) (+ nil) (++ nil) (+++ nil)
 	 (/// nil) (// nil) (/ nil)

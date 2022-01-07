@@ -5,11 +5,11 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/assembly/mips/bit-bash.lisp,v 1.15 1997/10/25 16:31:46 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/assembly/mips/bit-bash.lisp,v 1.14.2.1 1998/06/23 11:21:15 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
-;;; $Header: /project/cmucl/cvsroot/src/assembly/mips/bit-bash.lisp,v 1.15 1997/10/25 16:31:46 pw Exp $
+;;; $Header: /home/CVS-cmucl/src/assembly/mips/bit-bash.lisp,v 1.14.2.1 1998/06/23 11:21:15 pw Exp $
 ;;;
 ;;; Stuff to implement bit bashing.
 ;;;

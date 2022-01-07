@@ -1,4 +1,4 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/print.h,v 1.1 1992/07/28 20:15:19 wlott Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/print.h,v 1.1 1992/07/28 20:15:19 wlott Exp $ */
 
 #ifndef _PRINT_H_
 #define _PRINT_H_

@@ -1,6 +1,6 @@
-;;; -*- Package: Dired -*-
+;;; -*- Package: dired -*-
 ;;;
-;;; This file contains site dependent code for dired.
+;;; Site dependent code for dired.
 
 (defpackage "DIRED"
   (:shadow "RENAME-FILE" "DELETE-FILE")
@@ -12,7 +12,6 @@
 	   "PATHNAMES-FROM-PATTERN"))
 
 (in-package "DIRED")
-
 
 
 ;;;; Exported parameters.
@@ -415,6 +414,7 @@
     (funcall *report-function*
 	     "~&~S  -->~%  ~S~%" namestring-src namestring-dest)))
 
+
 
 ;;;; Find-File
 
@@ -504,6 +504,7 @@
 	  (when *post-delete-function*
 	    (funcall *post-delete-function* ses-name))))
     (funcall *report-function* "~&~A~%" ses-name)))
+
 
 
 ;;;; Wildcard resolution
@@ -701,6 +702,7 @@
 	(funcall *error-function* "Failed to symlink ~A to ~A: ~A."
 		 ses-source ses-dest (unix:get-unix-error-msg err)))))
 
+
 
 ;;;; Misc. Utility Utilities
 
@@ -713,6 +715,7 @@
       (setf (cdr listing) files)
       (setf files listing))
     (setf listing hold)))
+
 
 ;; FIX identical copy in HI in rompsite.lisp
 (defun directoryp (p)

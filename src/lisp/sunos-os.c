@@ -1,5 +1,5 @@
 /*
- * $Header: /project/cmucl/cvsroot/src/lisp/sunos-os.c,v 1.6 2000/10/27 19:33:05 dtc Exp $
+ * $Header: /home/CVS-cmucl/src/lisp/sunos-os.c,v 1.4.2.4 2000/10/27 19:34:55 dtc Exp $
  *
  * OS-dependent routines.  This file (along with os.h) exports an
  * OS-independent interface to the operating system VM facilities.

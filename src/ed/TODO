@@ -2,6 +2,8 @@
 
 revert rest of sys to public domain  ../etc/TODO
 hyper
+flush-t-w option buffer,mode
+highlight
 mail
 	speed up finding folder names
 		convert all to lisp?
@@ -25,7 +27,7 @@ info readers
     err when call next ref in leaf node buffer
     index, goto node, searching, menu
     clean and speed up scribe parsing  maybe save to lisp (~fasl?) instd
-many lang modes  asm, forth, shell
+many lang modes  asm (src/lisp/linux-stubs.S), forth, shell, sg,x,html
     indent
     context highlighting
 backup to isp  prhps tramp-like
@@ -37,19 +39,27 @@ vc
 	very slow eg dir of many files
 	err on entering subdir
 	under vc or stay in dir list
-isearch  repeating last search seems to add case fold
+name conflicts on export
 
-=================== ok for everyday work  (nightshade 0.1)
+=================== ok for everyday work  (nightshade 1)
 
+rotate buffers  sometimes seems to rotate forward when should be back
+					maybe after find file
+sometimes "bad address" on build
 isearch history
+~ Copy Remote File   dir, recurse    ftp, http
 bufed  flag if process
        ~ improve layout ~ long lines
        keep posn on refresh
-cmp  show line numbers and files
+cmp  finish dir cmp
+	 show line numbers
 	 highlight
 	 enter go to source
 	 n,p mv across compared sections
 	 slow for big file
+	 split into function
+	 add tests, styles
+string indenting on m-q
 list processes  enter goes to process
 m-/ complete from all buffers (at least all visible)
 c-g in macro def
@@ -73,8 +83,7 @@ correct :line,% redisplay
 recursive extended cmd
 repeat last cmd  C-z z*
 vc interface
-	darcs
-    subversion
+	darcs, subversion, trac, ...
     compare prompted versions
     retrieve prompted versions
     annotate
@@ -83,7 +92,7 @@ www
     fetch,render in bg
 dired  keep point on file column
        Dired Search could be Group Search
-	   maybe dired buffers could define a group
+	   	   maybe dired buffers could define a group
        [Dired] Search/Find [Recurs]    + with Pattern
 lisp find expressions like mh pick exps
    ;(or (name ".*\.lisp") (search "foo"))

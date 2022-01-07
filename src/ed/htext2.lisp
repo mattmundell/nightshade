@@ -358,10 +358,10 @@
   "Set the start and end of Region to the marks Start and End."
   (let ((sl (mark-line start))
 	(el (mark-line end)))
-    (when (or (neq (line-%buffer sl) (line-%buffer el))
-	      (> (line-number sl) (line-number el))
-	      (and (eq sl el) (> (mark-charpos start) (mark-charpos end))))
-      (error "Marks ~S and ~S cannot be made into a region." start end))
+    (or (eq (line-%buffer sl) (line-%buffer el))
+	(when (or (> (line-number sl) (line-number el))
+		  (and (eq sl el) (> (mark-charpos start) (mark-charpos end))))
+	  (error "Marks ~S and ~S cannot be made into a region." start end)))
     (setf (region-start region) start  (region-end region) end))
   region)
 

@@ -1,5 +1,5 @@
 /*
- * $Header: /project/cmucl/cvsroot/src/lisp/dynbind.c,v 1.2 1997/01/21 00:28:13 ram Exp $
+ * $Header: /home/CVS-cmucl/src/lisp/dynbind.c,v 1.2 1997/01/21 00:28:13 ram Exp $
  * 
  * Support for dynamic binding from C.
  */

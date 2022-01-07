@@ -1,5 +1,5 @@
 /*
- * $Header: /project/cmucl/cvsroot/src/lisp/mach-os.c,v 1.3 1992/09/16 22:26:53 wlott Exp $
+ * $Header: /home/CVS-cmucl/src/lisp/mach-os.c,v 1.3 1992/09/16 22:26:53 wlott Exp $
  *
  * OS-dependent routines.  This file (along with os.h) exports an
  * OS-independent interface to the operating system VM facilities.

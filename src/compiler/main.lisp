@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/main.lisp,v 1.126 2002/08/12 16:08:14 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/main.lisp,v 1.110.2.3 2000/08/09 13:23:36 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -25,20 +25,20 @@
 			    compile-file-pathname))
 (in-package "C")
 
-(declaim (special *constants* *free-variables* *compile-component*
-		  *code-vector* *next-location* *result-fixups*
-		  *free-functions* *source-paths*
-		  *continuation-number* *continuation-numbers*
-		  *number-continuations* *tn-id* *tn-ids* *id-tns*
-		  *label-ids* *label-id* *id-labels*
-		  *undefined-warnings* *compiler-error-count*
-		  *compiler-warning-count* *compiler-note-count*
-		  *compiler-error-output* *compiler-error-bailout*
-		  *compiler-trace-output*
-		  *last-source-context* *last-original-source*
-		  *last-source-form* *last-format-string* *last-format-args*
-		  *last-message-count* *lexical-environment*
-		  *coalesce-constants*))
+(proclaim '(special *constants* *free-variables* *compile-component*
+		    *code-vector* *next-location* *result-fixups*
+		    *free-functions* *source-paths*
+		    *continuation-number* *continuation-numbers*
+		    *number-continuations* *tn-id* *tn-ids* *id-tns*
+		    *label-ids* *label-id* *id-labels*
+		    *undefined-warnings* *compiler-error-count*
+		    *compiler-warning-count* *compiler-note-count*
+		    *compiler-error-output* *compiler-error-bailout*
+		    *compiler-trace-output*
+		    *last-source-context* *last-original-source*
+		    *last-source-form* *last-format-string* *last-format-args*
+		    *last-message-count* *lexical-environment*
+		    *coalesce-constants*))
 
 ;;; Exported:
 (defvar *block-compile-default* :specified
@@ -1065,7 +1065,7 @@
       (convert-and-maybe-compile form path)))
 
 
-(declaim (special *compiler-error-bailout*))
+(proclaim '(special *compiler-error-bailout*))
 
 ;;; PROCESS-FORM  --  Internal
 ;;;
@@ -1082,9 +1082,8 @@
 	   (*compiler-error-bailout*
 	    #'(lambda ()
 		(convert-and-maybe-compile
-		 `(error 'simple-program-error
-		    :format-control "Execution of a form compiled with errors:~% ~S"
-		    :format-arguments (list ',form))
+		 `(error "Execution of a form compiled with errors:~% ~S"
+			 ',form)
 		 path)
 		(throw 'process-form-error-abort nil))))
       (if (atom form)
@@ -1105,8 +1104,7 @@
 	     (do-eval-when-stuff
 	      (cadr form) (cddr form)
 	      #'(lambda (forms)
-		  (process-progn forms path))
-	      t))
+		  (process-progn forms path))))
 	    ((macrolet)
 	     (unless (>= (length form) 2)
 	       (compiler-error "MACROLET form is too short: ~S." form))
@@ -1553,7 +1551,7 @@
 	(error "Can't compile with no source files."))
       (mapcar #'(lambda (x)
 		  (let ((x (pathname x)))
-		    (cond ((typep x 'logical-pathname)
+		    (cond ((logical-pathname-p x)
 			   (try-with-type x "LISP" t))
 			  ((probe-file x) x)
 			  ((try-with-type x "lisp"  nil))
@@ -1656,7 +1654,6 @@
 			    (trace-file nil) 
 			    (error-output t)
 			    (load nil)
-			    (external-format :default)
 			    ((:verbose *compile-verbose*) *compile-verbose*)
 			    ((:print *compile-print*) *compile-print*)
 			    ((:progress *compile-progress*) *compile-progress*)
@@ -1703,10 +1700,9 @@
       slower.  If :MAYBE, then only byte-compile when SPEED is 0 and
       DEBUG <= 1.  The default is the value of EXT:*BYTE-COMPILE-DEFAULT*,
       which is initially :MAYBE."
-  (declare (ignore external-format))
   (let* ((fasl-file nil)
 	 (error-file-stream nil)
-	 (output-file-pathname nil)
+	 (output-file-name nil)
 	 (*compiler-error-output* *compiler-error-output*)
 	 (*compiler-trace-output* nil)
 	 (compile-won nil)
@@ -1718,18 +1714,19 @@
 	(progn
 	  (flet ((frob (file type)
 		   (if (eq file t)
-		       (make-pathname
-			:type type
-			:defaults (translate-logical-pathname default))
+		       (make-pathname :type type
+				      :defaults
+				      (if (logical-pathname-p default)
+					  (translate-logical-pathname default)
+					  default))
 		       (pathname file))))
 	    
 	    (when output-file
-	      (setq output-file-pathname
-		    (translate-logical-pathname
-		     (compile-file-pathname (first source)
-					    :output-file output-file
-					    :byte-compile *byte-compile*)))
-	      (setq fasl-file (open-fasl-file output-file-pathname
+	      (setq output-file-name
+		    (compile-file-pathname (first source)
+					   :output-file output-file
+					   :byte-compile *byte-compile*))
+	      (setq fasl-file (open-fasl-file output-file-name
 					      (namestring (first source))
 					      (eq *byte-compile* t))))
 	    
@@ -1764,10 +1761,9 @@
 
       (when fasl-file
 	(close-fasl-file fasl-file (not compile-won))
-	(setq output-file-pathname (pathname (fasl-file-stream fasl-file)))
+	(setq output-file-name (pathname (fasl-file-stream fasl-file)))
 	(when (and compile-won *compile-verbose*)
-	  (compiler-mumble "~2&~A written.~%"
-			   (namestring output-file-pathname))))
+	  (compiler-mumble "~2&~A written.~%" (namestring output-file-name))))
 
       (when *compile-verbose*
 	(finish-error-output source-info compile-won))
@@ -1788,11 +1784,11 @@
     (when load
       (unless output-file
 	(error "Can't :LOAD with no output file."))
-      (load output-file-pathname :verbose *compile-verbose*))
+      (load output-file-name :verbose *compile-verbose*))
 
     (values (if output-file
 		;; Hack around filesystem race condition...
-		(or (probe-file output-file-pathname) output-file-pathname)
+		(or (probe-file output-file-name) output-file-name)
 		nil)
 	    (not (null error-severity))
 	    (if (member error-severity '(:warning :error)) t nil))))
@@ -1916,70 +1912,23 @@
 	      (coerce (get-lambda-to-compile def) 'function))))
   name)
 
-(defun compile-output-type-from-input (input-file byte-compile)
-  (declare (type (or string stream pathname) input-file))
-  (let ((type (if (typep (pathname input-file) 'logical-pathname)
-		  (if (not (eq byte-compile t)) ; This is the old logic. But why?
-		      "FASL"
-		      (string-upcase (c:backend-byte-fasl-file-type c:*backend*)))
-		  (if (eq byte-compile t)
-		      (c:backend-byte-fasl-file-type c:*backend*)
-		      (c:backend-fasl-file-type c:*backend*)))))
-    (make-pathname :host nil
-		   :device nil
-		   :directory nil
-		   :type type
-		   :version nil)))
 
 ;;; COMPILE-FILE-PATHNAME -- Public
 ;;;
-;;; The output-file, if given, is merged with the input-file.
-(defun compile-file-pathname (input-file
-			      &key
-			      byte-compile
-			      (output-file t output-file-supplied-p)
-			      &allow-other-keys)
+(defun compile-file-pathname (file-path &key (output-file t) byte-compile
+					&allow-other-keys)
   "Return a pathname describing what file COMPILE-FILE would write to given
    these arguments."
-  (declare (type (or string pathname stream) input-file)
-	   (type (or string pathname stream (member t)) output-file)
-	   (values (or null pathname)))
-
-  ;; Check INPUT-FILE
-  (when (and (streamp input-file) (not (typep input-file 'file-stream)))
-    (error "The INPUT-FILE parameter is a ~S, which is an invalid value ~@
-            to COMPILE-FILE-PATHNAME."
-	   (type-of input-file)))
-
-
-  (when (eq output-file t)
-    (setf output-file (compile-output-type-from-input input-file
-						      byte-compile)))
-  ;; Same checks on OUTPUT-FILE.
-  
-  (when (and (streamp output-file) (not (typep output-file 'file-stream)))
-    (error "The OUTPUT-FILE parameter is a ~S, which is an invalid value ~@
-            to COMPILE-FILE-PATHNAME."
-	   (type-of output-file)))
-
-  ;; Maybe these are too much.  CLHS says "might".
-  (when (wild-pathname-p input-file)
-    (error 'file-error :pathname input-file))
-
-  (when  (wild-pathname-p output-file)
-    (error 'file-error :pathname output-file))
-
-  
-  (let ((merged-input-file
-	 (merge-pathnames input-file *default-pathname-defaults*))
-	(resulting-pathname-type (pathname-type output-file)))
-    (cond ((and (not output-file-supplied-p)
-		(typep merged-input-file 'logical-pathname))
-	   (make-pathname :type resulting-pathname-type
-			  :defaults merged-input-file
-			  :case :common)) ; Not sure about this last one.
-	  ((typep merged-input-file 'logical-pathname)
-	   (merge-pathnames output-file
-			    (translate-logical-pathname merged-input-file)))
+  (declare (values (or null pathname)))
+  (let ((pathname (pathname file-path)))
+    (cond ((not (eq output-file t))
+	   (when output-file
+	     (translate-logical-pathname (pathname output-file))))
+	  ((and (logical-pathname-p pathname) (not (eq byte-compile t)))
+	   (make-pathname :type "FASL" :defaults pathname
+			  :case :common))
 	  (t
-	   (merge-pathnames output-file merged-input-file)))))
+	   (make-pathname :defaults (translate-logical-pathname pathname)
+			  :type (if (eq byte-compile t)
+				    (backend-byte-fasl-file-type *backend*)
+				    (backend-fasl-file-type *backend*)))))))

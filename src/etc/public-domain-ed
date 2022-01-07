@@ -1,0 +1,1136 @@
+									                 -*- outline -*-
+
+* authors
+
+pw		Paul Werkowski <pw at snoopy.mv.com>
+dtc		Douglas Thomas Crosher  <dtc at scrooge.ee.swin.oz.au>
+			bounces
+			some dtc addns (gencgc) explicitly marked pd, so maybe all are
+ram     Robert MacLachlan <ram at cs.cmu.edu>
+
+Luke Gorrie <luke at bluetail.com>
+
+pmai is German
+
+* CMU CL 18C (base of Nightshade 1)
+
+Hemlock files in 18C that are likely to be PD, i.e. any mods before 18c
+(FIX assumed beginning 2001) were made by one of the original CMU authors.
+(Also checked commits on branches.)
+
+Alongside each file is info for the last commit before 18C.
+
+** added after 18C
+
+XKeysymDB
+hemlock11.cursor
+hemlock11.mask
+mh-scan
+
+	date: 2002-01-28 23:07:21 +0000;  author: pmai;  state: Exp;
+	branches:  1.1.2;
+	Added various library files from the distribution that were missing from the
+	repository.
+
+		all files above
+		distribution?
+
+** likely pd
+
+abbrev.lisp           date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+auto-save.lisp        date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+bindings.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+bit-display.lisp      date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+bit-screen.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+bufed.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+buffer.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+charmacs.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+command.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+comments.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+compilation.order	  date: 1991-07-29 09:51:42 +0100;  author: chiles;  state: Exp;  lines: +3 -0
+completion.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+cursor.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+dabbrev.lisp		  date: 2003-02-25 15:18:34 +0000;  author: emarsden;  state: Exp;
+	from luke gorrie (pd)
+debug.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+defsyn.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+display.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+doccoms.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+dylan.lisp 			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +4 -3
+echo.lisp			  date: 1997-01-18 14:31:53 +0000;  author: ram;  state: Exp;  lines: +2 -1
+ed-integrity.lisp	  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+edit-defs.lisp 		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+filecoms.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+files.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+fill.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+font.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+gosmacs.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+group.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+hacks.lisp			  date: 1994-02-11 21:53:09 +0000;  author: ram;  state: Exp;  lines: +0 -6
+hemlock.log			  date: 1990-12-10 18:13:54 +0000;  author: ram;  state: Exp;  lines: +82 -0
+hemlock.upd			  date: 1991-07-29 10:02:33 +0100;  author: chiles;  state: Exp;  lines: +1 -0
+hi-integrity.lisp	  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+highlight.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+htext1.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+htext2.lisp 		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+htext3.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+htext4.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+hunk-draw.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+icom.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+indent.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+input.lisp			  date: 1997-01-18 14:31:54 +0000;  author: ram;  state: Exp;  lines: +2 -2
+interp.lisp 		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+kbdmac.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+keysym-defs.lisp	  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+keytran.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+keytrandefs.lisp	  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+killcoms.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+line.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+linimage.lisp 		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+lispbuf.lisp 		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+lisplib.lisp		  date: 1997-01-18 14:31:52 +0000;  author: ram;  state: Exp;  lines: +14 -11
+lispeval.lisp 		  date: 1997-01-18 14:31:51 +0000;  author: ram;  state: Exp;  lines: +2 -3
+main.lisp             date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+	2003 gorrie patch
+mh.lisp				  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+netnews.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +4 -2
+notes.txt		  	  date: 1990-05-09 14:05:32 +0100;  author: ram;  state: Exp;
+overwrite.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+pascal.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+pop-up-stream.lisp	  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+rcs.lisp			  date: 1995-03-24 13:06:58 +0000;  author: ram;  state: Exp;  lines: +2 -1
+register.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+ring.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+screen.lisp		  	  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+scribe.lisp           date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+search1.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+search2.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+searchcoms.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+	2003 gorrie patch
+spell-aug.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+spell-build.lisp	  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+spell-corr.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+spell-dictionary.text date: 1991-05-09 02:11:52 +0100;  author: ram;  state: Exp;
+spell-rt.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+spellcoms.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+srccom.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+struct-ed.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+syntax.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+table.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+text.lisp		  	  date: 1994-02-11 21:54:02 +0000;  author: ram;  state: Exp;  lines: +20 -17
+things-to-do.txt	  date: 1991-10-28 15:35:17 +0000;  author: chiles;  state: Exp;  lines: +0 -34
+ts-buf.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+tty-display.lisp	  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+tty-screen.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+undo.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+unixcoms.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+vars.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+window.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+winimage.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+xcoms.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+
+** the rest (details in next section)
+
+bit-stream.lisp   dtc,pw
+dired.lisp	      dtc
+diredcoms.lisp	  pw
+echocoms.lisp	  pw
+eval-server.lisp  dtc,pw
+lispmode.lisp	  pw,dtc
+macros.lisp		  pw
+morecoms.lisp	  dtc
+rompsite.lisp     think only dtc,pw
+shell.lisp		  dtc,pw
+streams.lisp	  dtc,pw
+struct.lisp		  dtc,pw
+termcap.lisp	  dtc
+ts-stream.lisp    dtc,pw
+tty-stream.lisp	  dtc
+
+* CMU CL 2002-08-23-19h00 (base of Nightshade 0.0)
+
+Hemlock files in the 2002-08-23-19h00 CVS that are likely to be PD, i.e.
+any mods before 2002-08-23-19h00 were made by one of the original CMU
+authors.  (Also checked commits on branches.)
+
+Alongside each file is info for the last commit before 2002-08-23-19h00.
+
+(This is for switching from the 2002 base of 0.0 to 18C as base for 1.)
+
+** pd (added to ns)
+
+*** transfer
+
+for f in at-point.lisp parse.lisp parse-scribe.lisp info.lisp ginfo.lisp c.lisp shell-script.lisp python.lisp make.lisp m4.lisp db.lisp compile.lisp vc.lisp dabbrev.lisp calendar.lisp sort.lisp csv.lisp www.lisp outline.lisp buildcoms.lisp ; do cp -i ~/src/nightshade/src/ed/$f ~/src/nightshade-18c/src/ed/; done
+
+** likely pd
+
+abbrev.lisp           date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+auto-save.lisp        date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+bindings.lisp         date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+bit-display.lisp      date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+bufed.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+charmacs.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+command.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+comments.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+compilation.order	  date: 1991-07-29 09:51:42 +0100;  author: chiles;  state: Exp;  lines: +3 -0
+completion.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+dabbrev.lisp		  date: 2003-02-25 15:18:34 +0000;  author: emarsden;  state: Exp;
+	from luke gorrie (pd)
+defsyn.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+doccoms.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+dylan.lisp 			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +4 -3
+echo.lisp			  date: 1997-01-18 14:31:53 +0000;  author: ram;  state: Exp;  lines: +2 -1
+filecoms.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+files.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+fill.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+font.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+gosmacs.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+group.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+hemlock.log			  date: 1990-12-10 18:13:54 +0000;  author: ram;  state: Exp;  lines: +82 -0
+	now in ed.log
+hemlock.upd			  date: 1991-07-29 10:02:33 +0100;  author: chiles;  state: Exp;  lines: +1 -0
+	now ed.upd
+hi-integrity.lisp	  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+highlight.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+htext1.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+htext2.lisp 		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+htext3.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+htext4.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+icom.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+indent.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+kbdmac.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+keysym-defs.lisp	  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+keytran.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+keytrandefs.lisp	  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+lisplib.lisp		  date: 1997-01-18 14:31:52 +0000;  author: ram;  state: Exp;  lines: +14 -11
+lispeval.lisp 		  date: 1997-01-18 14:31:51 +0000;  author: ram;  state: Exp;  lines: +2 -3
+mh.lisp				  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+notes.txt		  	  date: 1990-05-09 14:05:32 +0100;  author: ram;  state: Exp;
+overwrite.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+pascal.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+perq-hemlock.log	  date: 1990-05-09 14:05:35 +0100;  author: ram;  state: Exp;
+	now in ed.log
+rcs.lisp			  date: 1995-03-24 13:06:58 +0000;  author: ram;  state: Exp;  lines: +2 -1
+register.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+ring.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+scribe.lisp           date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+search1.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+searchcoms.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+	2003 gorrie patch
+spell-aug.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+spell-build.lisp	  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+spell-corr.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+spell-dictionary.text date: 1991-05-09 02:11:52 +0100;  author: ram;  state: Exp;
+spell-rt.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+spellcoms.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+srccom.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+struct-ed.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+text.lisp		  	  date: 1994-02-11 21:54:02 +0000;  author: ram;  state: Exp;  lines: +20 -17
+things-to-do.txt	  date: 1991-10-28 15:35:17 +0000;  author: chiles;  state: Exp;  lines: +0 -34
+	now TODO
+ts-buf.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+undo.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+unixcoms.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+winimage.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
+xcoms.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
+
+*** transfer
+
+for f in abbrev.lisp auto-save.lisp bindings.lisp bit-display.lisp bufed.lisp charmacs.lisp command.lisp comments.lisp compilation.order completion.lisp dabbrev.lisp defsyn.lisp doccoms.lisp dylan.lisp ed.log echo.lisp filecoms.lisp files.lisp fill.lisp font.lisp gosmacs.lisp group.lisp hemlock.log ed.upd hi-integrity.lisp highlight.lisp htext1.lisp htext2.lisp htext3.lisp htext4.lisp icom.lisp indent.lisp kbdmac.lisp keysym-defs.lisp keytran.lisp keytrandefs.lisp lisp-lib.lisp mh.lisp notes.txt overwrite.lisp pascal.lisp perq-hemlock.log rcs.lisp register.lisp ring.lisp scribe.lisp search1.lisp searchcoms.lisp spell-aug.lisp spell-build.lisp spell-corr.lisp spell-dictionary.text spell-rt.lisp spellcoms.lisp srccom.lisp struct-ed.lisp text.lisp TODO ts-buf.lisp undo.lisp unixcoms.lisp winimage.lisp xcoms.lisp; do cp ~/src/nightshade/src/ed/$f ~/src/nightshade-18c/src/ed/; done
+
+	then replace "declaim (" w "proclaim '("  ~ 6 occurrences in 5 files
+		leaving the 18c declaims in fill.lisp,mh.lisp
+		    FIX why did these already have declaims?
+
+		ie change the declaims in new ns code to proclaims
+
+
+** the rest
+
+compare 0.0+ with ~/src/cmucl-2002-08-23-19h00-clean/
+compare ~/src/nightshade-18c/src/hemlock.orig/ with ~/src/cmucl-2002-08-23-19h00-clean/src/hemlock/
+
+bit-screen.lisp
+	----------------------------
+	revision 1.18
+	date: 2001-12-11 00:56:51 +0000;  author: pmai;  state: Exp;  lines: +3 -3
+	Fix redefinition of constants as special variables via defparameter,
+	as uncovered by the recent change to detect this.  Folded the larger
+	constants for MINIMUM-WINDOW-LINES and MINIMUM-WINDOW-COLUMNS into the
+	original constant definition, and elided the superfluous defparameter
+	for FONT-MAP-SIZE.  This seems to work for now.
+	----------------------------
+	revision 1.17
+	date: 2001-03-13 15:49:50 +0000;  author: pw;  state: Exp;  lines: +3 -3
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.16.2.1
+	date: 2002-03-23 18:50:41 +0000;  author: pw;  state: Exp;  lines: +5 -5
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================
+
+bit-stream.lisp
+	----------------------------
+	revision 1.4
+	date: 1998-05-04 02:27:18 +0100;  author: dtc;  state: Exp;  lines: +2 -2
+	Gray streams support:
+	* Rename the 'stream structure class to sys:lisp-stream.
+	* Add a new none hierarchical 'stream built-in class which inherits
+	  from: instance, t.
+	* Hack in the new stream class as a mixin for the structure base
+	  lisp-stream class which now inherits from: stream, structure-object,
+	  instance, t.
+	* Add a new 'fundamental-stream standard-class which includes 'stream
+	  as a mixin, and add PCL hacks to allow this to be redefined after PCL is
+	  loaded to be (defclass fundamental-stream (standard-object stream) ...).
+	* Add appropriate support to the base stream functions to dispatch to
+	  the Gray stream functions for the handling of fundamental-streams.
+	  Some of the lisp-streams encapsulating CLOS streams still need
+	  a little work.
+	----------------------------
+	revision 1.3.2.1
+	date: 1998-06-23 12:24:32 +0100;  author: pw;  state: Exp;  lines: +2 -2
+	This (huge) revision brings the RELENG_18 branch up to the current HEAD.
+	Note code/unix-glib2.lisp not yet included -- not sure it is ready to go.
+	=============================================================================
+
+buffer.lisp
+	----------------------------
+	revision 1.5
+	date: 2001-03-13 15:49:51 +0000;  author: pw;  state: Exp;  lines: +6 -6
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.4.2.1
+	date: 2002-03-23 18:50:42 +0000;  author: pw;  state: Exp;  lines: +6 -6
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+cursor.lisp
+	----------------------------
+	revision 1.4
+	date: 2001-03-13 15:49:52 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.3.2.1
+	date: 2002-03-23 18:50:42 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+debug.lisp
+	----------------------------
+	revision 1.9
+	date: 2000-11-15 11:59:23 +0000;  author: pw;  state: Exp;  lines: +2 -6
+	Rework previous fix to edit-source-location to use *read-suppress*
+	instead of mucking with dispatch macro characters.
+	----------------------------
+	revision 1.8
+	date: 2000-10-30 15:45:04 +0000;  author: pw;  state: Exp;  lines: +32 -10
+	Fix edit-source-location to not signal an error when editing a
+	file that has read-time evaluation (sharp-dot). The editor lisp
+	doesn't have the slave lisp environment and doesn't know packages
+	and functions that might be in the slave. This needs more testing
+	and may prove to need some improvement.
+	----------------------------
+	revision 1.7.2.2
+	date: 2000-11-15 12:01:02 +0000;  author: pw;  state: Exp;  lines: +2 -6
+	Rework previous fix to edit-source-location to use *read-suppress*
+	instead of mucking with dispatch macro characters.
+	----------------------------
+	revision 1.7.2.1
+	date: 2000-10-30 16:32:25 +0000;  author: pw;  state: Exp;  lines: +32 -10
+	Fix edit-source-location to not signal an error when editing a
+	file that has read-time evaluation (sharp-dot). The editor lisp
+	doesn't have the slave lisp environment and doesn't know packages
+	and functions that might be in the slave. This needs more testing
+	and may prove to need some improvement.
+	=============================================================================
+
+dired.lisp
+	----------------------------
+	revision 1.4
+	date: 2000-07-06 09:25:15 +0100;  author: dtc;  state: Exp;  lines: +8 -13
+	Fix set-write-date, which wasn't working at all.
+	----------------------------
+	revision 1.3.2.1
+	date: 2000-07-06 09:24:55 +0100;  author: dtc;  state: Exp;  lines: +8 -13
+	Fix set-write-date, which wasn't working at all.
+	=============================================================================
+
+diredcoms.lisp
+	----------------------------
+	revision 1.6
+	date: 1997-02-25 22:36:03 +0000;  author: pw;  state: Exp;  lines: +3 -2
+	DIRED was bombing when attempting to delete a marked file
+	that was already gone. This just adds a sanity check.
+	----------------------------
+
+display.lisp
+	----------------------------
+	revision 1.10
+	date: 2001-03-13 15:49:52 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.9.2.1
+	date: 2002-03-23 18:50:43 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+echocoms.lisp
+	----------------------------
+	revision 1.8
+	date: 2001-03-13 15:49:52 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.6.2.3
+	date: 2002-03-23 18:50:43 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	----------------------------
+	revision 1.6.2.2
+	date: 2000-05-23 17:38:07 +0100;  author: pw;  state: Exp;  lines: +1 -1
+	This set of revisions brings the RELENG_18 branch up to HEAD in preparation
+	for an 18c release.
+	----------------------------
+	revision 1.6.2.1
+	date: 1998-06-23 12:24:32 +0100;  author: pw;  state: Exp;  lines: +2 -2
+	This (huge) revision brings the RELENG_18 branch up to the current HEAD.
+	Note code/unix-glib2.lisp not yet included -- not sure it is ready to go.
+	=============================================================================
+
+ed-integrity.lisp
+	----------------------------
+	revision 1.5
+	date: 2001-03-13 15:49:52 +0000;  author: pw;  state: Exp;  lines: +6 -6
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.4.2.1
+	date: 2002-03-23 18:50:43 +0000;  author: pw;  state: Exp;  lines: +6 -6
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+edit-defs.lisp
+	----------------------------
+	revision 1.7
+	date: 2001-03-13 15:49:52 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.6.2.1
+	date: 2002-03-23 18:50:44 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+eval-server.lisp
+	----------------------------
+	revision 1.7
+	date: 1998-05-04 02:27:19 +0100;  author: dtc;  state: Exp;  lines: +2 -2
+	branches:  1.7.2;
+	Gray streams support:
+	* Rename the 'stream structure class to sys:lisp-stream.
+	* Add a new none hierarchical 'stream built-in class which inherits
+	  from: instance, t.
+	* Hack in the new stream class as a mixin for the structure base
+	  lisp-stream class which now inherits from: stream, structure-object,
+	  instance, t.
+	* Add a new 'fundamental-stream standard-class which includes 'stream
+	  as a mixin, and add PCL hacks to allow this to be redefined after PCL is
+	  loaded to be (defclass fundamental-stream (standard-object stream) ...).
+	* Add appropriate support to the base stream functions to dispatch to
+	  the Gray stream functions for the handling of fundamental-streams.
+	  Some of the lisp-streams encapsulating CLOS streams still need
+	  a little work.
+	----------------------------
+	revision 1.6.2.1
+	date: 1998-06-23 12:24:33 +0100;  author: pw;  state: Exp;  lines: +2 -2
+	This (huge) revision brings the RELENG_18 branch up to the current HEAD.
+	Note code/unix-glib2.lisp not yet included -- not sure it is ready to go.
+	----------------------------
+
+hacks.lisp
+	----------------------------
+	revision 1.3
+	date: 2001-12-11 00:56:51 +0000;  author: pmai;  state: Exp;  lines: +0 -3
+	Fix redefinition of constants as special variables via defparameter,
+	as uncovered by the recent change to detect this.  Folded the larger
+	constants for MINIMUM-WINDOW-LINES and MINIMUM-WINDOW-COLUMNS into the
+	original constant definition, and elided the superfluous defparameter
+	for FONT-MAP-SIZE.  This seems to work for now.
+	----------------------------
+	revision 1.2.2.1
+	date: 2002-03-23 18:50:44 +0000;  author: pw;  state: Exp;  lines: +0 -3
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+hunk-draw.lisp
+
+	----------------------------
+	revision 1.7
+	date: 2001-03-13 15:49:52 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.6.2.1
+	date: 2002-03-23 18:50:45 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+input.lisp
+	----------------------------
+	revision 1.8
+	date: 2001-03-13 15:49:53 +0000;  author: pw;  state: Exp;  lines: +4 -4
+	branches:  1.8.2;
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.7
+	date: 2001-01-27 14:22:20 +0000;  author: pw;  state: Exp;  lines: +41 -6
+	Handle the case of the user closing the display using a window manager
+	gesture. I had hoped to be able to just return to tty mode and maybe
+	restart hemlock later (via (ed)), but there is a lot of hidden state
+	pointing to the old (closed) display object which caused subsequent
+	failure. This fix assumes the user closed hemlock because he wanted to
+	exit and does just that.
+	----------------------------
+
+interp.lisp
+	----------------------------
+	revision 1.5
+	date: 2001-03-13 15:49:53 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.4.2.1
+	date: 2002-03-23 18:50:45 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+key-event.lisp
+	----------------------------
+	revision 1.5
+	date: 2001-03-13 15:49:53 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+ *  revision 1.4
+	date: 1996-05-08 15:56:40 +0100;  author: ram;  state: Exp;  lines: +11 -2
+	branches:  1.4.2;
+ **	Patch from Jeurgen Weiss to translate-key-event which makes it deal better with
+	european keyboards.
+	----------------------------
+	revision 1.4.2.1
+	date: 2002-03-23 18:50:46 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+killcoms.lisp
+	----------------------------
+	revision 1.4
+	date: 2001-03-13 15:49:54 +0000;  author: pw;  state: Exp;  lines: +3 -3
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.3.2.1
+	date: 2002-03-23 18:50:46 +0000;  author: pw;  state: Exp;  lines: +3 -3
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+line.lisp
+	----------------------------
+	revision 1.4
+	date: 2001-03-13 15:49:54 +0000;  author: pw;  state: Exp;  lines: +3 -3
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.3.2.1
+	date: 2002-03-23 18:50:46 +0000;  author: pw;  state: Exp;  lines: +3 -3
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+linimage.lisp
+	----------------------------
+	revision 1.4
+	date: 2001-03-13 15:49:54 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.3.2.1
+	date: 2002-03-23 18:50:47 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+lispbuf.lisp
+	----------------------------
+	revision 1.4
+	date: 2001-03-13 15:49:54 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.3.2.1
+	date: 2002-03-23 18:50:47 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+lispmode.lisp
+	----------------------------
+	revision 1.10
+	date: 2001-03-13 15:49:55 +0000;  author: pw;  state: Exp;  lines: +2 -1
+	branches:  1.10.2;
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.9
+	date: 1998-09-06 00:21:17 +0100;  author: dtc;  state: Exp;  lines: +5 -1
+	Add indent definitions for with-package-iterator and with-alien; from
+	the 18b release.
+	----------------------------
+	revision 1.8
+	date: 1998-04-10 12:14:54 +0100;  author: pw;  state: Exp;  lines: +7 -1
+	Add defindents for add-fd-handler,with-fd-handler,destructuring-bind,
+	with-lock-held and process-wait.
+	----------------------------
+	revision 1.7
+	date: 1997-07-28 14:44:34 +0100;  author: pw;  state: Exp;  lines: +2 -1
+	Add defindent for LOCALLY
+	----------------------------
+	revision 1.6
+	date: 1997-06-08 13:57:31 +0100;  author: pw;  state: Exp;  lines: +2 -2
+	branches:  1.6.2;
+	Fix typo in recent defindent change
+	----------------------------
+	revision 1.5
+	date: 1997-06-05 14:19:38 +0100;  author: pw;  state: Exp;  lines: +6 -3
+	defindent for with-accessors and print-unreadable-object.
+	----------------------------
+	----------------------------
+	revision 1.6.2.4
+	date: 2002-03-23 18:50:47 +0000;  author: pw;  state: Exp;  lines: +2 -1
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	----------------------------
+	revision 1.6.2.3
+	date: 2000-05-23 17:38:07 +0100;  author: pw;  state: Exp;  lines: +1 -1
+	This set of revisions brings the RELENG_18 branch up to HEAD in preparation
+	for an 18c release.
+	----------------------------
+	revision 1.6.2.2
+	date: 1998-06-23 12:24:34 +0100;  author: pw;  state: Exp;  lines: +11 -1
+	This (huge) revision brings the RELENG_18 branch up to the current HEAD.
+	Note code/unix-glib2.lisp not yet included -- not sure it is ready to go.
+	----------------------------
+	revision 1.6.2.1
+	date: 1997-09-09 02:28:06 +0100;  author: dtc;  state: Exp;  lines: +2 -1
+	Merge from 1.7: Add defindent locally.
+	=============================================================================
+
+macros.lisp
+	----------------------------
+	revision 1.8
+	date: 2001-03-13 15:49:56 +0000;  author: pw;  state: Exp;  lines: +3 -3
+	branches:  1.8.2;
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.7
+	date: 1997-02-05 18:08:03 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	branches:  1.7.2;
+	initial post 1.3.7 merge
+	----------------------------
+
+main.lisp
+	----------------------------
+	revision 1.16
+	date: 2003-02-25 15:18:34 +0000;  author: emarsden;  state: Exp;  lines: +2 -2
+	From Luke Gorrie:
+
+	   - add support for copy-word during isearch (bound to C-w as per GNU Emacs)
+	   - add dabbrev support (bound to M-/)
+	----------------------------
+	revision 1.15
+	date: 2001-03-13 15:49:56 +0000;  author: pw;  state: Exp;  lines: +3 -3
+	branches:  1.15.2;
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	----------------------------
+	revision 1.14.2.1
+	date: 2002-03-23 18:50:48 +0000;  author: pw;  state: Exp;  lines: +3 -3
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	----------------------------
+
+morecoms.lisp
+	----------------------------
+	revision 1.5
+	date: 1999-09-14 17:18:23 +0100;  author: dtc;  state: Exp;  lines: +27 -16
+	Fix a type error in "Delete Previous Character" that occurred when
+	there were too few characters to delete. Further, rework the code to
+	not modify the buffer if there are not enough characters.
+	----------------------------
+	revision 1.4.2.1
+	date: 2000-05-23 17:38:08 +0100;  author: pw;  state: Exp;  lines: +27 -16
+	This set of revisions brings the RELENG_18 branch up to HEAD in preparation
+	for an 18c release.
+	=============================================================================
+
+netnews.lisp
+	----------------------------
+	revision 1.15
+	date: 2001-03-13 15:49:56 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	----------------------------
+	revision 1.14.2.1
+	date: 2002-03-23 18:50:49 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+pop-up-stream.lisp
+	----------------------------
+	revision 1.4
+	date: 2001-03-13 15:49:57 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	----------------------------
+	revision 1.3.2.1
+	date: 2002-03-23 18:50:49 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+rompsite.lisp
+	----------------------------
+	revision 1.16
+	date: 2003-02-25 15:18:34 +0000;  author: emarsden;  state: Exp;  lines: +2 -2
+	From Luke Gorrie:
+
+	   - add support for copy-word during isearch (bound to C-w as per GNU Emacs)
+	   - add dabbrev support (bound to M-/)
+	----------------------------
+	revision 1.15
+	date: 2001-12-11 00:58:51 +0000;  author: pmai;  state: Exp;  lines: +5 -1
+	branches:  1.15.2;
+	If we were compiled with CLX loaded, we add a suitable REQUIRE form to
+	ensure that CLX is loaded at runtime, too, now that CLX can be loaded
+	via REQUIRE.
+	----------------------------
+	revision 1.14
+	date: 2001-12-06 19:15:43 +0000;  author: pmai;  state: Exp;  lines: +11 -11
+	Added specialised port to OpenBSD (2.9).  Many parts of the original
+	code which were previously conditionalized on :FreeBSD, are now
+	conditionalized on :BSD instead, with the :BSD feature now implying a
+	4.4BSD(lite2) derived OS.  This should make future BSD-ports easier.
+	FreeBSD and OpenBSD are differentiated by having either :FreeBSD or
+	:OpenBSD on the features list.
+
+	Currently the OpenBSD port does not have working ELF support, because
+	OpenBSD 2.9 is still non-ELF by default.  So don't put ELF on the
+	features list when building for OpenBSD, or fix the code to work
+	correctly in this case instead.
+	----------------------------
+	revision 1.13
+	date: 2001-03-13 15:49:57 +0000;  author: pw;  state: Exp;  lines: +12 -12
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.12
+	date: 1998-06-16 07:58:57 +0100;  author: dtc;  state: Exp;  lines: +12 -11
+	Linux port update from Peter VanEynde: revision of the glibc2 support,
+	better hemlock tty mode support.
+	----------------------------
+	revision 1.11
+	date: 1998-05-04 02:27:19 +0100;  author: dtc;  state: Exp;  lines: +2 -2
+	Gray streams support:
+	* Rename the 'stream structure class to sys:lisp-stream.
+	* Add a new none hierarchical 'stream built-in class which inherits
+	  from: instance, t.
+	* Hack in the new stream class as a mixin for the structure base
+	  lisp-stream class which now inherits from: stream, structure-object,
+	  instance, t.
+	* Add a new 'fundamental-stream standard-class which includes 'stream
+	  as a mixin, and add PCL hacks to allow this to be redefined after PCL is
+	  loaded to be (defclass fundamental-stream (standard-object stream) ...).
+	* Add appropriate support to the base stream functions to dispatch to
+	  the Gray stream functions for the handling of fundamental-streams.
+	  Some of the lisp-streams encapsulating CLOS streams still need
+	  a little work.
+	----------------------------
+	revision 1.10
+	date: 1997-08-24 17:54:09 +0100;  author: pw;  state: Exp;  lines: +4 -2
+	Correct a few FreeBSD constant definitions in the last unix change,
+	and account for fact that FreeBSD does not have a OCRNL termios flag which
+	was used by Hemlock.
+	----------------------------
+	revision 1.9.2.1
+	date: 1998-06-23 12:24:36 +0100;  author: pw;  state: Exp;  lines: +16 -13
+	This (huge) revision brings the RELENG_18 branch up to the current HEAD.
+	Note code/unix-glib2.lisp not yet included -- not sure it is ready to go.
+	=============================================================================
+
+screen.lisp
+	----------------------------
+	revision 1.5
+	date: 2001-03-13 15:49:59 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	----------------------------
+	revision 1.4.2.1
+	date: 2002-03-23 18:50:50 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+search2.lisp
+	----------------------------
+	revision 1.4
+	date: 2001-03-13 15:49:59 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	----------------------------
+	revision 1.3.2.1
+	date: 2002-03-23 18:50:50 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+shell.lisp
+	----------------------------
+	revision 1.5
+	date: 1998-05-04 02:27:20 +0100;  author: dtc;  state: Exp;  lines: +2 -2
+	Gray streams support:
+	* Rename the 'stream structure class to sys:lisp-stream.
+	* Add a new none hierarchical 'stream built-in class which inherits
+	  from: instance, t.
+	* Hack in the new stream class as a mixin for the structure base
+	  lisp-stream class which now inherits from: stream, structure-object,
+	  instance, t.
+	* Add a new 'fundamental-stream standard-class which includes 'stream
+	  as a mixin, and add PCL hacks to allow this to be redefined after PCL is
+	  loaded to be (defclass fundamental-stream (standard-object stream) ...).
+	* Add appropriate support to the base stream functions to dispatch to
+	  the Gray stream functions for the handling of fundamental-streams.
+	  Some of the lisp-streams encapsulating CLOS streams still need
+	  a little work.
+	----------------------------
+	----------------------------
+	revision 1.4.2.1
+	date: 1998-06-23 12:24:37 +0100;  author: pw;  state: Exp;  lines: +2 -2
+	This (huge) revision brings the RELENG_18 branch up to the current HEAD.
+	Note code/unix-glib2.lisp not yet included -- not sure it is ready to go.
+	=============================================================================
+
+streams.lisp
+	----------------------------
+	revision 1.5
+	date: 1998-05-04 02:27:20 +0100;  author: dtc;  state: Exp;  lines: +9 -9
+	Gray streams support:
+	* Rename the 'stream structure class to sys:lisp-stream.
+	* Add a new none hierarchical 'stream built-in class which inherits
+	  from: instance, t.
+	* Hack in the new stream class as a mixin for the structure base
+	  lisp-stream class which now inherits from: stream, structure-object,
+	  instance, t.
+	* Add a new 'fundamental-stream standard-class which includes 'stream
+	  as a mixin, and add PCL hacks to allow this to be redefined after PCL is
+	  loaded to be (defclass fundamental-stream (standard-object stream) ...).
+	* Add appropriate support to the base stream functions to dispatch to
+	  the Gray stream functions for the handling of fundamental-streams.
+	  Some of the lisp-streams encapsulating CLOS streams still need
+	  a little work.
+	----------------------------
+	revision 1.4.2.1
+	date: 1998-06-23 12:24:38 +0100;  author: pw;  state: Exp;  lines: +9 -9
+	This (huge) revision brings the RELENG_18 branch up to the current HEAD.
+	Note code/unix-glib2.lisp not yet included -- not sure it is ready to go.
+	=============================================================================
+
+struct.lisp
+	----------------------------
+	revision 1.7
+	date: 1998-10-04 09:27:32 +0100;  author: dtc;  state: Exp;  lines: +2 -2
+	Redefine the terminal speed from an (unsigned-byte 16) to an
+	(unsigned-byte 24), to support speeds of 115200+.
+	----------------------------
+	revision 1.6
+	date: 1998-05-04 02:27:20 +0100;  author: dtc;  state: Exp;  lines: +2 -2
+	Gray streams support:
+	* Rename the 'stream structure class to sys:lisp-stream.
+	* Add a new none hierarchical 'stream built-in class which inherits
+	  from: instance, t.
+	* Hack in the new stream class as a mixin for the structure base
+	  lisp-stream class which now inherits from: stream, structure-object,
+	  instance, t.
+	* Add a new 'fundamental-stream standard-class which includes 'stream
+	  as a mixin, and add PCL hacks to allow this to be redefined after PCL is
+	  loaded to be (defclass fundamental-stream (standard-object stream) ...).
+	* Add appropriate support to the base stream functions to dispatch to
+	  the Gray stream functions for the handling of fundamental-streams.
+	  Some of the lisp-streams encapsulating CLOS streams still need
+	  a little work.
+	----------------------------
+	----------------------------
+	revision 1.5.2.2
+	date: 2000-05-23 17:38:09 +0100;  author: pw;  state: Exp;  lines: +2 -2
+	This set of revisions brings the RELENG_18 branch up to HEAD in preparation
+	for an 18c release.
+	----------------------------
+	revision 1.5.2.1
+	date: 1998-06-23 12:24:39 +0100;  author: pw;  state: Exp;  lines: +2 -2
+	This (huge) revision brings the RELENG_18 branch up to the current HEAD.
+	Note code/unix-glib2.lisp not yet included -- not sure it is ready to go.
+	=============================================================================
+
+syntax.lisp
+	----------------------------
+	revision 1.4
+	date: 2001-03-13 15:49:59 +0000;  author: pw;  state: Exp;  lines: +5 -5
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.3.2.1
+	date: 2002-03-23 18:50:50 +0000;  author: pw;  state: Exp;  lines: +5 -5
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+table.lisp
+	revision 1.4
+	date: 2001-03-13 15:50:00 +0000;  author: pw;  state: Exp;  lines: +3 -3
+	branches:  1.4.2;
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	----------------------------
+	revision 1.3.2.1
+	date: 2002-03-23 18:50:51 +0000;  author: pw;  state: Exp;  lines: +3 -3
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+termcap.lisp
+	----------------------------
+	revision 1.10
+	date: 2001-03-13 15:50:00 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.9
+	date: 1999-04-11 14:05:26 +0100;  author: dtc;  state: Exp;  lines: +9 -8
+	Extend lex-termcap-name to handle blank lines between entries - as in
+	the Linux termcap file.
+
+	Take more care in the EOF handling in skip-termcap-fields.
+	----------------------------
+	----------------------------
+	revision 1.8.2.2
+	date: 2002-03-23 18:50:51 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	----------------------------
+
+ts-stream.lisp
+	----------------------------
+	revision 1.4
+	date: 1998-05-04 02:27:21 +0100;  author: dtc;  state: Exp;  lines: +2 -2
+	Gray streams support:
+	* Rename the 'stream structure class to sys:lisp-stream.
+	* Add a new none hierarchical 'stream built-in class which inherits
+	  from: instance, t.
+	* Hack in the new stream class as a mixin for the structure base
+	  lisp-stream class which now inherits from: stream, structure-object,
+	  instance, t.
+	* Add a new 'fundamental-stream standard-class which includes 'stream
+	  as a mixin, and add PCL hacks to allow this to be redefined after PCL is
+	  loaded to be (defclass fundamental-stream (standard-object stream) ...).
+	* Add appropriate support to the base stream functions to dispatch to
+	  the Gray stream functions for the handling of fundamental-streams.
+	  Some of the lisp-streams encapsulating CLOS streams still need
+	  a little work.
+	----------------------------
+	----------------------------
+	revision 1.3.2.1
+	date: 1998-06-23 12:24:39 +0100;  author: pw;  state: Exp;  lines: +2 -2
+	This (huge) revision brings the RELENG_18 branch up to the current HEAD.
+	Note code/unix-glib2.lisp not yet included -- not sure it is ready to go.
+	=============================================================================
+
+tty-disp-rt.lisp
+	----------------------------
+	revision 1.7
+	date: 2001-12-06 19:15:43 +0000;  author: pmai;  state: Exp;  lines: +7 -7
+	Added specialised port to OpenBSD (2.9).  Many parts of the original
+	code which were previously conditionalized on :FreeBSD, are now
+	conditionalized on :BSD instead, with the :BSD feature now implying a
+	4.4BSD(lite2) derived OS.  This should make future BSD-ports easier.
+	FreeBSD and OpenBSD are differentiated by having either :FreeBSD or
+	:OpenBSD on the features list.
+
+	Currently the OpenBSD port does not have working ELF support, because
+	OpenBSD 2.9 is still non-ELF by default.  So don't put ELF on the
+	features list when building for OpenBSD, or fix the code to work
+	correctly in this case instead.
+	----------------------------
+	revision 1.6
+	date: 2001-03-13 15:50:00 +0000;  author: pw;  state: Exp;  lines: +3 -3
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.5
+	date: 1998-10-04 09:28:33 +0100;  author: dtc;  state: Exp;  lines: +18 -10
+	Rework get-terminal-attributes to use the termios interface to get the
+	speed on FreeBSD.
+	----------------------------
+	revision 1.4
+	date: 1998-06-16 07:58:58 +0100;  author: dtc;  state: Exp;  lines: +6 -1
+	Linux port update from Peter VanEynde: revision of the glibc2 support,
+	better hemlock tty mode support.
+	----------------------------
+	----------------------------
+	revision 1.3.2.3
+	date: 2002-03-23 18:50:51 +0000;  author: pw;  state: Exp;  lines: +9 -9
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	----------------------------
+	revision 1.3.2.2
+	date: 2000-05-23 17:38:10 +0100;  author: pw;  state: Exp;  lines: +18 -10
+	This set of revisions brings the RELENG_18 branch up to HEAD in preparation
+	for an 18c release.
+	----------------------------
+	revision 1.3.2.1
+	date: 1998-06-23 12:24:40 +0100;  author: pw;  state: Exp;  lines: +6 -1
+	This (huge) revision brings the RELENG_18 branch up to the current HEAD.
+	Note code/unix-glib2.lisp not yet included -- not sure it is ready to go.
+	=============================================================================
+
+tty-display.lisp
+	----------------------------
+	revision 1.5
+	date: 2001-03-13 15:50:00 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	branches:  1.5.2;
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	----------------------------
+	revision 1.4.2.1
+	date: 2002-03-23 18:50:52 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	----------------------------
+
+tty-screen.lisp
+	----------------------------
+	revision 1.9
+	date: 2001-03-13 15:50:01 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	----------------------------
+	revision 1.8.2.1
+	date: 2002-03-23 18:50:52 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+tty-stream.lisp
+	----------------------------
+	revision 1.4
+	date: 1998-05-04 02:27:21 +0100;  author: dtc;  state: Exp;  lines: +2 -2
+	Gray streams support:
+	* Rename the 'stream structure class to sys:lisp-stream.
+	* Add a new none hierarchical 'stream built-in class which inherits
+	  from: instance, t.
+	* Hack in the new stream class as a mixin for the structure base
+	  lisp-stream class which now inherits from: stream, structure-object,
+	  instance, t.
+	* Add a new 'fundamental-stream standard-class which includes 'stream
+	  as a mixin, and add PCL hacks to allow this to be redefined after PCL is
+	  loaded to be (defclass fundamental-stream (standard-object stream) ...).
+	* Add appropriate support to the base stream functions to dispatch to
+	  the Gray stream functions for the handling of fundamental-streams.
+	  Some of the lisp-streams encapsulating CLOS streams still need
+	  a little work.
+	----------------------------
+	----------------------------
+	revision 1.3.2.1
+	date: 1998-06-23 12:24:41 +0100;  author: pw;  state: Exp;  lines: +2 -2
+	This (huge) revision brings the RELENG_18 branch up to the current HEAD.
+	Note code/unix-glib2.lisp not yet included -- not sure it is ready to go.
+	=============================================================================
+
+vars.lisp
+	----------------------------
+	revision 1.4
+	date: 2001-03-13 15:50:01 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.3.2.1
+	date: 2002-03-23 18:50:52 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+window.lisp
+	----------------------------
+	revision 1.5
+	date: 2001-03-13 15:50:01 +0000;  author: pw;  state: Exp;  lines: +5 -5
+	Change toplevel PROCLAIMs to DECLAIMs.
+	----------------------------
+	----------------------------
+	revision 1.4.2.1
+	date: 2002-03-23 18:50:53 +0000;  author: pw;  state: Exp;  lines: +5 -5
+	Mega commit to bring RELENG_18 branch in sync with HEAD in preparation
+	for release tagging 18d.
+	=============================================================================
+
+
+*** transfer
+
+**** repeat the additions on the 18c file
+
+for f in bit-screen.lisp debug.lisp display.lisp hacks.lisp hunk-draw.lisp input.lisp tty-disp-rt.lisp ; do
+  echo cp ~/src/nightshade-18c/src/hemlock.orig/$f ~/src/nightshade-18c/src/ed/;
+done
+
+	then on each file
+		reduce header to description
+		flush trailing space
+		replace any "Hemlock" with ~"the editor"
+
+		dired.lisp    + symlink-file, comments, *post-delete-function*
+		display.lisp  + 1 "FIX" comment, invoke re-hook in lambda in re-all
+		hacks.lisp    - (defparameter hunk-width-limit 256)
+		input.lisp    + editor-top-level-catcher
+					  + random-typeout-switch
+					  u editor-input-method-macro  use "or"
+					  u signal (was throw) 'editor-top-level-catcher
+
+			cmp files in ns0.0+ and 2002-08-23-19h00 for details
+
+
+**** cp the 0.0+ file
+
+this is possible when the last commit on the file was before the ns 0.0+
+base (2002-08-23-19h00) and was also before 18c
+
+	ie any possibly copyrighted code is due to code in 18c
+
+for f in bit-stream.lisp diredcoms.lisp eval-server.lisp morecoms.lisp shell.lisp streams.lisp struct.lisp ts-stream.lisp tty-stream.lisp ; do cp ~/src/nightshade/src/ed/$f ~/src/nightshade-18c/src/ed/; done
+
+**** cp the 0.0+ file and revert the "proclaim to declaim" commit
+
+for f in buffer.lisp cursor.lisp echocoms.lisp ed-integrity.lisp edit-defs.lisp interp.lisp key-event.lisp killcoms.lisp line.lisp linimage.lisp lispbuf.lisp macros.lisp main.lisp netnews.lisp pop-up-stream.lisp screen.lisp search2.lisp syntax.lisp table.lisp termcap.lisp tty-display.lisp tty-screen.lisp vars.lisp window.lisp ; do
+	# cp ~/src/nightshade/src/ed/$f ~/src/nightshade-18c/src/ed/;
+done
+
+	then replace "declaim (" w "proclaim '("
+
+		this reverts the only change on these files b/w 18c and
+		  2002-08-23-19h00 -- the renaming of proclaim
+
+**** lispmode.lisp
+
+cp the 0.0+ file and revert the defindent line:
+(defindent "define-compiler-macro" 2)
+
+**** rompsite.lisp
+
+cp the 0.0+ file and revert:
+ 1 "proclaim '(" to "declaim ("
+ 2 clx require
+ 3 bsd to freebsd in reader macros

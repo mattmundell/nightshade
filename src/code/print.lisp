@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/print.lisp,v 1.82 2002/01/18 19:45:49 pmai Exp $")
+  "$Header: /home/CVS-cmucl/src/code/print.lisp,v 1.66.2.4 2000/05/23 16:36:45 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -140,9 +140,9 @@
 		     ((:array *print-array*) *print-array*)
 		     ((:gensym *print-gensym*) *print-gensym*)
 		     ((:readably *print-readably*) *print-readably*)
-		     ((:right-margin *print-right-margin*) 
+		     ((:right-margin *print-right-margin*)
 		      *print-right-margin*)
-		     ((:miser-width *print-miser-width*) 
+		     ((:miser-width *print-miser-width*)
 		      *print-miser-width*)
 		     ((:lines *print-lines*) *print-lines*)
 		     ((:pprint-dispatch *print-pprint-dispatch*)
@@ -167,7 +167,7 @@
   object)
 
 (defun print (object &optional stream)
-  "Outputs a terpri, the mostly READable printed represenation of OBJECT, and 
+  "Outputs a terpri, the mostly READable printed represenation of OBJECT, and
   space to the stream."
   (let ((stream (out-synonym-of stream)))
     (terpri stream)
@@ -207,7 +207,7 @@
   (stringify-object object))
 
 (defun prin1-to-string (object)
-  "Returns the printed representation of OBJECT as a string with 
+  "Returns the printed representation of OBJECT as a string with
    slashification on."
   (stringify-object object t))
 
@@ -252,40 +252,25 @@
 	   (*print-array* nil))
        (format stream "~S cannot be printed readably." obj)))))
 
-;;; Guts of print-unreadable-object.
-;;;
-;;; When *print-pretty* and the stream is a pretty-stream, format the object
-;;; within a logical block - pprint-logical-block does not rebind the stream
-;;; when it is already a pretty stream so output from the body will go to the
-;;; same stream.
-;;;
 (defun %print-unreadable-object (object stream type identity body)
   (when *print-readably*
     (error 'print-not-readable :object object))
-  (flet ((print-description ()
-	   (when type
-	     (write (type-of object) :stream stream :circle nil
-		    :level nil :length nil)
-	     (when (or body identity)
-	       (write-char #\space stream)
-	       (pprint-newline :fill stream)))
-	   (when body
-	     (funcall body))
-	   (when identity
-	     (when body
-	       (write-char #\space stream)
-	       (pprint-newline :fill stream))
-	     (write-char #\{ stream)
-	     (write (get-lisp-obj-address object) :stream stream
-		    :radix nil :base 16)
-	     (write-char #\} stream))))
-    (cond ((and (pp:pretty-stream-p stream) *print-pretty*)
-	   (pprint-logical-block (stream nil :prefix "#<" :suffix ">")
-	     (print-description)))
-	  (t
-	   (write-string "#<" stream)
-	   (print-description)
-	   (write-char #\> stream))))
+  (write-string "#<" stream)
+  (when type
+    (write (type-of object) :stream stream :circle nil
+	   :level nil :length nil)
+    (when (or body identity)
+      (write-char #\space stream)))
+  (when body
+    (funcall body))
+  (when identity
+    (when body
+      (write-char #\space stream))
+    (write-char #\{ stream)
+    (write (get-lisp-obj-address object) :stream stream
+	   :radix nil :base 16)
+    (write-char #\} stream))
+  (write-char #\> stream)
   nil)
 
 
@@ -312,7 +297,7 @@
 ;;; first time, and a 0 when we encounter an object a second time around.
 ;;; When we are actually printing, the 0 entries get changed to the actual
 ;;; marker value when they are first printed.
-;;; 
+;;;
 (defvar *circularity-hash-table* nil)
 
 ;;; *CIRCULARITY-COUNTER* -- internal.
@@ -381,7 +366,7 @@
 	      (- value)))))))
 
 ;;; HANDLE-CIRCULARITY -- interface.
-;;; 
+;;;
 (defun handle-circularity (marker stream)
   "Handle the results of CHECK-FOR-CIRCULARITY.  If this returns T then
    you should go ahead and print the object.  If it returns NIL, then
@@ -412,13 +397,13 @@
 ;;;; Level and Length abbreviations.
 
 ;;; *CURRENT-LEVEL* -- interface.
-;;; 
+;;;
 (defvar *current-level* 0
   "The current level we are printing at, to be compared against *PRINT-LEVEL*.
    See the macro DESCEND-INTO for a handy interface to depth abbreviation.")
 
 ;;; DESCEND-INTO -- interface.
-;;; 
+;;;
 (defmacro descend-into ((stream) &body body)
   "Automatically handle *print-level* abbreviation.  If we are too deep, then
    a # is printed to STREAM and BODY is ignored."
@@ -434,7 +419,7 @@
 		(,flet-name)))))))
 
 ;;; PUNT-IF-TOO-LONG -- interface.
-;;; 
+;;;
 (defmacro punt-if-too-long (index stream)
   "Punt if INDEX is equal or larger then *PRINT-LENGTH* (and *PRINT-READABLY*
    is NIL) by outputting \"...\" and returning from the block named NIL."
@@ -448,14 +433,14 @@
 ;;;; OUTPUT-OBJECT -- the main entry point.
 
 ;;; *PRETTY-PRINTER* -- public.
-;;; 
+;;;
 (defvar *pretty-printer* nil
   "The current pretty printer.  Should be either a function that takes two
    arguments (the object and the stream) or NIL to indicate that there is
    no pretty printer installed.")
 
 ;;; OUTPUT-OBJECT -- interface.
-;;; 
+;;;
 (defun output-object (object stream)
   "Output OBJECT to STREAM observing all printer control variables."
   (labels ((print-it (stream)
@@ -483,8 +468,8 @@
 	       (numberp object)
 	       (characterp object)
 	       (and (symbolp object) (symbol-package object) t))
-	   ;; If it's a number, character, or interned symbol, we do not want
-	   ;; to check for circularity/sharing.
+	   ;; If it's a number, character, or interned symbol, we do not
+	   ;; want to check for circularity/sharing.
 	   (print-it stream))
 	  ((or *circularity-hash-table*
 	       (consp object)
@@ -500,7 +485,7 @@
 	   (print-it stream)))))
 
 ;;; OUTPUT-UGLY-OBJECT -- interface.
-;;; 
+;;;
 (defun output-ugly-object (object stream)
   "Output OBJECT to STREAM observing all printer control variables except
    for *PRINT-PRETTY*.  Note: if *PRINT-PRETTY* is non-NIL, then the pretty
@@ -527,6 +512,8 @@
 	(output-integer object stream))
        (float
 	(output-float object stream))
+       (ratio
+	(output-ratio object stream))
        (ratio
 	(output-ratio object stream))
        (complex
@@ -644,12 +631,12 @@
 		    (write-string "::" stream)))))))
 	(output-symbol-name name stream))
       (output-symbol-name (symbol-name object) stream nil)))
-	    
+
 ;;; OUTPUT-SYMBOL-NAME -- internal interface.
 ;;;
 ;;; Output the string NAME as if it were a symbol name.  In other words,
 ;;; diddle it's case according to *print-case* and readtable-case.
-;;; 
+;;;
 (defun output-symbol-name (name stream &optional (maybe-quote t))
   (declare (type simple-base-string name))
   (setup-printer-state)
@@ -815,7 +802,7 @@
       (when (char= current #\.) (advance DOT-FOUND))
       (when (test sign extension) (advance START-STUFF nil))
       (return t)
-		  
+
      DOT-FOUND ; Leading dots...
       (when (test letter) (advance START-DOT-MARKER nil))
       (when (digitp) (advance DOT-DIGIT))
@@ -867,7 +854,7 @@
 	(advance ALPHA-DIGIT))
       (when (test letter number other dot) (advance OTHER nil))
       (return t)
-      
+
      ALPHA-DIGIT ; Seen a digit which is a letter...
       (when (or (digitp) (test sign slash))
 	(if (test letter)
@@ -887,7 +874,7 @@
 	    (advance ALPHA-DIGIT)
 	    (advance DIGIT)))
       (when (test number other) (advance OTHER nil))
-      (when (test letter) (advance MARKER)) 
+      (when (test letter) (advance MARKER))
       (when (test extension slash sign) (advance DIGIT))
       (when (char= current #\.) (advance DOT-DIGIT))
       (return t)
@@ -1025,20 +1012,15 @@
 (defun output-vector (vector stream)
   (declare (vector vector))
   (cond ((stringp vector)
-	 (cond ((or *print-escape* *print-readably*)
-		(write-char #\" stream)
-		(quote-string vector stream)
-		(write-char #\" stream))
-	       (t
-		(write-string vector stream))))
+	 (if (or *print-escape* *print-readably*)
+	     (quote-string vector stream)
+	     (write-string vector stream)))
 	((not (or *print-array* *print-readably*))
 	 (output-terse-array vector stream))
 	((bit-vector-p vector)
 	 (write-string "#*" stream)
 	 (dotimes (i (length vector))
-	   (ecase (aref vector i)
-	     (0 (write-char #\0 stream))
-	     (1 (write-char #\1 stream)))))
+	   (output-object (aref vector i) stream)))
 	((and *print-readably*
 	      (not (eq (array-element-type vector) 't)))
 	 (output-array vector stream))
@@ -1063,12 +1045,14 @@
 	       ;; Probably should look at readtable, but just do this for now.
 	       `(or (char= ,char #\\)
 		    (char= ,char #\"))))
+    (write-char #\" stream)
     (with-array-data ((data string) (start) (end (length string)))
       (do ((index start (1+ index)))
 	  ((>= index end))
 	(let ((char (schar data index)))
 	  (when (frob char) (write-char #\\ stream))
-	  (write-char char stream))))))
+	  (write-char char stream))))
+    (write-char #\" stream)))
 
 (defun output-array (array stream)
   "Outputs the printed representation of any array in either the #< or #A
@@ -1135,39 +1119,6 @@
 
     (if (typep layout 'layout)
 	(let ((class (layout-class layout)))
-	  (cond
-	   ((typep class 'slot-class) ; has slot print-function
-	    (if (layout-invalid layout)
-		(print-unreadable-object
-		    (instance stream :identity t :type t)
-		  (write-string "Obsolete Instance" stream))
-		(cond (;; non-CLOS :print-function option
-		       (slot-class-print-function class)
-		       (funcall (slot-class-print-function class)
-				instance stream *current-level*))
-		      ;; When CLOS loaded, use PRINT-OBJECT.
-		      ((fboundp 'print-object)
-		       (print-object instance stream))
-		      (t
-		       (default-structure-print
-			   instance stream *current-level*)))))
-	   ((fboundp 'print-object)
-	    (print-object instance stream))
-	   (t
-	    (print-unreadable-object (instance stream :identity t)
-	      (write-string "Unprintable Instance" stream)))))
-	(print-unreadable-object (instance stream :identity t)
-	  (write-string "Unprintable Instance" stream)))))
-
-#+ORIGINAL
-(defun output-instance (instance stream)
-  (let ((layout (typecase instance
-		  (instance (%instance-ref instance 0))
-		  (funcallable-instance
-		   (%funcallable-instance-layout instance)))))
-
-    (if (typep layout 'layout)
-	(let ((class (layout-class layout)))
 	  (cond ((typep class 'slot-class)
 		 (if (layout-invalid layout)
 		     (print-unreadable-object (instance stream :identity t
@@ -1226,7 +1177,7 @@
     (if (not (zerop (multiple-value-setq (quotient remainder)
 		      (truncate integer *print-base*))))
 	(sub-output-integer quotient stream))
-    ;; Then as each recursive call unwinds, turn the digit (in remainder) 
+    ;; Then as each recursive call unwinds, turn the digit (in remainder)
     ;; into a character and output the character.
     (write-char (code-char (if (and (> remainder 9.)
 				    (> *print-base* 10.))
@@ -1241,17 +1192,17 @@
 ;;;
 ;;; Rewritten to remove assumptions about the length of fixnums for the
 ;;; MIPS port by William Lott.
-;;; 
+;;;
 
 ;;; *BASE-POWER* holds the number that we keep dividing into the bignum for
 ;;; each *print-base*.  We want this number as close to *most-positive-fixnum*
 ;;; as possible, i.e. (floor (log most-positive-fixnum *print-base*)).
-;;; 
+;;;
 (defparameter *base-power* (make-array 37 :initial-element nil))
 
 ;;; *FIXNUM-POWER--1* holds the number of digits for each *print-base* that
 ;;; fit in the corresponding *base-power*.
-;;; 
+;;;
 (defparameter *fixnum-power--1* (make-array 37 :initial-element nil))
 
 ;;; PRINT-BIGNUM -- internal.
@@ -1259,7 +1210,7 @@
 ;;; Print the bignum to the stream.  We first generate the correct value for
 ;;; *base-power* and *fixnum-power--1* if we have not already.  Then we call
 ;;; bignum-print-aux to do the printing.
-;;; 
+;;;
 (defun print-bignum (big stream)
   (unless (aref *base-power* *print-base*)
     (do ((power-1 -1 (1+ power-1))
@@ -1320,10 +1271,10 @@
 ;;;
 ;;;
 ;;;
-;;; FLONUM-TO-STRING (and its subsidiary function FLOAT-STRING) does most of 
+;;; FLONUM-TO-STRING (and its subsidiary function FLOAT-STRING) does most of
 ;;; the work for all printing of floating point numbers in the printer and in
-;;; FORMAT.  It converts a floating point number to a string in a free or 
-;;; fixed format with no exponent.  The interpretation of the arguments is as 
+;;; FORMAT.  It converts a floating point number to a string in a free or
+;;; fixed format with no exponent.  The interpretation of the arguments is as
 ;;; follows:
 ;;;
 ;;;     X        - The floating point number to convert, which must not be
@@ -1367,21 +1318,21 @@
 ;;;                       point.  Zero indicates point before first digit.
 ;;;
 ;;; NOTE:  FLONUM-TO-STRING goes to a lot of trouble to guarantee accuracy.
-;;; Specifically, the decimal number printed is the closest possible 
-;;; approximation to the true value of the binary number to be printed from 
+;;; Specifically, the decimal number printed is the closest possible
+;;; approximation to the true value of the binary number to be printed from
 ;;; among all decimal representations  with the same number of digits.  In
-;;; free-format output, i.e. with the number of digits unconstrained, it is 
+;;; free-format output, i.e. with the number of digits unconstrained, it is
 ;;; guaranteed that all the information is preserved, so that a properly-
-;;; rounding reader can reconstruct the original binary number, bit-for-bit, 
+;;; rounding reader can reconstruct the original binary number, bit-for-bit,
 ;;; from its printed decimal representation. Furthermore, only as many digits
 ;;; as necessary to satisfy this condition will be printed.
 ;;;
 ;;;
 ;;; FLOAT-STRING actually generates the digits for positive numbers.  The
-;;; algorithm is essentially that of algorithm Dragon4 in "How to Print 
-;;; Floating-Point Numbers Accurately" by Steele and White.  The current 
+;;; algorithm is essentially that of algorithm Dragon4 in "How to Print
+;;; Floating-Point Numbers Accurately" by Steele and White.  The current
 ;;; (draft) version of this paper may be found in [CMUC]<steele>tradix.press.
-;;; DO NOT EVEN THINK OF ATTEMPTING TO UNDERSTAND THIS CODE WITHOUT READING 
+;;; DO NOT EVEN THINK OF ATTEMPTING TO UNDERSTAND THIS CODE WITHOUT READING
 ;;; THE PAPER!
 
 (defvar *digits* "0123456789")
@@ -1414,8 +1365,8 @@
     ;;Rational arithmetic avoids loss of precision in subsequent calculations.
     (cond ((> exponent 0)
 	   (setq r (ash fraction exponent))
-	   (setq m- (ash 1 exponent))	   
-	   (setq m+ m-))                   
+	   (setq m- (ash 1 exponent))
+	   (setq m+ m-))
 	  ((< exponent 0)
 	   (setq s (ash 1 (- exponent)))))
     ;;adjust the error bounds m+ and m- for unequal gaps
@@ -1562,7 +1513,7 @@
 ;;;; Entry point for the float printer.
 
 ;;; Entry point for the float printer as called by PRINT, PRIN1, PRINC,
-;;; etc.  The argument is printed free-format, in either exponential or 
+;;; etc.  The argument is printed free-format, in either exponential or
 ;;; non-exponential notation, depending on its magnitude.
 ;;;
 ;;; NOTE: When a number is to be printed in exponential format, it is scaled in
@@ -1588,7 +1539,7 @@
     (if (typep x *read-default-float-format*)
 	(unless (eql exp 0)
 	  (format stream "e~:[~;+~]~D" plusp exp))
-	(format stream "~C~:[~;+~]~D" 
+	(format stream "~C~:[~;+~]~D"
 		(etypecase x
 		  (single-float #\f)
 		  (double-float #\d)
@@ -1647,7 +1598,6 @@
 ;;;
 ;;;    Functioned called by OUTPUT-OBJECT to handle floats.
 ;;;
-
 (defun output-float (x stream)
   (cond
    ((float-infinity-p x)
@@ -1665,34 +1615,10 @@
 	(write-string "0.0" stream)
 	(print-float-exponent x 0 stream))
        (t
-	(output-float-aux x stream)))))))
-
-(defconstant output-float-free-format-min 1/1000
-  "Minimum magnitute that allows the float printer to use free format,
-   instead of exponential format.  See section 22.1.3.1.3: Printing Floats
-   in the ANSI CL standard.")
-(defconstant output-float-free-format-max 10000000
-  "Maximum magnitute that allows the float printer to use free format,
-   instead of exponential format.  See section 22.1.3.1.3: Printing Floats
-   in the ANSI CL standard.")
-
-(defmacro output-float-free-format-p (x)
-  "Returns true if x can be printed in free format, as per ANSI CL."
-  (loop with x-var = (gensym)
-	for type in '(short-float single-float double-float long-float)
-	collect
-	`(,type
-	  (and (>= ,x-var ,(coerce output-float-free-format-min type))
-	       (< ,x-var ,(coerce output-float-free-format-max type))))
-	into clauses
-	finally
-	(return
-	  `(let ((,x-var ,x))
-	     (etypecase ,x-var
-	       ,@clauses)))))
-
-(defun output-float-aux (x stream)
-  (if (output-float-free-format-p x)
+	(output-float-aux x stream (float 1/1000 x) (float 10000000 x))))))))
+;;;
+(defun output-float-aux (x stream e-min e-max)
+  (if (and (>= x e-min) (< x e-max))
       ;;free format
       (multiple-value-bind (str len lpoint tpoint)
 			   (flonum-to-string x)
@@ -1701,7 +1627,7 @@
 	(write-string str stream)
 	(when tpoint (write-char #\0 stream))
 	(print-float-exponent x 0 stream))
-      ;;exponential format 
+      ;;exponential format
       (multiple-value-bind (f ex)
 			   (scale-exponent x)
 	(multiple-value-bind (str len lpoint tpoint)
@@ -1726,7 +1652,7 @@
       (let ((name (char-name char)))
 	(write-string "#\\" stream)
 	(if name
-	    (quote-string name stream)
+	    (write-string name stream)
 	    (write-char char stream)))
       (write-char char stream)))
 
@@ -1777,7 +1703,7 @@
 ;;;; Various flavors of function pointers.
 
 
-;;; OUTPUT-FUNCTION-OBJECT outputs the main part of the printed 
+;;; OUTPUT-FUNCTION-OBJECT outputs the main part of the printed
 ;;; representation of function objects.  It is called from OUTPUT-RANDOM
 ;;; below.
 

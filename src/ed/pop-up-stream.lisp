@@ -195,9 +195,7 @@
 	(scroll-window window (window-height window))))))
 
 
-;;; Proclaim this special so the compiler doesn't warn me.  I hate that.
-;;;
-(declaim (special *more-prompt-action*))
+(proclaim '(special *more-prompt-action*))
 
 (defun display-more-prompt (stream)
   (unless (random-typeout-stream-no-prompt stream)

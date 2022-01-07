@@ -1,7 +1,7 @@
 /*
  * Stop and Copy GC based on Cheney's algorithm.
  *
- * $Header: /project/cmucl/cvsroot/src/lisp/gc.c,v 1.20 2002/05/02 21:10:53 toy Exp $
+ * $Header: /home/CVS-cmucl/src/lisp/gc.c,v 1.13.2.4 2000/11/06 17:18:34 dtc Exp $
  * 
  * Written by Christopher Hoover.
  */
@@ -58,6 +58,8 @@ static void scan_weak_pointers(void);
 boolean from_space_p(lispobj object)
 {
 	lispobj *ptr;
+
+	gc_assert(Pointerp(object));
 
 	ptr = (lispobj *) PTR(object);
 
@@ -470,14 +472,14 @@ static void scavenge_interrupt_context(struct sigcontext *context)
 			}
 		}
 	}
-#endif /* reg_LIP */
+#endif reg_LIP
 
 	/* Compute the PC's offset from the start of the CODE */
 	/* register. */
 	pc_code_offset = SC_PC(context) - SC_REG(context, reg_CODE);
 #ifdef SC_NPC
 	npc_code_offset = SC_NPC(context) - SC_REG(context, reg_CODE);
-#endif /* SC_NPC */
+#endif SC_NPC
 	       
 	/* Scanvenge all boxed registers in the context. */
 	for (i = 0; i < (sizeof(boxed_registers) / sizeof(int)); i++) {
@@ -496,7 +498,7 @@ static void scavenge_interrupt_context(struct sigcontext *context)
 	/* Fix the LIP */
 	SC_REG(context, reg_LIP) =
 		SC_REG(context, lip_register_pair) + lip_offset;
-#endif /* reg_LIP */
+#endif reg_LIP
 	
 	/* Fix the PC if it was in from space */
 	if (from_space_p(SC_PC(context)))
@@ -504,7 +506,7 @@ static void scavenge_interrupt_context(struct sigcontext *context)
 #ifdef SC_NPC
 	if (from_space_p(SC_NPC(context)))
 		SC_NPC(context) = SC_REG(context, reg_CODE) + npc_code_offset;
-#endif /* SC_NPC */
+#endif SC_NPC
 }
 
 void scavenge_interrupt_contexts(void)

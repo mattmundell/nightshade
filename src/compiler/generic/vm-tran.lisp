@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/generic/vm-tran.lisp,v 1.45 2002/08/08 15:37:38 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/generic/vm-tran.lisp,v 1.35.2.4 2000/10/21 13:09:15 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -41,7 +41,7 @@
   `(%instance-set ,x 0 (the layout ,val)))
 
 
-;;;; Character support.
+;;;; Charater support.
 
 ;;; There are really only base-chars.
 ;;;
@@ -242,16 +242,10 @@
 			    vm:byte-bits)))
      string1))
 
-;; The original version of this deftransform seemed to cause the
-;; compiler to spend huge amounts of time deriving the type of the
-;; START variable.  The following version uses nested lets to prevent
-;; the compiler from doing this analysis.  This only hides the
-;; symptom.
 
 (deftransform concatenate ((rtype &rest sequences)
 			   (t &rest simple-string)
-			   simple-string
-			   :policy (< safety 3))
+			   simple-string)
   (collect ((lets)
 	    (forms)
 	    (all-lengths)
@@ -263,32 +257,19 @@
 	(args n-seq)
 	(lets `(,n-length (the index (* (length ,n-seq) vm:byte-bits))))
 	(all-lengths n-length)
-	(forms `((bit-bash-copy ,n-seq vector-data-bit-offset
-		  res start
-		  ,n-length)
-		 (start (+ start ,n-length))))))
-    (flet ((nestify (lists)
-	     (let* ((lists (reverse lists))
-		    (result `(,(caar lists))))
-	       (dolist (item (rest lists))
-		 (destructuring-bind (bit-bash init)
-		     item
-		   (setf result `(,bit-bash
-				  (let (,init)
-				    ,@result)))))
-	       result)))
-      (let ((result 
-	     `(lambda (rtype ,@(args))
-	       (declare (ignore rtype))
-	       (let* (,@(lets)
-			(res (make-string (truncate (the index (+ ,@(all-lengths)))
-						    vm:byte-bits))))
-		 (declare (type index ,@(all-lengths)))
-		 (let ((start vector-data-bit-offset))
-		   ,@(nestify (forms)))
-		 res))))
-	result))))
-
+	(forms `(bit-bash-copy ,n-seq vector-data-bit-offset
+			       res start
+			       ,n-length))
+	(forms `(setq start (+ start ,n-length)))))
+    `(lambda (rtype ,@(args))
+       (declare (ignore rtype))
+       (let* (,@(lets)
+	      (res (make-string (truncate (the index (+ ,@(all-lengths)))
+					  vm:byte-bits)))
+	      (start vector-data-bit-offset))
+	 (declare (type index start ,@(all-lengths)))
+	 ,@(forms)
+	 res))))
 
 
 ;;;; Bit vector hackery:
@@ -319,32 +300,18 @@
 		 (error "Argument and/or result bit arrays not the same length:~
 			 ~%  ~S~%  ~S  ~%  ~S"
 			bit-array-1 bit-array-2 result-bit-array))))
-	 (let ((length (length result-bit-array)))
-	   (if (= length 0)
-	       ;; We avoid doing anything to 0-length
-	       ;; bit-vectors, or rather, the memory that
-	       ;; follows them. Other divisible-by-32 cases
-	       ;; are handled by the (1- length), below.
-	       ;; CSR, 2002-04-24
-	       result-bit-array
-	       (do ((index vm:vector-data-offset (1+ index))
-		    (end-1 (+ vm:vector-data-offset
-			      ;; bit-vectors of length 1-32
-			      ;; need precisely one (SETF
-			      ;; %RAW-BITS), done in the
-			      ;; epilogue. - CSR, 2002-04-24
-			      (truncate (truly-the index (1- length))
-					vm:word-bits))))
-		   ((= index end-1)
-		    (setf (%raw-bits result-bit-array index)
-			  (,wordfun (%raw-bits bit-array-1 index)
-				    (%raw-bits bit-array-2 index)))
-		    result-bit-array)
-		 (declare (optimize (speed 3) (safety 0))
-			  (type index index end-1))
-		 (setf (%raw-bits result-bit-array index)
-		       (,wordfun (%raw-bits bit-array-1 index)
-				 (%raw-bits bit-array-2 index))))))))))
+	 (do ((index vm:vector-data-offset (1+ index))
+	      (end (+ vm:vector-data-offset
+		      (truncate (the index
+				     (+ (length bit-array-1)
+					vm:word-bits -1))
+				vm:word-bits))))
+	     ((= index end) result-bit-array)
+	   (declare (optimize (speed 3) (safety 0))
+		    (type index index end))
+	   (setf (%raw-bits result-bit-array index)
+		 (,wordfun (%raw-bits bit-array-1 index)
+			   (%raw-bits bit-array-2 index))))))))
 
 (deftransform bit-not
 	      ((bit-array result-bit-array)
@@ -357,27 +324,17 @@
 	     (error "Argument and result bit arrays not the same length:~
 	     	     ~%  ~S~%  ~S"
 		    bit-array result-bit-array))))
-    (let ((length (length result-bit-array)))
-      (if (= length 0)
-	  ;; We avoid doing anything to 0-length bit-vectors, or
-	  ;; rather, the memory that follows them. Other
-	  ;; divisible-by-32 cases are handled by the (1- length),
-	  ;; below.  CSR, 2002-04-24
-	  result-bit-array
-	  (do ((index vm:vector-data-offset (1+ index))
-	       (end-1 (+ vm:vector-data-offset
-			 ;; bit-vectors of length 1-32 need precisely
-			 ;; one (SETF %RAW-BITS), done in the epilogue.
-			 (truncate (truly-the index (1- length))
-				   vm:word-bits))))
-	      ((= index end-1)
-	       (setf (%raw-bits result-bit-array index)
-		     (32bit-logical-not (%raw-bits bit-array index)))
-	       result-bit-array)
-	    (declare (optimize (speed 3) (safety 0))
-		     (type index index end-1))
-	    (setf (%raw-bits result-bit-array index)
-		  (32bit-logical-not (%raw-bits bit-array index))))))))
+     (do ((index vm:vector-data-offset (1+ index))
+	  (end (+ vm:vector-data-offset
+		  (truncate (the index
+				 (+ (length bit-array)
+				    (1- vm:word-bits)))
+			    vm:word-bits))))
+	 ((= index end) result-bit-array)
+       (declare (optimize (speed 3) (safety 0))
+		(type index index end))
+       (setf (%raw-bits result-bit-array index)
+	     (32bit-logical-not (%raw-bits bit-array index))))))
 
 
 ;;;; Primitive translator for byte-blt

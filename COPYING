@@ -1,11 +1,18 @@
 Towards a fully public domain system Nightshade is a set of patches onto a
-stripped down version of the CMUCL CVS of 2002-08-23 19:00 +0100.
+stripped down version of CMUCL 18c.
 
-Most parts of the CMUCL that are explicitly marked as copyrighted have been
-taken out, including CLOS, the CLX interface and the MIT version of the
-loop macro.  The little that is left over (parts of the docs) will follow.
+All parts of CMUCL that are explicitly marked as copyrighted have been
+removed from the source, including PCL, the CLX interface and the MIT
+version of the loop macro.
 
-The grey area is the additions made by people since the original public
-domain release of CMUCL.  Some of these have been explicitly dedicated to
-the public domain; the intention for the rest is to either confirm that
-they are in the public domain or replace them.
+What remains is the set of implicitly copyrighted additions made by people
+since the original public domain release of CMUCL.  Some of these have been
+explicitly dedicated to the public domain, and the following authors have
+confirmed that the additions they made are public domain.
+
+    dtc	   Douglas Crosher
+    pw     Paul Werkowski
+    ram    Robert MacLachlan
+
+The intention for the rest of these additions is to either confirm that
+they are public domain or replace them.

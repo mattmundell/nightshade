@@ -6,7 +6,7 @@
 ;;; placed in the Public domain, and is provided 'as is'.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/rand-mt19937.lisp,v 1.9 1999/08/14 15:40:41 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/code/rand-mt19937.lisp,v 1.6.2.2 2000/05/23 16:36:46 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

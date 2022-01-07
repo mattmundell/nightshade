@@ -303,13 +303,10 @@ closure_tramp
 	.EXPORT undefined_tramp
 undefined_tramp
 	break	trap_Error,0
-        /* Number of argument bytes */
         .byte	4
-        .byte	UNDEFINED_SYMBOL_ERROR
-        /* Escape to create 16bit BE number from following two values */
+        .byte	23
         .byte	254
-        /* SC_OFFSET(sc_DescriptorReg,reg_FDEFN) */
-        .byte	(0x20 + sc_DescriptorReg)
+        .byte	(0x40 + sc_DescriptorReg)
         .byte	1
 	.align	4
 

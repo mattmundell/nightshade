@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/pprint.lisp,v 1.31 2002/07/22 17:05:00 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/code/pprint.lisp,v 1.22.2.3 2000/05/23 16:36:43 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -340,7 +340,6 @@
   (suffix nil :type (or null simple-string)))
 
 (defun start-logical-block (stream prefix per-line-p suffix)
-  (declare (type (or null string) prefix))
   (when prefix
     (pretty-sout stream prefix 0 (length prefix)))
   (let* ((pending-blocks (pretty-stream-pending-blocks stream))
@@ -808,7 +807,7 @@
 		  ((t) *terminal-io*)
 		  ((nil) *standard-output*)
 		  (t stream))))
-    (when (and (pretty-stream-p stream) *print-pretty*)
+    (when (pretty-stream-p stream)
       (enqueue-newline stream kind)))
   nil)
 
@@ -830,7 +829,7 @@
 		  ((t) *terminal-io*)
 		  ((nil) *standard-output*)
 		  (t stream))))
-    (when (and (pretty-stream-p stream) *print-pretty*)
+    (when (pretty-stream-p stream)
       (enqueue-indent stream relative-to n)))
   nil)
 
@@ -854,7 +853,7 @@
 		  ((t) *terminal-io*)
 		  ((nil) *standard-output*)
 		  (t stream))))
-    (when (and (pretty-stream-p stream) *print-pretty*)
+    (when (pretty-stream-p stream)
       (enqueue-tab stream kind colnum colinc)))
   nil)
 
@@ -1129,10 +1128,10 @@
 (defun pprint-vector (stream vector)
   (pprint-logical-block (stream nil :prefix "#(" :suffix ")")
     (dotimes (i (length vector))
+      (pprint-pop)
       (unless (zerop i)
 	(write-char #\space stream)
 	(pprint-newline :fill stream))
-      (pprint-pop)
       (output-object (aref vector i) stream))))
 
 (defun pprint-array-contents (stream array)
@@ -1409,7 +1408,7 @@
   (with-pretty-stream (stream)
     (funcall (pprint-dispatch object) stream object)))
 
-(defparameter *magic-forms*
+(defparameter magic-forms
   '((lambda pprint-lambda)
     ;; Special forms.
     (block pprint-block)
@@ -1418,6 +1417,8 @@
     (eval-when pprint-block)
     (flet pprint-flet)
     (function pprint-quote)
+    (generic-flet pprint-flet)
+    (generic-labels pprint-flet)
     (labels pprint-flet)
     (let pprint-let)
     (let* pprint-let)
@@ -1434,6 +1435,7 @@
     (tagbody pprint-tagbody)
     (throw pprint-block)
     (unwind-protect pprint-block)
+    (with-added-methods pprint-flet)
     
     ;; Macros.
     (case pprint-case)
@@ -1441,7 +1443,7 @@
     (ctypecase pprint-typecase)
     (defconstant pprint-block)
     (define-modify-macro pprint-defun)
-    (define-setf-expander pprint-defun)
+    (define-setf-method pprint-defun)
     (defmacro pprint-defun)
     (defparameter pprint-block)
     (defsetf pprint-defun)
@@ -1501,7 +1503,7 @@
 			 #'pprint-function-call -1)
     (set-pprint-dispatch 'cons #'pprint-fill -2)
     ;; Cons cells with interesting things for the car.
-    (dolist (magic-form *magic-forms*)
+    (dolist (magic-form magic-forms)
       (set-pprint-dispatch `(cons (eql ,(first magic-form)))
 			   (symbol-function (second magic-form))))
     ;; Other pretty-print init forms.

@@ -609,7 +609,7 @@
 	    (:print-function %print-search-pattern))
   parser)
 
-(declaim (special ed::*mark* ed::*marks*))
+(proclaim '(special ed::*mark* ed::*marks*))
 
 #|
 (profile:profile ed::buffer-parse-abc move-mark mark-after)
@@ -797,8 +797,8 @@
   (find-pattern mark
 		(setq *find-string-pattern*
 		      (new-search-pattern (if fold
-					      :string-sensitive
-					      :string-insensitive)
+					      :string-insensitive
+					      :string-sensitive)
 					  (if backward
 					      :backward
 					      :forward)

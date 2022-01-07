@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/numbers.lisp,v 1.44 2002/08/12 21:12:46 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/code/numbers.lisp,v 1.28.2.2 2000/05/23 16:36:40 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -13,14 +13,14 @@
 ;;; This file contains the definitions of most number functions.
 ;;;
 ;;; Author: Rob MacLachlan
-;;; 
+;;;
 ;;; Much code in this file was derived from code written by William Lott, Dave
 ;;; Mcdonald, Jim Large, Scott Fahlman, etc.
 ;;; Long-float support by Douglas Crosher, 1998.
 ;;;
 (in-package "LISP")
 
-(export '(zerop plusp minusp oddp evenp = /= < > <= >= max min + - * / 1+ 1- 
+(export '(zerop plusp minusp oddp evenp = /= < > <= >= max min + - * / 1+ 1-
 	  conjugate abs phase signum float floor ceiling truncate cis round mod
           rem ffloor fceiling fround ftruncate complex realpart imagpart
 	  logior logxor logand logeqv lognand lognor logandc1 logandc2 logorc1
@@ -29,7 +29,7 @@
 	  boole-andc1 boole-andc2 boole-orc1 boole-orc2 lognot logcom logtest
 	  logbitp ash integer-length byte byte-size byte-position
 	  ldb ldb-test mask-field dpb deposit-field
-	  upgraded-complex-part-type)) 
+	  upgraded-complex-part-type))
 
 (in-package "KERNEL")
 
@@ -156,7 +156,7 @@
 			   "Argument ~A is not a ~S: ~S."
 			   :format-arguments
 			   (list ',var ',type ,var))))))
-      
+
       `(block ,block
 	 (tagbody
 	   (return-from ,block
@@ -217,7 +217,7 @@
 ;;; used when we know that realpart and imagpart are the same type, but
 ;;; rational canonicalization might still need to be done.
 ;;;
-(declaim (inline canonical-complex))
+(proclaim '(inline canonical-complex))
 (defun canonical-complex (realpart imagpart)
   (if (eql imagpart 0)
       realpart
@@ -241,27 +241,22 @@
 ;;; a canonical rational.  We make the denominator positive, and check whether
 ;;; it is 1.
 ;;;
-(declaim (inline build-ratio))
+(proclaim '(inline build-ratio))
 (defun build-ratio (num den)
   (multiple-value-bind (num den)
-      (if (minusp den)
-	  (values (- num) (- den))
-	  (values num den))
-    (cond ((eql den 1)
-	   num)
-	  ((eql den 0)
-	   (error 'division-by-zero
-		  :operands (list num den)
-		  :operation 'build-ratio))
-	  (t
-	   (%make-ratio num den)))))
+		       (if (minusp den)
+			   (values (- num) (- den))
+			   (values num den))
+    (if (eql den 1)
+	num
+	(%make-ratio num den))))
 
 
 ;;; MAYBE-TRUNCATE  --  Internal
 ;;;
 ;;;    Truncate X and Y, but bum the case where Y is 1.
 ;;;
-(declaim (inline maybe-truncate))
+(proclaim '(inline maybe-truncate))
 (defun maybe-truncate (x y)
   (if (eql y 1)
       x
@@ -280,24 +275,9 @@
 	#+long-float
 	((subtypep spec 'long-float)
 	 'long-float)
-	((subtypep spec 'real)
-	 ;; CMUCL doesn't have a specialized type for any other type
-	 ;; of complex---only single-float and double-float (and
-	 ;; long-float) have specialized complex types.
-	 'real)
-	((kernel::hairy-type-p (specifier-type spec))
-	 ;; Do we really want to produce this error here?
-	 (cerror "Assume this is a subtype of REAL anyway."
-		 "Cannot determine if ~S is a subtype of REAL."
-		 spec)
-	'real)
-	(t
-	 ;; Expected type really should be something else...
-	 (error 'type-error
-		:datum spec
-		:expected-type 'real
-		:format-control "Complex numbers cannot have components of type ~S."
-		:format-arguments (list spec)))))
+	((subtypep spec 'rational)
+	 'rational)
+	(t)))
 
 (defun complex (realpart &optional (imagpart 0))
   "Builds a complex number from the specified components."
@@ -436,7 +416,7 @@
      (number-dispatch ((x number) (y number))
        (bignum-cross-fixnum ,op ,big-op)
        (float-contagion ,op x y)
-       
+
        ((complex complex)
 	(canonical-complex (,op (realpart x) (realpart y))
 			   (,op (imagpart x) (imagpart y))))
@@ -445,7 +425,7 @@
 	(complex (,op x (realpart y)) (,op (imagpart y))))
        ((complex (or rational float))
 	(complex (,op (realpart x) y) (imagpart x)))
-       
+
        (((foreach fixnum bignum) ratio)
 	(let* ((dy (denominator y))
 	       (n (,op (* x dy) (numerator y))))
@@ -472,7 +452,7 @@
 				(t3 (truncate dy g2))
 				(nd (if (eql t2 1) t3 (* t2 t3))))
 			   (if (eql nd 1) nn (%make-ratio nn nd))))))))))))
-  
+
 ); Eval-When (Compile)
 
 
@@ -503,7 +483,7 @@
       ((bignum fixnum) (multiply-bignum-and-fixnum x y))
       ((fixnum bignum) (multiply-bignum-and-fixnum y x))
       ((bignum bignum) (multiply-bignums x y))
-      
+
       ((complex complex)
        (let* ((rx (realpart x))
 	      (ix (imagpart x))
@@ -516,7 +496,7 @@
        (complex*real y x))
       ((complex (or rational float))
        (complex*real x y))
-      
+
       (((foreach bignum fixnum) ratio) (integer*ratio x y))
       ((ratio integer) (integer*ratio y x))
       ((ratio ratio)
@@ -561,7 +541,7 @@
 (defun two-arg-/ (x y)
   (number-dispatch ((x number) (y number))
     (float-contagion / x y (ratio integer))
-     
+
     ((complex complex)
      (let* ((rx (realpart x))
 	    (ix (imagpart x))
@@ -591,7 +571,7 @@
     ((complex (or rational float))
      (canonical-complex (/ (realpart x) y)
 			(/ (imagpart x) y)))
-    
+
     ((ratio ratio)
      (let* ((nx (numerator x))
 	    (dx (denominator x))
@@ -601,10 +581,10 @@
 	    (g2 (gcd dx dy)))
        (build-ratio (* (maybe-truncate nx g1) (maybe-truncate dy g2))
 		    (* (maybe-truncate dx g2) (maybe-truncate ny g1)))))
-    
+
     ((integer integer)
      (integer-/-integer x y))
-    
+
     ((integer ratio)
      (if (zerop x)
 	 0
@@ -613,7 +593,7 @@
 		(gcd (gcd x ny)))
 	   (build-ratio (* (maybe-truncate x gcd) dy)
 			(maybe-truncate ny gcd)))))
-    
+
     ((ratio integer)
      (let* ((nx (numerator x))
 	    (gcd (gcd nx y)))
@@ -660,7 +640,7 @@
        (bignum-truncate number (make-small-bignum divisor)))
       ((bignum bignum)
        (bignum-truncate number divisor))
-      
+
       (((foreach single-float double-float #+long-float long-float)
 	(or rational single-float))
        (if (eql divisor 1)
@@ -689,9 +669,7 @@
 ;;; maybe-inline for now, so that the power-of-2 ceiling and floor transforms
 ;;; get a chance.
 ;;;
-;;; Don't inline ftruncate because it's probably too big now.
-;;;
-(declaim (inline rem mod fceiling ffloor))
+(declaim (inline rem mod fceiling ffloor ftruncate))
 (declaim (maybe-inline ceiling floor))
 
 ;;; If the numbers do not divide exactly and the result of (/ number divisor)
@@ -764,60 +742,20 @@
 	rem)))
 
 
-(defun ftruncate (number &optional (divisor 1))
-  "Same as TRUNCATE, but returns first value as a float."
-  (macrolet ((truncate-float (rtype)
-	       `(let* ((float-div (coerce divisor ',rtype))
-		       (res (%unary-ftruncate (/ number float-div))))
-		 (values res
-		  (- number
-		   (* (coerce res ',rtype) float-div))))))
-    (number-dispatch ((number real) (divisor real))
-      (((foreach fixnum bignum ratio) (or fixnum bignum ratio))
-       (multiple-value-bind (q r)
-	   (truncate number divisor)
-	 (values (float q) r)))
-      (((foreach single-float double-float)
-	(or rational single-float))
-       (if (eql divisor 1)
-	   (let ((res (%unary-ftruncate number)))
-	     (values res (- number (coerce res '(dispatch-type number)))))
-	   (truncate-float (dispatch-type number))))
-      ((double-float (or single-float double-float))
-       (truncate-float double-float))
-      ((single-float double-float)
-       (truncate-float double-float))
-      (((foreach fixnum bignum ratio)
-	(foreach single-float double-float))
-       (truncate-float (dispatch-type divisor))))))
+(macrolet ((frob (name op doc)
+	     `(defun ,name (number &optional (divisor 1))
+		,doc
+		(multiple-value-bind (res rem) (,op number divisor)
+		  (values (float res (if (floatp rem) rem 1.0)) rem)))))
+  (frob ffloor floor
+    "Same as FLOOR, but returns first value as a float.")
+  (frob fceiling ceiling
+    "Same as CEILING, but returns first value as a float." )
+  (frob ftruncate truncate
+    "Same as TRUNCATE, but returns first value as a float.")
+  (frob fround round
+    "Same as ROUND, but returns first value as a float."))
 
-
-(defun ffloor (number &optional (divisor 1))
-  "Same as FLOOR, but returns first value as a float."
-  (multiple-value-bind (tru rem) (ftruncate number divisor)
-    (if (and (not (zerop rem))
-	     (if (minusp divisor)
-		 (plusp number)
-		 (minusp number)))
-	(values (1- tru) (+ rem divisor))
-	(values tru rem))))
-
-(defun fceiling (number &optional (divisor 1))
-  "Same as CEILING, but returns first value as a float." 
-  (multiple-value-bind (tru rem) (ftruncate number divisor)
-    (if (and (not (zerop rem))
-	     (if (minusp divisor)
-		 (minusp number)
-		 (plusp number)))
-	(values (+ tru 1) (- rem divisor))
-	(values tru rem))))
-
-
-(defun fround (number &optional (divisor 1))
-  "Same as ROUND, but returns first value as a float."
-  (multiple-value-bind (res rem)
-      (round number divisor)
-    (values (float res (if (floatp rem) rem 1.0)) rem)))
 
 ;;;; Comparisons:
 
@@ -905,16 +843,11 @@
     ((double-float single-float)
      (,op x (coerce y 'double-float)))
     (((foreach single-float double-float #+long-float long-float) rational)
-     ;; Comparing infinity against any rational produces the same
-     ;; answer as comparing infinity against 0.  Comparison against
-     ;; zero is quite common, so add a special case for that.
-     (if (or (eql y 0) (float-infinity-p x))
+     (if (eql y 0)
 	 (,op x (coerce 0 '(dispatch-type x)))
 	 (,op (rational x) y)))
     (((foreach bignum fixnum ratio) float)
-     (if (or (eql x 0) (float-infinity-p y))
-	 (,op (coerce 0 '(dispatch-type y)) y)
-	 (,op x (rational y))))))
+     (,op x (rational y)))))
 
 
 (defmacro two-arg-</> (name op ratio-arg1 ratio-arg2 &rest cases)
@@ -1299,7 +1232,7 @@ significant bit of INTEGER is bit 0."
     (13 (boole 13 integer1 integer2))
     (14 (boole 14 integer1 integer2))
     (15 (boole 15 integer1 integer2))
-    (t (error 'type-error :datum op :expected-type '(mod 16)))))
+    (t (error "~S is not of type (mod 16)." op))))
 
 
 ;;;; GCD, LCM:

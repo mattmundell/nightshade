@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/interr.lisp,v 1.38 2001/10/27 17:41:49 pmai Exp $")
+  "$Header: /home/CVS-cmucl/src/code/interr.lisp,v 1.30.2.2 2000/05/23 16:36:33 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -301,8 +301,9 @@
 	 :expected-type (layout-class layout)))
 
 (deferr odd-keyword-arguments-error ()
-  (error 'simple-program-error
+  (error 'simple-type-error
 	 :function-name name
+	 :datum nil :expected-type nil
 	 :format-control "Odd number of keyword arguments."))
 
 (deferr unknown-keyword-argument-error (key)

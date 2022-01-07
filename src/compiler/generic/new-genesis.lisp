@@ -4,7 +4,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/generic/new-genesis.lisp,v 1.47 2002/08/23 17:01:00 pmai Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/generic/new-genesis.lisp,v 1.23.2.3 2000/10/23 20:21:41 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -862,8 +862,7 @@
     (write-indexed fdefn vm:fdefn-raw-addr-slot
 		   (ecase type
 		     (#.vm:function-header-type
-		      (if (or (c:backend-featurep :sparc)
-			      (c:backend-featurep :ppc))
+		      (if (c:backend-featurep :sparc)
 			  defn
 			  (make-random-descriptor
 			   (+ (logandc2 (descriptor-bits defn) vm:lowtag-mask)
@@ -1581,27 +1580,21 @@
 (define-cold-fop (fop-sanctify-for-execution)
   (pop-stack))
 
-;;; must be compatible with the function OPEN-FASL-FILE in compiler/dump.lisp
-(clone-cold-fop (fop-long-code-format :nope) (fop-code-format)
+(define-cold-fop (fop-code-format :nope)
   (let ((implementation (read-arg 1))
-	(version (clone-arg)))
+	(version (read-arg 1)))
     (unless (= implementation (c:backend-fasl-file-implementation c:*backend*))
-      (cerror
-       "Load ~A anyway"
+      (error
        "~A was compiled for a ~A, but we are trying to build a core for a ~A"
        *Fasl-file*
-       (if (< -1 implementation (length c:fasl-file-implementations))
-           (elt c:fasl-file-implementations implementation)
+       (or (elt c:fasl-file-implementations implementation)
 	   "unknown machine")
-       (if (< -1 implementation (length c:fasl-file-implementations))
-           (elt c:fasl-file-implementations
+       (or (elt c:fasl-file-implementations
 		(c:backend-fasl-file-implementation c:*backend*))
 	   "unknown machine")))
-    (unless (or *skip-fasl-file-version-check*
-                (eql version (c:backend-fasl-file-version c:*backend*)))
-      (cerror
-       "Load ~A anyway"
-       "~A was compiled for a fasl-file version ~X, but we need version ~X"
+    (unless (= version (c:backend-fasl-file-version c:*backend*))
+      (error
+       "~A was compiled for a fasl-file version ~A, but we need version ~A"
        *Fasl-file* version (c:backend-fasl-file-version c:*backend*)))))
 
 (not-cold-fop fop-make-byte-compiled-function)
@@ -1815,23 +1808,15 @@
   (let ((linux-p (and (eq (c:backend-fasl-file-implementation c:*backend*)
 			  #.c:x86-fasl-file-implementation)
 		      (c:backend-featurep :linux)))
-	(bsd-p (and (eq (c:backend-fasl-file-implementation c:*backend*)
+	(freebsd-p (and (eq (c:backend-fasl-file-implementation c:*backend*)
 			    #.c:x86-fasl-file-implementation)
-			(c:backend-featurep :bsd)))
-	(bsd-elf-p (and (eq (c:backend-fasl-file-implementation c:*backend*)
-			    #.c:x86-fasl-file-implementation)
-			(c:backend-featurep :bsd)
-			(c:backend-featurep :elf)))
-	(freebsd4-p (and (eq (c:backend-fasl-file-implementation c:*backend*)
-			    #.c:x86-fasl-file-implementation)
-			 (c:backend-featurep :freebsd4))))
+			(c:backend-featurep :freebsd))))
+    
     (cond
-     ((and bsd-p (not bsd-elf-p)
-	   (gethash (concatenate 'string "_" name)
-		    *cold-foreign-symbol-table* nil)))
-     ((and (or linux-p freebsd4-p)
-	   (gethash (concatenate 'string "PVE_stub_" name)
-		    *cold-foreign-symbol-table* nil)))
+     ((and freebsd-p (gethash (concatenate 'string "_" name)
+			      *cold-foreign-symbol-table* nil)))
+     ((and linux-p (gethash (concatenate 'string "PVE_stub_" name)
+			    *cold-foreign-symbol-table* nil)))
      ;; Non-linux case
      (#-irix
       (gethash name *cold-foreign-symbol-table* nil)
@@ -1854,7 +1839,6 @@
 ;; syscalls and Unix library things. Linux doesn't or maybe does
 ;; depending on things I don't know about yet? FreeBSD version 3
 ;; is ELF based and looks more like the other systems.
-;; For the moment we assume all non-elf BSDs are the same as non-elf FreeBSD.
 ;; Maybe these x86 hacks can be fixed when the non-elf's are obsoleted.
 
 (defun lookup-maybe-prefix-foreign-symbol (name)
@@ -1866,19 +1850,17 @@
 		    #.c:rt-afpa-fasl-file-implementation
 		    #.c:hppa-fasl-file-implementation
 		    #.c:alpha-fasl-file-implementation
-		    #.c:sgi-fasl-file-implementation
-		    #.c:ppc-fasl-file-implementation)
+		    #.c:sgi-fasl-file-implementation)
 		   "")
 		  (#.c:sparc-fasl-file-implementation
 		   (if (c:backend-featurep :svr4)
 		       ""
 		       "_"))
 		  (#.c:x86-fasl-file-implementation
-		   (if (and (c:backend-featurep :bsd)
-			    (not (c:backend-featurep :elf))
-			    (not (c:backend-featurep :netbsd)))
-		       "_" ; older FreeBSD, OpenBSD
-		       "")) ; Linux and ELF FreeBSD V3+, NetBSD
+		   (if (and (c:backend-featurep :freebsd)
+			    (not (c:backend-featurep :elf)))
+		       "_" ; older FreeBSD
+		       "")) ; Linux and FreeBSD V3+
 		  )
 		name)))
 
@@ -2083,7 +2065,7 @@
       (#.c:sgi-fasl-file-implementation
        (ecase kind
 	 (:jump
-	  ;; emarsden2002-03-05 (assert (zerop (ash value -28)))
+	  (assert (zerop (ash value -28)))
 	  (let ((inst (maybe-byte-swap (sap-ref-32 sap 0))))
 	    (setf (ldb (byte 26 0) inst) (ash value -2))
 	    (setf (sap-ref-32 sap 0) (maybe-byte-swap inst))))
@@ -2095,20 +2077,7 @@
 	 (:addi
 	  (setf (sap-ref-16 sap 2)
 		(maybe-byte-swap-short
-		 (ldb (byte 16 0) value))))))
-      (#.c:ppc-fasl-file-implementation
-       (ecase kind
-	 (:ba
- 	  (setf (sap-ref-32 sap 0)
- 		(dpb (ash value -2) (byte 24 2) (sap-ref-32 sap 0))))
- 	 (:ha
- 	  (let* ((h (ldb (byte 16 16) value))
- 		 (l (ldb (byte 16 0) value)))
- 	    (setf (sap-ref-16 sap 2)
- 		  (if (logbitp 15 l) (ldb (byte 16 0) (1+ h)) h))))
- 	 (:l
-  	  (setf (sap-ref-16 sap 2)
-  		(ldb (byte 16 0) value)))))))
+		 (ldb (byte 16 0) value))))))))
   (undefined-value))
 
 (defun linkage-info-to-core ()
@@ -2143,7 +2112,6 @@
 (defun emit-c-header-aux ()
   (format t "/*~% * Machine generated header file.  Do not edit.~% */~2%")
   (format t "#ifndef _INTERNALS_H_~%#define _INTERNALS_H_~2%")
-  ;; Write out various constants
   (let ((constants nil))
     (do-external-symbols (symbol (find-package "VM"))
       (when (constantp symbol)
@@ -2188,25 +2156,14 @@
 	  (terpri)
 	  (setf prev-priority (second const)))
 	(format t "#define ~A ~D~@[  /* ~A */~]~%"
-		(first const) (third const) (fourth const)))))
-
-  ;; Write out internal error codes and error descriptions
-  (terpri)
-  (loop for (error-name . rest) across (c:backend-internal-errors c:*backend*)
-        for error-code from 0
-	when error-name
-        do
-        (format t "#define ~A ~D~%"
-	        (substitute #\_ #\- (symbol-name error-name))
-		error-code))
-  (terpri)
-  (format t "#define ERRORS { \\~%")
-  (loop for info across (c:backend-internal-errors c:*backend*)
-        do (format t "    ~S, \\~%" (cdr info)))
-  (format t "    NULL \\~%}~%")
-
-  ;; Write out primitive object layouts
-  (terpri)
+		(first const) (third const) (fourth const))))
+    (terpri)
+    (format t "#define ERRORS { \\~%")
+    (loop
+      for info across (c:backend-internal-errors c:*backend*)
+      do (format t "    ~S, \\~%" (cdr info)))
+    (format t "    NULL \\~%}~%")
+    (terpri))
   (let ((structs (sort (copy-list vm:*primitive-objects*) #'string<
 		       :key #'(lambda (obj)
 				(symbol-name
@@ -2240,8 +2197,6 @@
 		    (- (* (vm:slot-offset slot) vm:word-bytes) lowtag)))
 	  (terpri))))
     (format t "#endif /* LANGUAGE_ASSEMBLY */~2%"))
-
-  ;; Write out static symbols
   (dolist (symbol (cons nil vm:static-symbols))
     (format t "#define ~A LISPOBJ(0x~X)~%"
 	    (nsubstitute #\_ #\-

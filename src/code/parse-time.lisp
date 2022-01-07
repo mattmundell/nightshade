@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/parse-time.lisp,v 1.8 2000/11/27 17:23:15 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/code/parse-time.lisp,v 1.6.2.1 2000/06/07 12:49:28 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 
@@ -45,16 +45,16 @@
 (defparameter special-table-size 11)
 
 (defvar *weekday-strings* (make-hash-table :test #'equal
-					 :size weekday-table-size))
+					   :size weekday-table-size))
 
 (defvar *month-strings* (make-hash-table :test #'equal
-				       :size month-table-size))
+					 :size month-table-size))
 
 (defvar *zone-strings* (make-hash-table :test #'equal
-				      :size zone-table-size))
+					:size zone-table-size))
 
 (defvar *special-strings* (make-hash-table :test #'equal
-					 :size special-table-size))
+					   :size special-table-size))
 
 ;;; Load-time creation of the hash tables.
 
@@ -85,7 +85,7 @@
 	    ("edt" . 4) ("cst" . 6)
 	    ("cdt" . 5) ("mst" . 7)
 	    ("mdt" . 6)	("pst" . 8)
-	    ("pdt" . 7)) 
+	    ("pdt" . 7))
 	  *zone-strings*)
 
 (hashlist '(("yesterday" . yesterday)  ("today" . today)
@@ -102,7 +102,7 @@
 ;;; noon-midn, and any special symbol.
 
 (defparameter *default-date-time-patterns*
-  '( 
+  '(
      ;; Date formats.
     ((weekday) month (date-divider) day (date-divider) year (noon-midn))
     ((weekday) day (date-divider) month (date-divider) year (noon-midn))
@@ -119,7 +119,7 @@
     ((noon-midn) year (date-divider) month)
 
      ;; Time formats.
-    (hour (time-divider) (minute) (time-divider) (secondp) (am-pm) 
+    (hour (time-divider) (minute) (time-divider) (secondp) (am-pm)
 	  (date-divider) (zone))
     (noon-midn)
     (hour (noon-midn))
@@ -190,7 +190,7 @@
 
 ;;; HTTP header style date/time patterns: RFC1123/RFC822, RFC850, ANSI-C.
 (defparameter *http-date-time-patterns*
-  '( 
+  '(
      ;; RFC1123/RFC822 and RFC850.
     ((weekday) day (date-divider) month (date-divider) year
      hour time-divider minute (time-divider) (secondp) izone)
@@ -290,7 +290,7 @@
 				       (t new-zone)))
 			       zone))))
 
-;;; Sets the current values for the time and/or date parts of the 
+;;; Sets the current values for the time and/or date parts of the
 ;;; decoded time structure.
 
 (defun set-current-value (values-structure &key (time nil) (date nil)
@@ -469,7 +469,7 @@
 	     ;; it is not a date divider, but a negative offset from GMT, so
 	     ;; set next-negative to t and continue.
 	     (setf next-negative t)
-	     (incf string-index))	     
+	     (incf string-index))
 	    ((member next-char time-dividers :test #'char=)
  	     ;; Time-divider - add it to the parts-list with symbol.
 	     (push (cons 'time-divider next-char) parts-list)
@@ -490,11 +490,9 @@
 	    (t
 	     ;; Unrecognized character - barf voraciously.
 	     (if *error-on-mismatch*
-		 (error
-		  'simple-error
-		  :format-control "Can't parse time/date string.~%>>> ~A~
-				   ~%~VT^-- Bogus character encountered here."
-		  :format-arguments (list string (+ string-index 4)))
+		 (error (concatenate 'simple-string ">>> " string
+				     "~%~VT^-- Bogus character encountered here.")
+			(+ string-index 4))
 		 (return-from decompose-string nil)))))))
 
 ;;; Match-pattern-element tries to match a pattern element with a datum
@@ -580,8 +578,8 @@
 
 ;;; Deal-with-dow sets the decoded-time values to match the day of week.
 
-;;; FIX confirm that this works when day is adjusted past the last day of
-;;; the month.
+;;; FIX Can increase past the last day of the month.  (Can tomorrow do
+;;; similar?)
 (defun deal-with-dow (form-value parsed-values)
   (let ((dotw (decoded-time-dotw parsed-values)))
     (setf (decoded-time-dotw parsed-values) form-value)
@@ -591,6 +589,7 @@
 		 (+ form-value 7)
 		 form-value)
 	     dotw))))
+
 
 ;;; Set-time-values uses the association list of symbols and values
 ;;; to set the time in the decoded-time structure.

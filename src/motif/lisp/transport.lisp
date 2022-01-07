@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/motif/lisp/transport.lisp,v 1.4 2000/02/15 11:59:24 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/motif/lisp/transport.lisp,v 1.2.2.1 2000/05/23 16:38:35 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

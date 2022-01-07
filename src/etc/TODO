@@ -1,17 +1,42 @@
 ;;; towards a public domain computer
 full pd
     revert to as far back as possible
+		publish  nightshade 0.0+
+				 nightshade 1
+					 binary
+		18c docs
+			must strip out copyrighted section
 	where is the full pd?
+		# list pd status of all 18c files
+		#     maybe start in lisp/, code/
+	perhaps can revert ed to full pd now
 	revert each part as far back as possible
 	    eg code/ hemlock/ or every file in those dirs
 		are any files in hem already pd?
     reduce to pd
-      src/ldb/egets.c  copyright cmu (so maybe actually pd)
-      clean general-info/ and docs/ refs to clx...
-	  only when these are full pd
+        clean general-info/ and docs/ refs to clx...
+	    only when these are full pd
     consistent comments,docs,msgs
+		docs
+			arg names all same
+	check
+		ed
+			----------------------------
+			revision 1.4
+			date: 1996-05-08 15:56:40 +0100;  author: ram;  state: Exp;  lines: +11 -2
+			branches:  1.4.2;
+			Patch from Jeurgen Weiss to translate-key-event which makes it deal better with
+			european keyboards.
+			----------------------------
+			----------------------------
+			revision 1.12
+			date: 1998-06-16 07:58:57 +0100;  author: dtc;  state: Exp;  lines: +12 -11
+			Linux port update from Peter VanEynde: revision of the glibc2 support,
+			better hemlock tty mode support.
+			----------------------------
+parse-time.lisp  dow incr day past end of month
 shell,vc.lisp byte compiling
-take out monitor
+take out (replace?) monitor
 merge in pd from c-l.net  :src/alexandria,anaphora,cl-telnet
 merge in cl-utilities
    note each licence in html doc, eg split-sequence
@@ -29,35 +54,42 @@ merge in cl-utilities
 	 ; package as a dependency, but that was so unwieldy that it was *the*
 	;; sore spot sticking out in the design of cl-utilities. -Peter Scott
      rest seem ok in code
-replace copyrighted cmucl parts w public domain equivs
-    replace dependencies on copyrighted code
+seq.lisp split  cmp filesys.lisp split-at-slashes
+replace dependencies on copyrighted code
 	replace external library dependencies
-	    maths lib, c lib
-        move c into lisp
-	    gencgc
-		switch to cgc.c? only x86, same as gencgc
+		maths lib
+			libc6-dev provides /usr/lib/libm.a
+				why linked?
+		c lib
+			maybe skalibs?
+		cc
+			move c into lisp
+				gencgc
+					first attempt left in 0.0+
+				switch to cgc.c? only x86, same as gencgc
 	replace unix parts
-	    lisp build scripts  (almost done)
-	    `make' system  move c into lisp
-	    lisp versions of unix tools
-		parse
-		    speed
-		        *marks* optnl
-		        create node afterwrds?
-       			boyer-moore?
-		    backw
-		    use in dired search
-			Srch [R]  case  c-u? (for hidden files) c-uc-u? then for hidden,case? c-uc-uc-u?
-				  what about backup files?
-				  maybe c-u results in prompts for all of these
-				      fold case, search hidden, search backup
-	    	head, tail...
-	    	tar, compression
-	    dict interface  pd version incl data
+		lisp build scripts  (almost done)
+		`make' system  move c into lisp
+		lisp equivs of unix tools
+			parse
+				speed
+					*marks* optnl
+					create node afterwrds?
+					boyer-moore?
+				backw
+				use in dired search
+				Srch [R]  case  c-u? (for hidden files) c-uc-u? then for hidden,case? c-uc-uc-u?
+					  what about backup files?
+					  maybe c-u results in prompts for all of these
+						  fold case, search hidden, search backup
+				head, tail...
+				tar, compression
+		dict interface  pd version incl data
 		dictd, dict client
-    		    pd dicts  moby thes, jargon file, ...
-		    orig source of gcide?
-    add system services i.e. replace unix kernel
+				pd dicts  moby thes, jargon file, ...
+			orig source of gcide?
+			le dico?
+		add system services i.e. replace unix kernel
 graphics, images
     vector graphics mixed w text
     http://www.w3.org/Graphics  for svg
@@ -107,8 +139,11 @@ consider lojban
     always, multi-return-protect, <throw-protect>, always-after
       instead of unwind-protect
 
+	eq take multiple args
+
     or instd of unless
-    if+ instd of when? or+ instd of unless? (like let*) maybe if*,or*
+    if+,i+,*f instd of when? or+,o+,*r instd of unless? (like let*) maybe if*,or*
+	   these look like arithmetic ops
 	(when a b)
 	(a a b)      ; a for and, maybe and*, an*, a*  ..+ ..1
 
@@ -130,18 +165,30 @@ consider lojban
     replace if w cond?
     (if x a b)  (cond (x a) (t b))  (cond (x a) b)  (if (x a) (t b))
 
+	replace and w if?
+	(and a b c)
+	(if a (if b (if c c)))  c evald 2x
+
+	replace if w and?
+	(if a b c)
+	(or (and a (progn b t)) c)
+
+	;; two ways the same, due to t,f?
+	(if  (if a (eq a b) t)         d)
+	(if  (or (eq a nil) (eq a b))  d)
 
     (>< (<>  (greater-than-or-less-than
     epsilon, zero   list terminator, end, false   always, forever, ever
 
-    replace do w loop? (and rename loop do)
+    replace do w loop? (and rename loop do)            ~ scheme uses heavy recursion
     (do ((for x t :then f)        ; (let i 0 f)
 	 (for i 0 :to 10 :count)  ; (let i 0 :to 10 :count)
 				  ; (let ((i 0 10 :count)))?
 	 (while x)
 	 (return t))
        body)
-    (do (for x 0 10) body)
+	(do t body)  for  (loop body)
+    (do (for x 0 10) body)      (do (x 0 10) body) (do (:list list)
     dolist?
 	     (do ((for ele :in list)) ...)
 	     (do ((list ele list)) ...)

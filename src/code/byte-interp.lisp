@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/byte-interp.lisp,v 1.34 2002/07/29 13:56:22 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/code/byte-interp.lisp,v 1.32.2.1 2000/05/23 16:36:13 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -509,8 +509,8 @@
 (defun two-arg-char-lessp (x y) (char-lessp x y))
 (defun two-arg-char-greaterp (x y) (char-greaterp x y))
 (defun two-arg-string= (x y) (string= x y))
-(defun two-arg-string< (x y) (string< x y))
-(defun two-arg-string> (x y) (string> x y))
+(defun two-arg-string< (x y) (string= x y))
+(defun two-arg-string> (x y) (string= x y))
 
 
 ;;;; Misc primitive stubs:
@@ -1513,3 +1513,4 @@
 	  (byte-interpret old-component (- old-pc) old-fp)))))
 
 ;(declaim (end-block byte-interpret byte-interpret-byte invoke-xep))
+

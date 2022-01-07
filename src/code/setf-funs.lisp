@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/setf-funs.lisp,v 1.6 1998/07/19 00:22:19 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/code/setf-funs.lisp,v 1.5.2.1 1998/07/19 01:06:12 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

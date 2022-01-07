@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/alieneval.lisp,v 1.51 2001/06/01 12:49:39 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/code/alieneval.lisp,v 1.39.2.3 2000/05/23 16:36:09 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -43,7 +43,7 @@
 	  alien-pointer-type alien-pointer-type-p alien-pointer-type-to
 	  make-alien-pointer-type
 	  alien-array-type alien-array-type-p alien-array-type-element-type
-	  alien-array-type-dimensions	  
+	  alien-array-type-dimensions
 	  alien-record-type alien-record-type-p alien-record-type-fields
 	  alien-record-field alien-record-field-p alien-record-field-name
 	  alien-record-field-type alien-record-field-offset
@@ -89,7 +89,7 @@
 	  alien-pointer-type alien-pointer-type-p alien-pointer-type-to
 	  make-alien-pointer-type
 	  alien-array-type alien-array-type-p alien-array-type-element-type
-	  alien-array-type-dimensions	  
+	  alien-array-type-dimensions
 	  alien-record-type alien-record-type-p alien-record-type-fields
 	  alien-record-field alien-record-field-p alien-record-field-name
 	  alien-record-field-type alien-record-field-offset
@@ -373,11 +373,11 @@
 ;;; Holds the list of record types that have already been unparsed.  This is
 ;;; used to keep from outputing the slots again if the same structure shows
 ;;; up twice.
-;;; 
+;;;
 (defvar *record-types-already-unparsed*)
 
 ;;; UNPARSE-ALIEN-TYPE -- public.
-;;; 
+;;;
 (defun unparse-alien-type (type)
   "Convert the alien-type structure TYPE back into a list specification of
    the type."
@@ -389,7 +389,7 @@
 ;;;
 ;;; Does all the work of UNPARSE-ALIEN-TYPE.  It's seperate because we need
 ;;; to recurse inside the binding of *record-types-already-unparsed*.
-;;; 
+;;;
 (defun %unparse-alien-type (type)
   (invoke-alien-type-method :unparse type))
 
@@ -479,7 +479,7 @@
 (defun alien-subtype-p (type1 type2)
   "Return T iff the alien type TYPE1 is a subtype of TYPE2.  Currently, the
    only supported subtype relationships are is that any pointer type is a
-   subtype of (* t), and any array type first dimension will match 
+   subtype of (* t), and any array type first dimension will match
    (array <eltype> nil ...).  Otherwise, the two types have to be
    ALIEN-TYPE-=."
   (or (eq type1 type2)
@@ -989,7 +989,7 @@
 			      (rest dims))))
       (when loser
 	(error "Dimension is not a non-negative fixnum: ~S" loser))))
-	
+
   (let ((type (parse-alien-type ele-type)))
     (make-alien-array-type
      :element-type type
@@ -1076,7 +1076,7 @@
 ;;; Used by parse-alien-type to parse the fields of struct and union
 ;;; types.  RESULT holds the record type we are paring the fields of,
 ;;; and FIELDS is the list of field specifications.
-;;; 
+;;;
 (defun parse-alien-record-fields (result fields)
   (declare (type alien-record-type result)
 	   (type list fields))
@@ -1249,7 +1249,7 @@
 ;;; HEAP-ALIEN-INFO -- defstruct.
 ;;;
 ;;; Information describing a heap-allocated alien.
-;;; 
+;;;
 (defstruct (heap-alien-info
 	    (:print-function %print-heap-alien-info)
 	    (:make-load-form-fun :just-dump-it-normally))
@@ -1272,7 +1272,7 @@
 ;;; Information about local aliens.  The WITH-ALIEN macro builds one of these
 ;;; structures and local-alien and friends comunicate information about how
 ;;; that local alien is represented.
-;;; 
+;;;
 (defstruct (local-alien-info
 	    (:print-function %print-local-alien-info)
 	    (:make-load-form-fun :just-dump-it-normally)
@@ -1296,7 +1296,7 @@
 ;;;
 ;;; Make a string out of the symbol, converting all uppercase letters to
 ;;; lower case and hyphens into underscores.
-;;; 
+;;;
 (defun guess-alien-name-from-lisp-name (lisp-name)
   (declare (type symbol lisp-name))
   (nsubstitute #\_ #\- (string-downcase (symbol-name lisp-name))))
@@ -1315,7 +1315,7 @@
 ;;;
 ;;; Extract the lisp and alien names from NAME.  If only one is given, guess
 ;;; the other.
-;;; 
+;;;
 (defun pick-lisp-and-alien-names (name)
   (etypecase name
     (string
@@ -1349,7 +1349,7 @@
 ;;; %DEF-ALIEN-VARIABLE -- internal
 ;;;
 ;;; Do the actual work of DEF-ALIEN-VARIABLE.
-;;; 
+;;;
 (defun %def-alien-variable (lisp-name alien-name type)
   (setf (info variable kind lisp-name) :alien)
   (setf (info variable where-from lisp-name) :defined)
@@ -1360,7 +1360,7 @@
 					  ',alien-name))))
 
 ;;; EXTERN-ALIEN -- public.
-;;; 
+;;;
 (defmacro extern-alien (name type)
   "Access the alien variable named NAME, assuming it is of type TYPE.  This
    is setfable."
@@ -1463,7 +1463,7 @@
   (declare (ignore depth))
   (print-unreadable-object (value stream)
     (funcall (formatter "Alien ~S at #x~8,'0X")
-	     stream 
+	     stream
 	     (unparse-alien-type (alien-value-type value))
 	     (sap-int (alien-value-sap value)))))
 
@@ -1472,7 +1472,7 @@
   "Return true if X (which must be an Alien pointer) is null, false otherwise."
   (zerop (sap-int (alien-sap x))))
 
-  
+
 (defmacro sap-alien (sap type)
   "Convert the System-Area-Pointer SAP to an Alien of the specified Type (not
    evaluated.)  Type must be pointer-like."
@@ -1496,7 +1496,7 @@
 ;;;; Allocation/Deallocation of heap aliens.
 
 ;;; MAKE-ALIEN -- public.
-;;; 
+;;;
 (defmacro make-alien (type &optional size)
   "Allocate an alien of type TYPE and return an alien pointer to it.  If SIZE
    is supplied, how it is interpreted depends on TYPE.  If TYPE is an array
@@ -1562,7 +1562,7 @@
 ;;; SLOT-OR-LOSE -- internal.
 ;;;
 ;;; Find the field named SLOT, or die trying.
-;;; 
+;;;
 (defun slot-or-lose (type slot)
   (declare (type alien-record-type type)
 	   (type symbol slot))
@@ -1574,7 +1574,7 @@
 ;;;
 ;;; Extract the value from the named slot from the record alien.  If the
 ;;; alien is actually a pointer, then deref it first.
-;;; 
+;;;
 (defun slot (alien slot)
   "Extract SLOT from the Alien STRUCT or UNION ALIEN.  May be set with SETF."
   (declare (type alien-value alien)
@@ -1595,7 +1595,7 @@
 ;;; Deposite the value in the specified slot of the record alien.  If the
 ;;; alien is really a pointer, deref it first.  The compiler uses this
 ;;; when it can't figure out anything better.
-;;; 
+;;;
 (defun %set-slot (alien slot value)
   (declare (type alien-value alien)
 	   (type symbol slot)
@@ -1614,9 +1614,9 @@
 (defsetf slot %set-slot)
 
 ;;; %SLOT-ADDR -- internal
-;;; 
+;;;
 ;;; Compute the address of the specified slot and return a pointer to it.
-;;; 
+;;;
 (defun %slot-addr (alien slot)
   (declare (type alien-value alien)
 	   (type symbol slot)
@@ -1639,7 +1639,7 @@
 ;;;
 ;;; Does most of the work of the different DEREF methods.  Returns two values:
 ;;; the type and the offset (in bits) of the refered to alien.
-;;; 
+;;;
 (defun deref-guts (alien indices)
   (declare (type alien-value alien)
 	   (type list indices)
@@ -1680,7 +1680,7 @@
 ;;; DEREF -- public
 ;;;
 ;;; Dereference the alien and return the results.
-;;; 
+;;;
 (defun deref (alien &rest indices)
   "De-reference an Alien pointer or array.  If an array, the indices are used
    as the indices of the array element to access.  If a pointer, one index can
@@ -1696,7 +1696,7 @@
 			 target-type)))
 
 ;;; %SET-DEREF -- public setf method
-;;; 
+;;;
 (defun %set-deref (alien value &rest indices)
   (declare (type alien-value alien)
 	   (type list indices)
@@ -1777,7 +1777,7 @@
   (declare (ignore info))
   (setf (deref alien) value))
 
-(define-setf-expander local-alien (&whole whole info alien)
+(define-setf-method local-alien (&whole whole info alien)
   (let ((value (gensym))
 	(info (if (and (consp info)
 		       (eq (car info) 'quote))

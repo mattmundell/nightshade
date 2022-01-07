@@ -32,12 +32,16 @@
   (or (probe-file directory)
       (error "Directory must exist."))
   ;; Compiled files.
-  (map-files (format nil "~A/" directory) #'filter
+  (map-files (truename (format nil "~A/" directory)) #'filter
 	     :all nil :backups nil :recurse t)
   ;; Logs.
-  (dolist (file (lisp::enumerate-names (format nil "~A/*.log" directory)))
+  (dolist (file (lisp::enumerate-names (format nil
+					       "~A/*.log"
+					       (truename directory))))
     (delete-file file))
-  (dolist (file (lisp::enumerate-names (format nil "~A/*.log.OLD" directory)))
+  (dolist (file (lisp::enumerate-names (format nil
+					       "~A/*.log.OLD"
+					       (truename directory))))
     (delete-file file))
   t)
 

@@ -74,7 +74,7 @@
   (new-search-pattern :string-insensitive :forward " "))
 
 (defvar *last-go-to-def-string* "")
-(declaim (simple-string *last-go-to-def-string*))
+(proclaim '(simple-string *last-go-to-def-string*))
 
 ;;; GET-DEFINITION-PATTERN takes a type and a name.  It returns a search
 ;;; pattern for finding the defining form for name using

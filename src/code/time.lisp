@@ -5,12 +5,12 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/time.lisp,v 1.19 2000/06/07 07:11:02 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/code/time.lisp,v 1.17.2.2 2000/06/07 12:48:07 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
 ;;;    This file contains the definitions for the Spice Lisp time functions.
-;;; They are mostly fairly straightforwardly implemented as calls to the 
+;;; They are mostly fairly straightforwardly implemented as calls to the
 ;;; time server.
 ;;;
 ;;;    Written by Rob MacLachlan.
@@ -19,7 +19,8 @@
 (export '(internal-time-units-per-second get-internal-real-time
 	  get-internal-run-time get-universal-time
 	  get-decoded-time encode-universal-time decode-universal-time
- 	  universal-to-internal-real-time internal-real-to-universal-time))
+	  universal-to-internal-real-time internal-real-to-universal-time
+	  days-per-months))
 
 (defconstant internal-time-units-per-second 100
   "The number of internal time units that fit into a second.  See
@@ -38,6 +39,7 @@
 (defvar *internal-real-time-base-seconds* nil)
 (declaim (type (or (unsigned-byte 32) null) *internal-real-time-base-seconds*))
 
+;; FIX check this, copied directly from 0.0+
 ;;; Universal-To-Internal-Real-Time  --  Public
 ;;;
 (defun universal-to-internal-real-time (universal-time)
@@ -53,6 +55,7 @@
 			      (- seconds *internal-real-time-base-seconds*))
 			 internal-time-units-per-second))))))
 
+;; FIX check this, copied directly from 0.0+
 ;;; Internal-Real-To-Universal-Time  --  Public
 ;;;
 (defun internal-real-to-universal-time (real-time)
@@ -134,7 +137,7 @@
 (defconstant november-17-1858 678882)
 (defconstant weekday-november-17-1858 2)
 (defconstant unix-to-universal-time 2208988800)
-
+(defconstant days-per-months #(31 28 31 30 31 30 31 31 30 31 30 31))
 
 ;;; Get-Universal-Time  --  Public
 ;;;
@@ -162,8 +165,9 @@
       (if time-zone
 	  (values nil (* time-zone 60 60))
 	  (multiple-value-bind
-		(minwest dst)
+		(ignore minwest dst)
 	      (unix:get-timezone (- universal-time unix-to-universal-time))
+	    (declare (ignore ignore))
 	    (values dst (* minwest 60))))
     (declare (fixnum timezone))
     (multiple-value-bind (weeks secs)
@@ -217,7 +221,8 @@
   (collect ((results))
     (results nil)
     (let ((sum 0))
-      (dolist (days-per-month '(31 28 31 30 31 30 31 31 30 31 30 31))
+      ;; FIX leap years?
+      (loop for days-per-month across days-per-months do
 	(results sum)
 	(incf sum days-per-month)))
     (coerce (results) 'vector)))
@@ -226,7 +231,7 @@
 ;;;
 (defun encode-universal-time (second minute hour date month year
 				     &optional time-zone dst)
-  "The time values specified in decoded format are converted to 
+  "The time values specified in decoded format are converted to
    universal time, which is returned."
   (declare (type (mod 60) second)
 	   (type (mod 60) minute)
@@ -253,12 +258,14 @@
 			   60))
 		     60))
 	(let* ((minwest-guess
-		(unix:get-timezone (- (* hours 60 60)
-				      unix-to-universal-time)))
+		(nth-value 1
+			   (unix:get-timezone (- (* hours 60 60)
+						 unix-to-universal-time))))
 	       (guess (+ minute (* hours 60) minwest-guess))
 	       (minwest
-		(unix:get-timezone (- (* guess 60)
-				      unix-to-universal-time))))
+		(nth-value 1
+			   (unix:get-timezone (- (* guess 60)
+						 unix-to-universal-time)))))
 	  (+ second (* (+ guess (- minwest minwest-guess)) 60))))))
 
 

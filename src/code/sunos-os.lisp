@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/sunos-os.lisp,v 1.9 1998/01/29 07:22:50 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/code/sunos-os.lisp,v 1.8.2.1 1998/06/23 11:22:33 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

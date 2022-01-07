@@ -1,5 +1,5 @@
 /* Routines that must be linked into the core for lisp to work. */
-/* $Header: /project/cmucl/cvsroot/src/lisp/undefineds.h,v 1.26 2002/05/06 18:02:05 pmai Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/undefineds.h,v 1.18.2.2 2000/05/23 16:38:32 pw Exp $ */
 
 /* Pick up all the syscalls. */
 F(accept)
@@ -10,7 +10,7 @@ F(adjtime)
 #endif
 F(bind)
 F(brk)
-#if defined(hpux) || defined(SVR4) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#if defined(hpux) || defined(SVR4) || defined(__FreeBSD__)
 F(cfgetospeed)
 F(cfsetospeed)
 F(cfgetispeed)
@@ -73,9 +73,9 @@ F(kill)
 #if !defined(SOLARIS) || defined(SOLARIS25)
 F(killpg)
 #endif
-F(localtime_r)
 F(link)
 F(listen)
+F(localtime_r)
 F(lseek)
 F(lstat)
 F(mkdir)
@@ -118,7 +118,7 @@ F(setpgrp)
 #if !defined(SVR4) ||  defined(SOLARIS25)
 F(setpriority)
 #endif
-#if !defined(mach) && !defined(SOLARIS) && !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__NetBSD__) && !defined(SUNOS) && !defined(osf1) && !defined(irix) && !defined(hpux) && !(defined(linux) && defined(alpha))
+#if !defined(mach) && !defined(SOLARIS) && !defined(__FreeBSD__) && !defined(SUNOS) && !defined(osf1) && !defined(irix) && !defined(hpux) && !(defined(linux) && defined(alpha))
 F(setquota)
 #endif
 #if !defined(hpux) && !defined(SVR4) ||  defined(SOLARIS25)
@@ -136,7 +136,7 @@ F(sigpause)
 #if !defined(ibmrt) && !defined(hpux) && !defined(SVR4) && !defined(i386)
 F(sigreturn)
 #endif
-#if !defined(SVR4) && !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__NetBSD__)
+#if !defined(SVR4) && !defined(__FreeBSD__)
 F(sigsetmask)
 F(sigstack)
 F(sigvec)
@@ -155,7 +155,7 @@ F(closedir)
 F(opendir)
 F(readdir)
 #endif
-#if defined(hpux) || defined(SVR4) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__linux__)
+#if defined(hpux) || defined(SVR4) || defined(__FreeBSD__) || defined(__linux__)
 F(tcgetattr)
 F(tcsetattr)
 F(tcsendbreak)
@@ -169,7 +169,7 @@ F(times)
 F(truncate)
 F(umask)
 #if !defined(SUNOS) && !defined(parisc) && !defined(SOLARIS) \
-  && !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__NetBSD__)
+  && !defined(__FreeBSD__)
 F(umount)
 #endif
 F(unlink)
@@ -179,7 +179,7 @@ F(utimes)
 #ifndef irix
 F(vfork)
 #endif
-#if !defined(osf1) && !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__NetBSD__)
+#if !defined(osf1) && !defined(__FreeBSD__)
 F(vhangup)
 #endif
 F(wait)
@@ -226,22 +226,18 @@ F(gethostbyname)
 F(gethostbyaddr)
 
 /* Other random things. */
-#if defined(SVR4) 
+#if defined(SVR4)
 F(setpgid)
 F(getpgid)
 D(timezone)
 D(altzone)
 D(daylight)
 D(tzname)
-#endif
-
-#if defined(SVR4) || defined(__OpenBSD__)
 F(dlopen)
 F(dlsym)
 F(dlclose)
 F(dlerror)
 #endif
-
 #if !defined (SOLARIS) ||  defined(SOLARIS25)
 F(getwd)
 #endif

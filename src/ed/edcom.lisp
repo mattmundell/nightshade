@@ -1,0 +1,1 @@
+../tools/edcom.lisp

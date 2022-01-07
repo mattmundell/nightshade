@@ -5,11 +5,11 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/rt/memory.lisp,v 1.2 1994/10/31 04:45:41 ram Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/rt/memory.lisp,v 1.2 1994/10/31 04:45:41 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
-;;; $Header: /project/cmucl/cvsroot/src/compiler/rt/memory.lisp,v 1.2 1994/10/31 04:45:41 ram Exp $
+;;; $Header: /home/CVS-cmucl/src/compiler/rt/memory.lisp,v 1.2 1994/10/31 04:45:41 ram Exp $
 ;;;
 ;;; This file contains the IBM RT definitions of some general purpose memory
 ;;; reference VOPs inherited by basic memory reference operations.

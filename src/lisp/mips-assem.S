@@ -1,4 +1,4 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/mips-assem.S,v 1.9 2002/08/23 17:01:02 pmai Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/mips-assem.S,v 1.6.2.2 2000/05/23 16:38:29 pw Exp $ */
 #ifdef mach
 #include <machine/regdef.h>
 #else
@@ -273,19 +273,16 @@ start_of_tramps:
         .globl  undefined_tramp
         .ent    undefined_tramp
 undefined_tramp:
-        break   trap_Error
+        break   10
 #ifdef irix
         break 11
         break 11
 #else
-        /* Number of argument bytes */
-        .byte   4
-        .byte   UNDEFINED_SYMBOL_ERROR
-        /* Escape to create 16bit BE number from following two values */
-        .byte   254
-        /* SC_OFFSET(sc_DescriptorReg,reg_FDEFN) */
-        .byte   (0xc0 + sc_DescriptorReg)
-        .byte   1
+        .byte    4
+        .byte    23
+        .byte    254
+        .byte    (0xc0 + sc_DescriptorReg)
+        .byte    1
         .align 2
 #endif
         .end    undefined_tramp

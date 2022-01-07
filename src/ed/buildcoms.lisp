@@ -74,9 +74,8 @@
 	     (slave-utility-switches
 	      `("-core"
 		,(format nil "~A/lisp/lisp.core" (get-builder-directory))))
-	     (confirm-slave-creation t))
+	     (confirm-slave-creation))
 	(let ((info (create-slave "Builder")))
-	  (msg "info ~A" info)
 	  (if info
 	      (setq *builder-slave* (server-info-slave-buffer info)))))))
 

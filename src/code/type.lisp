@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/type.lisp,v 1.41 2002/08/12 21:13:54 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/code/type.lisp,v 1.21.2.7 2000/07/09 14:03:03 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -55,7 +55,7 @@
    affects array types.")
 
 (cold-load-init (setq *use-implementation-types* t))
-(declaim (type boolean *use-implementation-types*))
+(proclaim '(type boolean *use-implementation-types*))
 
 ;;; DELEGATE-COMPLEX-{SUBTYPEP-ARG2,INTERSECTION}  --  Interface
 ;;;
@@ -1013,35 +1013,16 @@
 
 (define-type-method (hairy :complex-subtypep-arg2) (type1 type2)
   (let ((hairy-spec (hairy-type-specifier type2)))
-    (cond
-      ((and (consp hairy-spec) (eq (car hairy-spec) 'not))
-       (multiple-value-bind (val win)
-	   (type-intersection type1 (specifier-type (cadr hairy-spec)))
-	 (if win
-	     (values (eq val *empty-type*) t)
-	     (values nil nil))))
-      ((and (consp hairy-spec) (eq (car hairy-spec) 'and))
-       (block PUNT
-	 (values (every-type-op csubtypep type1
-				(mapcar #'specifier-type (cdr hairy-spec)))
-		 t)))
-      (t
-       (values nil nil)))))
+    (cond ((and (consp hairy-spec) (eq (car hairy-spec) 'not))
+	   (multiple-value-bind (val win)
+	       (type-intersection type1 (specifier-type (cadr hairy-spec)))
+	     (if win
+		 (values (eq val *empty-type*) t)
+		 (values nil nil))))
+	  (t
+	   (values nil nil)))))
 
-(define-type-method (hairy :complex-subtypep-arg1) (type1 type2)
-  (let ((hairy-spec (hairy-type-specifier type1)))
-    (cond
-      ((and (consp hairy-spec) (eq (car hairy-spec) 'and))
-       (block PUNT
-	 (if (any-type-op csubtypep type2
-			  (mapcar #'specifier-type (cdr hairy-spec))
-			  :list-first t)
-	     (values t t)
-	     (values nil nil))))
-      (t
-       (values nil nil)))))
-
-(define-type-method (hairy :complex-=) (type1 type2)
+(define-type-method (hairy :complex-subtypep-arg1 :complex-=) (type1 type2)
   (declare (ignore type1 type2))
   (values nil nil))
 
@@ -1414,42 +1395,17 @@
 
 
 (def-type-translator complex (&optional spec)
-  (cond
-    ((eq spec '*)
-     (make-numeric-type :complexp :complex))
-    (t
-     (flet ((complex-type-error (type)
-	      (error "Component type for Complex is not real: ~S." spec)))
-       (let* ((type (specifier-type spec))
-	      (res (copy-numeric-type
-		    (cond ((numeric-type-p type)
-			   ;; For simple numeric types, try to preserve
-			   ;; as much info as possible.
-			   (when (eq (numeric-type-complexp type) :complex)
-			     (complex-type-error spec))
-			   type)
-			  ((csubtypep type (specifier-type 'rational))
-			   ;; This case also handles things like (eql
-			   ;; 1), etc.
-			   (specifier-type 'rational))
-			  ((csubtypep type (specifier-type 'single-float))
-			   (specifier-type 'single-float))
-			  ((csubtypep type (specifier-type 'double-float))
-			   (specifier-type 'double-float))
-			  ((csubtypep type (specifier-type 'float))
-			   (specifier-type 'float))
-			  ((csubtypep type (specifier-type 'real))
-			   (specifier-type 'real))
-			  ((kernel::hairy-type-p type)
-			   ;; Do we really want to produce an error here?
-			   (cerror "Assume type is a subtype of REAL anyway."
-				   "Cannot determine if ~S is a subtype of REAL"
-				   spec)
-			   (specifier-type 'real))
-			  (t
-			   (complex-type-error spec))))))
-	 (setf (numeric-type-complexp res) :complex)
-	 res)))))
+  (if (eq spec '*)
+      (make-numeric-type :complexp :complex)
+      (let ((type (specifier-type spec)))
+	(unless (numeric-type-p type)
+	  (error "Component type for Complex is not numeric: ~S." spec))
+	(when (eq (numeric-type-complexp type) :complex)
+	  (error "Component type for Complex is complex: ~S." spec))
+
+	(let ((res (copy-numeric-type type)))
+	  (setf (numeric-type-complexp res) :complex)
+	  res))))
 
 
 ;;; Check-Bound  --  Internal
@@ -2495,32 +2451,25 @@
 	 (extract-function-type x)))
     (symbol
      (make-member-type :members (list x)))
-    (complex
-     (let ((real (realpart x))
-	   (imag (imagpart x)))
-       (make-numeric-type :class (etypecase real
-				   (integer
-				    (etypecase imag
-				      (integer 'integer)
-				      (rational 'rational)))
-				   (rational 'rational)
-				   (float 'float))
-			  :format (if (floatp real)
-				      (float-format-name real)
-				      nil)
-			  :complexp :complex
-			  :low (min real imag)
-			  :high (max real imag))))
     (number
-     (make-numeric-type :class (etypecase x
-				 (integer 'integer)
-				 (rational 'rational)
-				 (float 'float))
-			:format (if (floatp x)
-				    (float-format-name x)
-				    nil)
-			:low x
-			:high x))
+     (let* ((num (if (complexp x) (realpart x) x))
+	    (res (make-numeric-type
+		  :class (etypecase num
+			   (integer 'integer)
+			   (rational 'rational)
+			   (float 'float))
+		  :format (if (floatp num)
+			      (float-format-name num)
+			      nil))))
+       (cond ((complexp x)
+	      (setf (numeric-type-complexp res) :complex)
+	      (let ((imag (imagpart x)))
+		(setf (numeric-type-low res) (min num imag))
+		(setf (numeric-type-high res) (max num imag))))
+	     (t
+	      (setf (numeric-type-low res) num)
+	      (setf (numeric-type-high res) num)))
+       res))
     (array
      (let ((etype (specifier-type (array-element-type x))))
        (make-array-type :dimensions (array-dimensions x)

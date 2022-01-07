@@ -1,4 +1,4 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/parse.c,v 1.4 1997/11/23 08:52:52 dtc Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/parse.c,v 1.3.2.2 2000/05/23 16:38:29 pw Exp $ */
 #include <stdio.h>
 #include <ctype.h>
 #include <signal.h>

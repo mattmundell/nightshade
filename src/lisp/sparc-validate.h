@@ -1,6 +1,6 @@
 /*
 
- $Header: /project/cmucl/cvsroot/src/lisp/sparc-validate.h,v 1.10 2000/10/27 19:32:03 dtc Exp $
+ $Header: /home/CVS-cmucl/src/lisp/sparc-validate.h,v 1.8.2.3 2000/10/27 19:34:24 dtc Exp $
 
  This code was written as part of the CMU Common Lisp project at
  Carnegie Mellon University, and has been placed in the public domain.

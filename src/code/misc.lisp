@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/misc.lisp,v 1.29 2001/07/08 16:28:09 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/code/misc.lisp,v 1.23.2.5 1998/06/23 11:22:10 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -29,7 +29,7 @@
 (in-package "LISP")
 
 ;;; cobbled from stuff in describe.lisp.
-(defun function-doc (x)
+(defun function-doc(x)
   (let ((name
 	 (case (kernel:get-type x)
 	   (#.vm:closure-header-type
@@ -43,7 +43,7 @@
 	      (kernel:byte-closure
 	       (c::byte-function-name (byte-closure-function x)))
 	      (eval:interpreted-function
-	       (multiple-value-bind 
+	       (multiple-value-bind
 		     (exp closure-p dname)
 		   (eval:interpreted-function-lambda-expression x)
 		 (declare (ignore exp closure-p))
@@ -64,7 +64,7 @@
 	   (cdr (assoc doc-type
 		       (values (info random-documentation stuff x))))))
     (case doc-type
-      (variable 
+      (variable
        (typecase x
 	 (symbol (values (info variable documentation x)))))
       (function
@@ -110,9 +110,8 @@
 		 (info random-documentation stuff name))))))
   string)
 
-
-(defvar *features* '(:common :cmu :new-compiler :common-lisp :ansi-cl
-			     :ieee-floating-point)
+(defvar *features* '(:common :cmu :new-compiler :cltl2 :common-lisp :ansi-cl
+			     :draft-ansi-cl :x3j13 :ieee-floating-point)
   "Holds a list of symbols that describe features provided by the
    implementation.")
 
@@ -133,7 +132,7 @@
 
 (defun lisp-implementation-type ()
   "Returns a string describing the implementation type."
-  "CMU Common Lisp")
+  "Nightshade")
 
 (defun lisp-implementation-version ()
   "Returns a string describing the implementation version."

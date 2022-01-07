@@ -5,11 +5,11 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/assembly/sparc/assem-rtns.lisp,v 1.2 1994/10/31 04:57:20 ram Exp $")
+  "$Header: /home/CVS-cmucl/src/assembly/sparc/assem-rtns.lisp,v 1.2 1994/10/31 04:57:20 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
-;;; $Header: /project/cmucl/cvsroot/src/assembly/sparc/assem-rtns.lisp,v 1.2 1994/10/31 04:57:20 ram Exp $
+;;; $Header: /home/CVS-cmucl/src/assembly/sparc/assem-rtns.lisp,v 1.2 1994/10/31 04:57:20 ram Exp $
 ;;;
 ;;;
 (in-package "SPARC")

@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/seqtran.lisp,v 1.24 2000/05/02 04:44:28 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/seqtran.lisp,v 1.22.2.1 2000/05/23 16:37:22 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

@@ -1,0 +1,258 @@
+												-*- shell -*-
+
+Procedure to transfer the Nightshade additions from the 2002-08-23-19h00
+CMUCL CVS base of 0.0+ to CMUCL 18c.
+
+18c source: cmucl-18c.source.tgz
+18c binary: cmucl-18c.x86.linux.glibc22.tgz
+
+
+
+
+0. Flush most of the explicitly copyrighted 18c code; reduce the build
+   tools.
+
+### ns-18c (:src/nightshade-18c/build1) from 18c (:local-18c)
+
+## reduce to pd + implicit copyright
+# rm clx pcl
+# code/
+#   rm loop.*
+#   mv old-loop.lisp loop.lisp
+#   change ` to ' in macrolet line of defun loop in loop.lisp
+#   exports.lisp  take out the ansi-loop package definition
+
+
+# cp ns/src/tools/build-world,clean-build.lisp ns-18c/src/tools/
+# cp ns/src/tools/build-core ns-18c/src/tools/
+
+# flush many tools
+# in /home/matt/src/nightshade/src/tools/
+rm build-and-install chop.c clean-build clmcom.lisp clxcom.lisp compile-all config do-worldbuild dupsrcs.c fixheader hpux-startup.c inst-lisp load-foreign.csh mk-lisp pclcom.lisp rcsupdate.c sample-wrapper snapshot-update.lisp updates variant-lisp
+
+# transfer the few 0.0+ tools/ additions
+
+src/etc/cmp--tools--ns0.0+-vs-2002-clean.cmp
+
+
+
+1. Build the 18c source from the prebuilt 18c binary.
+
+## build
+# in :src/nightshade-18c/src/
+for f in `find . -type d -a -not -name CVS`; do mkdir -p ../build1/$f; done
+# setup build1/lisp symlinks  Config Makefile
+ln -s ../../src/lisp/Config.linux_gencgc Config
+ln -s ../../src/lisp/GNUmakefile Makefile
+find /home/matt/src/nightshade-18c/build/ -name \*.x86f -or -name \*.lbytef -or -name \*.assem | xargs rm
+?find /home/matt/src/cmucl-18c/src/ -name \*.x86f -or -name \*.lbytef -or -name \*.assem | xargs rm
+# first time, in build1/lisp
+(echo "Map file for lisp version 0" > ,lisp.nm)
+(nm /home/matt/local-18c/bin/lisp | grep -v " F\| U " >> ,lisp.nm)
+(mv ,lisp.nm lisp.nm)
+# adjust paths (dest, thissrc) in compile-all
+compile-all :no-pcl :no-clx :no-clm -target build1 -release /home/matt/src/nightshade-18c/ -lisp /home/matt/local-18c/ -misfeature :PCL-STRUCTURES -misfeature :PORTABLE-COMMONLOOPS -misfeature :PCL -misfeature :clm -misfeature :clx -nocompile clx,clm,pcl,hemlock -core /home/matt/local-18c/lib/lisp.core
+# check logs in build/
+# (copy depend make rules from ns/src/lisp/GNUmakefile)
+# (set CC to gcc-3.4 in Config after interrupts.c compile err)
+make in build/lisp/  (maybe make clean first)
+# compile-all again
+# (append features from compiling lisp minus the ones in the compile-all
+#  cmd, leave out python which is loaded in mk-lisp)
+# (adjust paths root,dest,src in mk-lisp)
+mk-lisp /home/matt/src/cmucl-18c/build1/ :PYTHON :NO-HEMLOCK :NO-PCL :NO-CLM :NO-CLX :GENCGC :CONSERVATIVE-FLOAT-TYPE :CONSTRAIN-FLOAT-TYPE :PROPAGATE-FUN-TYPE :PROPAGATE-FLOAT-TYPE :RANDOM-MT19937 :I486 :MP :HASH-NEW :CMU18 :CMU18C :X86 :LINUX :GLIBC2 :UNIX :COMMON :CMU :NEW-COMPILER :CLTL2 :COMMON-LISP :ANSI-CL :DRAFT-ANSI-CL :X3J13 :IEEE-FLOATING-POINT
+/home/matt/src/nightshade-18c/build1/lisp/lisp -core /home/matt/src/nightshade-18c/build1/lisp/lisp.core
+
+
+
+
+2. Build the 18c source from the 18c binary built in the previous step.
+
+### ns-18c w ns-18c incl ed after ed transfer
+
+# add export of get-timezone to code/unix-glibc2.lisp
+
+# cp -r build3 build4; enable hem in features
+find /home/matt/src/nightshade-18c/src/ -name \*.x86f -or -name \*.lbytef -or -name \*.assem | xargs rm
+find /home/matt/src/nightshade-18c/build4/ -name \*.x86f -or -name \*.lbytef -or -name \*.assem | xargs rm
+~/src/nightshade-18c/build3/lisp/lisp -core ~/src/nightshade-18c/build3/lisp/lisp.core
+(progn
+(setq user::src "/home/matt/src/nightshade-18c/src/")
+(setq user::target "/home/matt/src/nightshade-18c/build4/")
+(setq user::systems '(:lisp :compiler :ed :kernel)))
+(load "/home/matt/src/nightshade-18c/src/tools/build-world.lisp")
+~/src/nightshade-18c/src/tools/build-core /home/matt/src/nightshade-18c/build4
+# mv ./lisp.core build4/lisp/
+/home/matt/src/nightshade-18c/build4/lisp/lisp -core /home/matt/src/nightshade-18c/build4/lisp/lisp.core
+
+
+
+
+3. Transfer code/filesys.lisp 0.0+ additions; rebuild.
+
+### ns-18c from ns-18c
+
+# code/filesys.lisp  transfer mods made to ns 0.0+
+#   (ie cmp with cmucl-2002-08-23-19h00-clean/src/code/fs.lisp)
+
+## rebuild as when building ns-18c from local-18c  (build2)
+# cp -r build1 build2
+compile-all :no-pcl :no-clx :no-clm -target build2 -release /home/matt/src/nightshade-18c/ -lisp /home/matt/local-18c/ -misfeature :PCL-STRUCTURES -misfeature :PORTABLE-COMMONLOOPS -misfeature :PCL -misfeature :clm -misfeature :clx -nocompile clx,clm,pcl,hemlock -core /home/matt/local-18c/lib/lisp.core
+mk-lisp /home/matt/src/cmucl-18c/build2/ :PYTHON :NO-HEMLOCK :NO-PCL :NO-CLM :NO-CLX :GENCGC :CONSERVATIVE-FLOAT-TYPE :CONSTRAIN-FLOAT-TYPE :PROPAGATE-FUN-TYPE :PROPAGATE-FLOAT-TYPE :RANDOM-MT19937 :I486 :MP :HASH-NEW :CMU18 :CMU18C :X86 :LINUX :GLIBC2 :UNIX :COMMON :CMU :NEW-COMPILER :CLTL2 :COMMON-LISP :ANSI-CL :DRAFT-ANSI-CL :X3J13 :IEEE-FLOATING-POINT
+# cp ./lisp.core build2/lisp/
+/home/matt/src/nightshade-18c/build2/lisp/lisp -core /home/matt/src/nightshade-18c/build2/lisp/lisp.core
+
+
+
+4. Adjust worldload as in 0.0+; add ftp.lisp and base64.lisp; rebuild.
+
+## rebuild ns-18c w ns-18c
+# adjust tools/worldload.lisp as in ns-18c
+# cp ns/src/code/ftp,base64.lisp ns-18c/src/code/
+#     + to tools/worldcom.lisp as in ns-18c
+#     + ftp to code/exports.lisp as in ns-18c
+# cp -r build2 build3
+find /home/matt/src/nightshade-18c/src/ -name \*.x86f -or -name \*.lbytef -or -name \*.assem | xargs rm
+find /home/matt/src/nightshade-18c/build3/ -name \*.x86f -or -name \*.lbytef -or -name \*.assem | xargs rm
+~/src/nightshade-18c/build2/lisp/lisp -core ~/src/nightshade-18c/build2/lisp/lisp.core
+(progn
+(setq user::src "/home/matt/src/nightshade-18c/src/")
+(setq user::target "/home/matt/src/nightshade-18c/build3/")
+(setq user::systems '(:lisp :compiler :kernel)))
+(load "/home/matt/src/nightshade-18c/src/tools/build-world.lisp")
+# add build3/features.lisp as in ns 0.0+ w *features* from build2 lisp
+# add src/VERSION  0.1
+~/src/nightshade-18c/src/tools/build-core /home/matt/src/nightshade-18c/build3
+# cp ./lisp.core build3/lisp/
+/home/matt/src/nightshade-18c/build3/lisp/lisp -core /home/matt/src/nightshade-18c/build3/lisp/lisp.core
+
+
+
+5. Build a minimal build.
+
+## build build-min2 w build4
+# in :src/nightshade-18c/src/
+for f in `find . -type d -a -not -name CVS`; do mkdir -p ../build-min1/$f; done
+# setup build-min1/lisp symlinks  Config Makefile
+find /home/matt/src/nightshade-18c/src/ -name \*.x86f -or -name \*.lbytef -or -name \*.assem | xargs rm
+find /home/matt/src/nightshade-18c/build-min2/ -name \*.x86f -or -name \*.lbytef -or -name \*.assem | xargs rm
+~/src/nightshade-18c/build4/lisp/lisp -core ~/src/nightshade-18c/build4/lisp/lisp.core
+(progn
+(setq user::src "/home/matt/src/nightshade-18c/src/")
+(setq user::target "/home/matt/src/nightshade-18c/build-min2/")
+(setq user::systems '(:lisp :compiler :kernel)))
+(load "/home/matt/src/nightshade-18c/src/tools/build-world.lisp")
+# cp features.lisp build-min2; turn off hemlock
+~/src/nightshade-18c/src/tools/build-core /home/matt/src/nightshade-18c/build-min2
+# mv ./lisp.core build-min2/lisp/
+/home/matt/src/nightshade-18c/build-min2/lisp/lisp -core /home/matt/src/nightshade-18c/build-min2/lisp/lisp.core
+
+
+
+
+6. Transfer ed 0.0 additions; rebuild with the minimal build from the
+   previous step.
+
+a.   Follow the procedure in each "** transfer" section of
+     src/etc/public-domain-ed to transfer the ed additions.
+
+b.  Add logcom to code/numbers.lisp.
+
+c.  code/time.lisp
+
+      Add universal-to-internal-real-time and
+	  internal-real-to-universal-time.
+
+	  Add the encode-universal-time `dst' argument.
+
+d.  Add split to code/seq.lisp
+
+e.  Rebuild with the minimal build.
+
+## build build5 w build-min2
+# (must use a min build because build4 ed already calls logcom
+#  hence err on export of logcom from build5)
+# cp -r build4 build5
+find /home/matt/src/nightshade-18c/src/ -name \*.x86f -or -name \*.lbytef -or -name \*.assem | xargs rm
+find /home/matt/src/nightshade-18c/build5/ -name \*.x86f -or -name \*.lbytef -or -name \*.assem | xargs rm
+~/src/nightshade-18c/build-min2/lisp/lisp -core ~/src/nightshade-18c/build-min2/lisp/lisp.core
+(progn
+(setq user::src "/home/matt/src/nightshade-18c/src/")
+(setq user::target "/home/matt/src/nightshade-18c/build5/")
+(setq user::systems '(:lisp :compiler :ed :kernel)))
+(load "/home/matt/src/nightshade-18c/src/tools/build-world.lisp")
+~/src/nightshade-18c/src/tools/build-core /home/matt/src/nightshade-18c/build5
+# mv ./lisp.core build5/lisp/
+/home/matt/src/nightshade-18c/build5/lisp/lisp -core /home/matt/src/nightshade-18c/build5/lisp/lisp.core
+
+
+
+
+8. Adjust the editor build scripts.
+
+cp hemcom.lisp edcom.lisp
+cp hemload.lisp edload.lisp
+
+Adjust both as in 0.0+.  (For details cmp 0.0+ with
+cmucl-2002-08-23-19h00-clean version.)
+
+
+
+
+7. Rebuild with the build from two steps ago, via the editor build
+   commands.
+
+# cp -r build5 builder1
+(setv build-directory "/home/matt/src/nightshade/builder1/")
+(setv source-directory "/home/matt/src/nightshade/src/")
+(setv builder-directory "/home/matt/src/nightshade/build5/")
+M-x Clean
+M-x Build
+M-x Build Core
+/home/matt/src/nightshade/builder1/lisp/lisp -core /home/matt/src/nightshade/builder1/lisp/lisp.core
+
+
+
+
+8. Flush rest of source that is explicitly marked as copyrighted.
+
+src/contrib/defsystem/
+recurrence demo in src/contrib/demos/demos.lisp
+src/contrib/demos/menu.lisp
+src/contrib/ops/haunt.ops
+src/lisp/socket.c
+   adjust src/lisp/GNUmakefile accordingly
+src/motif/lisp/timer-support.lisp
+src/motif/server/timer-support.c
+
+
+
+
+9. Transfer the rest of the changes in code/.
+
+Comparison in src/etc/cmp--src-code--ns0.0+-vs-2002-clean.cmp
+           or src/etc/cmp--src-code--ns0.0+-vs-2002-clean.patch.
+
+M-x Compare Files
+
+  or
+
+cd /home/matt/src/nightshade-0.0+/src/code/
+for f in `find . -maxdepth 1 -type f`; do diff $f /home/matt/src/cmucl-2002-08-23-19h00-clean/src/code/$f; done
+
+    Leave out the gc c to lisp translation attempt (gc.lisp) which may be
+	based on copyrighted additions.
+
+    Leave out the reader.lisp read-delimited-list-from-string attempt
+	(gc.lisp), which may be	based on copyrighted additions.
+
+# incls mving spawn and get-timezone into lisp, so
+rm src/lisp/runprog.c src/lisp/time.c   # and adjust makefile to match.
+# also adjust linux-stubs.S and undefineds.h
+
+cp ns-0.0+/code/calender.lisp code/
+
+
+
+
+10. Where is the 18c doc source?

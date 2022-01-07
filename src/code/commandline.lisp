@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/commandline.lisp,v 1.12 2001/12/08 18:42:39 pmai Exp $")
+  "$Header: /home/CVS-cmucl/src/code/commandline.lisp,v 1.6.2.4 2000/11/06 17:15:10 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -192,7 +192,6 @@
 (defswitch "load" #'load-switch-demon)
 
 (defun quiet-switch-demon (switch)
-  (declare (ignore switch))
   (setq *load-verbose* nil
         *compile-verbose* nil
         *compile-print* nil
@@ -210,7 +209,6 @@
 (defswitch "core")
 (defswitch "init")
 (defswitch "noinit")
-(defswitch "nositeinit")
 (defswitch "hinit")
 (defswitch "batch")
 (defswitch "dynamic-space-size")

@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/scavhook.lisp,v 1.4 1997/11/04 15:05:37 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/code/scavhook.lisp,v 1.3.2.1 1998/06/23 11:22:26 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

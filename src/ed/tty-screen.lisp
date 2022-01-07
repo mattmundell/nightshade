@@ -6,7 +6,7 @@
 
 ;;;; Terminal screen initialization
 
-(declaim (special *echo-parse-starting-mark*))
+(proclaim '(special *echo-parse-starting-mark*))
 
 (defun init-tty-screen-manager (tty-name)
   (setf *line-wrap-char* #\!)

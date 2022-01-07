@@ -1,6 +1,6 @@
 /*
 
- $Header: /project/cmucl/cvsroot/src/motif/server/message.c,v 1.6 2000/02/15 11:59:25 pw Exp $
+ $Header: /home/CVS-cmucl/src/motif/server/message.c,v 1.4.2.1 2000/05/23 16:38:37 pw Exp $
 
  This code was written as part of the CMU Common Lisp project at
  Carnegie Mellon University, and has been placed in the public domain.

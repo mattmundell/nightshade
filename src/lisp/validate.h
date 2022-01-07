@@ -1,11 +1,11 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/validate.h,v 1.3 2002/05/02 21:10:53 toy Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/validate.h,v 1.2 1994/03/27 15:22:16 hallgren Exp $ */
 
 #if !defined(_INCLUDE_VALIDATE_H_)
 #define _INCLUDE_VALIDATE_H_
 
 #ifdef parisc
 #include "hppa-validate.h"
-#endif
+#endif parisc
 
 #ifdef mips
 #include "mips-validate.h"

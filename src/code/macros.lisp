@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/macros.lisp,v 1.74 2002/08/07 15:19:47 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/code/macros.lisp,v 1.50.2.9 2000/10/06 15:20:38 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -24,7 +24,9 @@
 	  get-setf-expansion define-setf-expander
           define-modify-macro destructuring-bind nth-value
           otherwise ; Sacred to CASE and related macros.
-	  define-compiler-macro))
+	  define-compiler-macro
+	  ;; CLtL1 versions:
+	  define-setf-method get-setf-method get-setf-method-multiple-value))
 
 (in-package "EXTENSIONS")
 (export '(do-anonymous collect iterate))
@@ -55,9 +57,7 @@
       (let ((form (car tail)))
 	(cond ((and (stringp form) (cdr tail))
 	       (if doc-string-allowed
-		   (setq doc form
-			 ;; Only one doc string is allowed.
-			 doc-string-allowed nil)
+		   (setq doc form)
 		   (return (values tail (nreverse decls) doc))))
 	      ((not (and (consp form) (symbolp (car form))))
 	       (return (values tail (nreverse decls) doc)))
@@ -85,11 +85,7 @@
 		    ,@local-decs
 		    (block ,name
 		      ,body))))
-	`(progn
-	   (eval-when (:compile-toplevel)
-	     (c::do-macro-compile-time ',name #',def))
-	   (eval-when (:load-toplevel :execute)
-	     (c::%defmacro ',name #',def ',lambda-list ,doc)))))))
+	`(c::%defmacro ',name #',def ',lambda-list ,doc)))))
 
 
 ;;; %Defmacro, %%Defmacro  --  Internal
@@ -132,12 +128,7 @@
 		    ,@local-decs
 		    (block ,name
 		      ,body))))
-	`(progn
-	   (eval-when (:compile-toplevel)
-	     (c::do-compiler-macro-compile-time ',name #',def))
-	   (eval-when (:load-toplevel :execute)
-	     (c::%define-compiler-macro ',name #',def ',lambda-list ,doc)))))))
-
+	`(c::%define-compiler-macro ',name #',def ',lambda-list ,doc)))))
 
 (defun c::%define-compiler-macro (name definition lambda-list doc)
   (assert (eval:interpreted-function-p definition))
@@ -180,7 +171,7 @@
 	    :format-control "Symbol macro name already declared constant: ~S."
 	    :format-arguments (list name))))
   name)
-    
+
 
 ;;; DEFTYPE is a lot like DEFMACRO.
 
@@ -188,7 +179,7 @@
   "Syntax like DEFMACRO, but defines a new type."
   (unless (symbolp name)
     (error "~S -- Type name not a symbol." name))
-  
+
   (let ((whole (gensym "WHOLE-")))
     (multiple-value-bind (body local-decs doc)
 			 (parse-defmacro arglist whole body name 'deftype
@@ -230,7 +221,7 @@
 (defparameter defsetf-error-string "Setf expander for ~S cannot be called with ~S args.")
 
 (defmacro define-setf-expander (access-fn lambda-list &body body)
-  "Syntax like DEFMACRO, but creates a Setf-Expansion generator.  The body
+  "Syntax like DEFMACRO, but creates a Setf-Method generator.  The body
   must be a form that returns the five magical values."
   (unless (symbolp access-fn)
     (error "~S -- Access-function name not a symbol in DEFINE-SETF-EXPANDER."
@@ -277,7 +268,7 @@
   (when doc
     (setf (documentation name 'setf) doc))
   name)
-  
+
 
 ;;;; Destructuring-bind
 
@@ -344,11 +335,7 @@
   value is constant and may be compiled into code.  If the variable already has
   a value, and this is not equal to the init, an error is signalled.  The third
   argument is an optional documentation string for the variable."
-  `(progn
-     (eval-when (:compile-toplevel)
-       (c::do-defconstant-compile-time ',var ,val ',doc))
-     (eval-when (:load-toplevel :execute)
-       (c::%%defconstant ',var ,val ',doc))))
+  `(c::%defconstant ',var ,val ',doc))
 
 ;;; %Defconstant, %%Defconstant  --  Internal
 ;;;
@@ -378,7 +365,7 @@
   value, the old value is not clobbered.  The third argument is an optional
   documentation string for the variable."
   `(progn
-    (declaim (special ,var))
+    (proclaim '(special ,var))
      ,@(when valp
 	 `((unless (boundp ',var)
 	     (setq ,var ,val))))
@@ -392,7 +379,7 @@
   variable special and sets its value to VAL.  The third argument is
   an optional documentation string for the parameter."
   `(progn
-    (declaim (special ,var))
+    (proclaim '(special ,var))
     (setq ,var ,val)
     ,@(when docp
 	`((setf (documentation ',var 'variable) ',doc)))
@@ -552,7 +539,7 @@
 ;;; Note: The expansions for SETF and friends sometimes create needless
 ;;; LET-bindings of argument values.  The compiler will remove most of
 ;;; these spurious bindings, so SETF doesn't worry too much about creating
-;;; them. 
+;;; them.
 
 ;;; The inverse for a generalized-variable reference function is stored in
 ;;; one of two ways:
@@ -647,7 +634,7 @@
     (multiple-value-bind
 	(body local-decs doc)
 	(parse-defmacro arglist arglist-var (cddr rest) fn 'defsetf)
-      (values 
+      (values
        `(lambda (,arglist-var ,new-var)
 	  ,@local-decs
 	  ,body)
@@ -737,7 +724,7 @@
 		    `(let* (,@(mapcar #'list dummies vals))
 		       (multiple-value-bind ,newval ,value-form
 			 ,setter))))))))
-     ((oddp nargs) 
+     ((oddp nargs)
       (error "Odd number of args to SETF."))
      (t
       (do ((a args (cddr a)) (l nil))
@@ -769,44 +756,27 @@
 		   `(progn ,@(setters) nil))))
       (thunk (let*-bindings) (mv-bindings)))))
 
-(defmacro shiftf (&rest args &environment env)
+(defmacro shiftf (&whole form &rest args &environment env)
   "One or more SETF-style place expressions, followed by a single
    value expression.  Evaluates all of the expressions in turn, then
    assigns the value of each expression to the place on its left,
    returning the value of the leftmost."
-  (when args
-    (collect ((let*-bindings) (mv-bindings) (setters) (getters))
-      ;; The last arg isn't necessarily a place, so we have to handle
-      ;; that separately.
-      (dolist (arg (butlast args))
-	(multiple-value-bind
-	      (temps subforms store-vars setter getter)
-	    (get-setf-expansion arg env)
-	  (loop
-	      for temp in temps
-	      for subform in subforms
-	      do (let*-bindings `(,temp ,subform)))
-	  (mv-bindings store-vars)
-	  (setters setter)
-	  (getters getter)))
-      ;; Handle the last arg specially here.  Just put something to
-      ;; force the setter so the setter for the previous var gets set,
-      ;; and the getter is just the last arg itself.
-      (setters nil)
-      (getters (car (last args)))
-	
-      (labels ((thunk (mv-bindings getters)
-		 (if mv-bindings
-		     `((multiple-value-bind
-			     ,(car mv-bindings)
-			   ,(car getters)
-			 ,@(thunk (cdr mv-bindings) (cdr getters))))
-		     `(,@(butlast (setters))))))
-	`(let* ,(let*-bindings)
-	  (multiple-value-bind ,(car (mv-bindings))
-	      ,(car (getters))
-	    ,@(thunk (mv-bindings) (cdr (getters)))
-	    (values ,@(car (mv-bindings)))))))))
+  (when (< (length args) 2)
+    (error "~S called with too few arguments: ~S" 'shiftf form))
+  (let ((resultvar (gensym)))
+    (do ((arglist args (cdr arglist))
+         (bindlist nil)
+         (storelist nil)
+         (lastvar resultvar))
+        ((atom (cdr arglist))
+         (push `(,lastvar ,(first arglist)) bindlist)
+         `(LET* ,(nreverse bindlist) ,@(nreverse storelist) ,resultvar))
+      (multiple-value-bind (SM1 SM2 SM3 SM4 SM5)
+          (get-setf-method (first arglist) env)
+        (mapc #'(lambda (var val) (push `(,var ,val) bindlist)) SM1 SM2)
+        (push `(,lastvar ,SM5) bindlist)
+        (push SM4 storelist)
+        (setq lastvar (first SM3))))))
 
 (defmacro rotatef (&rest args &environment env)
   "Takes any number of SETF-style place expressions.  Evaluates all of the
@@ -845,7 +815,7 @@
 	(rest-arg nil)
 	(env (gensym))
 	(reference (gensym)))
-	     
+
     ;; Parse out the variable names and rest arg from the lambda list.
     (do ((ll lambda-list (cdr ll))
 	 (arg nil))
@@ -875,7 +845,7 @@
 	      (v vals (cdr v))
 	      (let-list nil (cons (list (car d) (car v)) let-list)))
 	     ((null d)
-	      (push 
+	      (push
 	       (list (car newval)
 		     ,(if rest-arg
 			  `(list* ',function getter ,@other-args ,rest-arg)
@@ -1205,19 +1175,14 @@
 ;;; to omit errorp, and the ERROR form generated is executed within a
 ;;; RESTART-CASE allowing keyform to be set and retested.
 ;;;
-;;; If ALLOW-OTHERWISE, then we allow T and OTHERWISE clauses and also
-;;; generate an ERROR form.  (This is for CCASE and ECASE which allow
-;;; using T and OTHERWISE as regular keys.)
-;;;
-(defun case-body (name keyform cases multi-p test errorp proceedp &optional allow-otherwise)
+(defun case-body (name keyform cases multi-p test errorp proceedp)
   (let ((keyform-value (gensym))
 	(clauses ())
 	(keys ()))
     (dolist (case cases)
       (cond ((atom case)
 	     (error "~S -- Bad clause in ~S." case name))
-	    ((and (not allow-otherwise)
-		 (memq (car case) '(t otherwise)))
+	    ((memq (car case) '(t otherwise))
 	     (if errorp
 		 (error "No default clause allowed in ~S: ~S" name case)
 		 (push `(t nil ,@(rest case)) clauses)))
@@ -1229,14 +1194,10 @@
 		     nil ,@(rest case))
 		   clauses))
 	    (t
-	     (when (and allow-otherwise
-			(memq (car case) '(t otherwise)))
-	       (warn "Bad style to use T or OTHERWISE in ECASE or CCASE"))
 	     (push (first case) keys)
 	     (push `((,test ,keyform-value
 			    ',(first case)) nil ,@(rest case)) clauses))))
     (case-body-aux name keyform keyform-value clauses keys errorp proceedp
-		   allow-otherwise
 		   `(,(if multi-p 'member 'or) ,@keys))))
 
 ;;; CASE-BODY-AUX provides the expansion once CASE-BODY has groveled all the
@@ -1247,7 +1208,7 @@
 ;;; any function using the case macros, regardless of whether they are needed.
 ;;;
 (defun case-body-aux (name keyform keyform-value clauses keys
-		      errorp proceedp allow-otherwise expected-type)
+		      errorp proceedp expected-type)
   (if proceedp
       (let ((block (gensym))
 	    (again (gensym)))
@@ -1269,7 +1230,7 @@
 	 ,keyform-value ; prevent warnings when key not used eg (case key (t))
 	 (cond
 	  ,@(nreverse clauses)
-	  ,@(if (or errorp allow-otherwise)
+	  ,@(if errorp
 		`((t (error 'conditions::case-failure
 			    :name ',name
 			    :datum ,keyform-value
@@ -1303,13 +1264,13 @@
   Evaluates the Forms in the first clause with a Key EQL to the value of
   Keyform.  If none of the keys matches then a correctable error is
   signalled."
-  (case-body 'ccase keyform cases t 'eql nil t t))
+  (case-body 'ccase keyform cases t 'eql t t))
 
 (defmacro ecase (keyform &body cases)
   "ECASE Keyform {({(Key*) | Key} Form*)}*
   Evaluates the Forms in the first clause with a Key EQL to the value of
   Keyform.  If none of the keys matches then an error is signalled."
-  (case-body 'ecase keyform cases t 'eql nil nil t))
+  (case-body 'ecase keyform cases t 'eql t nil))
 
 (defmacro typecase (keyform &body cases)
   "TYPECASE Keyform {(Type Form*)}*
@@ -1436,7 +1397,7 @@
   "Bindspec is of the form (Stream File-Name . Options).  The file whose
    name is File-Name is opened using the Options and bound to the variable
    Stream. If the call to open is unsuccessful, the forms are not
-   evaluated.  The Forms are executed, and when they 
+   evaluated.  The Forms are executed, and when they
    terminate, normally or otherwise, the file is closed."
   (let ((abortp (gensym)))
     `(let ((,var (open ,@open-args))
@@ -1488,7 +1449,7 @@
 
 
 (defmacro with-output-to-string ((var &optional string) &body (forms decls))
-  "If *string* is specified, it must be a string with a fill pointer; 
+  "If *string* is specified, it must be a string with a fill pointer;
    the output is incrementally appended to the string (as if by use of
    VECTOR-PUSH-EXTEND)."
   (if string
@@ -1511,7 +1472,7 @@
   (cond ((numberp count)
          `(do ((,var 0 (1+ ,var)))
               ((>= ,var ,count) ,result)
-	    (declare (type (integer 0 ,count) ,var))
+	    (declare (type unsigned-byte ,var))
             ,@body))
         (t (let ((v1 (gensym)))
              `(do ((,var 0 (1+ ,var)) (,v1 ,count))
@@ -1582,7 +1543,7 @@
 ;;;
 (defmacro lambda (&whole form &rest bvl-decls-and-body)
   (declare (ignore bvl-decls-and-body))
-  `#',form) 
+  `#',form)
 
 
 
@@ -1650,7 +1611,7 @@
 	  (t
 	   (error "Unknown declaration context: ~S." context))))))
 
-  
+
 ;;; PROCESS-CONTEXT-DECLARATIONS  --  Internal
 ;;;
 ;;;    Given a list of context declaration specs, return a new value for
@@ -1678,7 +1639,7 @@
   is intended to be wrapped around the compilation of all files in the same
   system.  These keywords are defined:
     :OVERRIDE Boolean-Form
-        One of the effects of this form is to delay undefined warnings 
+        One of the effects of this form is to delay undefined warnings
         until the end of the form, instead of giving them at the end of each
         compilation.  If OVERRIDE is NIL (the default), then the outermost
         WITH-COMPILATION-UNIT form grabs the undefined warnings.  Specifying

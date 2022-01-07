@@ -82,7 +82,7 @@
 ;;; beside the other modeline variables.  This DEFVAR would live in
 ;;; Morecoms.Lisp, but it is compiled and loaded after this file.
 ;;;
-(declaim (special ed::*recursive-edit-count*))
+(proclaim '(special ed::*recursive-edit-count*))
 ;;;
 (make-modeline-field
  :name :edit-level :width 15
@@ -97,7 +97,7 @@
 ;;; beside the other modeline variables.  This DEFVAR would live in
 ;;; Completion.Lisp, but it is compiled and loaded after this file.
 ;;;
-(declaim (special ed::*completion-mode-possibility*))
+(proclaim '(special ed::*completion-mode-possibility*))
 ;;; Hack for now until completion mode is added.
 (defvar ed::*completion-mode-possibility* "")
 ;;;
@@ -241,7 +241,10 @@
      modeline-field function chops off leading directory specifications until
      the pathname fits.  \"...\" indicates a truncated pathname."
     :value nil
-    :hooks (list 'maximum-modeline-pathname-length-hook)))
+    :hooks (list 'maximum-modeline-pathname-length-hook))
+  (defhvar "Quit on Exit"
+    "If true then Nightshade exits on editor exit."
+    :value t))
 
 
 
@@ -269,13 +272,13 @@
 (defun ed (&optional x
 	   &key (init t)
 	        (display (cdr (assoc :display ext:*environment-list*))))
-  "Invokes the Nightshade editor.  If X is supplied and is a symbol, the
-   definition of X is put into a buffer, and that buffer is selected.  If X
-   is a pathname, the file specified by X is visited in a new buffer.  If X
-   is not supplied or Nil, the editor is entered in the same state as when
+  "Invoke the editor.  If X is supplied and is a symbol, the definition of
+   X is put into a buffer, and that buffer is selected.  If X is a
+   pathname, the file specified by X is visited in a new buffer.  If X is
+   not supplied or Nil, the editor is entered in the same state as when
    last exited.  When :init is supplied as t (the default), the file
-   \"nightshade-ed.lisp\", or \".nightshade-ed.lisp\" is loaded from the home
-   directory, but the Lisp command line switch -hinit can be used to
+   \"nightshade-ed.lisp\", or \".nightshade-ed.lisp\" is loaded from the
+   home directory, but the Lisp command line switch -hinit can be used to
    specify a different name.  Any compiled version of the source is
    preferred when choosing the file to load.  If the argument is non-nil
    and not t, then it should be a pathname that will be merged with the
@@ -292,7 +295,9 @@
     (handler-bind
 	((editor-top-level-catcher #'(lambda (condition)
 				       (declare (ignore condition))
-				       (return-from ed))))
+				       (if (value ed::quit-on-exit)
+					   (quit)
+					   (return-from ed)))))
       (site-wrapper-macro
        (let ((continue t)) ; Flag for stopping exit in an exit-hook.
 	 (loop while continue do
@@ -357,9 +362,14 @@
 	       (setq continue nil)
 	       (handler-case
 		   (invoke-hook ed::exit-hook)
-		 ;; FIX what about (error ()... ?
 		 (editor-error () (setq continue t))
-		 (editor-top-level-catcher () (setq continue t)))))))))))
+		 (editor-top-level-catcher () (setq continue t))
+		 (error (condition)
+			(let ((device (device-hunk-device
+				       (window-hunk (current-window)))))
+			  (funcall (device-exit device) device))
+			(invoke-debugger condition))))))))))
+  (if (value ed::quit-on-exit) (quit)))
 
 (defun maybe-load-init (init)
   (when init

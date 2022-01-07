@@ -1,6 +1,6 @@
 /*	linux-stubs.S
 
-	$Header: /project/cmucl/cvsroot/src/lisp/linux-stubs.S,v 1.10 2001/01/22 10:49:52 dtc Exp $
+	$Header: /home/CVS-cmucl/src/lisp/linux-stubs.S,v 1.2.2.5 2000/07/31 10:03:55 dtc Exp $
 
 	These are needed because the locations of the
 	libraries are filled in by ld.so at runtime.
@@ -82,9 +82,9 @@ PVE_stub_ ## fct: ;\
  doe(isatty)
  doe(kill)
  doe(killpg)
- doe(localtime_r)
  doe(link)
  doe(listen)
+ doe(localtime_r)
  doe(log1p)
  doe(lseek)
  doe(lstat)
@@ -128,12 +128,11 @@ PVE_stub_ ## fct: ;\
  doe(truncate)
  doe(ttyname)
  doe(tzname)
- doe(uname)
  doe(unlink)
  doe(utimes)
- doe(wait3)	
+ doe(wait3)
  doe(write)
- 
+
 /*  doe(abort) */
 /*  doe(abs) */
 /*  doe(accept) */
@@ -481,6 +480,7 @@ PVE_stub_ ## fct: ;\
 /*  doe(llseek) */
 /*  doe(localeconv) */
 /*  doe(localtime) */
+/*  doe(localtime_r) */
 /*  doe(lockf) */
 /*  doe(log) */
 /*  doe(log10) */
@@ -863,6 +863,7 @@ PVE_stub_ ## fct: ;\
 /*  doe(ulimit) */
 /*  doe(umask) */
 /*  doe(umount) */
+/*  doe(uname) */
 /*  doe(ungetc) */
 /*  doe(unlink) */
 /*  doe(unsetenv) */

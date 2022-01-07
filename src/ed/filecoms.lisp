@@ -161,6 +161,11 @@
 	  (return seen-major-mode-p))
 	(setf lastpos (1+ pos))))))
 
+;; FIX Consider generic var-setting fallback.
+(define-file-option "Flush-Trailing-Whitespace" (buffer str)
+  ;; FIX set in buffer
+  (setv flush-trailing-whitespace
+	(if (eq (string-downcase str) "nil") nil str)))
 
 (defmacro define-file-type-hook (type-list (buffer type) &body body)
   "Define-File-Type-Hook ({Type}*) (Buffer Type) {Form}*
@@ -594,8 +599,10 @@
 			       (merge-pathnames pathname (default-directory)))))
       (setf (buffer-pathname buffer) stored-pathname)
       (setf (value pathname-defaults) stored-pathname)
-      (process-file-options buffer stored-pathname)
-      (invoke-hook read-file-hook buffer probed-pathname))))
+      (when probed-pathname
+	(process-file-options buffer stored-pathname)
+	;; FIX may need create-buffer-hook
+	(invoke-hook read-file-hook buffer probed-pathname)))))
 
 
 
@@ -773,6 +780,13 @@
 			 (or (eq x (current-buffer))
 			     (eq x *echo-area-buffer*)))
 		     (the list *buffer-list*)))))
+
+(defun other-buffer ()
+  "Returns the buffer in the next window if there is one, else calls
+   previous-buffer."
+  (if (<= (length *window-list*) 2)
+      (previous-buffer)
+      (window-buffer (next-window (current-window)))))
 
 ;;; ADD-BUFFER-HISTORY-HOOK makes sure every buffer will be visited by
 ;;; "Circulate Buffers" even if it has never been before.
@@ -1130,17 +1144,22 @@
       (make-region-undo :delete "Insert Buffer" save))))
 
 
+(defhvar "Flush Trailing Whitespace"
+  "If true then flush whitespace from lines."
+  :value t)
+
 (defun flush-trailing-whitespace (buffer)
   "Flush trailing whitespace from Buffer."
-  (do-lines (line buffer)
-    (let* ((length (line-length line))
-	   (mark (mark line length)))
-      (when (reverse-find-attribute mark :whitespace #'zerop)
-	(if (eq (mark-line mark) line)
-	    (if (plusp (character-attribute :space
-					    (next-character mark)))
-		(delete-characters mark (- length (mark-charpos mark))))
-	    (delete-region (region (mark line 0) (mark line length))))))))
+  (when (value flush-trailing-whitespace) ;; FIX check buffer,mode vals
+    (do-lines (line buffer)
+      (let* ((length (line-length line))
+	     (mark (mark line length)))
+	(when (reverse-find-attribute mark :whitespace #'zerop)
+	  (if (eq (mark-line mark) line)
+	      (if (plusp (character-attribute :space
+					      (next-character mark)))
+		  (delete-characters mark (- length (mark-charpos mark))))
+	      (delete-region (region (mark line 0) (mark line length)))))))))
 
 (defcommand "Flush Trailing Whitespace" (p)
   "Flush trailing whitespace from the current buffer."

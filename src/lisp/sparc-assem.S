@@ -84,9 +84,7 @@ _call_into_lisp:
         load(_current_control_frame_pointer, reg_OCFP)
 
         /* No longer atomic, and check for interrupt. */
-	sub	reg_ALLOC, 4, reg_ALLOC
-	andcc	reg_ALLOC, 3, reg_ZERO
-	tne	trap_PseudoAtomic
+	tsubcctv	reg_ALLOC, 4, reg_ALLOC
 
         /* Pass in the args. */
         sll     %i2, 2, reg_NARGS
@@ -133,9 +131,7 @@ lra:
         store(reg_NL1,_foreign_function_call_active)
 
         /* Were we interrupted? */
-	sub	reg_ALLOC, 4, reg_ALLOC
-	andcc	reg_ALLOC, 3, reg_ZERO
-	tne	trap_PseudoAtomic
+	tsubcctv	reg_ALLOC, 4, reg_ALLOC
 
         /* Back to C we go. */
 	ld	[%sp+FRAMESIZE-4], %i7
@@ -176,20 +172,12 @@ _call_into_c:
         store(reg_CSP,_foreign_function_call_active)
 
         /* Were we interrupted? */
-	sub	reg_ALLOC, 4, reg_ALLOC
-	andcc	reg_ALLOC, 3, reg_ZERO
-	tne	trap_PseudoAtomic
+	tsubcctv	reg_ALLOC, 4, reg_ALLOC
 
         /* Into C we go. */
         call    reg_CFUNC
         nop
 
-	/*
-	 * Note: C calling conventions (32-bit) say that %o0 and %o1
-	 * are used to return function results.  In particular 64-bit
-	 * results are in %o0 (hi) and %o1 (low).  
-	 */
-	
         /* Re-establish NIL */
         set     NIL, reg_NIL
 
@@ -197,12 +185,12 @@ _call_into_c:
 	set	4, reg_ALLOC
 
         /* No longer in foreign function call. */
-        sethi   %hi(_foreign_function_call_active), reg_NL2
-        st      reg_ZERO, [reg_NL2+%lo(_foreign_function_call_active)]
+        sethi   %hi(_foreign_function_call_active), reg_NL1
+        st      reg_ZERO, [reg_NL1+%lo(_foreign_function_call_active)]
 
         /* Load the rest of lisp state. */
-        load(_current_dynamic_space_free_pointer, reg_NL2)
-	add	reg_NL2, reg_ALLOC, reg_ALLOC
+        load(_current_dynamic_space_free_pointer, reg_NL1)
+	add	reg_NL1, reg_ALLOC, reg_ALLOC
         load(_current_binding_stack_pointer, reg_BSP)
         load(_current_control_stack_pointer, reg_CSP)
         load(_current_control_frame_pointer, reg_CFP)
@@ -214,9 +202,7 @@ _call_into_c:
 	sub	reg_LIP, type_OtherPointer, reg_LIP
 
         /* No longer atomic. */
-	sub	reg_ALLOC, 4, reg_ALLOC
-	andcc	reg_ALLOC, 3, reg_ZERO
-	tne	trap_PseudoAtomic
+	tsubcctv	reg_ALLOC, 4, reg_ALLOC
 
         /* Reset the lisp stack. */
         /* Note: OCFP is in one of the locals, it gets preserved across C. */
@@ -244,14 +230,13 @@ _undefined_tramp:
 
 	b	1f
         unimp   trap_Cerror
-        /* Number of argument bytes */
-        .byte	4
-        .byte	UNDEFINED_SYMBOL_ERROR
-        /* Escape to create 16bit BE number from following two values */
-        .byte	254
-        /* SC_OFFSET(sc_DescriptorReg,reg_FDEFN) */
-	.byte	sc_DescriptorReg
-	.byte	3
+	.byte	4
+#ifdef type_LongFloat
+        .byte   24
+#else
+	.byte	23
+#endif
+	.byte	254, sc_DescriptorReg, 3
 	.align	4
 1:
 	ld	[reg_FDEFN+FDEFN_RAW_ADDR_OFFSET], reg_CODE

@@ -5,13 +5,13 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/run-program.lisp,v 1.25 2001/04/10 13:44:12 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/code/run-program.lisp,v 1.22.2.1 1998/06/23 11:22:25 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
 ;;; RUN-PROGRAM and friends.  Facility for running unix programs from inside
 ;;; a lisp.
-;;; 
+;;;
 ;;; Written by Jim Healy and Bill Chiles, November 1987, using an earlier
 ;;; version written by David McDonald.
 ;;;
@@ -104,7 +104,6 @@
 (defun process-status (proc)
   "Return the current status of process.  The result is one of :running,
    :stopped, :exited, :signaled."
-  (declare (type process proc))
   (get-processes-status-changes)
   (process-%status proc))
 
@@ -113,7 +112,6 @@
 ;;;
 (defun process-wait (proc &optional check-for-stopped)
   "Wait for PROC to quit running for some reason.  Returns PROC."
-  (declare (type process proc))
   (loop
     (case (process-status proc)
       (:running)
@@ -131,7 +129,7 @@
 ;;; FIND-CURRENT-FOREGROUND-PROCESS -- internal
 ;;;
 ;;; Finds the current foreground process group id.
-;;; 
+;;;
 (defun find-current-foreground-process (proc)
   (alien:with-alien ((result c-call:int))
     (multiple-value-bind
@@ -155,7 +153,6 @@
    whom is :process-group, use the killpg Unix system call.  If whom is
    :pty-process-group deliver the signal to whichever process group is currently
    in the foreground."
-  (declare (type process proc))
   (let ((pid (ecase whom
 	       ((:pid :process-group)
 		(process-pid proc))
@@ -191,10 +188,9 @@
 ;;; PROCESS-ALIVE-P -- public
 ;;;
 ;;; Returns T if the process is still alive, NIL otherwise.
-;;; 
+;;;
 (defun process-alive-p (proc)
   "Returns T if the process is still alive, NIL otherwise."
-  (declare (type process proc))
   (let ((status (process-status proc)))
     (if (or (eq status :running)
 	    (eq status :stopped))
@@ -204,10 +200,9 @@
 ;;; PROCESS-CLOSE -- public
 ;;;
 ;;; Close all the streams held open by PROC.
-;;; 
+;;;
 (defun process-close (proc)
   "Close all streams connected to PROC and stop maintaining the status slot."
-  (declare (type process proc))
   (macrolet ((frob (stream abort)
 	       `(when ,stream (close ,stream :abort ,abort))))
     (frob (process-pty    proc)   t) ; Don't FLUSH-OUTPUT to dead process.
@@ -264,7 +259,7 @@
 ;;;   Finds a pty that is not in use. Returns three values: the file descriptor
 ;;; for the master side of the pty, the file descriptor for the slave side of
 ;;; the pty, and the name of the tty device for the slave side.
-;;; 
+;;;
 #-irix
 (defun find-a-pty ()
   "Returns the master fd, the slave fd, and the name of the tty"
@@ -379,13 +374,13 @@
       (dolist (s string-list)
 	(declare (simple-string s))
 	(let ((n (length s)))
-	  ;; 
+	  ;;
 	  ;; Blast the string into place
 	  (kernel:copy-to-system-area (the simple-string s)
 				      (* vm:vector-data-offset vm:word-bits)
 				      string-sap 0
 				      (* (1+ n) vm:byte-bits))
-	  ;; 
+	  ;;
 	  ;; Blast the pointer to the string into place
 	  (setf (sap-ref-sap vec-sap i) string-sap)
 	  (setf string-sap (sap+ string-sap (round-bytes-to-words (1+ n))))
@@ -406,9 +401,9 @@
 	     ,@body)
 	 (system:deallocate-system-memory ,sap ,size)))))
 
+
 (defun %spawn (program args env pty-name stdin stdout stderr)
-  "Fork Program, setting up the standard streams to Stdin, Stdout and
-   Stderr."
+  "Fork Program, setting the standard streams to Stdin, Stdout and Stderr."
   (let ((pid (unix:unix-fork)))
     (or (zerop pid) (return-from %spawn pid))
 
@@ -482,6 +477,7 @@
 	(ext::run-program "/home/matt/bin/test" nil :output stream))
 |#
 
+
 ;;; RUN-PROGRAM -- public
 ;;;
 ;;;   RUN-PROGRAM uses fork and execve to run a different program. Strange
@@ -547,7 +543,7 @@
 	input for the current process is inherited.  If NIL, /dev/null
 	is used.  If a pathname, the file so specified is used.  If a stream,
 	all the input is read from that stream and send to the subprocess.  If
-	:STREAM, the PROCESS-INPUT slot is filled in with a stream that sends 
+	:STREAM, the PROCESS-INPUT slot is filled in with a stream that sends
 	its output to the process. Defaults to NIL.
      :if-input-does-not-exist (when :input is the name of a file) -
         can be one of:
@@ -567,7 +563,7 @@
            :supersede - output from the program supersedes the file.
            :append - output from the program is appended to the file.
            nil - run-program returns nil without doing anything.
-     :error and :if-error-exists - 
+     :error and :if-error-exists -
         Same as :output and :if-output-exists, except that :error can also be
 	specified as :output in which case all error output is routed to the
 	same place as normal output.
@@ -640,7 +636,7 @@
 ;;;
 ;;;   Installs a handler for any input that shows up on the file descriptor.
 ;;; The handler reads the data and writes it to the stream.
-;;; 
+;;;
 (defun copy-descriptor-to-stream (descriptor stream cookie)
   (incf (car cookie))
   (let ((string (make-string 256))
@@ -692,7 +688,7 @@
 ;;;   Find a file descriptor to use for object given the direction. Returns
 ;;; the descriptor. If object is :STREAM, returns the created stream as the
 ;;; second value.
-;;; 
+;;;
 (defun get-descriptor-for (object cookie &rest keys &key direction
 				  &allow-other-keys)
   (cond ((eq object t)

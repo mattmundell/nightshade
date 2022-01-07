@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/stream.lisp,v 1.52 2002/08/12 20:53:37 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/code/stream.lisp,v 1.25.2.7 2000/08/24 19:55:53 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -17,7 +17,7 @@
 ;;;
 (in-package "LISP")
 
-(export '(broadcast-stream make-broadcast-stream broadcast-stream-streams 
+(export '(broadcast-stream make-broadcast-stream broadcast-stream-streams
 	  synonym-stream make-synonym-stream synonym-stream-symbol
 	  concatenated-stream make-concatenated-stream
 	  concatenated-stream-streams
@@ -42,7 +42,7 @@
 (in-package "EXT")
 
 (export '(get-stream-command
-	  stream-command stream-command-p stream-command-name 
+	  stream-command stream-command-p stream-command-name
 	  stream-command-args make-stream-command make-case-frob-stream))
 
 (in-package "LISP")
@@ -64,20 +64,6 @@
 (defvar *trace-output* () "Trace output stream.")
 (defvar *debug-io* () "Interactive debugging stream.")
 
-(defun ill-in-any (stream &rest ignore)
-  (declare (ignore ignore))
-  (error 'simple-type-error
-	 :datum stream
-	 :expected-type '(satisfies input-stream-p)
-	 :format-control "~S is not an input stream."
-	 :format-arguments (list stream)))
-(defun ill-out-any (stream &rest ignore)
-  (declare (ignore ignore))
-  (error 'simple-type-error
-	 :datum stream
-	 :expected-type '(satisfies output-stream-p)
-	 :format-control "~S is not an output stream."
-	 :format-arguments (list stream)))
 (defun ill-in (stream &rest ignore)
   (declare (ignore ignore))
   (error 'simple-type-error
@@ -98,13 +84,6 @@
 	 :datum stream
 	 :expected-type '(satisfies input-stream-p)
 	 :format-control "~S is not a binary input stream."
-	 :format-arguments (list stream)))
-(defun ill-n-bin (stream &rest ignore)
-  (declare (ignore ignore))
-  (error 'simple-type-error
-	 :datum stream
-	 :expected-type '(satisfies input-stream-p)
-	 :format-control "~S is not a binary input stream or does not support multi-byte read operations."
 	 :format-arguments (list stream)))
 (defun ill-bout (stream &rest ignore)
   (declare (ignore ignore))
@@ -194,7 +173,7 @@
 ;;;
 ;;;    If a stream does not have an In-Buffer, then the In-Buffer slot
 ;;; must be nil, and the In-Index must be In-Buffer-Length.  These are
-;;; the default values for the slots. 
+;;; the default values for the slots.
 
 
 ;;; Stream manipulation functions.
@@ -204,8 +183,7 @@
   (and (lisp-stream-p stream)
        (not (eq (lisp-stream-in stream) #'closed-flame))
        (or (not (eq (lisp-stream-in stream) #'ill-in))
-	   (not (eq (lisp-stream-bin stream) #'ill-bin))
-	   (not (eq (lisp-stream-n-bin stream) #'ill-n-bin)))))
+	   (not (eq (lisp-stream-bin stream) #'ill-bin)))))
 
 (defun output-stream-p (stream)
   "Returns non-nil if the given Stream can perform output operations."
@@ -331,7 +309,7 @@
 ;;; We proclaim them inline here, then proclaim them notinline at EOF,
 ;;; so, except in this file, they are not inline by default, but they can be.
 ;;;
-(declaim (inline read-char unread-char read-byte listen))
+(proclaim '(inline read-char unread-char read-byte listen))
 (defun read-char (&optional (stream *standard-input*) (eof-errorp t) eof-value
 			    recursive-p)
   "Inputs a character from Stream and returns it."
@@ -360,7 +338,7 @@
 		 (setf (aref buffer index) (char-code character))
 		 (setf (lisp-stream-in-index stream) index))
 		(t
-		 (funcall (lisp-stream-misc stream) stream 
+		 (funcall (lisp-stream-misc stream) stream
 			  :unread character))))
 	;; Fundamental-stream
 	(stream-unread-char stream character)))
@@ -441,7 +419,6 @@
 
 (defun clear-input (&optional (stream *standard-input*))
   "Clears any buffered input associated with the Stream."
-  (declare (type streamlike stream))
   (let ((stream (in-synonym-of stream)))
     (cond ((lisp-stream-p stream)
 	   (setf (lisp-stream-in-index stream) in-buffer-length)
@@ -452,7 +429,6 @@
 
 (defun read-byte (stream &optional (eof-errorp t) eof-value)
   "Returns the next byte of the Stream."
-  (declare (type stream stream))
   (let ((stream (in-synonym-of stream)))
     (if (lisp-stream-p stream)
 	(prepare-for-fast-read-byte stream
@@ -555,27 +531,24 @@
 			    (* count vm:byte-bits)))
 	   (setf (lisp-stream-in-index stream) (1+ start))
 	   (aref ibuf start)))))
-  
+
 
 ;;; Output functions:
 
 (defun write-char (character &optional (stream *standard-output*))
   "Outputs the Character to the Stream."
-  (declare (type streamlike stream))
   (with-out-stream stream (lisp-stream-out character)
 		   (stream-write-char character))
   character)
 
 (defun terpri (&optional (stream *standard-output*))
   "Outputs a new line to the Stream."
-  (declare (type streamlike stream))
   (with-out-stream stream (lisp-stream-out #\newline) (stream-terpri))
   nil)
 
 (defun fresh-line (&optional (stream *standard-output*))
   "Outputs a new line to the Stream if it is not positioned at the begining of
    a line.  Returns T if it output a new line, nil otherwise."
-  (declare (type streamlike stream))
   (let ((stream (out-synonym-of stream)))
     (if (lisp-stream-p stream)
 	(when (/= (or (charpos stream) 1) 0)
@@ -585,9 +558,9 @@
 	(stream-fresh-line stream))))
 
 (defun write-string (string &optional (stream *standard-output*)
-			    &key (start 0) end)
+			    &key (start 0) (end (length (the vector string))))
   "Outputs the String to the given Stream."
-  (write-string* string stream start (or end (length (the vector string)))))
+  (write-string* string stream start end))
 
 (defun write-string* (string &optional (stream *standard-output*)
 			     (start 0) (end (length (the vector string))))
@@ -640,28 +613,24 @@
 (defun finish-output (&optional (stream *standard-output*))
   "Attempts to ensure that all output sent to the Stream has reached its
    destination, and only then returns."
-  (declare (type streamlike stream))
   (with-out-stream stream (lisp-stream-misc :finish-output)
 		   (stream-finish-output))
   nil)
 
 (defun force-output (&optional (stream *standard-output*))
   "Attempts to force any buffered output to be sent."
-  (declare (type streamlike stream))
   (with-out-stream stream (lisp-stream-misc :force-output)
 		   (stream-force-output))
   nil)
 
 (defun clear-output (&optional (stream *standard-output*))
   "Clears the given output Stream."
-  (declare (type streamlike stream))
   (with-out-stream stream (lisp-stream-misc :clear-output)
 		   (stream-force-output))
   nil)
 
 (defun write-byte (integer stream)
   "Outputs the Integer to the binary Stream."
-  (declare (type stream stream))
   (with-out-stream stream (lisp-stream-bout integer)
 		   (stream-write-byte integer))
   integer)
@@ -715,18 +684,12 @@
 				       (sout #'broadcast-sout)
 				       (misc #'broadcast-misc))
 			     (:print-function %print-broadcast-stream)
-			     (:constructor %make-broadcast-stream (&rest streams)))
+			     (:constructor make-broadcast-stream (&rest streams)))
   ;; This is a list of all the streams we broadcast to.
   (streams () :type list :read-only t))
 
-(defun make-broadcast-stream (&rest streams)
-  "Returns an output stream which sends its output to all of the given
-streams."
-  (dolist (s streams)
-    (unless (output-stream-p s)
-      (ill-out-any s)))
-  
-  (apply #'%make-broadcast-stream streams))
+(setf (documentation 'make-broadcast-stream 'function)
+ "Returns an ouput stream which sends its output to all of the given streams.")
 
 (defun %print-broadcast-stream (s stream d)
   (declare (ignore s d))
@@ -859,7 +822,7 @@ streams."
 		      (sout #'two-way-sout)
 		      (misc #'two-way-misc))
 	    (:print-function %print-two-way-stream)
-	    (:constructor %make-two-way-stream (input-stream output-stream)))
+	    (:constructor make-two-way-stream (input-stream output-stream)))
   ;; We read from this stream...
   (input-stream (required-argument) :type stream :read-only t)
   ;; And write to this one
@@ -871,15 +834,9 @@ streams."
 	  (two-way-stream-input-stream s)
 	  (two-way-stream-output-stream s)))
 
-(defun make-two-way-stream (input-stream output-stream)
+(setf (documentation 'make-two-way-stream 'function)
   "Returns a bidirectional stream which gets its input from Input-Stream and
-   sends its output to Output-Stream."
-  (unless (input-stream-p input-stream)
-    (ill-in-any input-stream))
-  (unless (output-stream-p output-stream)
-    (ill-out-any output-stream))
-  
-  (%make-two-way-stream input-stream output-stream))
+   sends its output to Output-Stream.")
 
 (macrolet ((out-fun (name slot stream-method &rest args)
 	     `(defun ,name (stream ,@args)
@@ -938,10 +895,9 @@ streams."
 	    (:include lisp-stream
 		      (in #'concatenated-in)
 		      (bin #'concatenated-bin)
-		      (n-bin #'concatenated-n-bin)
 		      (misc #'concatenated-misc))
 	    (:print-function %print-concatenated-stream)
-	    (:constructor %make-concatenated-stream (&rest streams)))
+	    (:constructor make-concatenated-stream (&rest streams)))
   ;; This is a list of all the streams. The car of this is the stream
   ;; we are reading from now.
   (streams nil :type list))
@@ -951,13 +907,9 @@ streams."
   (format stream "#<Concatenated Stream, Streams = ~S>"
 	  (concatenated-stream-streams s)))
 
-(defun make-concatenated-stream (&rest streams)
+(setf (documentation 'make-concatenated-stream 'function)
   "Returns a stream which takes its input from each of the Streams in turn,
-   going on to the next at EOF."
-  (dolist (s streams)
-    (unless (input-stream-p s)
-      (ill-in-any s)))
-  (apply #'%make-concatenated-stream streams))
+   going on to the next at EOF.")
 
 (macrolet ((in-fun (name fun)
 	     `(defun ,name (stream eof-errorp eof-value)
@@ -971,22 +923,6 @@ streams."
 		  (setf (concatenated-stream-streams stream) (cdr current))))))
   (in-fun concatenated-in read-char)
   (in-fun concatenated-bin read-byte))
-
-(defun concatenated-n-bin (stream buffer start numbytes eof-errorp)
-  (do ((current (concatenated-stream-streams stream) (cdr current))
-       (current-start start)
-       (remaining-bytes numbytes))
-      ((null current)
-       (if eof-errorp
-	(error 'end-of-file :stream stream)
-	(- numbytes remaining-bytes)))
-    (let* ((stream (car current))
-           (bytes-read (read-n-bytes stream buffer current-start
-	                             remaining-bytes nil)))
-      (incf current-start bytes-read)
-      (decf remaining-bytes bytes-read)
-      (when (zerop remaining-bytes) (return numbytes)))
-    (setf (concatenated-stream-streams stream) (cdr current))))
 
 (defun concatenated-misc (stream operation &optional arg1 arg2)
   (let ((left (concatenated-stream-streams stream)))
@@ -1030,19 +966,11 @@ streams."
 		      (in #'echo-in)
 		      (bin #'echo-bin)
 		      (misc #'echo-misc)
-		      (n-bin #'ill-n-bin))
+		      (n-bin #'ill-bin))
 	    (:print-function %print-echo-stream)
-	    (:constructor %make-echo-stream (input-stream output-stream)))
+	    (:constructor make-echo-stream (input-stream output-stream)))
   unread-stuff)
 
-(defun make-echo-stream (input-stream output-stream)
-  "Returns an echo stream that takes input from Input-stream and sends
-output to Output-stream"
-  (unless (input-stream-p input-stream)
-    (ill-in-any input-stream))
-  (unless (output-stream-p output-stream)
-    (ill-out-any output-stream))
-  (%make-echo-stream input-stream output-stream))
 
 (macrolet ((in-fun (name fun out-slot stream-method)
 	     `(defun ,name (stream eof-errorp eof-value)
@@ -1116,7 +1044,7 @@ output to Output-stream"
 (defun %print-string-input-stream (s stream d)
   (declare (ignore s d))
   (write-string "#<String-Input Stream>" stream))
-  
+
 (defun string-inch (stream eof-errorp eof-value)
   (let ((string (string-input-stream-string stream))
 	(index (string-input-stream-current stream)))
@@ -1175,7 +1103,7 @@ output to Output-stream"
 		     (the fixnum (string-input-stream-end stream)))
 		 :eof))
     (:element-type 'base-char)))
-  
+
 (defun make-string-input-stream (string &optional
 					(start 0) (end (length string)))
   "Returns an input stream which will supply the characters of String between
@@ -1293,7 +1221,7 @@ output to Output-stream"
   ;; The string we throw stuff in.
   string)
 
- 
+
 (defun fill-pointer-ouch (stream character)
   (let* ((buffer (fill-pointer-output-stream-string stream))
 	 (current (fill-pointer buffer))
@@ -1304,7 +1232,7 @@ output to Output-stream"
       (let ((offset-current (+ start current)))
 	(declare (fixnum offset-current))
 	(if (= offset-current end)
-	    (let* ((new-length (if (zerop current) 1 (* current 2)))
+	    (let* ((new-length (* current 2))
 		   (new-workspace (make-string new-length)))
 	      (declare (simple-string new-workspace))
 	      (%primitive byte-blt workspace start new-workspace 0 current)
@@ -1374,7 +1302,7 @@ output to Output-stream"
   (indentation 0))
 
 (setf (documentation 'make-indenting-stream 'function)
- "Returns an output stream which indents its output by some amount.")
+ "Returns an ouput stream which indents its output by some amount.")
 
 (defun %print-indenting-stream (s stream d)
   (declare (ignore s d))
@@ -1431,7 +1359,7 @@ output to Output-stream"
 	    (:charpos
 	     (let ((charpos (funcall method sub-stream operation)))
 	       (if charpos
-		   (- charpos (indenting-stream-indentation stream)))))       
+		   (- charpos (indenting-stream-indentation stream)))))
 	    (t
 	     (funcall method sub-stream operation arg1 arg2))))
 	;; Fundamental-stream.
@@ -1448,7 +1376,7 @@ output to Output-stream"
 	   (stream-misc-dispatch sub-stream operation arg1 arg2))))))
 
 
-(declaim (maybe-inline read-char unread-char read-byte listen))
+(proclaim '(maybe-inline read-char unread-char read-byte listen))
 
 
 
@@ -1722,559 +1650,6 @@ output to Output-stream"
 	   (unread-char (read-char stream) stream)))))
 
 
-;;; READ-SEQUENCE --
-;;; Note:  the multi-byte operation SYSTEM:READ-N-BYTES operates on
-;;; subtypes of SIMPLE-ARRAY.  Hence the distinction between simple
-;;; and non simple input functions.
-
-(defun read-sequence (seq stream &key (start 0) (end nil))
-  "Destructively modify SEQ by reading elements from STREAM.
-SEQ is bounded by START and END. SEQ is destructively modified by
-copying successive elements into it from STREAM. If the end of file
-for STREAM is reached before copying all elements of the subsequence,
-then the extra elements near the end of sequence are not updated.
-
-Argument(s):
-SEQ:	a proper SEQUENCE
-STREAM:	an input STREAM
-START:	a bounding index designator of type '(INTEGER 0 *)' (default 0)
-END:	a bounding index designator which be NIL or an INTEGER of
-	type '(INTEGER 0 *)' (default NIL)
-
-Value(s):
-POSITION: an INTEGER greater than or equal to zero, and less than or
-          equal to the length of the SEQ. POSITION is the index of
-          the first element of SEQ that was not updated, which might be
-          less than END because the end of file was reached."
-
-  (declare (type (or list vector) seq))	; could be (type sequence seq)
-  (declare (type stream stream))
-  (declare (type (integer 0 *) start))	; a list does not have a limit
-  (declare (type (or null (integer 0 *)) end))
-  (declare (values (integer 0 *)))
-
-  (let ((end (or end (length seq))))
-    (declare (type (integer 0 *) start end))
-
-    ;; Just catch some errors earlier than it would be necessary.
-    (cond ((not (open-stream-p stream))
-	   (error 'stream-error
-		  :stream stream
-		  :format-control "The stream is not open."))
-	  ((not (input-stream-p stream))
-	   (error 'stream-error
-		  :stream stream
-		  :format-control "The stream is not open for input."))
-	  ((and seq (>= start end) 0))
-	  (t
-	   ;; So much for object-oriented programming!
-	   (etypecase seq
-	     (list
-	      (read-into-list seq stream start end))
-	     (simple-string
-	      (read-into-simple-string seq stream start end))
-	     (string
-	      (read-into-string seq stream start end))
-	     (simple-array		; We also know that it is a 'vector'.
-	      (read-into-simple-array seq stream start end))
-	     (vector
-	      (read-into-vector seq stream start end)))
-	   ))))
-
-
-;;; READ-INTO-LIST, READ-INTO-LIST-1
-;;; Auxiliary functions for READ-SEQUENCE.  Their semantics is pretty
-;;; obvious.  Since lists do not have an attached element type, and
-;;; since we cannot do a low-level multi-byte read operation on them,
-;;; I simply dispatch on the element type of the stream and then rely
-;;; on READ-BYTE and READ-CHAR to to the input.
-;;;
-;;; NOTE: the use of 'endp' will generate a (desired)
-;;; 'type-error' if the sequence is not a "proper list".
-
-(defun read-into-list (l stream start end)
-  (let ((read-function (if (subtypep (stream-element-type stream) 'character)
-			   #'read-char
-			   #'read-byte)))
-    (read-into-list-1 (nthcdr start l) start end stream read-function)))
-
-#+:recursive
-(defun read-into-list-1 (l start end stream read-function)
-  (declare (type list l))
-  (declare (type stream stream))
-  (declare (type (integer 0 *) start end))
-  (if (or (endp l) (= start end))
-      start
-      (let ((el (funcall read-function stream nil '%%RWSEQ-EOF%%)))
-	(cond ((eq el '%%RWSEQ-EOF%%) start)
-	      (t (setf (first l) el)
-		 (read-into-list-1 (rest l)
-				   (1+ start)
-				   end
-				   stream
-				   read-function))))
-      ))
-
-
-#-:iterative
-(defun read-into-list-1 (l start end stream read-function)
-  (declare (type list l))
-  (declare (type stream stream))
-  (declare (type (integer 0 *) start end))
-
-  ;; The declaration for I may be too restrictive in the case of
-  ;; lists.  But then again, it is still a huge number.
-  (do ((lis l (rest lis))
-       (i start (1+ i))
-       )
-      ((or (endp lis) (>= i end)) i)
-    (declare (type list lis))
-    (declare (type index i))
-    (let ((el (funcall read-function stream nil '%%RWSEQ-EOF%%)))
-      (when (eq el '%%RWSEQ-EOF%%)
-	(return i))
-      (setf (first lis) el))
-    ))
-
-
-;;; READ-INTO-SIMPLE-STRING --
-
-(defun read-into-simple-string (s stream start end)
-  (declare (type simple-string s))
-  (declare (type stream stream))
-  (declare (type index start end))
-  (unless (subtypep (stream-element-type stream) 'character)
-    (error 'type-error
-	   :datum (read-char stream nil #\Null)
-	   :expected-type (stream-element-type stream)
-	   :format-control "Trying to read characters from a binary stream."))
-  ;; Let's go as low level as it seems reasonable.
-  (let* ((numbytes (- end start))
-	 (bytes-read (system:read-n-bytes stream s start numbytes nil))
-	 )
-    (if (< bytes-read numbytes)
-	(+ start bytes-read)
-	end)))
-
-
-(defun read-into-string (s stream start end)
-  (declare (type string s))
-  (declare (type stream stream))
-  (declare (type index start end))
-  (unless (subtypep (stream-element-type stream) 'character)
-    (error 'type-error
-	   :datum (read-char stream nil #\Null)
-	   :expected-type (stream-element-type stream)
-	   :format-control "Trying to read characters from a binary stream."))
-  (do ((i start (1+ i))
-       (s-len (length s))
-       )
-      ((or (>= i s-len) (>= i end)) i)
-    (declare (type index i s-len))
-    (let ((el (read-char stream nil '%%RWSEQ-EOF%%)))
-      (declare (type (or character (member %%RWSEQ-EOF%%)) el))
-      (when (eq el '%%RWSEQ-EOF%%)
-	(return i))
-      (setf (char s i) (the character el)))
-    ))
-
-
-;;; READ-INTO-SIMPLE-ARRAY --
-;;; We definitively know that we are really reading into a vector.
-
-;;; *read-into-simple-array-recognized-types* --
-;;;
-;;; Note the new feature :extended-binary-streams.
-;;; Up to 18a, CMUCL has a wired in limitation to treat only 8-bits
-;;; word binary streams.  'fd-read-n-bytes' is associated to a binary
-;;; stream only if the fd-stream has binary type size of 1 (i.e. 1
-;;; 8-bits byte).  This is reflected also in the size of the input
-;;; buffers.
-
-(defparameter *read-into-simple-array-recognized-types*
-  '((unsigned-byte 8)
-    (unsigned-byte 16)
-    (unsigned-byte 32)
-    (signed-byte 8)
-    (signed-byte 16)
-
-    (signed-byte 32)
-    ))
-
-(defun read-into-simple-array (s stream start end)
-  ;; The complex declaration is needed to make Python behave.
-  ;; The first declaration does not work because of type promotion
-  ;; which effectively excises the etypecase below.
-  ;; The second declaration does not quite work because it does not
-  ;; quite constrain the array element type.
-  ;; (declare (type (simple-array (or unsigned-byte signed-byte) (*)) s))
-  ;; (declare (type (simple-array * (*)) s))
-  (declare (type (or (simple-array (unsigned-byte 8) (*))
-		     (simple-array (signed-byte 8) (*))
-		     (simple-array (unsigned-byte 16) (*))
-		     (simple-array (signed-byte 16) (*))
-		     (simple-array (unsigned-byte 32) (*))
-		     (simple-array (signed-byte 32) (*))
-		     (simple-array (unsigned-byte *) (*))
-		     (simple-array (signed-byte *) (*))
-		     )
-		 s))
-
-  (declare (type stream stream))
-  (declare (type index start end))
-  (let ((stream-et (stream-element-type stream)))
-    (cond ((subtypep (stream-element-type stream) 'character)
-	   (error 'type-error
-		  :datum (read-byte stream nil 0)
-		  :expected-type (stream-element-type stream) ; Bogus?!?
-		  :format-control
-		  "Trying to read binary data from a text stream."))
-
-	  ;; Let's go as low level as it seems reasonable.
-	  ((not (member stream-et
-			*read-into-simple-array-recognized-types*
-			:test #'equal))
-	   ;; (format t ">>> Reading vector from binary stream of type ~S~%"
-	   ;;         stream-et)
-	   
-	   ;; We resort to the READ-BYTE based operation.
-	   (read-into-vector s stream start end))
-
-	  ((/= vm:byte-bits 8)
-	   ;; We must resort to the READ-BYTE based operation
-	   ;; also in this case. XXX Unreachable code note.
-	   (read-into-vector s stream start end))
-
-	  ;; Otherwise we can do something more interesting.
-	  (t
-	   (labels
-	       ((get-n-bytes (stream data offset numbytes)
-		  ;; Handle case of read-n-bytes reading short.
-		  (let ((need numbytes))
-		    (loop
-		      (let ((n (read-n-bytes stream data offset need nil)))
-			(decf need n)
-			(cond ((or (zerop need) ; Complete
-				   (zerop n))   ; EOF
-			       (return (- numbytes need)))
-			      (t (incf offset n)))))))
-		(read-n-x8-bytes (stream data offset-start offset-end byte-size)
-		  (let* ((x8-mult (truncate byte-size 8))
-			 (numbytes (* (- offset-end offset-start) x8-mult))
-			 (bytes-read (get-n-bytes
-				      stream
-				      data
-				      offset-start
-				      numbytes))
-			 )
-		    ;; A check should probably be made here in order to
-		    ;; be sure that we actually read the right amount
-		    ;; of bytes. (I.e. (truncate bytes-read x8-mult)
-		    ;; should return a 0 second value.
-		    (if (< bytes-read numbytes)
-			(+ offset-start (truncate bytes-read x8-mult))
-			offset-end)))
-		)
-	     
-	     ;; According to the definition of OPEN and READ-N-BYTES,
-	     ;; these are the only cases when we can use the multi-byte read
-	     ;; operation on a binary stream.
-	     (with-array-data ((data s) (offset-start start) (offset-end end))
-	       (etypecase data
-		 ((simple-array (unsigned-byte 8) (*))
-		  (read-n-x8-bytes stream data offset-start offset-end 8))
-	    
-		 ((simple-array (unsigned-byte 16) (*))
-		  (read-n-x8-bytes stream data offset-start offset-end 16))
-	    
-		 ((simple-array (unsigned-byte 32) (*))
-		  (read-n-x8-bytes stream data offset-start offset-end 32))
-
-		 ((simple-array (signed-byte 8) (*))
-		  (read-n-x8-bytes stream data offset-start offset-end 8))
-
-		 ((simple-array (signed-byte 16) (*))
-		  (read-n-x8-bytes stream data offset-start offset-end 16))
-
-		 ((simple-array (signed-byte 32) (*))
-		  (read-n-x8-bytes stream data offset-start offset-end 32))
-
-		 ;; Otherwise we resort to the READ-BYTE based operation.
-		 ((simple-array (unsigned-byte *) (*))
-		  (read-into-vector s stream start end))
-
-		 ((simple-array (signed-byte *) (*))
-		  (read-into-vector s stream start end))
-		 ))			; with-array-data
-	     )				; flet
-	   ))
-    ))
-
-
-;;; READ-INTO-VECTOR --
-
-(defun read-into-vector (v stream start end)
-  (declare (type index start end))
-  (declare (type stream stream))
-  (declare (type vector v))
-  (let* ((stream-et (stream-element-type stream))
-	 (read-function (if (subtypep stream-et 'character)
-			    #'read-char
-			    #'read-byte))
-	 )
-    (do ((i start (1+ i))
-	 (a-len (length v))
-	 )
-	((or (>= i a-len) (>= i end)) i)
-      (declare (type index i a-len))
-      (let ((el (funcall read-function stream nil '%%RWSEQ-EOF%%)))
-	(when (eq el '%%RWSEQ-EOF%%)
-	  (return i))
-	(setf (aref v i) el))
-      )))
-
-(declaim (end-block))			; READ-SEQUENCE block
-
-
-(declaim (start-block write-sequence))
-
-;;; WRITE-SEQUENCE
-;;; Why the type specifier '(list <type>)' was left out of the standard
-;;; will always puzzle me.
-
-(defun write-sequence (seq stream &key (start 0) (end nil))
-  "Writes the elements of the of SEQ bounded by START and END to STREAM.
-Argument(s):
-SEQ:	a proper SEQUENCE
-STREAM:	an output STREAM
-START:	a bounding index designator of type '(INTEGER 0 *)' (default 0)
-END:	a bounding index designator which be NIL or an INTEGER of
-	type '(INTEGER 0 *)' (default NIL)
-
-Value(s):
-SEQ:	a proper SEQUENCE
-"
-  (declare (type (or list vector) seq))
-  (declare (type stream stream))
-  (declare (type (integer 0 *) start))	; a list does not have a limit
-  (declare (type (or null (integer 0 *)) end))
-  (declare (values (or list vector)))
-  (let ((end (or end (length seq))))
-    (declare (type (integer 0 *) start end))
-
-    ;; Just catch some errors earlier than it would be necessary.
-    (cond ((not (open-stream-p stream))
-	   (error 'stream-error
-		  :stream stream
-		  :format-control "The stream is not open."))
-	  ((not (output-stream-p stream))
-	   (error 'stream-error
-		  :stream stream
-		  :format-control "The stream is not open for output."))
-	  ((and seq (>= start end)) seq)
-	  (t
-	   ;; So much for object-oriented programming!
-	   ;; Note: order of type clauses is very important.  As a
-	   ;; matter of fact it is patterned after the class
-	   ;; precedence list of each of the types listed.
-	   (etypecase seq
-	     (list
-	      (write-list-out seq stream start end))
-	     (simple-string
-	      (write-simple-string-out seq stream start end))
-	     (string
-	      (write-string-out seq stream start end))
-	     (simple-vector		; This is necessary because of
-					; the underlying behavior of
-					; OUTPUT-RAW-BYTES.  A vector
-					; produced by VECTOR has
-					; element-type T in CMUCL.
-	      (write-vector-out seq stream start end))
-	     (simple-array		; We know it is also a vector!
-	      (write-simple-array-out seq stream start end))
-	     (vector
-	      (write-vector-out seq stream start end)))
-	   ))))
-
-
-;;; The following functions operate under one - possibly wrong -
-;;; assumption.  CMUCL seems smart enough to collapse arrays of
-;;; characters onto strings (i.e. it does the right thing.)  Hence,
-;;; when each function is called, we are pretty safe in assuming that
-;;; the stream element type and the sequence element type are what we
-;;; expect.
-
-;;; WRITE-LIST-OUT
-
-(defun write-list-out (seq stream start end)
-  ;; I wish I could say
-  ;; (declare (type (list (or character (unsigned-byte 32))) seq))
-  (declare (type list seq))
-  (declare (type (integer 0 *) start end))
-  (declare (type stream stream))
-
-  (flet ((check-list-element-types (l type)
-	   (declare (list l))
-	   (dolist (e l)
-	     (unless (typep e type)
-	       (error 'type-error
-		      :datum e
-		      :expected-type type
-		      :format-control
-		      "Trying to output an element of unproper type to a stream.")))))
-    (let ((stream-et (stream-element-type stream)))
-
-      (check-list-element-types seq stream-et)
-      (let ((write-function (if (subtypep stream-et 'character)
-				#'write-char
-				#'write-byte)))
-
-	;; According to Rob MacLachlan <Rob_MacLachlan@ADDER.SLISP.CS.CMU.EDU>
-	;; It would make sense to write everything to a string and
-	;; then call 'write-string' no matter what the type of the
-	;; stream.
-	;; This implementation should be something like:
-	;;
-	;; (let ((temp-string (format nil "~{~W~}" (subseq seq start end))))
-	;;    (write-string temp-string stream)
-	;;
-	;; Of course this seems a little expensive and a better
-	;; iterative solution could be used instead.
-	;;
-	;; Anyway.  For the time being, the loop seems ok, given that
-	;; lists will most likely not used that much for buffered I/O.
-	
-	(do ((lis (nthcdr start seq) (rest lis))
-	     (i start (1+ i))
-	     )
-	    ((or (endp lis) (>= i end)) seq)
-	  (declare (type list lis))
-	  (declare (type index i))
-	  (funcall write-function (first lis) stream))))
-    ))
-
-
-;;; WRITE-SIMPLE-STRING-OUT, WRITE-STRING-OUT
-;;; These functions are really the same, since they rely on
-;;; WRITE-STRING (which should be pretty efficient by itself.)  The
-;;; only difference is in the declaration. Maybe the duplication is an
-;;; overkill, but it makes things a little more logical.
-
-(defun write-simple-string-out (seq stream start end)
-  (declare (type simple-string seq))
-  (when (not (subtypep (stream-element-type stream) 'character))
-    (error 'type-error
-	   :datum seq
-	   :expected-type (stream-element-type stream)
-	   :format-control "Trying to output a string to a binary stream."))
-  (write-string seq stream :start start :end end)
-  seq)
-
-
-(defun write-string-out (seq stream start end)
-  (declare (type string seq))
-  (when (not (subtypep (stream-element-type stream) 'character))
-    (error 'type-error
-	   :datum seq
-	   :expected-type (stream-element-type stream)
-	   :format-control "Trying to output a string to a binary stream."))
-  (write-string seq stream :start start :end end)
-  seq)
-
-
-;;; WRITE-SIMPLE-ARRAY-OUT, WRITE-VECTOR-OUT --
-;;; The main difference is that for simple vectors, we can use the
-;;; very efficient SYSTEM:OUTPUT-RAW-BYTES on FD-STREAMS.
-;;; (OUTPUT-RAW-BYTES seems to assume to receive a SIMPLE-ARRAY.)
-;;;
-;;; Again, Rob MacLachlan suggestion would be to first write
-;;; everything out to a string and then to use WRITE-STRING. (See comment
-;;; within WRITE-LIST-OUT.)
-
-(defun write-simple-array-out (seq stream start end)
-   ;; The complex declaration is needed to make Python behave.
-  ;; The first declaration does not work because of type promotion
-  ;; which effectively excises the etypecase below.
-  ;; The second declaration does not quite work because it does not
-  ;; quite constrain the array element type.
-  ;; (declare (type (simple-array (or unsigned-byte signed-byte) (*)) s))
-  ;; (declare (type (simple-array * (*)) s))
-  (declare (type (or (simple-array (unsigned-byte 8) (*))
-		     #+:signed-array (simple-array (signed-byte 8) (*))
-		     (simple-array (unsigned-byte 16) (*))
-		     #+:signed-array (simple-array (signed-byte 16) (*))
-		     (simple-array (unsigned-byte 32) (*))
-		     #+:signed-array (simple-array (signed-byte 32) (*))
-		     (simple-array (unsigned-byte *) (*))
-		     (simple-array (signed-byte *) (*))
-		     )
-		    seq))
-  (when (not (subtypep (stream-element-type stream) 'integer))
-    (error 'type-error
-	   :datum (elt seq 0)
-	   :expected-type (stream-element-type stream)
-	   :format-control "Trying to output binary data to a text stream."))
-  (cond ((system:fd-stream-p stream)
-	 (flet ((write-n-x8-bytes (stream data start end byte-size)
-		  (let* ((x8-mult (truncate byte-size 8))
-			 (numbytes (* (- end start) x8-mult))
-			 )
-		    (system:output-raw-bytes stream data start numbytes)))
-		)
-	   (with-array-data ((data seq)
-			     (start start)
-			     (end   end))
-	     (etypecase data
-	       ((simple-array (unsigned-byte 8) (*))
-		(write-n-x8-bytes stream data start end 8))
-
-	       ((simple-array (unsigned-byte 16) (*))
-		(write-n-x8-bytes stream data start end 16))
-
-	       ((simple-array (unsigned-byte 32) (*))
-		(write-n-x8-bytes stream data start end 32))
-
-	       ((simple-array (signed-byte 8) (*))
-		(write-n-x8-bytes stream data start end 8))
-
-	       ((simple-array (signed-byte 16) (*))
-		(write-n-x8-bytes stream data start end 16))
-
-	       ((simple-array (signed-byte 32) (*))
-		(write-n-x8-bytes stream data start end 32))
-
-	       ;; Otherwise we resort to the READ-BYTE based operation.
-	       ((simple-array (unsigned-byte *) (*))
-		(write-vector-out seq stream start end))
-
-	       ((simple-array (signed-byte *) (*))
-		(write-vector-out seq stream start end))
-	       )
-	     seq)))
-
-	(t (do ((i start (1+ i))
-		(sv-len (length seq))
-		)
-	       ((or (>= i end) (>= i sv-len)) seq)
-	     (declare (type index i sv-len))
-	     (write-byte (aref seq i) stream)))))
-
-
-(defun write-vector-out (seq stream start end)
-  (when (not (subtypep (stream-element-type stream) 'integer))
-    (error 'type-error
-	   :datum (elt seq 0)
-	   :expected-type (stream-element-type stream)
-	   :format-control "Trying to output binary data to a text stream."))
-  (do ((i start (1+ i))
-       (a-len (length seq))
-       )
-      ((or (>= i end) (>= i a-len)) seq)
-    (declare (type index i a-len))
-    (write-byte (aref seq i) stream)))
-
-(declaim (end-block))			; WRITE-SEQUENCE block.
-#||
 ;;; READ-SEQUENCE -- Public
 ;;;
 (defun read-sequence (seq stream &key (start 0) (end nil))
@@ -2289,8 +1664,6 @@ SEQ:	a proper SEQUENCE
 	   (type index start)
 	   (type sequence-end end)
 	   (values index))
-  (when (not (cl::lisp-stream-p stream))
-     (return-from read-sequence (stream-read-sequence seq stream start end)))
   (let ((end (or end (length seq))))
     (declare (type index end))
     (etypecase seq
@@ -2347,8 +1720,6 @@ SEQ:	a proper SEQUENCE
 	   (type index start)
 	   (type sequence-end end)
 	   (values sequence))
-  (when (not (cl::lisp-stream-p stream))
-    (return-from write-sequence (stream-write-sequence seq stream start end)))
   (let ((end (or end (length seq))))
     (declare (type index start end))
     (etypecase seq
@@ -2374,7 +1745,7 @@ SEQ:	a proper SEQUENCE
 	     ((>= i end) seq)
 	   (declare (type index i))
 	   (funcall write-function (aref seq i) stream)))))))
-||#
+
 
 
 ;;; finish-standard-output-streams  --  Public

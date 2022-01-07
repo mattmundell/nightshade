@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/package.lisp,v 1.59 2002/08/23 17:08:53 pmai Exp $")
+  "$Header: /home/CVS-cmucl/src/code/package.lisp,v 1.37.2.6 2000/07/06 06:39:44 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -13,7 +13,7 @@
 ;;;
 ;;; Re-Written by Rob MacLachlan.  Earlier version written by
 ;;; Lee Schumacher.  Apropos & iteration macros courtesy of Skef Wholey.
-;;; Defpackage by Dan Zigmond.  With-Package-Iterator by Blaine Burks. 
+;;; Defpackage by Dan Zigmond.  With-Package-Iterator by Blaine Burks.
 ;;; Defpackage and do-mumble-symbols macros re-written by William Lott.
 ;;;
 (in-package "LISP")
@@ -27,7 +27,7 @@
 
 (in-package "EXTENSIONS")
 (export '(*keyword-package* *lisp-package* *default-package-use-list*
-	  map-apropos package-children package-parent))
+			    map-apropos))
 
 (in-package "KERNEL")
 (export '(%in-package old-in-package %defpackage))
@@ -40,6 +40,7 @@
 
 ;;; INTERNAL conditions
 (define-condition simple-package-error (simple-condition package-error)())
+(define-condition simple-program-error (simple-condition program-error)())
 
 (defstruct (package
 	    (:constructor internal-make-package)
@@ -49,7 +50,7 @@
 	     (lambda (package)
 	       (values `(package-or-lose ',(package-name package))
 		       nil))))
-  "Standard structure for the description of a package.  Consists of 
+  "Standard structure for the description of a package.  Consists of
    a list of all hash tables, the name of the package, the nicknames of
    the package, the use-list for the package, the used-by- list, hash-
    tables for the internal and external symbols, and a list of the
@@ -123,178 +124,33 @@
 (defvar *in-package-init* nil)
 (defvar *deferred-use-packages* nil)
 
-(defun stringify-name (name kind)
-  (typecase name
-    (simple-string name)
-    (string (coerce name 'simple-string))
-    (symbol (symbol-name name))
-    (base-char
-     (let ((res (make-string 1)))
-       (setf (schar res 0) name)
-       res))
-    (t
-     (error "Bogus ~A name: ~S" kind name))))
-
-(defun stringify-names (names kind)
-  (mapcar #'(lambda (name)
-	      (stringify-name name kind))
-	  names))
-
-;;; package-namify  --  Internal
-;;;
-;;;    Make a package name into a simple-string.
-;;;
-(defun package-namify (n)
-  (stringify-name n "package"))
-
-;;; package-namestring  --  Internal
-;;;
-;;;    Take a package-or-string-or-symbol and return a package name.
-;;;
-(defun package-namestring (thing)
-  (if (packagep thing)
-      (let ((name (package-%name thing)))
-	(or name
-	    (error "Can't do anything to a deleted package: ~S" thing)))
-      (package-namify thing)))
-
-;;; package-name-to-package  --  Internal
-;;;
-;;; Given a package name, a simple-string, do a package name lookup.
-;;;
-(defun package-name-to-package (name)
-  (declare (simple-string name))
-  (values (gethash name *package-names*)))
-
-;;; package-parent  --  Internal.
-;;;
-;;; Because this function is called via the reader, we want it to be as
-;;; fast as possible.
-;;;
-#+relative-package-names
-(defun package-parent (package-specifier)
-  "Given package-specifier, a package, symbol or string, return the
-  parent package.  If there is not a parent, signal an error."
-  (declare (optimize (speed 3)))
-  (flet ((find-last-dot (name)
-           (do* ((len (1- (length name)))
-		 (i len (1- i)))
-		((= i -1) nil)
-             (declare (fixnum len i))
-             (when (char= #\. (schar name i)) (return i)))))
-    (let* ((child (package-namestring package-specifier))
-           (dot-position (find-last-dot child)))
-      (cond (dot-position
-             (let ((parent (subseq child 0 dot-position)))
-               (or (package-name-to-package parent)
-		   (error "The parent of ~a does not exist." child))))
-            (t
-	     (error "There is no parent of ~a." child))))))
-
-
-;;; package-children  --  Internal.
-;;;
-;;; While this function is not called via the reader, we do want it to be
-;;; fast.
-;;;
-#+relative-package-names
-(defun package-children (package-specifier &key (recurse t))
-  "Given package-specifier, a package, symbol or string, return all the
-  packages which are in the hierarchy 'under' the given package.  If
-  :recurse is nil, then only return the immediate children of the package."
-  (declare (optimize (speed 3)))
-  (let ((res ())
-        (parent (package-namestring package-specifier)))
-    (labels
-        ((string-prefix-p (prefix string)
-	   (declare (simple-string prefix string))
-           ;; Return length of `prefix' if `string' starts with `prefix'.
-           ;; We don't use `search' because it does much more than we need
-           ;; and this version is about 10x faster than calling `search'.
-           (let ((prefix-len (length prefix))
-                 (seq-len (length string)))
-             (declare (type index prefix-len seq-len))
-             (when (>= prefix-len seq-len)
-               (return-from string-prefix-p nil))
-             (do ((i 0 (1+ i)))
-                 ((= i prefix-len) prefix-len)
-               (declare (type index i))
-               (unless (char= (schar prefix i) (schar string i))
-                 (return nil)))))
-         (test-package (package-name package)
-	   (declare (simple-string package-name)
-		    (type package package))
-           (let ((prefix
-                  (string-prefix-p (concatenate 'simple-string parent ".")
-                                   package-name)))
-             (cond (recurse
-		    (when prefix
-		      (pushnew package res)))
-                   (t
-		    (when (and prefix
-			       (not (find #\. package-name :start prefix)))
-		      (pushnew package res)))))))
-      (maphash #'test-package *package-names*)
-      res)))
-
-;;; relative-package-name-to-package  --  Internal
-;;;
-;;; Given a package name, a simple-string, do a relative package name lookup.
-;;; It is intended that this function will be called from find-package.
-;;;
-#+relative-package-names
-(defun relative-package-name-to-package (name)
-  (declare (simple-string name)
-	   (optimize (speed 3)))
-  (flet ((relative-to (package name)
-	   (declare (type package package)
-		    (simple-string name))
-           (if (string= "" name)
-	       package
-	       (let ((parent-name (package-%name package)))
-		 (unless parent-name
-		   (error "Can't do anything to a deleted package: ~S"
-			  package))
-		 (package-name-to-package
-		  (concatenate 'simple-string parent-name "." name)))))
-         (find-non-dot (name)
-           (do* ((len (length name))
-                 (i 0 (1+ i)))
-		((= i len) nil)
-             (declare (type index len i))
-             (when (char/= #\. (schar name i)) (return i)))))
-    (when (char= #\. (schar name 0))
-      (let* ((last-dot-position (or (find-non-dot name) (length name)))
-             (n-dots last-dot-position)
-             (name (subseq name last-dot-position)))
-        (cond ((= 1 n-dots)
-               ;; relative to current package
-               (relative-to *package* name))
-              (t
-               ;; relative to our (- n-dots 1)'th parent
-               (let ((package *package*)
-                     (tmp nil))
-                 (dotimes (i (1- n-dots))
-		   (declare (fixnum i))
-		   (setq tmp (package-parent package))
-                   (unless tmp
-		     (error "The parent of ~a does not exist." package))
-                   (setq package tmp))
-                 (relative-to package name))))))))
-
-;;; find-package  --  Public
+;;; Find-Package  --  Public
 ;;;
 ;;;
 (defun find-package (name)
   "Find the package having the specified name."
   (if (packagep name)
       name
-      (let ((name (package-namify name)))
-	(or (package-name-to-package name)
-	    #+relative-package-names
-	    (relative-package-name-to-package name)))))
+      (values (gethash (string name) *package-names*))))
 
-;;; package-or-lose  --  Internal
+;;; Package-Listify  --  Internal
+;;;
+;;;    Return a list of packages given a package-or-string-or-symbol or
+;;; list thereof, or die trying.
+;;;
+(defun package-listify (thing)
+  (let ((res ()))
+    (dolist (thing (if (listp thing) thing (list thing)) res)
+      (push (package-or-lose thing) res))))
+
+;;; PACKAGE-NAMIFY  --  Internal
+;;;
+;;;    Make a package name into a simple-string.
+;;;
+(defun package-namify (n)
+  (stringify-name n "package"))
+
+;;; Package-Or-Lose  --  Internal
 ;;;
 ;;;    Take a package-or-string-or-symbol and return a package.
 ;;;
@@ -305,9 +161,9 @@
 	 thing)
 	(t
 	 (let ((thing (package-namify thing)))
-	   (cond ((package-name-to-package thing))
+	   (cond ((gethash thing *package-names*))
 		 (t
-		  ;; ANSI spec's type-error where this is called. But,
+		  ;; ANSI spec's TYPE-ERROR where this is called. But,
 		  ;; but the resulting message is somewhat unclear.
 		  ;; May need a new condition type?
 		  (with-simple-restart
@@ -316,16 +172,6 @@
 			   :datum thing
 			   :expected-type 'package))
 		  (make-package thing)))))))
-
-;;; package-listify  --  Internal
-;;;
-;;;    Return a list of packages given a package-or-string-or-symbol or
-;;; list thereof, or die trying.
-;;;
-(defun package-listify (thing)
-  (let ((res ()))
-    (dolist (thing (if (listp thing) thing (list thing)) res)
-      (push (package-or-lose thing) res))))
 
 
 ;;;; Package-Hashtables
@@ -710,13 +556,16 @@
 				  (,',init-macro ,(car ',ordered-types)))))))
 	 (when ,packages
 	   ,(when (null symbol-types)
-	      (simple-program-error "Must supply at least one of :internal, ~
-	                             :external, or :inherited."))
+	      (error 'program-error
+		     :format-control
+		     "Must supply at least one of :internal, :external, or ~
+		      :inherited."))
 	   ,(dolist (symbol symbol-types)
 	      (unless (member symbol '(:internal :external :inherited))
-		(simple-program-error "~S is not one of :internal, :external, ~
-		                       or :inherited."
-			              symbol)))
+		(error 'program-error
+		       :format-control
+		       "~S is not one of :internal, :external, or :inherited."
+		       :format-argument symbol)))
 	   (,init-macro ,(car ordered-types))
 	   (flet ((,real-symbol-p (number)
 		    (> number 1)))
@@ -817,20 +666,24 @@
 	(doc nil))
     (dolist (option options)
       (unless (consp option)
-	(simple-program-error "Bogus DEFPACKAGE option: ~S" option))
+	(error 'program-error
+	       :format-control "Bogus DEFPACKAGE option: ~S"
+	       :format-arguments (list option)))
       (case (car option)
 	(:nicknames
 	 (setf nicknames (stringify-names (cdr option) "package")))
 	(:size
 	 (cond (size
-		(simple-program-error "Can't specify :SIZE twice."))
+		(error 'program-error
+		       :format-control "Can't specify :SIZE twice."))
 	       ((and (consp (cdr option))
 		     (typep (second option) 'unsigned-byte))
 		(setf size (second option)))
 	       (t
-		(simple-program-error
-		 "Bogus :SIZE, must be a positive integer: ~S"
-		 (second option)))))
+		(error
+		 'program-error
+		 :format-control "Bogus :SIZE, must be a positive integer: ~S"
+		 :format-arguments (list (second option))))))
 	(:shadow
 	 (let ((new (stringify-names (cdr option) "symbol")))
 	   (setf shadows (append shadows new))))
@@ -863,10 +716,13 @@
 	   (setf exports (append exports new))))
 	(:documentation
 	 (when doc
-	   (simple-program-error "Can't specify :DOCUMENTATION twice."))
+	   (error 'program-error
+		  :format-control "Can't specify :DOCUMENTATION twice."))
 	 (setf doc (coerce (second option) 'simple-string)))
 	(t
-	 (simple-program-error "Bogus DEFPACKAGE option: ~S" option))))
+	 (error 'program-error
+		:format-control "Bogus DEFPACKAGE option: ~S"
+		:format-arguments (list option)))))
     (check-disjoint `(:intern ,@interns) `(:export  ,@exports))
     (check-disjoint `(:intern ,@interns)
 		    `(:import-from
@@ -879,21 +735,32 @@
 		    ',shadows ',shadowing-imports ',(if use-p use :default)
 		    ',imports ',interns ',exports ',doc))))
 
-(defun check-disjoint (&rest args)
-  ;; Check wether all given arguments specify disjoint sets of symbols.
-  ;; Each argument is of the form (:key . set).
-  (loop for (current-arg . rest-args) on args
-        do
-;	(loop with (key1 . set1) = current-arg
-	(loop for (key1 . set1) = current-arg
-	      for (key2 . set2) in rest-args
-	      for common = (delete-duplicates
-	                    (intersection set1 set2 :test #'string=))
-	      unless (null common)
-	      do
-	      (simple-program-error "Parameters ~S and ~S must be disjoint ~
-	                             but have common elements ~%   ~S"
-				    key1 key2 common))))
+(defun check-disjoint(&rest args)
+  ;; An arg is (:key . set)
+  (do ((list args (cdr list)))
+      ((endp list))
+    (loop
+      with x = (car list)
+      for y in (rest list)
+      for z = (remove-duplicates (intersection (cdr x)(cdr y) :test #'string=))
+      when z do (error 'program-error
+		       :format-control "Parameters ~S and ~S must be disjoint ~
+					but have common elements ~%   ~S"
+		       :format-arguments (list (car x)(car y) z)))))
+
+(defun stringify-name (name kind)
+  (typecase name
+    (simple-string name)
+    (string (coerce name 'simple-string))
+    (symbol (symbol-name name))
+    (base-char (string name))
+    (t
+     (error "Bogus ~A name: ~S" kind name))))
+
+(defun stringify-names (names kind)
+  (mapcar #'(lambda (name)
+	      (stringify-name name kind))
+	  names))
 
 (defun %defpackage (name nicknames size shadows shadowing-imports
 			 use imports interns exports doc-string)
@@ -989,7 +856,7 @@
   (check-type nicknames list)
   (dolist (n nicknames)
     (let* ((n (package-namify n))
-	   (found (package-name-to-package n)))
+	   (found (gethash n *package-names*)))
       (cond ((not found)
 	     (setf (gethash n *package-names*) package)
 	     (push n (package-%nicknames package)))
@@ -1061,7 +928,7 @@
       (setq *package* (apply #'make-package name keys))))))
 
 ;;; IN-PACKAGE -- public.
-;;; 
+;;;
 (defmacro in-package (package &rest noise)
   (cond ((or noise
 	     (not (or (stringp package) (symbolp package))))
@@ -1197,7 +1064,7 @@
 		 (add-symbol (package-internal-symbols package) symbol)))
 	  (values symbol nil)))))
 
-;;; find-symbol*  --  Internal
+;;; Find-Symbol*  --  Internal
 ;;;
 ;;;    Check internal and external symbols, then scan down the list
 ;;; of hashtables for inherited symbols.  When an inherited symbol
@@ -1227,9 +1094,9 @@
 	      (shiftf (cdr prev) (cdr table) (cdr head) table))
 	    (return-from find-symbol* (values symbol :inherited))))))))
 
-;;; find-external-symbol  --  Internal
+;;; Find-External-Symbol  --  Internal
 ;;;
-;;;    Similar to find-symbol, but only looks for an external symbol.
+;;;    Similar to Find-Symbol, but only looks for an external symbol.
 ;;; This is used for fast name-conflict checking in this file and symbol
 ;;; printing in the printer.
 ;;;
@@ -1243,7 +1110,7 @@
 			string length hash ehash)
       (values symbol found))))
 
-;;; unintern  --  Public
+;;; Unintern  --  Public
 ;;;
 ;;;    If we are uninterning a shadowing symbol, then a name conflict can
 ;;; result, otherwise just nuke the symbol.
@@ -1432,7 +1299,7 @@
 
 ;;; Import  --  Public
 ;;;
-;;;    Check for name conflict caused by the import and let the user 
+;;;    FIX Check for name conflic caused by the import and let the user
 ;;; shadowing-import if there is.
 ;;;
 (defun import (symbols &optional (package *package*))
@@ -1574,7 +1441,7 @@
 		(when (and w (not (eq s sym))
 			   (not (member s shadowing-symbols)))
 		  (push s cset))))))
-	  
+
 	  (when cset
 	    (cerror
 	     "Unintern the conflicting symbols in the ~2*~A package."
@@ -1621,66 +1488,13 @@
 ;;; Apropos and Apropos-List.
 
 (defun briefly-describe-symbol (symbol)
-  (let ((prefix-length nil))
-    (flet ((print-symbol (&optional kind)
-             (fresh-line)
-	     (if prefix-length
-	         (dotimes (i prefix-length)
-		   (write-char #\Space))
-		 (let ((symbol-string (prin1-to-string symbol)))
-		   (write-string symbol-string)
-		   (setq prefix-length (length symbol-string))))
-	     (when kind
-	       (write-string " [")
-	       (write-string kind)
-	       (write-string "] "))))
-
-      ;; Variable namespace
-      (multiple-value-bind (kind recorded-p) (info variable kind symbol)
-        (when (or (boundp symbol) recorded-p)
-	  (print-symbol (ecase kind
-                          (:special  "special variable")
-                          (:constant "constant")
-                          (:global   "undefined variable")
-                          (:macro    "symbol macro")
-                          (:alien    "alien variable")))
-          (when (boundp symbol)
-	    (write-string "value: ")
-	    (let ((*print-length*
-	             (or ext:*describe-print-length* *print-length*))
-	          (*print-level*
-		     (or ext:*describe-print-level* *print-level*)))
-              (prin1 (symbol-value symbol))))))
-
-      ;; Function namespace
-      (when (fboundp symbol)
-        (cond
-          ((macro-function symbol)
-           (print-symbol "macro")
-           (let ((arglist (kernel:%function-arglist (macro-function symbol))))
-             (when (stringp arglist) (write-string arglist))))
-          ((special-operator-p symbol)
-           (print-symbol "special operator")
-           (let ((arglist (kernel:%function-arglist (symbol-function symbol))))
-             (when (stringp arglist) (write-string arglist))))
-          (t
-           (print-symbol "function")
-           ;; could do better than this with (kernel:type-specifier
-           ;; (info function type symbol)) when it's a byte-compiled function
-           (let ((arglist (kernel:%function-arglist (symbol-function symbol))))
-             (when (stringp arglist) (write-string arglist))))))
-
-      ;; Class and Type Namespace(s)
-      (cond
-        ((find-class symbol nil)
-         (print-symbol "class"))
-        ((info type kind symbol)
-         (print-symbol "type")))
-
-      ;; Make sure we at least print the symbol itself if we don't know
-      ;; anything else about it:
-      (when (null prefix-length)
-        (print-symbol)))))
+  (fresh-line)
+  (prin1 symbol)
+  (when (boundp symbol)
+    (write-string ", value: ")
+    (prin1 (symbol-value symbol)))
+  (if (fboundp symbol)
+      (write-string " (defined)")))
 
 (defun apropos-search (symbol string)
   (declare (simple-string string))
@@ -1728,7 +1542,7 @@
     nil))
 
 ;;; APROPOS -- public.
-;;; 
+;;;
 (defun apropos (string &optional package external-only)
   "Briefly describe all symbols which contain the specified String.
   If Package is supplied then only describe symbols present in
@@ -1738,7 +1552,7 @@
   (values))
 
 ;;; APROPOS-LIST -- public.
-;;; 
+;;;
 (defun apropos-list (string &optional package external-only)
   "Identical to Apropos, except that it returns a list of the symbols
   found instead of describing them."
@@ -1786,7 +1600,7 @@
 	(setf (package-%shadowing-symbols pkg) (sixth spec))))
 
     (makunbound '*initial-symbols*) ; So it gets GC'ed.
-    
+
     ;; Make some other packages that should be around in the cold load:
     (make-package "COMMON-LISP-USER" :nicknames '("CL-USER" "USER"))
 

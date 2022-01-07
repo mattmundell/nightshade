@@ -1,4 +1,4 @@
-# $Header: /project/cmucl/cvsroot/src/lisp/GNUmakefile,v 1.16 2001/12/06 22:15:34 pmai Exp $
+# $Header: /home/CVS-cmucl/src/lisp/GNUmakefile,v 1.13 1997/06/07 15:25:37 pw Exp $
 
 all: lisp.nm
 
@@ -22,14 +22,6 @@ OBJS = $(patsubst %.c,%.o,$(patsubst %.S,%.o,$(patsubst %.s,%.o,$(SRCS))))
 ### Don't look in RCS for the files, because we might not want the latest.
 %: RCS/%,v
 
-### Special target used to make a lisp.nm file for genesis.
-### Use when internals.h does not yet exist.
-### This is the same 'lisp.nm' but not depending on an existing build.
-initial-map: version
-	echo 'Map file for lisp version ' `cat version` > ,lisp.nm
-	$(NM) lisp | grep -v " F \| U " >> ,lisp.nm
-	mv ,lisp.nm lisp.nm
-
 lisp.nm: lisp
 	echo 'Map file for lisp version ' `cat version` > ,lisp.nm
 	$(NM) lisp | grep -v " F \| U " >> ,lisp.nm
@@ -47,10 +39,6 @@ lisp: version.c ${OBJS} version
 version:
 	echo 0 > version
 
-### Socket.c needs to be compiled with UNIXCONN defined.
-socket.o: socket.c
-	$(COMPILE.c) -DUNIXCONN $<
-
 internals.h:
 	@echo "You must run genesis to create internals.h!"
 	@false
@@ -61,7 +49,7 @@ clean:
 depend: Depends
 
 Depends: ${SRCS}
-	$(CC) -MM -E ${DEPEND_FLAGS} ${CFLAGS} ${CPPFLAGS} $^ > ,depends
+	$(CC) -MM -E ${DEPEND_FLAGS} ${CFLAGS} ${CPPFLAGS} $? > ,depends
 	mv ,depends Depends
 
 include Depends

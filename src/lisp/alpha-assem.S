@@ -1,4 +1,4 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/alpha-assem.S,v 1.9 2002/08/23 17:01:00 pmai Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/alpha-assem.S,v 1.6.2.2 2000/05/23 16:38:12 pw Exp $ */
 #ifndef	__linux__
 #include <machine/regdef.h>
 #include <machine/pal.h>
@@ -232,13 +232,10 @@ start_of_tramps:
 undefined_tramp = /* ### undefined_tramp_offset-call_into_lisp_LRA*/ 0x140+call_into_lisp_LRA_page
 undefined_tramp_offset:
         call_pal PAL_gentrap
-	.long    trap_Error
-	/* Number of argument bytes */
+	.long    10
         .byte    4
-        .byte    UNDEFINED_SYMBOL_ERROR
-	/* Escape to create 16bit BE number from following two values */
+        .byte    23
         .byte    254
-	/* SC_OFFSET(sc_DescriptorReg,reg_FDEFN) */
         .byte    (0xe0 + sc_DescriptorReg)
         .byte    2
         .align 2

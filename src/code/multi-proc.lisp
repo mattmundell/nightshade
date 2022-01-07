@@ -5,7 +5,7 @@
 ;;; the Public domain, and is provided 'as is'.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/multi-proc.lisp,v 1.40 2002/02/20 06:40:01 moore Exp $")
+  "$Header: /home/CVS-cmucl/src/code/multi-proc.lisp,v 1.29.2.4 2000/08/19 17:48:48 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -22,7 +22,7 @@
 (defun unbind-binding-stack ()
   (declare (optimize (speed 3) (safety 0)))
   (let* ((binding-stack-pointer (kernel:binding-stack-pointer-sap))
-	 (binding-stack 
+	 (binding-stack
 	  (sys:int-sap (alien:extern-alien "binding_stack" alien:unsigned)))
 	 (size (sys:sap- binding-stack-pointer binding-stack)))
     (declare (type (unsigned-byte 29) size))
@@ -30,7 +30,7 @@
 	((zerop binding))
       (declare (type (unsigned-byte 29) binding))
       (decf binding 8)
-      (let* ((value 
+      (let* ((value
 	      (kernel:make-lisp-obj
 	       (sys:sap-int (sys:sap-ref-sap binding-stack binding))))
 	     (symbol
@@ -53,14 +53,14 @@
 (defun rebind-binding-stack ()
   (declare (optimize (speed 3) (safety 0)))
   (let* ((binding-stack-pointer (kernel:binding-stack-pointer-sap))
-	 (binding-stack 
+	 (binding-stack
 	  (sys:int-sap (alien:extern-alien "binding_stack" alien:unsigned)))
 	 (size (sys:sap- binding-stack-pointer binding-stack)))
     (declare (type (unsigned-byte 29) size))
     (do ((binding 0 (+ 8 binding)))
 	((= binding size))
       (declare (type (unsigned-byte 29) binding))
-      (let* ((value 
+      (let* ((value
 	      (kernel:make-lisp-obj
 	       (sys:sap-int (sys:sap-ref-sap binding-stack binding))))
 	     (symbol
@@ -83,7 +83,7 @@
   (declare (type (simple-array t (*)) binding-save-stack)
 	   (optimize (speed 3) (safety 0)))
   (let* ((binding-stack-pointer (kernel:binding-stack-pointer-sap))
-	 (binding-stack 
+	 (binding-stack
 	  (sys:int-sap (alien:extern-alien "binding_stack" alien:unsigned)))
 	 (size (sys:sap- binding-stack-pointer binding-stack))
 	 (vector-size (truncate size 4)))
@@ -257,46 +257,6 @@
 
 (declaim (type (or stack-group null) *initial-stack-group*))
 (defvar *initial-stack-group* nil)
-
-;;; Process defstruct is up here because stack group functions refer
-;;; to process slots in assertions, but are also compiled at high
-;;; optimization... so if the process structure changes, all hell
-;;; could break loose.
-
-(defstruct (process
-	     (:constructor %make-process)
-	     (:predicate processp)
-	     (:print-function
-	      (lambda (process stream depth)
-		(declare (type process process) (stream stream) (ignore depth))
-		(print-unreadable-object (process stream :identity t)
-		 (format stream "Process ~a" (process-name process))))))
-  (name "Anonymous" :type simple-base-string)
-  (state :killed :type (member :killed :active :inactive))
-  (%whostate nil :type (or null simple-base-string))
-  (initial-function nil :type (or null function))
-  (initial-args nil :type list)
-  (wait-function nil :type (or null function))
-  (wait-function-args nil :type list)
-  (%run-reasons nil :type list)
-  (%arrest-reasons nil :type list)
-  ;; The real time after which the wait will timeout.
-  (wait-timeout nil :type (or null double-float))
-  (wait-return-value nil :type t)
-  (interrupts '() :type list)
-  (stack-group nil :type (or null stack-group))
-  ;;
-  ;; The real and run times when the current process was last
-  ;; scheduled or yielded.
-  (scheduled-real-time (get-real-time) :type double-float)
-  (scheduled-run-time (get-run-time) :type double-float)
-  ;;
-  ;; Accrued real and run times in seconds.
-  (%real-time 0d0 :type double-float)
-  (%run-time 0d0 :type double-float)
-  (property-list nil :type list)
-  (initial-bindings nil :type list))
-
 
 ;;; Init-Stack-Groups -- Interface
 ;;;
@@ -592,7 +552,7 @@
 		  ;; Interrupt-contexts.
 		  (restore-interrupt-contexts
 		   (stack-group-interrupt-contexts resumer))
-		  ;; 
+		  ;;
 		  (let ((new-control-stack
 			 (aref x86::*control-stacks*
 			       (stack-group-control-stack-id resumer))))
@@ -652,7 +612,7 @@
       (setf kernel:*eval-stack* (stack-group-eval-stack new-stack-group))
       (setf kernel:*eval-stack-top*
 	    (stack-group-eval-stack-top new-stack-group))
-      
+
       ;; Misc stacks.
       (setf (stack-group-current-catch-block stack-group)
 	    lisp::*current-catch-block*)
@@ -662,7 +622,7 @@
 	    (stack-group-current-catch-block new-stack-group))
       (setf lisp::*current-unwind-protect-block*
 	    (stack-group-current-unwind-protect-block new-stack-group))
-      
+
       ;; Save the interrupt-contexts.
       (setf (stack-group-interrupt-contexts stack-group)
 	    (save-interrupt-contexts
@@ -683,7 +643,7 @@
 				new-stack-group))
 	(rebind-binding-stack)
 	(unix:unix-sigsetmask old-sigs))
-      
+
       ;; Restore the interrupt-contexts.
       (restore-interrupt-contexts
        (stack-group-interrupt-contexts new-stack-group))
@@ -697,7 +657,7 @@
       (restore-alien-stack (stack-group-alien-stack new-stack-group)
 			   (stack-group-alien-stack-size new-stack-group)
 			   (stack-group-alien-stack-pointer new-stack-group))
-      ;; 
+      ;;
       (let ((new-control-stack
 	     (aref x86::*control-stacks*
 		   (stack-group-control-stack-id new-stack-group))))
@@ -756,6 +716,35 @@
 
 (defvar *multi-processing* t)
 
+(defstruct (process
+	     (:constructor %make-process)
+	     (:predicate processp)
+	     (:print-function
+	      (lambda (process stream depth)
+		(declare (type process process) (stream stream) (ignore depth))
+		(print-unreadable-object (process stream :identity t)
+		 (format stream "Process ~a" (process-name process))))))
+  (name "Anonymous" :type simple-base-string)
+  (state :killed :type (member :killed :active :inactive))
+  (%whostate nil :type (or null simple-base-string))
+  (initial-function nil :type (or null function))
+  (initial-args nil :type list)
+  (wait-function nil :type (or null function))
+  ;; The real time after which the wait will timeout.
+  (wait-timeout nil :type (or null double-float))
+  (wait-return-value nil :type t)
+  (interrupts '() :type list)
+  (stack-group nil :type (or null stack-group))
+  ;;
+  ;; The real and run times when the current process was last
+  ;; scheduled or yielded.
+  (scheduled-real-time (get-real-time) :type double-float)
+  (scheduled-run-time (get-run-time) :type double-float)
+  ;;
+  ;; Accrued real and run times in seconds.
+  (%real-time 0d0 :type double-float)
+  (%run-time 0d0 :type double-float))
+
 ;;; Process-Whostate  --  Public
 ;;;
 (defun process-whostate (process)
@@ -771,9 +760,7 @@
 ;;;
 (declaim (inline process-active-p))
 (defun process-active-p (process)
-  (and (eq (process-state process) :active)
-       (process-%run-reasons process)
-       (not (process-%arrest-reasons process))))
+  (eq (process-state process) :active))
 
 ;;; Process-Alive-P  --  Public
 ;;;
@@ -873,52 +860,14 @@
     (setf (process-scheduled-run-time new-process) run-time))
   (values))
 
-(defun apply-with-bindings (function args bindings)
-  (if bindings
-      (progv
-	  (mapcar #'car bindings)
-	  (mapcar #'(lambda (binding)
-		      (eval (cdr binding))))
-	(apply function args))
-      (apply function args)))
-
 
 ;;; Make-Process -- Public
 ;;;
-(defun make-process (function &key
-		     (name "Anonymous")
-		     (run-reasons (list :enable))
-		     (arrest-reasons nil)
-		     (initial-bindings nil))
-  "Make a process which will run FUNCTION when it starts up.  By
-  default the process is created in a runnable (active) state.
-  If FUNCTION is NIL, the process is started in a killed state; it may
-  be restarted later with process-preset.
-
-  :NAME
-	A name for the process displayed in process listings.
-
-  :RUN-REASONS
-	Initial value for process-run-reasons; defaults to (:ENABLE).  A
-	process needs a at least one run reason to be runnable.  Together with
-	arrest reasons, run reasons provide an alternative to process-wait for
-	controling whether or not a process is runnable.  To get the default
-	behavior of MAKE-PROCESS in Allegro Common Lisp, which is to create a
-	process which is active but not runnable, initialize RUN-REASONS to
-	NIL.
-
-  :ARREST-REASONS
-	Initial value for process-arrest-reasons; defaults to NIL.  A
-	process must have no arrest reasons in order to be runnable.
-
-  :INITIAL-BINDINGS
-	An alist of initial special bindings for the process.  At
-	startup the new process has a fresh set of special bindings
-	with a default binding of *package* setup to the CL-USER
-	package.  INITIAL-BINDINGS specifies additional bindings for
-	the process.  The cdr of each alist element is evaluated in
-	the fresh dynamic environment and then bound to the car of the
-	element."
+(defun make-process (function &key (name "Anonymous"))
+  "Make a process which will run function when it starts up. The process
+  may be given an optional name which defaults to Anonymous. The new
+  process has a fresh set of special bindings with a default binding
+  of *package* setup to the CL-USER package."
   (declare (type (or null function) function))
   (cond (*quitting-lisp*
 	 ;; No more processes if about to quit lisp.
@@ -926,23 +875,17 @@
 	((null function)
 	 ;; If function is nil then create a dead process; can be
 	 ;; restarted with process-preset.
-	 (%make-process :initial-function nil :name name :state	:killed
-			:%run-reasons run-reasons
-			:%arrest-reasons arrest-reasons
-			:initial-bindings initial-bindings))
+	 (%make-process :initial-function nil :name name :state :killed))
 	(t
 	 ;; Create a stack-group.
 	 (let ((process
 		(%make-process
 		 :name name
-		 :state :active 
+		 :state :active
 		 :initial-function function
-		 :%run-reasons run-reasons
-		 :%arrest-reasons arrest-reasons
-		 :initial-bindings initial-bindings
 		 :stack-group
 		 (make-stack-group
-		  name 
+		  name
 		  #'(lambda ()
 		      (unwind-protect
 			   (catch '%end-of-the-process
@@ -952,9 +895,7 @@
 				     (with-simple-restart
 					 (destroy "Destroy the process")
 				       (setf *inhibit-scheduling* nil)
-				       (apply-with-bindings function
-							    nil
-							    initial-bindings))
+				       (funcall function))
 				     ;; Normal exit.
 				     (throw '%end-of-the-process nil))))
 			(setf *inhibit-scheduling* t)
@@ -965,10 +906,6 @@
 			(setf *all-processes*
 			      (delete *current-process* *all-processes*))
 			(setf (process-%whostate *current-process*) nil)
-			(setf (process-%run-reasons *current-process*) nil)
-			(setf (process-%arrest-reasons *current-process*) nil)
-			(setf (process-wait-function-args *current-process*)
-			      nil)
 			(setf (process-wait-function *current-process*) nil)
 			(setf (process-wait-timeout *current-process*) nil)
 			(setf (process-wait-return-value *current-process*)
@@ -981,32 +918,6 @@
 	   (atomic-push process *all-processes*)
 	   process))))
 
-(defun process-run-reasons (process)
-  (process-%run-reasons process))
-
-(defun process-add-run-reason (process object)
-  (atomic-push object (process-%run-reasons process)))
-
-(defun process-revoke-run-reason (process object)
-  (let ((run-reasons (without-scheduling
-		      (setf (process-%run-reasons process)
-			    (delete object (process-%run-reasons process))))))
-      (when (and (null run-reasons) (eq process mp::*current-process*))
-	(process-yield))))
-
-
-(defun process-arrest-reasons (process)
-  (process-%arrest-reasons process))
-
-(defun process-add-arrest-reason (process object)
-  (atomic-push object (process-%arrest-reasons process))
-  (when (eq process mp::*current-process*)
-    (process-yield)))
-
-(defun process-revoke-arrest-reason (process object)
-  (without-scheduling
-    (setf (process-%arrest-reasons process)
-	  (delete object (process-%arrest-reasons process)))))
 
 ;;; Process-Interrupt  --  Public
 ;;;
@@ -1045,11 +956,9 @@
   "Restart process by unwinding it to its initial state and calling its
   initial function."
   (destroy-process process)
-  (if *inhibit-scheduling*		;Called inside without-scheduling?
-      (assert (eq (process-state process) :killed))
-      (process-wait "Waiting for process to die" 
+  (process-wait "Waiting for process to die"
 		#'(lambda ()
-		    (eq (process-state process) :killed))))
+		    (eq (process-state process) :killed)))
   ;; No more processes if about to quit lisp.
   (when *quitting-lisp*
     (process-wait "Quitting Lisp" #'(lambda () nil)))
@@ -1059,7 +968,7 @@
 	 (make-stack-group
 	  (process-name process)
 	  #'(lambda ()
-	      (unwind-protect 
+	      (unwind-protect
 		   (catch '%end-of-the-process
 		     ;; Catch throws to the %end-of-the-world.
 		     (setf *quitting-lisp*
@@ -1067,10 +976,8 @@
 			     (with-simple-restart
 				 (destroy "Destroy the process")
 			       (setf *inhibit-scheduling* nil)
-			       (apply-with-bindings
-				(process-initial-function process)
-				(process-initial-args process)
-				(process-initial-bindings process)))
+			       (apply (process-initial-function process)
+				      (process-initial-args process)))
 			     ;; Normal exit.
 			     (throw '%end-of-the-process nil))))
 		(setf *inhibit-scheduling* t)
@@ -1080,10 +987,6 @@
 		(setf *all-processes*
 		      (delete *current-process* *all-processes*))
 		(setf (process-%whostate *current-process*) nil)
-		(setf (process-%run-reasons *current-process*) nil)
-		(setf (process-%arrest-reasons *current-process*) nil)
-		(setf (process-wait-function-args *current-process*)
-			      nil)
 		(setf (process-wait-function *current-process*) nil)
 		(setf (process-wait-timeout *current-process*) nil)
 		(setf (process-wait-return-value *current-process*) nil)
@@ -1092,7 +995,6 @@
 		(setf *current-process* *initial-process*)))
 	  *initial-stack-group* nil))
    (setf (process-%whostate process) nil)
-   (setf (process-wait-function-args process) nil)
    (setf (process-wait-function process) nil)
    (setf (process-wait-timeout process) nil)
    (setf (process-wait-return-value process) nil)
@@ -1133,11 +1035,11 @@
 
 ;;; Process-Wait  --  Public.
 ;;;
-(defun process-wait (whostate predicate &rest args)
+(defun process-wait (whostate predicate)
   "Causes the process to wait until predicate returns True. Processes
   can only call process-wait when scheduling is enabled, and the predicate
   can not call process-wait. Since the predicate may be evaluated many
-  times by the scheduler it should be relatively fast native compiled code.
+  times by the scheduler it should be relative fast native compiled code.
   The single True predicate value is returned."
   (assert (not *inhibit-scheduling*))
   (assert (not (process-wait-function *current-process*)))
@@ -1147,14 +1049,13 @@
   ;; scheduler restores the state when execution resumers here.
   (setf (process-%whostate *current-process*) whostate)
   (setf (process-wait-timeout *current-process*) nil)
-  (setf (process-wait-function-args *current-process*) args)
   (setf (process-wait-function *current-process*) predicate)
   (process-yield)
   (process-wait-return-value *current-process*))
 
 ;;; Process-Wait-With-Timeout  --  Public
 ;;;
-(defun process-wait-with-timeout (whostate timeout predicate &rest args)
+(defun process-wait-with-timeout (whostate timeout predicate)
   (declare (type (or fixnum float) timeout))
   "Causes the process to wait until predicate returns True, or the
   number of seconds specified by timeout has elapsed. The timeout may
@@ -1177,7 +1078,6 @@
     (declare (double-float timeout))
     (setf (process-wait-timeout *current-process*)
 	  (+ timeout (get-real-time)))
-    (setf (process-wait-function-args *current-process*) args)
     (setf (process-wait-function *current-process*) predicate))
   (process-yield)
   (process-wait-return-value *current-process*))
@@ -1311,11 +1211,11 @@
      ;; Rotate the queue.
      (setf *remaining-processes*
 	   (or (rest *remaining-processes*) *all-processes*))
-     
+
      (let ((next (first *remaining-processes*)))
        ;; Shouldn't see any :killed porcesses here.
        (assert (process-alive-p next))
-       
+
        (cond
 	 ;; New process at the head of the queue?
 	 ((eq next *current-process*))
@@ -1329,8 +1229,7 @@
 	  (stack-group-resume (process-stack-group next)))
 	 (t
 	  ;; If not waiting then return.
-	  (let ((wait-fn (process-wait-function next))
-		(wait-fn-args (process-wait-function-args next)))
+	  (let ((wait-fn (process-wait-function next)))
 	    (cond
 	      ((null wait-fn)
 	       ;; Skip the idle process if there are other runnable
@@ -1347,10 +1246,10 @@
 	       (let ((current-process *current-process*))
 		 (setf *current-process* next)
 		 ;; Predicate true?
-		 (let ((wait-return-value (apply wait-fn wait-fn-args)))
+		 (let ((wait-return-value (funcall wait-fn)))
 		   (cond (wait-return-value
 			  ;; Flush the wait.
-			  (setf (process-wait-return-value next) 
+			  (setf (process-wait-return-value next)
 				wait-return-value)
 			  (setf (process-wait-timeout next) nil)
 			  (setf (process-wait-function next) nil)
@@ -1371,7 +1270,7 @@
 			       (process-stack-group next)))))))
 		 ;; Restore the *current-process*.
 		 (setf *current-process* current-process))))))))
-    
+
      ;; May have just returned, or have cycled the queue.
      (let ((next (first *remaining-processes*)))
        ;; Tolerate :killed processes on the *remaining-processes* list
@@ -1383,7 +1282,7 @@
 	 ;; Run any pending interrupts.
 	 (let ((interrupt (pop (process-interrupts next))))
 	   (declare (type (or null function) interrupt))
-	   (cond (interrupt 
+	   (cond (interrupt
 		  ;; Save and reset any wait reasons so that the
 		  ;; interrupt can wait. The return-value is also
 		  ;; saved and restored in case a process is
@@ -1518,7 +1417,6 @@
 	  (%make-process
 	   :name "Initial"
 	   :state :active
-	   :%run-reasons (list :enable)
 	   :stack-group *initial-stack-group*))
     (setf *current-process* *initial-process*)
     (setf *all-processes* (list *initial-process*))
@@ -1682,7 +1580,7 @@
   (dolist (process *all-processes*)
     (when (eq process *current-process*)
       (format t "-> "))
-    (format t "~s ~s ~a~%" process (process-whostate process) 
+    (format t "~s ~s ~a~%" process (process-whostate process)
 	    (process-state process))
     (when verbose
       (format t "~4TRun time: ~,3f; Real time: ~,3f; Idle time: ~,3f~%"
@@ -1734,7 +1632,7 @@
 	  "Only the *initial-process* is intended to run the idle loop")
   (init-multi-processing)	; Initialise in case MP had been shutdown.
   ;; Start a new Top Level loop.
-  (make-process #'top-level :name "Top Level Loop") 
+  (make-process #'top-level :name "Top Level Loop")
   ;; Enter the idle loop.
   (idle-process-loop))
 
@@ -1768,7 +1666,7 @@
 		      (finish-output)
 		      (let* ((*read-eval* nil)
 			     (read-password
-			      (handler-case 
+			      (handler-case
 			       (read)
 			       (error () (return-from start-top-level)))))
 			(unless (equal read-password password)
@@ -1776,7 +1674,7 @@
 		      (ext:print-herald)
 		      ;;
 		      (top-level))
-		 (handler-case 
+		 (handler-case
 		  (close stream)
 		  (error ())))))
 	   ;;

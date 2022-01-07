@@ -7,7 +7,7 @@
 ;;; Scott Fahlman or slisp-group@cs.cmu.edu.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/tools/config.lisp,v 1.5 2000/06/06 10:01:24 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/tools/config.lisp,v 1.4.2.1 2000/06/06 10:08:25 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -76,7 +76,7 @@
 	    (8
 	     (format t "~%Aborted.~%")
 	     (return-from abort))))))
-    
+
     (gc-off)
     (when load-gray-streams
       (load "library:subsystems/gray-streams-library"))
@@ -90,13 +90,13 @@
       (setf *features* (delete :no-hemlock *features* :test #'eq))
       (load "library:subsystems/ed-library"))
     (dolist (f other) (load f))
-    
+
     (setq *info-environment*
 	  (list* (make-info-environment :name "Working")
 		 (compact-info-environment (first *info-environment*)
 					   :name "Auxiliary")
 		 (rest *info-environment*)))
-    
+
     (when (probe-file output-file)
       (multiple-value-bind
 	  (ignore old new)
@@ -105,7 +105,7 @@
 				    ".BAK"))
 	(declare (ignore ignore))
 	(format t "~&Saved ~S as ~S.~%" (namestring old) (namestring new))))
-    
+
     ;;
     ;; Enable the garbage collector.  But first fake it into thinking that
     ;; we don't need to garbage collect.  The save-lisp is going to call

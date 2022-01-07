@@ -1,4 +1,4 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/core.h,v 1.3 1994/03/27 15:17:54 hallgren Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/core.h,v 1.3 1994/03/27 15:17:54 hallgren Exp $ */
 
 #ifndef _CORE_H_
 #define _CORE_H_

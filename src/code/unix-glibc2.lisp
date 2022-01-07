@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/unix-glibc2.lisp,v 1.15 2001/03/04 20:12:44 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/code/unix-glibc2.lisp,v 1.2.2.6 2000/08/25 10:00:14 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -45,8 +45,7 @@
 	  unix-setitimer unix-getitimer
 	  unix-access r_ok w_ok x_ok f_ok unix-chdir unix-chmod setuidexec
 	  setgidexec savetext readown writeown execown readgrp writegrp
-	  execgrp readoth writeoth execoth readall writeall execall
-	  unix-fchmod unix-chown unix-fchown
+	  execgrp readoth writeoth execoth unix-fchmod unix-chown unix-fchown
 	  unix-getdtablesize unix-close unix-creat unix-dup unix-dup2
 	  unix-fcntl f-dupfd f-getfd f-setfd f-getfl f-setfl f-getown f-setown
 	  fndelay fappend fasync fcreat ftrunc fexcl unix-link unix-lseek
@@ -57,7 +56,6 @@
 	  unix-rename unix-rmdir unix-fast-select fd-setsize fd-set fd-clr
 	  fd-isset fd-zero unix-select unix-sync unix-fsync unix-truncate
 	  unix-ftruncate unix-symlink unix-unlink unix-write unix-ioctl
-	  unix-uname utsname
 	  tcsetpgrp tcgetpgrp tty-process-group
 	  terminal-speeds tty-raw tty-crmod tty-echo tty-lcase
 	  tty-cbreak
@@ -170,7 +168,7 @@
       (setf (svref array (car error)) (cdr error)))
     `(progn
        (defvar *unix-errors* ',array)
-       (declaim (simple-vector *unix-errors*)))))
+       (proclaim '(simple-vector *unix-errors*)))))
 
 )
 
@@ -454,7 +452,7 @@
   "Unix-creat accepts a file name and a mode (same as those for
    unix-chmod) and creates a file by that name with the specified
    permission mode.  It returns a file descriptor on success,
-   or NIL and an error  number otherwise.
+   or NIL and an error number otherwise.
 
    This interface is made obsolete by UNIX-OPEN."
 
@@ -756,7 +754,7 @@
 				       "%"
 				       (string-upcase name)))))
     `(progn
-       (declaim (inline ,function))
+       (proclaim '(inline ,function))
        (export ',function)
        (alien:def-alien-routine (,name ,function) double-float
 	 ,@(let ((results nil))
@@ -771,7 +769,7 @@
 				       "%"
 				       (string-upcase name)))))
     `(progn
-       (declaim (inline ,function))
+       (proclaim '(inline ,function))
        (export ',function)
        (alien:def-alien-routine (,name ,function) double-float
 	 (ARG-1 'integer)
@@ -2151,35 +2149,12 @@ length LEN and type TYPE."
 	nil
       result)))
 
-(def-alien-type nil
-  (struct utsname
-    (sysname (array char 65))
-    (nodename (array char 65))
-    (release (array char 65))
-    (version (array char 65))
-    (machine (array char 65))
-    (domainname (array char 65))))
-
-(defun unix-uname ()
-  "Unix-uname returns the name and information about the current kernel. The
-  values returned upon success are: sysname, nodename, release, version,
-  machine, and domainname. Upon failure, 'nil and the 'errno are returned."
-  (with-alien ((utsname (struct utsname)))
-    (syscall* ("uname" (* (struct utsname)))
-	      (values (cast (slot utsname 'sysname) c-string)
-		      (cast (slot utsname 'nodename) c-string)
-		      (cast (slot utsname 'release) c-string)
-		      (cast (slot utsname 'version) c-string)
-		      (cast (slot utsname 'machine) c-string)
-		      (cast (slot utsname 'domainname) c-string))
-	      (addr utsname))))
-
 (defun unix-gethostname ()
   "Unix-gethostname returns the name of the host machine as a string."
   (with-alien ((buf (array char 256)))
-    (syscall* ("gethostname" (* char) int)
-	      (cast buf c-string)
-	      (cast buf (* char)) 256)))
+    (syscall ("gethostname" (* char) int)
+	     (cast buf c-string)
+	     (cast buf (* char)) 256)))
 
 #+nil
 (defun unix-sethostname (name len)
@@ -2319,7 +2294,7 @@ length LEN and type TYPE."
 
 (defun unix-utimes (file atime-sec atime-usec mtime-sec mtime-usec)
   "Unix-utimes sets the 'last-accessed' and 'last-updated'
-   times on a specified file.  NIL and an error number are
+   times on a specified file.  NIL and an error number is
    returned if the call is unsuccessful."
   (declare (type unix-pathname file)
 	   (type (alien unsigned-long)
@@ -2345,9 +2320,8 @@ length LEN and type TYPE."
 ;;; sys/ioctl.h
 
 (defun unix-ioctl (fd cmd arg)
-  "Unix-ioctl performs a variety of operations on open i/o
-   descriptors.  See the FIX UNIX Programmer's Manual for more
-   information."
+  "Unix-ioctl performs a variety of operations on open i/o descriptors.
+   See the FIX UNIX Programmer's Manual for more information."
   (declare (type unix-fd fd)
 	   (type (unsigned-byte 32) cmd))
   (void-syscall ("ioctl" int unsigned-int (* char)) fd cmd arg))
@@ -2704,8 +2678,7 @@ in at a time in poll.")
 	     (extract-stat-results buf)
 	     name (addr buf))))
 
-;;; Unix-chmod accepts a path and a mode and changes the mode to the new
-;;; mode.
+;;; Unix-chmod accepts a path and a mode and changes the mode to the new mode.
 
 ;; FIX (unix-chmod "xx" "a+w") would be cool too
 (defun unix-chmod (path mode)
@@ -2727,7 +2700,7 @@ in at a time in poll.")
       execoth           Execute (search directory) by others.
       readall           Read by all.
       writeall          Write by all.
-      execoth           Execute (search directory) by all.
+      execall           Execute (search directory) by all.
 
   It returns T on successfully completion; NIL and an error number
   otherwise."
@@ -2916,6 +2889,7 @@ in at a time in poll.")
     (tz-minuteswest int)		; minutes west of Greenwich
     (tz-dsttime	int)))			; type of dst correction
 
+
 (declaim (inline unix-gettimeofday))
 (defun unix-gettimeofday ()
   "If it works, unix-gettimeofday returns 5 values: T, the seconds and
@@ -3016,7 +2990,7 @@ in at a time in poll.")
 			(slot (slot itvo 'it-interval) 'tv-usec)
 			(slot (slot itvo 'it-value) 'tv-sec)
 			(slot (slot itvo 'it-value) 'tv-usec))
-		which (alien-sap (addr itvn))(alien-sap (addr itvo))))))  ;; FIX )(
+		which (alien-sap (addr itvn))(alien-sap (addr itvo))))))
 
 ;;; sys/timeb.h
 
@@ -3302,6 +3276,7 @@ in at a time in poll.")
 			     execoth)
   "Execute (search directory) by all.")
 
+
 (defconstant terminal-speeds
   '#(0 50 75 110 134 150 200 300 600 1200 1800 2400
      4800 9600 19200 38400 57600 115200 230400))
@@ -3574,3 +3549,10 @@ in at a time in poll.")
   `(progn
      ,@(loop for index upfrom 0 below (/ fd-setsize nfdbits)
 	 collect `(setf (deref (slot ,fd-set 'fds-bits) ,index) 0))))
+
+
+
+
+
+
+

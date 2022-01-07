@@ -1,19 +1,6 @@
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/tools/hemload.lisp,v 1.3 1991/07/29 08:56:59 chiles Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file loads all of Hemlock.
-;;;
+;;; This file loads the editor.
 
-;;; Stuff to set up the packages Hemlock uses.
+;;; Stuff to set up the packages the editor uses.
 ;;;
 (in-package "HEMLOCK-INTERNALS"
 	    :nicknames '("HI")
@@ -29,16 +16,8 @@
 ;;;
 (in-package "HI")
 
-;; FIX for setup-initial-buffer
-(defvar make-buffer-hook ())
 
-;; FIX as in 2006
-(pushnew :command-bits *features*)
-(pushnew :buffered-lines *features*)
-
-(setf (search-list "ed:") "target:hemlock/")
-
-(defun build-hemlock ()
+(defun build-ed ()
   (load "ed:struct")
 ;  (load "ed:struct-ed")
   (load "ed:charmacs")
@@ -82,8 +61,8 @@
   (load "ed:cursor")
   (load "ed:font")
   (load "ed:streams")
-  (load "ed:hacks")
   (load "ed:main")
+  (load "ed:hacks")
   (load "ed:echo")
   (load "ed:echocoms")
   (load "ed:command")
@@ -135,6 +114,8 @@
   (load "ed:lisp-lib")
   (load "ed:completion")
   (load "ed:shell")
+  (load "ed:debug")
+  (load "ed:netnews")
   (load "ed:compile")
   (load "ed:debug")
   (load "ed:netnews")
@@ -149,4 +130,5 @@
   (load "ed:www")
   (load "ed:outline")
   (load "ed:buildtools")
+  (load "ed:break")
   (load "ed:bindings"))

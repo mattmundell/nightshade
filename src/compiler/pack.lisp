@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/pack.lisp,v 1.57 2002/07/10 16:14:46 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/pack.lisp,v 1.55 1997/04/13 21:07:32 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -290,15 +290,15 @@
     (dolist (sb (backend-sb-list *backend*))
       (unless (eq (sb-kind sb) :non-packed)
 	(let ((size (sb-size sb)))
-	  (fill (finite-sb-always-live sb) nil)
+	  (fill nil (finite-sb-always-live sb))
 	  (setf (finite-sb-always-live sb)
 		(make-array size :initial-element #*))
 	  
-	  (fill (finite-sb-conflicts sb) nil)
+	  (fill nil (finite-sb-conflicts sb))
 	  (setf (finite-sb-conflicts sb)
 		(make-array size :initial-element '#()))
 	  
-	  (fill (finite-sb-live-tns sb) nil)
+	  (fill nil (finite-sb-live-tns sb))
 	  (setf (finite-sb-live-tns sb)
 		(make-array size :initial-element nil))))))
   (undefined-value))
@@ -1275,7 +1275,7 @@
 ;;; has already been allocated, we can assume that the restriction is
 ;;; satisfied.
 ;;;
-(declaim (inline check-operand-restrictions))
+(proclaim '(inline check-operand-restrictions))
 (defun check-operand-restrictions (scs ops)
   (declare (list scs) (type (or tn-ref null) ops))
 

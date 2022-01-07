@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/fd-stream.lisp,v 1.60 2002/08/02 14:43:08 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/code/fd-stream.lisp,v 1.40.2.7 2000/10/16 17:32:44 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -13,7 +13,7 @@
 ;;;
 ;;; Written by William Lott, July 1989 - January 1990.
 ;;; Some tuning by Rob MacLachlan.
-;;; 
+;;;
 ;;; **********************************************************************
 
 
@@ -48,7 +48,7 @@
 ;;;
 ;;; Returns the next available buffer, creating one if necessary.
 ;;;
-(declaim (inline next-available-buffer))
+(proclaim '(inline next-available-buffer))
 ;;;
 (defun next-available-buffer ()
   (if *available-buffers*
@@ -188,7 +188,7 @@
   (when reuse-sap
     (let ((new-buffer (next-available-buffer)))
       (setf (fd-stream-obuf-sap stream) new-buffer)
-      (setf (fd-stream-obuf-length stream) bytes-per-buffer)))) 
+      (setf (fd-stream-obuf-length stream) bytes-per-buffer))))
 
 ;;; DO-OUTPUT -- internal
 ;;;
@@ -395,7 +395,7 @@
 ;;;   Note: some bozos (the FASL dumper) call write-string with things other
 ;;; than strings. Therefore, we must make sure we have a string before calling
 ;;; position on it.
-;;; 
+;;;
 (defun fd-sout (stream thing start end)
   (let ((start (or start 0))
 	(end (or end (length (the vector thing)))))
@@ -511,7 +511,7 @@
 	     (throw 'eof-input-catcher nil))
 	    (t
 	     (incf (fd-stream-ibuf-tail stream) count))))))
-			
+
 ;;; INPUT-AT-LEAST -- internal
 ;;;
 ;;;   Makes sure there are at least ``bytes'' number of bytes in the input
@@ -659,7 +659,7 @@
 ;;; reads. -- Ram
 ;;;
 ;;; The n-bin routine.
-;;; 
+;;;
 (defun fd-stream-read-n-bytes (stream buffer start requested eof-error-p)
   (declare (type stream stream) (type index start requested))
   (let* ((sap (fd-stream-ibuf-sap stream))
@@ -689,7 +689,7 @@
 	      (when (zerop bytes)
 		(return requested))))))
     (or result
-	(eof-or-lose stream eof-error-p 
+	(eof-or-lose stream eof-error-p
 		     (- requested (/ bytes elsize))))))
 |#
 
@@ -796,7 +796,7 @@
 		    (system-area-copy sap 0
 				      buffer buffer-start-bits
 				      copy-bits)
-		    (copy-from-system-area sap 0 
+		    (copy-from-system-area sap 0
 					   buffer (+ buffer-start-bits
 						     (* vm:vector-data-offset
 							vm:word-bits))
@@ -830,14 +830,14 @@
 	(output-type nil)
 	(input-size nil)
 	(output-size nil))
-    
+
     (when (fd-stream-obuf-sap stream)
       (push (fd-stream-obuf-sap stream) *available-buffers*)
       (setf (fd-stream-obuf-sap stream) nil))
     (when (fd-stream-ibuf-sap stream)
       (push (fd-stream-ibuf-sap stream) *available-buffers*)
       (setf (fd-stream-ibuf-sap stream) nil))
-    
+
     (when input-p
       (multiple-value-bind
 	  (routine type size)
@@ -852,18 +852,9 @@
 		  (fd-stream-bin stream) #'ill-bin)
 	    (setf (fd-stream-in stream) #'ill-in
 		  (fd-stream-bin stream) routine))
-	(when (or (eql size 1)
-		  (eql size 2)
-		  (eql size 4))
-	  ;; Support for n-byte operations on 8-, 16-, and 32-bit streams
+	(when (eql size 1)
 	  (setf (fd-stream-n-bin stream) #'fd-stream-read-n-bytes)
-	  (when (and buffer-p (eql size 1)
-		     (or (eq type 'unsigned-byte)
-			 (eq type :default)))
-	    ;; We only create this buffer for streams of type
-	    ;; (unsigned-byte 8).  Because there's no buffer, the
-	    ;; other element-types will dispatch to the appropriate
-	    ;; input (output) routine in fast-read-byte.
+	  (when buffer-p
 	    (setf (lisp-stream-in-buffer stream)
 		  (make-array in-buffer-length
 			      :element-type '(unsigned-byte 8)))))
@@ -927,7 +918,7 @@
 (defun fd-stream-misc-routine (stream operation &optional arg1 arg2)
   (declare (ignore arg2))
   (case operation
-    (:listen 
+    (:listen
      (or (not (eql (fd-stream-ibuf-head stream)
 		   (fd-stream-ibuf-tail stream)))
 	 (fd-stream-listen stream)
@@ -1032,12 +1023,6 @@
     (:charpos
      (fd-stream-char-pos stream))
     (:file-length
-     (unless (fd-stream-file stream)
-       (error 'simple-type-error
-	      :datum stream
-	      :expected-type 'file-stream
-	      :format-control "~s is not a stream associated with a file."
-	      :format-arguments (list stream)))
      (multiple-value-bind
 	 (okay dev ino mode nlink uid gid rdev size
 	       atime mtime ctime blksize blocks)
@@ -1215,7 +1200,7 @@
 ;;;
 ;;; Assure that the given arg is one of the given list of valid things.
 ;;; Allow the user to fix any problems.
-;;; 
+;;;
 (defun assure-one-of (item list what)
   (unless (member item list)
     (loop
@@ -1252,16 +1237,6 @@
 		   (unix:get-unix-error-msg err))
 	   nil))))
 
-;;; RETURN-STREAM -- internal
-;;;
-;;; (this is just to save having to reindent the code in OPEN...move it there)
-;;;
-(defmacro return-stream (class &body body)
-  (let ((stream (gensym)))
-    `(let ((,stream (progn ,@body)))
-       (return (if ,class
-                  (make-instance ,class :lisp-stream ,stream)
-                  ,stream)))))
 
 ;;; OPEN -- public
 ;;;
@@ -1274,7 +1249,6 @@
 	     (if-exists nil if-exists-given)
 	     (if-does-not-exist nil if-does-not-exist-given)
 	     (external-format :default)
-	     class
 	     &aux ; Squelch assignment warning.
 	     (direction direction)
 	     (if-does-not-exist if-does-not-exist)
@@ -1288,7 +1262,7 @@
    :if-does-not-exist - one of :error, :create or nil
   See the manual for details."
   (declare (ignore external-format))
-  
+
   ;; First, make sure that DIRECTION is valid. Allow it to be changed if not.
   (setf direction
 	(assure-one-of direction
@@ -1333,7 +1307,7 @@
 		(setf mask (logior mask unix:o_append)))))
 	    (t
 	     (setf if-exists :ignore-this-arg)))
-      
+
       (unless if-does-not-exist-given
 	(setf if-does-not-exist
 	      (cond ((eq direction :input) :error)
@@ -1350,7 +1324,7 @@
 			   :if-does-not-exist))
       (if (eq if-does-not-exist :create)
 	(setf mask (logior mask unix:o_creat)))
-       
+
       (let ((original (if (member if-exists
 				  '(:rename :rename-and-delete))
 			  (pick-backup-name namestring)))
@@ -1392,7 +1366,7 @@
 	      (unless (eq if-does-not-exist :create)
 		(setf mask (logior (logandc2 mask unix:o_creat) unix:o_trunc)))
 	      (setf if-exists :supersede))))
-	
+
 	;; Okay, now we can try the actual open.
 	(loop
 	  (multiple-value-bind
@@ -1401,7 +1375,7 @@
 		  (unix:unix-open namestring mask mode)
 		  (values nil unix:enoent))
 	    (cond ((numberp fd)
-		   (return-stream class
+		   (return
 		    (case direction
 		      ((:input :output :io)
 		       (make-fd-stream fd
@@ -1470,7 +1444,7 @@
 ;;; STREAM-INIT -- internal interface
 ;;;
 ;;; Called when the cold load is first started up.
-;;; 
+;;;
 (defun stream-init ()
   (stream-reinit)
   (setf *terminal-io* (make-synonym-stream '*tty*))
@@ -1487,7 +1461,7 @@
 ;;; STREAM-REINIT -- internal interface
 ;;;
 ;;; Called whenever a saved core is restarted.
-;;; 
+;;;
 (defun stream-reinit ()
   (setf *available-buffers* nil)
   (setf *stdin*

@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/hppa/sap.lisp,v 1.5 2001/02/16 23:39:10 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/hppa/sap.lisp,v 1.3.2.1 1998/06/23 11:23:30 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -282,24 +282,3 @@
 	  (- (* vm:vector-data-offset vm:word-bytes) vm:other-pointer-type)
 	  vector
 	  sap)))
-
-
-;;; Transforms for 64-bit SAP accessors.
-
-(deftransform sap-ref-64 ((sap offset) (* *))
-  '(logior (ash (sap-ref-32 sap offset) 32)
-	   (sap-ref-32 sap (+ offset 4))))
-
-(deftransform signed-sap-ref-64 ((sap offset) (* *))
-  '(logior (ash (signed-sap-ref-32 sap offset) 32)
-	   (sap-ref-32 sap (+ 4 offset))))
-
-(deftransform %set-sap-ref-64 ((sap offset value) (* * *))
-  '(progn
-     (%set-sap-ref-32 sap offset (ash value -32))
-     (%set-sap-ref-32 sap (+ offset 4) (logand value #xffffffff))))
-
-(deftransform %set-signed-sap-ref-64 ((sap offset value) (* * *))
-  '(progn
-     (%set-signed-sap-ref-32 sap offset (ash value -32))
-     (%set-sap-ref-32 sap (+ 4 offset) (logand value #xffffffff))))

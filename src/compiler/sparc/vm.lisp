@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/sparc/vm.lisp,v 1.18 2000/10/27 19:42:01 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/sparc/vm.lisp,v 1.7.2.4 2000/10/27 19:40:40 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

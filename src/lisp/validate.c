@@ -1,5 +1,5 @@
 /*
- * $Header: /project/cmucl/cvsroot/src/lisp/validate.c,v 1.9 2000/10/27 19:32:52 dtc Exp $
+ * $Header: /home/CVS-cmucl/src/lisp/validate.c,v 1.5.2.4 2000/10/27 19:34:38 dtc Exp $
  *
  * Memory Validation
  */
@@ -42,9 +42,9 @@ void validate(void)
 
 	current_dynamic_space = dynamic_0_space;
 
-#ifndef GENCGC
 	/* Dynamic-1 Space */
 	dynamic_1_space = (lispobj *) DYNAMIC_1_SPACE_START;
+#ifndef GENCGC
  	ensure_space(dynamic_1_space, dynamic_space_size);
 #endif
 

@@ -96,7 +96,7 @@
 				 :width-inc nil :height-inc nil)
 	 (xlib:map-window *window*)
 	 ;; Wait until we get mapped before doing anything.
-	 (wait-for-mapping *display* *window*) 
+	 (wait-for-mapping *display* *window*)
 	 (unwind-protect
 	      (progn ,@forms)
 	   (xlib:unmap-window *window*)
@@ -129,16 +129,16 @@
 		     *name-to-function*)
 	    d)
       (push (get d 'demo-name) *demo-names*))
-  
+
     (multiple-value-bind (display screen) (ext:open-clx-display)
       (let* ((fg-color (xlib:screen-white-pixel screen))
 	     (bg-color (xlib:screen-black-pixel screen))
 	     (nice-font (xlib:open-font display "fixed")))
-	
+
 	(let ((a-menu (xlib::create-menu
 		       (xlib::screen-root screen) ;the menu's parent
 		       fg-color bg-color nice-font)))
-	  
+
 	  (setf (xlib::menu-title a-menu) "Please pick your favorite demo:")
 	  (xlib::menu-set-item-list a-menu *demo-names*)
 	  (unwind-protect
@@ -447,9 +447,9 @@
 (defconstant vecmax 2880)
 
 (defconstant sin-array
-  '#(#o0 #o435 #o1073 #o1531 #o2166 #o2623 #o3260 
+  '#(#o0 #o435 #o1073 #o1531 #o2166 #o2623 #o3260
      #o3714 #o4350 #o5003 #o5435 #o6066 #o6516 #o7145
-     #o7573 #o10220 #o10644 #o11266 #o11706 #o12326 
+     #o7573 #o10220 #o10644 #o11266 #o11706 #o12326
      #o12743 #o13357 #o13771 #o14401 #o15007 #o15414
      #o16016 #o16416 #o17013 #o17407 #o20000 #o20366
      #o20752 #o21333 #o21711 #o22265 #o22636 #o23204
@@ -475,16 +475,16 @@
 	 (setq val (- d180 val)))
      (setq frac (logand val 7))
      (setq val (ash val -3))
-     ;; 
+     ;;
      (setq sinlo (if (>= val 90)
 		     (svref sin-array 90)
 		     (svref sin-array val)))
-     ;; 
+     ;;
      (if (< val 90)
 	 (setq sinlo
 	       (+ sinlo (ash (* frac (- (svref sin-array (1+ val)) sinlo))
 			     -3))))
-     ;; 
+     ;;
      (if neg
 	 (- sinlo)
 	 sinlo)))
@@ -508,7 +508,7 @@
 	factor cntval needed)
     (dotimes (i 3)
       (case i
-	(0 (setq factor 2 cntval 6)) 
+	(0 (setq factor 2 cntval 6))
 	(1 (setq factor 3 cntval 2))
 	(2 (setq factor 5 cntval 1)))
       (do ()
@@ -636,7 +636,7 @@
 
 ;;; Invert-Rectangle calls the CLX function draw-rectangle with "fill-p"
 ;;; set to T.  Update-Screen forces the display output.
-;;; 
+;;;
 (defmacro invert-rectangle (x y height width)
   `(xlib:draw-rectangle *hanoi-window* *hanoi-gcontext*
 			,x ,y ,width ,height t))
@@ -816,7 +816,7 @@
 ;;; disks, a third needle, TEMP-NEEDLE, is needed for temporary storage.
 
 (defun move-n-disks (n start-needle end-needle temp-needle)
-  "Moves the top N disks from START-NEEDLE to END-NEEDLE.  
+  "Moves the top N disks from START-NEEDLE to END-NEEDLE.
    Uses TEMP-NEEDLE for temporary storage."
   (cond ((= n 1)
 	 (move-one-disk start-needle end-needle))
@@ -857,7 +857,7 @@
 	t))))
 
 ;;; Change the names of these when the DEMO loop isn't so stupid.
-;;; 
+;;;
 (defdemo slow-hanoi-demo "Slow-towers-of-Hanoi" (&optional (how-many 4))
   0 100 768 300
   "Solves the Towers of Hanoi problem before your very eyes."
@@ -888,7 +888,7 @@
 ;;; cause the window to bounce forever, so we have prev-neg-velocity and
 ;;; number-problems to check for this.  This is not crucial with the x
 ;;; velocity since the loop terminates as a function of the y velocity.
-;;; 
+;;;
 (defun bounce-window (window &optional
 			     (x-velocity 0) (elasticity 0.85) (gravity 2))
   (unless (< 0 elasticity 1)
@@ -942,7 +942,7 @@
 	      (xlib:display-force-output *display*))))))))
 
 ;;; Change the name of this when DEMO is not so stupid.
-;;; 
+;;;
 (defdemo shove-bounce-demo "Shove-bounce" ()
   100 100 300 300
   "Drops the demo window with an inital X velocity which bounces off
@@ -957,9 +957,9 @@
 
 ;;;; Plaid
 
-;;; 
+;;;
 ;;; Translated from the X11 Plaid Demo written in C by Christopher Hoover.
-;;; 
+;;;
 
 (defmacro rect-x (rects n)
   `(svref ,rects (ash ,n 2)))
@@ -1015,9 +1015,9 @@
 
 ;;;; Bball demo
 
-;;; 
+;;;
 ;;; Ported to CLX by Blaine Burks
-;;; 
+;;;
 
 (defvar *ball-size-x* 36)
 (defvar *ball-size-y* 34)

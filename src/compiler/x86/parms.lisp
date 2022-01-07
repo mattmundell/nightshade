@@ -7,7 +7,7 @@
 ;;; Scott Fahlman or slisp-group@cs.cmu.edu.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/x86/parms.lisp,v 1.19 2002/03/31 14:48:41 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/x86/parms.lisp,v 1.4.2.5 2000/10/16 17:32:24 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -42,7 +42,7 @@
 (setf (backend-fasl-file-type *target-backend*) "x86f")
 (setf (backend-fasl-file-implementation *target-backend*)
       x86-fasl-file-implementation)
-(setf (backend-fasl-file-version *target-backend*) #x18d)
+(setf (backend-fasl-file-version *target-backend*) 2)
 (setf (backend-register-save-penalty *target-backend*) 3)
 (setf (backend-byte-order *target-backend*) :little-endian)
 
@@ -156,10 +156,6 @@
 (defconstant float-round-to-positive 2)
 (defconstant float-round-to-zero     3)
 
-(defconstant float-precision-24-bit  0)
-(defconstant float-precision-53-bit  2)
-(defconstant float-precision-64-bit  3)
-
 (defconstant float-rounding-mode   (byte 2 10))
 (defconstant float-sticky-bits     (byte 6 16))
 (defconstant float-traps-byte      (byte 6  0))
@@ -178,14 +174,13 @@
 ;;; Where to put the different spaces.
 ;;; 
 (defparameter target-read-only-space-start #x10000000)
-(defparameter target-static-space-start    #+FreeBSD #x28F00000
-	      #-FreeBSD #x28000000)
+(defparameter target-static-space-start    #x28000000)
 (defparameter target-dynamic-space-start   #x48000000)
 
 ;;; Given that NIL is the first thing allocated in static space, we
 ;;; know its value at compile time:
 ;;; 
-(defparameter nil-value (+ target-static-space-start #xB))
+(defparameter nil-value #x2800000B)
 
 
 ;;;; Other random constants.

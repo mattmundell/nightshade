@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/globals.lisp,v 1.18 2002/07/10 16:15:59 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/code/globals.lisp,v 1.12.2.3 1998/06/23 11:22:01 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -21,16 +21,16 @@
 
 (declaim (special *keyword-package* *lisp-package* *package* *query-io*
 		  *terminal-io* *error-output* *trace-output* *debug-io*
-		  *standard-input* *standard-output*
+		  *standard-input* *standard-output* *hemlock-version*
 		  *evalhook* *applyhook* *command-line-switches*
-		  *command-switch-demons*
+		  *command-switch-demons* ext::temporary-foreign-files
 		  *display-event-handlers* original-lisp-environment
 		  *environment-list* *read-default-float-format*
 		  *read-suppress* *readtable* *print-base* *print-radix*
 		  *print-length* *print-level* *print-pretty* *print-escape*
 		  *print-case* *print-circle* *print-gensym* *print-array*
 		  defmacro-error-string defsetf-error-string
-		  std-lisp-readtable #-no-hemlock hi::*in-the-editor*
+		  std-lisp-readtable hi::*in-the-editor*
 		  debug::*in-the-debugger*
 		  conditions::*handler-clusters*
 		  conditions::*restart-clusters*
@@ -73,5 +73,4 @@
 		stream-listen stream-peek-char stream-read-byte
 		stream-read-char stream-read-char-no-hang stream-read-line
 		stream-start-line-p stream-terpri stream-unread-char
-		stream-write-byte stream-write-char stream-write-string
-		stream-read-sequence stream-write-sequence))
+		stream-write-byte stream-write-char stream-write-string))

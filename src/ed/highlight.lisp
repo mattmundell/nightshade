@@ -213,7 +213,7 @@
 (defvar *error-font* 7
   "Number of the font to use for errors.")
 
-(declaim (inline search-for-qmark))
+(proclaim '(inline search-for-qmark))
 
 (defun search-for-qmark (string &optional (start 0))
   "Return position of first \" in String if there are any, else nil.  Skip
@@ -296,7 +296,7 @@
 		(make-chi-info (line-signature line)))
 	  nil))))
 
-(declaim (special *last-used-mark*))
+(proclaim '(special *last-used-mark*))
 
 (defun chi-mark (line pos font chi-info)
   (if (cdr *last-used-mark*)
@@ -341,10 +341,10 @@
 	 (setq line (line-next line))))))
 
 (defmacro highlight-visible-chi-buffer (buffer line-highlight-fun)
-  "Highlighting syntax in visible portions of Buffer."
-  `(dolist (window (buffer-windows buffer))
-     (let ((*in-string* nil)
-	   (*in-comment* nil)
+  "Highlight context in visible portions of Buffer."
+  `(dolist (window (buffer-windows ,buffer))
+     (let ((*in-string*)
+	   (*in-comment*)
 	   (line (mark-line (window-display-start window)))
 	   (height (window-height window)))
        (or (eq (hi::window-first-changed window) hi::the-sentinel)
@@ -354,9 +354,12 @@
 	     (setq line (line-next line)))
 	   ;; Call the highlighter on each line.
 	   (when (and line (> height 0))
-	     (let ((chi-info (getf (line-plist line) 'chi-info)))
-	       (setq *in-string* (chi-info-begins-quoted chi-info))
-	       (setq *in-comment* (chi-info-begins-commented chi-info)))
+	     (let ((previous (line-previous line)))
+	       (when previous
+		 (let ((chi-info (getf (line-plist line) 'chi-info)))
+		   (when chi-info
+		     (setq *in-string* (chi-info-begins-quoted chi-info))
+		     (setq *in-comment* (chi-info-begins-commented chi-info))))))
 	     (loop while (and (> height 0) line) do
 	       (decf height)
 	       (line-same line) ; Ensure chi-info line property exists.

@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/ir1util.lisp,v 1.84 2002/08/21 17:55:19 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/ir1util.lisp,v 1.77.2.4 2000/07/07 09:34:24 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -754,13 +754,7 @@
 	(let* ((bind-block (node-block bind))
 	       (component (block-component bind-block))
 	       (return (lambda-return leaf)))
-
-	  ;; DELETE-LAMBDA can now remove a recursive lambda.  Check
-	  ;; that all calls are from the lambda being deleted.
-	  (dolist (ref (lambda-refs leaf))
-	    (let ((home (node-home-lambda ref)))
-	      (assert (eq home leaf))))
-	  
+	  (assert (null (leaf-refs leaf)))
 	  (unless (leaf-ever-used leaf)
 	    (let ((*compiler-error-context* bind))
 	      (compiler-note "Deleting unused function~:[.~;~:*~%  ~S~]"
@@ -1521,14 +1515,14 @@
 
 ;;;; Compiler error context determination:
 
-(declaim (special *current-path*))
+(proclaim '(special *current-path*))
 
 
 ;;; We bind print level and length when printing out messages so that we don't
 ;;; dump huge amounts of garbage.
 ;;;
-(declaim (type (or unsigned-byte null) *error-print-level*
-	       *error-print-length* *error-print-lines*))
+(proclaim '(type (or unsigned-byte null) *error-print-level*
+		 *error-print-length* *error-print-lines*))
 
 (defvar *error-print-level* 3
   "The value for *Print-Level* when printing compiler error messages.")
@@ -1541,7 +1535,7 @@
   "The maximum number of enclosing non-original source forms (i.e. from
   macroexpansion) that we print in full.  For additional enclosing forms, we
   print only the CAR.")
-(declaim (type unsigned-byte *enclosing-source-cutoff*))
+(proclaim '(type unsigned-byte *enclosing-source-cutoff*))
 
 
 ;;; We separate the determination of compiler error contexts from the actual
@@ -1586,7 +1580,7 @@
 ;;; If true, this is the node which is used as context in compiler warning
 ;;; messages.
 ;;;
-(declaim (type (or null compiler-error-context node)
+(proclaim '(type (or null compiler-error-context node)
 		 *compiler-error-context*))
 (defvar *compiler-error-context* nil)
 
@@ -1751,14 +1745,14 @@
 
 ;;; A function that is called to unwind out of Compiler-Error.
 ;;;
-(declaim (type (function () nil) *compiler-error-bailout*))
+(proclaim '(type (function () nil) *compiler-error-bailout*))
 (defvar *compiler-error-bailout*
   #'(lambda () (error "Compiler-Error with no bailout.")))
 
 ;;; The stream that compiler error output is directed to.
 ;;;
 (defvar *compiler-error-output* (make-synonym-stream '*error-output*))
-(declaim (type stream *compiler-error-output*))
+(proclaim '(type stream *compiler-error-output*))
 
 ;;; We save the context information that we printed out most recently so that
 ;;; we don't print it out redundantly.
@@ -1766,19 +1760,19 @@
 ;;; The last COMPILER-ERROR-CONTEXT that we printed.
 ;;;
 (defvar *last-error-context* nil)
-(declaim (type (or compiler-error-context null) *last-error-context*))
+(proclaim '(type (or compiler-error-context null) *last-error-context*))
 
 ;;; The format string and args for the last error we printed.
 ;;;
 (defvar *last-format-string* nil)
 (defvar *last-format-args* nil)
-(declaim (type (or string null) *last-format-string*))
-(declaim (type list *last-format-args*))
+(proclaim '(type (or string null) *last-format-string*))
+(proclaim '(type list *last-format-args*))
 
 ;;; The number of times that the last error message has been emitted, so that
 ;;; we can compress duplicate error messages.
 (defvar *last-message-count* 0)
-(declaim (type index *last-message-count*))
+(proclaim '(type index *last-message-count*))
 
 (defvar *compiler-notification-function* nil
   "This is the function called by the compiler to specially note a warning,
@@ -1954,8 +1948,8 @@
 
 ;;; Keep track of how many times each kind of warning happens.
 ;;;
-(declaim (type index *compiler-error-count* *compiler-warning-count*
-	       *compiler-note-count*))
+(proclaim '(type index *compiler-error-count* *compiler-warning-count*
+		 *compiler-note-count*))
 (defvar *compiler-error-count* 0)
 (defvar *compiler-warning-count* 0)
 (defvar *compiler-note-count* 0)
@@ -1964,7 +1958,7 @@
 ;;; between internal and user errors.  Non-compiler errors put us in the
 ;;; debugger.
 ;;;
-(define-condition compiler-error (simple-program-error) ())
+(define-condition compiler-error (simple-error) ())
 
 ;;; COMPILER-{ERROR,WARNING,STYLE-WARNING}-HANDLER  --  Interface
 ;;;

@@ -5,13 +5,15 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/string.lisp,v 1.11 2001/06/17 19:12:34 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/code/string.lisp,v 1.8.2.1 1998/06/23 11:22:32 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
-;;; Functions to implement strings for CMU Common Lisp
+;;; Functions to implement strings for Spice Lisp
 ;;; Written by David Dill
 ;;; Rewritten by Skef Wholey, Bill Chiles and Rob MacLachlan.
+;;;
+;;; Runs in the standard Spice Lisp environment.
 ;;;
 ;;; ****************************************************************
 ;;;
@@ -38,11 +40,8 @@
 	 (let ((res (make-string 1)))
 	   (setf (schar res 0) x) res))
 	(t
-	 (error 'simple-type-error
-		:datum x
-		:expected-type '(or string symbol character)
-		:format-control "~S cannot be coerced to a string."
-		:format-arguments (list x)))))
+	 (error "~S cannot be coerced to a string." x))))
+
 
 ;;; With-One-String is used to set up some string hacking things.  The keywords
 ;;; are parsed, and the string is hacked into a simple-string.
@@ -51,8 +50,6 @@
 
 (defmacro with-one-string (string start end cum-offset &rest forms)
   `(let ((,string (if (stringp ,string) ,string (string ,string))))
-     ;; Optimizer may prove STRING is one.
-     (declare (optimize (ext:inhibit-warnings 3)))
      (with-array-data ((,string ,string :offset-var ,cum-offset)
 		       (,start ,start)
 		       (,end (or ,end (length (the vector ,string)))))

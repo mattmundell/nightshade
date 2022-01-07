@@ -6,7 +6,7 @@
 ;;; Scott Fahlman or slisp-group@cs.cmu.edu.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/filesys.lisp,v 1.67 2002/07/10 16:15:58 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/code/filesys.lisp,v 1.43.2.5 2000/08/24 14:24:01 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -40,9 +40,9 @@
 ;;; search-list := [^:/]*:
 ;;; file := [^/]*
 ;;; type := "." [^/.]*
-;;; version := ".*" | ".~" ([0-9]+ | "*") "~"
+;;; version := "." ([0-9]+ | "*")
 ;;;
-;;; Note: this grammer is ambiguous.  The string foo.bar.~5~ can be parsed
+;;; Note: this grammer is ambiguous.  The string foo.bar.5 can be parsed
 ;;; as either just the file specified or as specifying the file, type, and
 ;;; version.  Therefore, we use the following rules when confronted with
 ;;; an ambiguous file.type.version string:
@@ -172,67 +172,44 @@
 	      (t
 	       (make-pattern (pattern)))))))
 
-;;; extract-name-type-and-version  --  Internal.
-;;;
 (defun extract-name-type-and-version (namestr start end)
   (declare (type simple-base-string namestr)
 	   (type index start end))
-  (labels
-      ((explicit-version (namestr start end)
-	 (cond ((or (< (- end start) 5)
-		    (char/= (schar namestr (1- end)) #\~))
-		(values :newest end))
-	       ((and (char= (schar namestr (- end 2)) #\*)
-		     (char= (schar namestr (- end 3)) #\~)
-		     (char= (schar namestr (- end 4)) #\.))
-		(values :wild (- end 4)))
-	       (t
-		(do ((i (- end 2) (1- i)))
-		    ((< i (+ start 2)) (values :newest end))
-		  (let ((char (schar namestr i)))
-		    (when (eql char #\~)
-		      (return (if (char= (schar namestr (1- i)) #\.)
-				  (values (parse-integer namestr :start (1+ i)
-							 :end (1- end))
-					  (1- i))
-				  (values :newest end))))
-		    (unless (char<= #\0 char #\9)
-		      (return (values :newest end))))))))
-       (any-version (namestr start end)
-	 ;; process end of string looking for a version candidate.
-	 (multiple-value-bind (version where)
-	   (explicit-version namestr start end)
-	   (cond ((not (eq version :newest))
-		  (values version where))
-		 ((and (>= (- end 2) start)
-		       (char= (schar namestr (- end 1)) #\*)
-		       (char= (schar namestr (- end 2)) #\.)
-		       (find #\. namestr
-			     :start (min (1+ start) (- end 2))
-			     :end (- end 2)))
-		  (values :wild (- end 2)))
-		 (t (values version where)))))
-       (any-type (namestr start end)
-	 ;; Process end of string looking for a type. A leading "."
-	 ;; is part of the name.
-	 (let ((where (position #\. namestr
-				:start (min (1+ start) end)
-				:end end :from-end t)))
-	   (when where
-	     (values where end))))
-       (any-name (namestr start end)
-	 (declare (ignore namestr))
-	 (values start end)))
-    (multiple-value-bind
-	(version vstart)(any-version namestr start end)
-      (multiple-value-bind
-	  (tstart tend)(any-type namestr start vstart)
-	(multiple-value-bind
-	    (nstart nend)(any-name namestr start (or tstart vstart))
-	  (values
-	   (maybe-make-pattern namestr nstart nend)
-	   (and tstart (maybe-make-pattern namestr (1+ tstart) tend))
-	   version))))))
+  (let* ((last-dot (position #\. namestr :start (1+ start) :end end
+			     :from-end t))
+	 (second-to-last-dot (and last-dot
+				  (position #\. namestr :start (1+ start)
+					    :end last-dot :from-end t)))
+	 (version :newest))
+    ;; If there is a second-to-last dot, check to see if there is a valid
+    ;; version after the last dot.
+    (when second-to-last-dot
+      (cond ((and (= (+ last-dot 2) end)
+		  (char= (schar namestr (1+ last-dot)) #\*))
+	     (setf version :wild))
+	    ((and (< (1+ last-dot) end)
+		  (do ((index (1+ last-dot) (1+ index)))
+		      ((= index end) t)
+		    (unless (char<= #\0 (schar namestr index) #\9)
+		      (return nil))))
+	     (setf version
+		   (parse-integer namestr :start (1+ last-dot) :end end)))
+	    (t
+	     (setf second-to-last-dot nil))))
+    (cond (second-to-last-dot
+	   (values (maybe-make-pattern namestr start second-to-last-dot)
+		   (maybe-make-pattern namestr
+				       (1+ second-to-last-dot)
+				       last-dot)
+		   version))
+	  (last-dot
+	   (values (maybe-make-pattern namestr start last-dot)
+		   (maybe-make-pattern namestr (1+ last-dot) end)
+		   version))
+	  (t
+	   (values (maybe-make-pattern namestr start end)
+		   nil
+		   version)))))
 
 ;;; Take a string and return a list of cons cells that mark the char
 ;;; separated subseq. The first value t if absolute directories location.
@@ -422,7 +399,6 @@
     (let* ((name (%pathname-name pathname))
 	   (type (%pathname-type pathname))
 	   (type-supplied (not (or (null type) (eq type :unspecific))))
-	   (logical-p (logical-pathname-p pathname))
 	   (version (%pathname-version pathname))
 	   (version-supplied (not (or (null version) (eq version :newest)))))
       (when name
@@ -433,10 +409,11 @@
 	(strings ".")
 	(strings (unparse-unix-piece type)))
       (when version-supplied
+	(unless type-supplied
+	  (error "Cannot specify the version without a type: ~S" pathname))
 	(strings (if (eq version :wild)
-		     (if logical-p ".*" ".~*~")
-		     (format nil (if logical-p ".~D" ".~~~D~~")
-			     version)))))
+		     ".*"
+		     (format nil ".~D" version)))))
     (and (strings) (apply #'concatenate 'simple-string (strings)))))
 
 (defun unparse-unix-namestring (pathname)
@@ -494,9 +471,9 @@
 	(when version-needed
 	  (typecase pathname-version
 	    ((member :wild)
-	     (strings ".~*~"))
+	     (strings ".*"))
 	    (integer
-	     (strings (format nil ".~~~D~~" pathname-version)))
+	     (strings (format nil ".~D" pathname-version)))
 	    (t
 	     (lose)))))
       (apply #'concatenate 'simple-string (strings)))))
@@ -676,9 +653,8 @@
 	     (unless (or (null type) (eq type :unspecific))
 	       (setf file (concatenate 'string file "." type)))
 	     (unless (member version '(nil :newest :wild))
-	       (setf file (concatenate 'string file ".~"
-				       (quick-integer-to-string version)
-				       "~")))
+	       (setf file (concatenate 'string file "."
+				       (quick-integer-to-string version))))
 	     (when (or (not verify-existance)
 		       (unix:unix-file-kind file t))
 	       (funcall function file)))))))
@@ -709,7 +685,7 @@
 
 
 ;;;; UNIX-NAMESTRING -- public
-;;; 
+;;;
 (defun unix-namestring (pathname &optional (for-input t) executable-only)
   "Convert PATHNAME into a string that can be used with UNIX system calls.
    Search-lists and wild-cards are expanded. If optional argument
@@ -726,8 +702,8 @@
       (pathname path)
     (collect ((names))
       (enumerate-matches (name pathname nil
-			       :verify-existance for-input
-			       :follow-links t)
+			  :verify-existance for-input
+			  :follow-links t)
 	(when (or (not executable-only)
 		  (and (eq (unix:unix-file-kind name) :file)
 		       (unix:unix-access name unix:x_ok)))
@@ -748,7 +724,7 @@
 ;;; Another silly file function trivially different from another function.
 ;;;
 (defun truename (pathname)
-  "Return the pathname for the actual file described by the pathname
+  "Return the pathname for the actual file described by pathname.
   An error of type file-error is signalled if no such file exists,
   or the pathname is wild."
   (if (wild-pathname-p pathname)
@@ -769,7 +745,7 @@
 ;;;
 (defun probe-file (pathname)
   "Return a pathname which is the truename of the file if it exists, NIL
-  otherwise. An error of type file-error is signaled if pathname is wild."
+   otherwise.  An error of type file-error is signaled if pathname is wild."
   (if (wild-pathname-p pathname)
       (error 'simple-file-error
 	     :pathname pathname
@@ -851,7 +827,7 @@
 (defun file-write-date (file)
   "Return file's creation (FIX modified?) date in universal format, or NIL
    if it doesn't exist.  An error of type file-error is signaled if file is
-   a wild pathname"
+   a wild pathname."
   (if (wild-pathname-p file)
       (error 'simple-file-error
 	     :pathname file
@@ -885,6 +861,9 @@
 			     (unix:unix-stat name)
 	  (declare (ignore dev ino mode nlink))
 	  (if winp (lookup-login-name uid))))))
+
+
+;;;; DIRECTORY.
 
 ;;; File-Mode  --  Public
 ;;;
@@ -967,7 +946,7 @@
 ; 			(enumerate-names (concatenate 'string name "/")
 ; 					 all follow-links backups t :test test))))))
 ;     results))
-  
+
 (defun map-files (pathname function
 		  &key (all t) follow-links (backups t) recurse)
   "Call Function on each file and directory in Pathname.
@@ -1035,7 +1014,7 @@
 	      (if files
 		  (setq results (append files results)))))))
     results))
-  
+
 ;;; DIRECTORY  --  public.
 ;;;
 (defun directory (pathname &key (all t) (check-for-subdirs t)
@@ -1099,7 +1078,7 @@
  	(pathname "/"))  ;; FIX maybe find longest common path
     (if verbose
 	(print-directory-verbose pathname files nil return-list coldefs)
-	(print-directory-formatted pathname files nil return-list return-list))))
+	(print-directory-formatted pathname files nil return-list))))
 
 ;;; PRINT-MODE is internal.
 ;;;
@@ -1162,7 +1141,7 @@
 			       (:nlink (format t "~2D" nlink))
 			       (:uid   (format t "~8A" (or (lookup-login-name uid) uid)))
 			       (:size  (format t "~8D" size))
-			       (:date  (format t "~12A" 
+			       (:date  (format t "~12A"
 					       (multiple-value-bind (sec min hour date month year)
 								    (get-decoded-time)
 						 (declare (ignore sec min hour date month))
@@ -1302,7 +1281,7 @@
 ;;; is somewhat expensive.  The table may hold nil for id's that cannot
 ;;; be looked up since this means the files are searched in their entirety
 ;;; each time this id is translated.
-;;; 
+;;;
 (defun lookup-login-name (uid)
   (multiple-value-bind (login-name foundp) (gethash uid *uid-hash-table*)
     (if foundp
@@ -1318,7 +1297,7 @@
 ;;; is somewhat expensive.  The table may hold nil for id's that cannot
 ;;; be looked up since this means the files are searched in their entirety
 ;;; each time this id is translated.
-;;; 
+;;;
 (defun lookup-group-name (gid)
   (multiple-value-bind (group-name foundp) (gethash gid *gid-hash-table*)
     (if foundp
@@ -1391,7 +1370,7 @@
 					      :test #'string=)))
 			     files)))
 	     (cond ((null good-files)
-		    (setf files good-files))   ;; FIX why? added via pd-attempt
+		    (setf files good-files))   ;; FIX why? (added via pd-attempt)
 		   ((null (cdr good-files))
 		    (return-from complete-file
 				 (values (merge-pathnames (file-namestring
@@ -1504,9 +1483,7 @@
 (defun %set-default-directory (new-val)
   (let ((namestring (unix-namestring new-val t)))
     (unless namestring
-      (error 'simple-file-error
-             :format-control "~S doesn't exist."
-             :format-arguments (list new-val)))
+      (error "~S doesn't exist." new-val))
     (multiple-value-bind (gr error)
 			 (unix:unix-chdir namestring)
       (if gr

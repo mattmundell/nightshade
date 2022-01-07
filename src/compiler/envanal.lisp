@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/envanal.lisp,v 1.28 2002/02/06 23:20:46 pmai Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/envanal.lisp,v 1.26.2.1 2000/05/23 16:37:07 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -401,9 +401,8 @@
 	(let ((result (return-result ret)))
 	  (do-uses (use result)
 	    (when (and (immediately-used-p result use)
-	               (not (policy use (> debug 2)))
-		       (or (not (eq (node-derived-type use) *empty-type*))
-			   (not (basic-combination-p use))
-			   (eq (basic-combination-kind use) :local)))
+		     (or (not (eq (node-derived-type use) *empty-type*))
+			 (not (basic-combination-p use))
+			 (eq (basic-combination-kind use) :local)))
 		(setf (node-tail-p use) t)))))))
   (undefined-value))

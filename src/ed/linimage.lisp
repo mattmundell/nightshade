@@ -65,7 +65,7 @@
 
 
 
-(declaim (special *character-attributes*))
+(proclaim '(special *character-attributes*))
 
 ;;; %init-line-image  --  Internal
 ;;;

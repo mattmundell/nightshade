@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/bignum.lisp,v 1.29 2001/03/04 23:37:32 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/code/bignum.lisp,v 1.23.2.3 2000/07/07 09:34:10 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -166,7 +166,7 @@
   (declare (type bignum-element-type digit))
   (not (logbitp (1- digit-size) digit)))
 
-(declaim (inline %bignum-0-or-plusp))
+(proclaim '(inline %bignum-0-or-plusp))
 (defun %bignum-0-or-plusp (bignum len)
   (declare (type bignum-type bignum)
 	   (type bignum-index len))
@@ -233,7 +233,7 @@
 ;;;
 ;;; Do the 32bit unsigned op.
 ;;;
-(declaim (inline %logand %logior %logxor))
+(proclaim '(inline %logand %logior %logxor))
 (defun %logand (a b)
   (declare (type bignum-element-type a b))
   (logand a b))
@@ -326,7 +326,7 @@
 ;;; subtractions, negations, etc.  This cannot return a -1 represented as
 ;;; a negative fixnum since it would then have to low zeros.
 ;;;
-(declaim (inline %sign-digit))
+(proclaim '(inline %sign-digit))
 (defun %sign-digit (bignum len)
   (declare (type bignum-type bignum)
 	   (type bignum-index len))
@@ -339,7 +339,7 @@
 ;;; These take two 32 bit quantities and compare or contrast them without
 ;;; wasting time with incorrect type checking.
 ;;;
-(declaim (inline %digit-compare %digit-greater))
+(proclaim '(inline %digit-compare %digit-greater))
 (defun %digit-compare (x y)
   (= x y))
 ;;;
@@ -347,7 +347,7 @@
   (> x y))
 
 
-(declaim (optimize (speed 3) (safety 0)(ext:inhibit-warnings 3)))
+(proclaim '(optimize (speed 3) (safety 0)))
 
 
 ;;;; Addition.
@@ -2225,8 +2225,8 @@ IS LESS EFFICIENT BUT EASIER TO MAINTAIN.  BILL SAYS THIS CODE CERTAINLY WORKS!
 ;;; %FLOOR for machines with a 32x32 divider.
 ;;;
 
-(declaim (inline 32x16-subtract-with-borrow 32x16-add-with-carry
-		 32x16-divide 32x16-multiply 32x16-multiply-split))
+(proclaim '(inline 32x16-subtract-with-borrow 32x16-add-with-carry
+		   32x16-divide 32x16-multiply 32x16-multiply-split))
 
 #+32x16-divide
 (defconstant 32x16-base-1 #xFFFF)
@@ -2492,7 +2492,7 @@ IS LESS EFFICIENT BUT EASIER TO MAINTAIN.  BILL SAYS THIS CODE CERTAINLY WORKS!
 ;;; Allocate a single word bignum that holds fixnum.  This is useful when
 ;;; we are trying to mix fixnum and bignum operands.
 ;;; 
-(declaim (inline make-small-bignum))
+(proclaim '(inline make-small-bignum))
 (defun make-small-bignum (fixnum)
   (let ((res (%allocate-bignum 1)))
     (setf (%bignum-ref res 0) (%fixnum-to-digit fixnum))
@@ -2505,7 +2505,7 @@ IS LESS EFFICIENT BUT EASIER TO MAINTAIN.  BILL SAYS THIS CODE CERTAINLY WORKS!
 ;;; the first form in %NORMALIZE-BIGNUM, but we return the length of the buffer
 ;;; instead of shrinking the bignum.
 ;;;
-#+nil(declaim (ext:maybe-inline %normalize-bignum-buffer))
+#+nil(proclaim '(ext:maybe-inline %normalize-bignum-buffer))
 (defun %normalize-bignum-buffer (result len)
   (declare (type bignum-type result)
 	   (type bignum-index len))

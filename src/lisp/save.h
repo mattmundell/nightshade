@@ -1,5 +1,5 @@
 /*
- * $Header: /project/cmucl/cvsroot/src/lisp/save.h,v 1.2 1993/04/28 01:58:37 wlott Exp $
+ * $Header: /home/CVS-cmucl/src/lisp/save.h,v 1.2 1993/04/28 01:58:37 wlott Exp $
  */
 
 #ifndef _SAVE_H_

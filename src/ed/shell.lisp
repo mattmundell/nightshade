@@ -139,7 +139,7 @@
 ;;;
 ;;; FIX correctly deal with cases like "~ram/"
 (defun filter-tildes (name)
-  (declare ((or simple-string null) name))
+  (declare (type (or simple-string null) name))
   (if (and name
 	   (> (length name) 0)
 	   (char= (schar name 0) #\~))
@@ -629,32 +629,31 @@
 ;;; Proced.
 
 (defun active-processes-p ()
-  (loop for buffer in *buffer-list* do
-    (if (buffer-minor-mode buffer "Process")
-	(or (eq (process-status (variable-value 'process
-						:buffer buffer))
-		:exited)
-	    (return-from active-processes-p t)))))
+  (do-processes (process buffer)
+    (or (eq (process-status process) :exited)
+	(return-from active-processes-p t))))
 
 (defun list-processes (stream)
   (format stream "PID    Status    Buffer~%")
-  (loop for buffer in *buffer-list* do
-    (if (buffer-minor-mode buffer "Process")
-	(let ((process (variable-value 'process :buffer buffer)))
-	  (format stream "~6A ~9A ~A~%"
-		  (process-pid process)
-		  (process-status process)
-		  (buffer-name buffer))))))
+  (do-processes (process buffer)
+    (format stream "~6A ~9A ~A~%"
+	    (process-pid process)
+	    (process-status process)
+	    (buffer-name buffer))))
+
+(defun active-process-p (buffer)
+  "Return t if Buffer has an active process."
+  (if (buffer-minor-mode buffer "Process")
+      (let ((process (variable-value 'ed::process :buffer buffer)))
+	(eq () (eq (process-status process) :exited)))))
 
 (defun list-active-processes (stream)
   (format stream "PID    Buffer~%")
-  (loop for buffer in *buffer-list* do
-    (if (buffer-minor-mode buffer "Process")
-	(let ((process (variable-value 'process :buffer buffer)))
-	  (or (eq (process-status process) :exited)
-	      (format stream "~6A ~A~%"
-		      (process-pid process)
-		      (buffer-name buffer)))))))
+  (do-processes (process buffer)
+    (or (eq (process-status process) :exited)
+	(format stream "~6A ~A~%"
+		(process-pid process)
+		(buffer-name buffer)))))
 
 (defcommand "List Processes" (p)
   "List all processes started in the editor."
@@ -670,14 +669,20 @@
   (with-pop-up-display (stream)
     (list-active-processes stream)))
 
+(defun end-active-processes ()
+  "End any active processes."
+  (do-processes (process buffer)
+    (process-kill process 9)))
+
 (defun check-for-active-processes ()
   (when (active-processes-p)
-    (hi::with-pop-up-window (buffer :buffer-name "Active Processes")
+    (with-pop-up-window (buffer :buffer-name "Active Processes")
       (with-output-to-mark (stream (buffer-mark buffer))
 	(list-active-processes stream))
       (or (prompt-for-y-or-n
 	   :default nil
-	   :prompt "Processes are active, exit anyway? ")
-	  (editor-error)))))
+	   :prompt "End active process(es) and exit? ")
+	  (editor-error))
+      (end-active-processes))))
 
 (add-hook exit-hook 'check-for-active-processes)

@@ -827,6 +827,7 @@
 (defindent "with-output-to-window" 1)
 (defindent "do-strings" 1)
 (defindent "do-lines" 1)
+(defindent "do-processes" 1)
 (defindent "save-for-undo" 1)
 (defindent "do-alpha-chars" 1)
 (defindent "do-headers-buffers" 1)
@@ -847,7 +848,6 @@
 (defindent "compiler-let" 1)
 (defindent "ctypecase" 1)
 (defindent "defconstant" 1)
-(defindent "define-compiler-macro" 2)
 (defindent "define-setf-method" 2)
 (defindent "destructuring-bind" 2)
 (defindent "defmacro" 2)
@@ -1829,6 +1829,7 @@
 (setf (gethash "cond" lisp-special-forms) t)
 (setf (gethash "unless" lisp-special-forms) t)
 
+(setf (gethash "proclaim" lisp-special-forms) t)
 (setf (gethash "declare" lisp-special-forms) t)
 (setf (gethash "declaim" lisp-special-forms) t)
 (setf (gethash "defun" lisp-special-forms) t)
@@ -1841,6 +1842,9 @@
 (setf (gethash "defmacro" lisp-special-forms) t)
 (setf (gethash "defstruct" lisp-special-forms) t)
 (setf (gethash "defprinter" lisp-special-forms) t)
+
+(declaim (inline highlight-lisp-line))
+(declaim (special *in-string* *in-comment*))
 
 (defun highlight-lisp-line (line chi-info)
   (when (next-character (mark line 0))
@@ -1898,13 +1902,11 @@
 		       (if (eq (next-character mark) #\")
 			   (setq pos (1+ oparen))
 			   (progn
-			     (setq pos
-				   (mark-charpos (find-attribute mark
-								 :word-delimiter)))
+			     (find-attribute mark :word-delimiter)
 			     (or (memq (next-character mark) '(#\  #\) #\newline))
-				 (setq pos (mark-charpos
-					    (find-attribute (mark-after mark)
-							    :word-delimiter))))
+				 (if (mark-after mark)
+				     (find-attribute mark :word-delimiter)))
+			     (setq pos (mark-charpos mark))
 			     ;; This also highlights special form names in lists.
 			     (when (gethash (subseq chars (1+ oparen) pos)
 					    lisp-special-forms)
@@ -1914,11 +1916,6 @@
 
 		(t
 		 (return-from highlight-lisp-line))))))))
-
-(declaim (inline highlight-lisp-line))
-(declaim (special *in-string* *in-comment*))
-
-(declaim (special *last-used-mark*))
 
 ;; FIX maybe this should use find-pattern, or [a mod of] lispmode parsing
 ;; FIX can (,;,#|," be found using char attributes?  (,;,"  #| is a string

@@ -1,4 +1,4 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/mips-lispregs.h,v 1.1 1992/07/28 20:16:54 wlott Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/mips-lispregs.h,v 1.1 1992/07/28 20:16:54 wlott Exp $ */
 
 #ifdef LANGUAGE_ASSEMBLY
 #define REG(num) $num

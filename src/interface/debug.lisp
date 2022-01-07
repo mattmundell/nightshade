@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/interface/debug.lisp,v 1.9 2001/12/12 20:18:25 pmai Exp $")
+  "$Header: /home/CVS-cmucl/src/interface/debug.lisp,v 1.8 1994/10/31 04:53:18 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -98,7 +98,7 @@
       (let ((*current-frame* frame))
 	(funcall (debug-command-p :edit-source)))
     (error (cond)
-	   (interface-error (safe-condition-message cond)))))
+	   (interface-error (format nil "~A" cond)))))
 
 (defun frame-eval-callback (widget call-data frame output)
   (declare (ignore call-data))
@@ -115,8 +115,8 @@
 			     (di:eval-in-frame frame (read-from-string input))))
 			(format nil "~a~s~%" out val))
 		    (error (cond)
-			   (safe-condition-message cond)))))
-	 (length (length response)))
+			   (format nil "~2&~A~2&" cond)))))
+	  (length (length response)))
     (declare (simple-string response))
 	
     (text-set-string widget "")
@@ -299,7 +299,7 @@
 ;;; condition.
 ;;;
 (defun debug-display-error (errmsg condition)
-  (set-values errmsg :label-string (safe-condition-message condition)))
+  (set-values errmsg :label-string (format nil "~A" condition)))
 
 ;;; DEBUG-DISPLAY-RESTARTS -- Internal
 ;;;
@@ -543,8 +543,7 @@
 			(system:serve-event))
 		    (error (err)
 			   (if *flush-debug-errors*
-			       (interface-error (safe-condition-message err)
-						pane)
+			       (interface-error (format nil "~a" err) pane)
 			       (interface-error
 				"Do not yet support recursive debugging"
 				pane))))
@@ -560,16 +559,42 @@
 (defvar *in-windowing-debugger* nil)
 
 
-;;; REAL-INVOKE-DEBUGGER -- Internal
+;;; INVOKE-TTY-DEBUGGER  --  Internal
 ;;;
-;;; Invokes the Lisp debugger.  It decides whether to invoke the TTY
-;;; debugger or the Motif debugger.
+;;;    Print condition and invoke the TTY debugger.
 ;;;
-(defun real-invoke-debugger (condition)
-  (if (or (not (use-graphics-interface))
-	  *in-windowing-debugger*
-	  (typep condition 'xti:toolkit-error))
-      (invoke-tty-debugger condition)
-      (let ((*in-windowing-debugger* t))
-	(write-line "Invoking debugger...")
-	(invoke-motif-debugger condition))))
+(defun invoke-tty-debugger (condition)
+  (format *error-output* "~2&~A~2&" *debug-condition*)
+  (unless (typep condition 'step-condition)
+    (show-restarts *debug-restarts* *error-output*))
+  (internal-debug))
+
+;;; INVOKE-DEBUGGER -- Public
+;;;
+;;; Invokes the Lisp debugger.  It executes some common debugger setup code
+;;; and then decides whether to invoke the TTY debugger or the Motif
+;;; debugger.
+;;;
+(defun invoke-debugger (condition)
+  "The CMU Common Lisp debugger.  Type h for help."
+  (when *debugger-hook*
+    (let ((hook *debugger-hook*)
+	  (*debugger-hook* nil))
+      (funcall hook condition hook)))
+  (unix:unix-sigsetmask 0)
+  (let* ((*debug-condition* condition)
+	 (*debug-restarts* (compute-restarts condition))
+	 (*standard-input* *debug-io*)          ;in case of setq
+	 (*standard-output* *debug-io*)         ;''  ''  ''  ''
+	 (*error-output* *debug-io*)
+	 ;; Rebind some printer control variables.
+	 (kernel:*current-level* 0)
+	 (*print-readably* nil)
+	 (*read-eval* t))
+    (if (or (not (use-graphics-interface))
+	    *in-windowing-debugger*
+	    (typep condition 'xti:toolkit-error))
+	(invoke-tty-debugger condition)
+	(let ((*in-windowing-debugger* t))
+	  (write-line "Invoking debugger...")
+	  (invoke-motif-debugger condition)))))

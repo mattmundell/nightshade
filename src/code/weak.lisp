@@ -5,11 +5,11 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/weak.lisp,v 1.5 1999/03/17 19:30:14 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/code/weak.lisp,v 1.4.2.1 2000/05/23 16:36:57 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
-;;; $Header: /project/cmucl/cvsroot/src/code/weak.lisp,v 1.5 1999/03/17 19:30:14 pw Exp $
+;;; $Header: /home/CVS-cmucl/src/code/weak.lisp,v 1.4.2.1 2000/05/23 16:36:57 pw Exp $
 ;;;
 ;;; Weak Pointer Support.
 ;;;

@@ -90,20 +90,6 @@
     (format nil "~A ~A, ~A"
 	    (aref ext::abbrev-month-table (1- month)) day year)))
 
-(defun month-name (month)
-  "Return the long name of Month (January is 1)."
-  (aref ext::long-month-table (1- month)))
-
-(defun month-number (month)
-  "Return the number of the month with long name Month (January is 1)."
-  (1+ (or (position month ext::long-month-table :test #'string=)
-	  (return-from month-number))))
-
-(defun short-month-number (month)
-  "Return the number of the month with short name Month (Jan is 1)."
-  (1+ (or (position month ext::abbrev-month-table :test #'string=)
-	  (return-from short-month-number))))
-
 (defun make-cal-search-pattern (kind direction pattern)
   (setq *last-calendar-search-pattern*
 	(new-search-pattern kind direction pattern
@@ -223,14 +209,14 @@
       (insert-string mark week-header)
       (multiple-value-bind
 	  (secs mins hours day month year first-weekday dst tz)
-	  (decode-universal-time (parse-time (format nil
-						     "1 ~A ~A"
-						     month-name
-						     year)))
-	(declare (ignore secs mins hours day month year dst tz))
+	  (decode-universal-time (encode-universal-time
+				  0 0 0 1
+				  (month-number month-name)
+				  year))
+	(declare (ignore secs mins hours day year dst tz))
 	(let ((day 1)
 	      (first-week t)
-	      (last-day 31))
+	      (last-day (last-day-of-julian-month month year)))
 	  (if adjacent
 	      (progn
 		(or (line-offset mark 1) (terpri stream))
@@ -241,8 +227,7 @@
 	  (loop for i downfrom first-weekday to 1 do
 	    (insert-string mark "   "))
 	  ;; Insert weeks.
-	  (loop
-	    while
+	  (loop while
 	    ;; Insert week.
 	    (progn
 	      (loop
@@ -810,6 +795,7 @@
 				     :help "Month of the reminder."
 				     :default (month-name month)))
 	  ;; FIX could ensure > 0 and < 28,29,30,31
+	  ;;     prompt-for-day?
 	  (day (prompt-for-integer :prompt "Day: "
 				   :must-exist t
 				   :help "Day of the reminder."

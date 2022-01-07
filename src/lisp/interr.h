@@ -1,5 +1,5 @@
 /*
- * $Header: /project/cmucl/cvsroot/src/lisp/interr.h,v 1.1 1992/07/28 20:14:34 wlott Exp $
+ * $Header: /home/CVS-cmucl/src/lisp/interr.h,v 1.1 1992/07/28 20:14:34 wlott Exp $
  */
 
 #ifndef _INTERR_H_

@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/serve-event.lisp,v 1.25 2000/07/06 05:41:28 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/code/serve-event.lisp,v 1.22.2.2 2000/07/06 06:18:49 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

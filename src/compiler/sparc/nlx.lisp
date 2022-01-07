@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/sparc/nlx.lisp,v 1.11 2002/02/19 15:46:09 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/sparc/nlx.lisp,v 1.6.2.1 1998/06/23 11:23:51 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -105,12 +105,7 @@
   (:temporary (:scs (descriptor-reg)) temp)
   (:temporary (:scs (non-descriptor-reg)) ndescr)
   (:generator 22
-    (let ((byte-offset (* (tn-offset tn) vm:word-bytes)))
-      (if (typep byte-offset '(signed-byte 13))
-	  (inst add block cfp-tn byte-offset)
-	  (progn
-	    (inst li ndescr byte-offset)
-	    (inst add block cfp-tn ndescr))))
+    (inst add block cfp-tn (* (tn-offset tn) vm:word-bytes))
     (load-symbol-value temp lisp::*current-unwind-protect-block*)
     (storew temp block vm:unwind-block-current-uwp-slot)
     (storew cfp-tn block vm:unwind-block-current-cont-slot)
@@ -124,19 +119,14 @@
 ;;;
 (define-vop (make-catch-block)
   (:args (tn)
-	 (tag :scs (descriptor-reg any-reg)))
+	 (tag :scs (descriptor-reg)))
   (:info entry-label)
   (:results (block :scs (any-reg)))
   (:temporary (:scs (descriptor-reg)) temp)
   (:temporary (:scs (descriptor-reg) :target block :to (:result 0)) result)
   (:temporary (:scs (non-descriptor-reg)) ndescr)
   (:generator 44
-    (let ((byte-offset (* (tn-offset tn) vm:word-bytes)))
-      (if (typep byte-offset '(signed-byte 13))
-	  (inst add result cfp-tn byte-offset)
-	  (progn
-	    (inst li ndescr byte-offset)
-	    (inst add result cfp-tn ndescr))))
+    (inst add result cfp-tn (* (tn-offset tn) vm:word-bytes))
     (load-symbol-value temp lisp::*current-unwind-protect-block*)
     (storew temp result vm:catch-block-current-uwp-slot)
     (storew cfp-tn result vm:catch-block-current-cont-slot)
@@ -158,14 +148,8 @@
 (define-vop (set-unwind-protect)
   (:args (tn))
   (:temporary (:scs (descriptor-reg)) new-uwp)
-  (:temporary (:scs (non-descriptor-reg)) ndescr)
   (:generator 7
-    (let ((byte-offset (* (tn-offset tn) vm:word-bytes)))
-      (if (typep byte-offset '(signed-byte 13))
-	  (inst add new-uwp cfp-tn (* (tn-offset tn) vm:word-bytes))
-	  (progn
-	    (inst li ndescr byte-offset)
-	    (inst add new-uwp cfp-tn ndescr))))
+    (inst add new-uwp cfp-tn (* (tn-offset tn) vm:word-bytes))
     (store-symbol-value new-uwp lisp::*current-unwind-protect-block*)))
 
 

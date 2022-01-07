@@ -5,11 +5,11 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/pmax-vm.lisp,v 1.15 1994/10/31 04:11:27 ram Exp $")
+  "$Header: /home/CVS-cmucl/src/code/pmax-vm.lisp,v 1.15 1994/10/31 04:11:27 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
-;;; $Header: /project/cmucl/cvsroot/src/code/pmax-vm.lisp,v 1.15 1994/10/31 04:11:27 ram Exp $
+;;; $Header: /home/CVS-cmucl/src/code/pmax-vm.lisp,v 1.15 1994/10/31 04:11:27 ram Exp $
 ;;;
 ;;; This file contains the PMAX specific runtime stuff.
 ;;;

@@ -18,6 +18,3 @@ tables.o : tables.c StringTable.h ClassTable.h TypeTable.h
 
 requests.o : requests.c Interface.h
 	$(CC) $(CFLAGS) -c $<
-
-clean:
-	-rm -f core $(OBJS) $(TARGET)

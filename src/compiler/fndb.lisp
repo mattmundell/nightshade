@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/fndb.lisp,v 1.98 2002/03/07 00:04:40 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/fndb.lisp,v 1.68.2.10 2000/08/24 14:24:08 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -119,10 +119,10 @@
 (defknown makunbound (symbol) symbol)
 (defknown fmakunbound ((or symbol cons)) (or symbol cons)
   (unsafe explicit-check))
-(defknown get-setf-expansion ((or list symbol) &optional lexical-environment)
- (values list list list form form)
- (flushable))
-
+(defknown (get-setf-method get-setf-method-multiple-value)
+  ((or list symbol) &optional lexical-environment)
+  (values list list list form form)
+  (flushable))
 (defknown apply (callable t &rest t) *) ; ### Last arg must be List...
 (defknown funcall (callable &rest t) *)
 
@@ -242,6 +242,12 @@
 (defknown lcm (&rest integer) unsigned-byte
   (movable foldable flushable explicit-check))
 
+#-propagate-fun-type
+(defknown exp (number) irrational
+  (movable foldable flushable explicit-check recursive)
+  :derive-type #'result-type-float-contagion)
+
+#+propagate-fun-type
 (defknown exp (number) irrational
   (movable foldable flushable explicit-check recursive))
 
@@ -260,6 +266,25 @@
 (defknown cis (real) (complex float)
   (movable foldable flushable explicit-check))
 
+#-propagate-fun-type
+(progn
+(defknown (sin cos) (number)
+  (or (float -1.0 1.0) (complex float))
+  (movable foldable flushable explicit-check recursive)
+  :derive-type #'result-type-float-contagion)
+
+(defknown atan
+  (number &optional real) irrational
+  (movable foldable flushable explicit-check recursive)
+  :derive-type #'result-type-float-contagion)
+
+(defknown (tan sinh cosh tanh asinh)
+  (number) irrational (movable foldable flushable explicit-check recursive)
+  :derive-type #'result-type-float-contagion)
+)	; end progn
+
+#+propagate-fun-type
+(progn
 (defknown (sin cos) (number)
   (or (float -1.0 1.0) (complex float))
   (movable foldable flushable explicit-check recursive))
@@ -270,6 +295,7 @@
 
 (defknown (tan sinh cosh tanh asinh)
   (number) irrational (movable foldable flushable explicit-check recursive))
+)	; end progn
 
 (defknown (asin acos acosh atanh)
   (number) irrational
@@ -292,7 +318,7 @@
   (movable foldable flushable explicit-check))
 
 (defknown (ffloor fceiling fround ftruncate)
-  (real &optional real) (values float real)
+  (real &optional real) (values float float)
   (movable foldable flushable explicit-check))
 
 (defknown decode-float (float) (values float float-exponent float)
@@ -944,7 +970,7 @@
 (defknown truename (pathnamelike) pathname ())
 
 (defknown parse-namestring
-  (pathnamelike &optional (or string pathname-host) pathnamelike
+  (pathnamelike &optional pathname-host pathnamelike
 		&key (:start index) (:end sequence-end) (:junk-allowed t))
   (values (or pathname null) sequence-end)
   ())
@@ -996,8 +1022,7 @@
 				   :rename-and-delete :overwrite :append
 				   :supersede nil))
 		(:if-does-not-exist (member :error :create nil))
-		(:external-format (member :default))
-		(:class (or symbol class)))
+		(:external-format (member :default)))
   (or stream null))
 
 (defknown rename-file (pathnamelike filename) (values pathname pathname pathname))
@@ -1015,8 +1040,7 @@
   ((or filename stream)
    &key (:verbose t) (:print t) (:if-does-not-exist (member :error :create nil))
    (:if-source-newer (member :load-source :load-object :query :compile))
-   (:contents (or null (member :source :binary)))
-   (:external-format t))
+   (:contents (or null (member :source :binary))))
   t)
 
 (defknown directory (pathnamelike &key (:check-for-subdirs t) (:all t)
@@ -1047,8 +1071,7 @@
    (:print t) (:progress t)
    (:block-compile (member t nil :specified))
    (:entry-points list)
-   (:byte-compile (member t nil :maybe))
-   (:external-format (member :default)))
+   (:byte-compile (member t nil :maybe)))
   (values (or pathname null) boolean boolean))
 
 (defknown disassemble (callable &key (:stream stream) (:backend backend)

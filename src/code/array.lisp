@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/array.lisp,v 1.33 2002/07/10 16:15:58 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/code/array.lisp,v 1.23.2.3 2000/05/23 16:36:10 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -157,7 +157,7 @@
 			      (initial-element nil initial-element-p)
 			      initial-contents adjustable fill-pointer
 			      displaced-to displaced-index-offset)
-  "Creates an array of the specified Dimensions.  See FIX manual for details."
+  "Creates an array of the specified Dimensions." ;; FIX details
   (let* ((dimensions (if (listp dimensions) dimensions (list dimensions)))
 	 (array-rank (length (the list dimensions)))
 	 (simple (and (null fill-pointer)
@@ -232,11 +232,6 @@
 		 (when (or initial-element-p initial-contents)
 		   (error "Neither :initial-element nor :initial-contents ~
 		   can be specified along with :displaced-to"))
-		 (unless (subtypep element-type
-				   (array-element-type displaced-to))
-		   (error "One can't displace an array of type ~S into ~
-                           another of type ~S."
-			  element-type (array-element-type displaced-to)))
 		 (let ((offset (or displaced-index-offset 0)))
 		   (when (> (+ offset total-size)
 			    (array-total-size displaced-to))
@@ -250,7 +245,7 @@
 	      (setf (%array-dimension array axis) dim)
 	      (incf axis)))
 	  array))))
-	
+
 ;;; DATA-VECTOR-FROM-INITS returns a simple vector that has the specified array
 ;;; characteristics.  Dimensions is only used to pass to FILL-DATA-VECTOR
 ;;; for error checking on the structure of initial-contents.
@@ -492,7 +487,7 @@
     (setf (row-major-aref simple-bit-array
 			  (%array-row-major-index simple-bit-array subscripts))
 	  new-value)))
- 
+
 (declaim (inline (setf sbit)))
 (defun (setf sbit) (new-value bit-array &rest subscripts)
   (declare (type (simple-array bit) bit-array) (optimize (safety 1)))
@@ -547,7 +542,7 @@
 	  (declare (ignore start end))
 	  (array-element-type array)))
        (t
-        (error 'type-error :datum array :expected-type 'array))))))
+	(error "~S is not an array." array))))))
 
 
 (defun array-rank (array)
@@ -636,7 +631,7 @@
 (defun vector-push (new-el array)
   "Attempts to set the element of Array designated by the fill pointer
    to New-El and increment fill pointer by one.  If the fill pointer is
-   too large, Nil is returned, otherwise the index of the pushed element is 
+   too large, Nil is returned, otherwise the index of the pushed element is
    returned."
   (declare (vector array))
   (let ((fill-pointer (fill-pointer array)))
@@ -751,23 +746,17 @@
 	       (declare (fixnum old-length new-length))
 	       (with-array-data ((old-data array) (old-start)
 				 (old-end old-length))
-		 (cond
-		   ((and (adjustable-array-p array)
-			 (not (%array-displaced-p array))
-			 (<= new-length old-length))
-		    ;; Shrink underlying vector in-place.  We don't do this
-		    ;; for non-adjustable arrays, since that might confuse
-		    ;; user expectations about adjust-array consing a fresh
-		    ;; array in that case.
-		    (setf new-data (shrink-vector old-data new-length)))
-		   (t
-		    (setf new-data
-			  (data-vector-from-inits
-			   dimensions new-length element-type
-			   initial-contents initial-element
-			   initial-element-p))
-		    (replace new-data old-data
-			     :start2 old-start :end2 old-end)))
+		 (cond ((or (%array-displaced-p array)
+			    (< old-length new-length))
+			(setf new-data
+			      (data-vector-from-inits
+			       dimensions new-length element-type
+			       initial-contents initial-element
+			       initial-element-p))
+			(replace new-data old-data
+				 :start2 old-start :end2 old-end))
+		       (t (setf new-data
+				(shrink-vector old-data new-length))))
 		 (if (adjustable-array-p array)
 		     (set-array-header array new-data new-length
 				       (get-new-fill-pointer array new-length
@@ -931,7 +920,7 @@
 	(zap-array-data-aux old-data old-dims offset temp new-dims)
 	(dotimes (i new-length) (setf (aref new-data i) (aref temp i))))
       (zap-array-data-aux old-data old-dims offset new-data new-dims)))
-      
+
 (defun zap-array-data-aux (old-data old-dims offset new-data new-dims)
   (declare (fixnum offset))
   (let ((limits (mapcar #'(lambda (x y)
@@ -978,7 +967,7 @@
 
 
 ;;;; Some bit stuff.
- 
+
 (defun bit-array-same-dimensions-p (array1 array2)
   (declare (type (array bit) array1 array2))
   (and (= (array-rank array1)

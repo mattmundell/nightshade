@@ -7,6 +7,7 @@
 #cd $1
 #exec $1/lisp/lisp -core $1/lisp/kernel.core  -eval "(progn (setf (search-list \"target:\") '(\"$1/\" \"$1/../src/\")) (load (open \"target:tools/worldload.lisp\"))"
 
+cd $1/lisp/
 $1/lisp/lisp -core $1/lisp/kernel.core << EOF
 (setf (search-list "target:") '("$1/" "$1/../src/"))
 (load (open "target:tools/worldload.lisp"))

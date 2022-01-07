@@ -5,11 +5,11 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/assembly/sparc/array.lisp,v 1.6 2002/05/10 14:48:23 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/assembly/sparc/array.lisp,v 1.5 1995/02/27 00:51:49 wlott Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
-;;; $Header: /project/cmucl/cvsroot/src/assembly/sparc/array.lisp,v 1.6 2002/05/10 14:48:23 toy Exp $
+;;; $Header: /home/CVS-cmucl/src/assembly/sparc/array.lisp,v 1.5 1995/02/27 00:51:49 wlott Exp $
 ;;;
 ;;;    This file contains the support routines for arrays and vectors.
 ;;;
@@ -32,21 +32,16 @@
 			  (:temp ndescr non-descriptor-reg nl0-offset)
 			  (:temp vector descriptor-reg a3-offset))
   (pseudo-atomic ()
+    (inst or vector alloc-tn vm:other-pointer-type)
     (inst add ndescr words (* (1+ vm:vector-data-offset) vm:word-bytes))
     (inst andn ndescr 7)
-    (allocation vector ndescr other-pointer-type)
+    (inst add alloc-tn ndescr)
     (inst srl ndescr type vm:word-shift)
     (storew ndescr vector 0 vm:other-pointer-type)
     (storew length vector vm:vector-length-slot vm:other-pointer-type))
   ;; This makes sure the zero byte at the end of a string is paged in so
   ;; the kernel doesn't bitch if we pass it the string.
-  ;;
-  ;; This used to write to the word after the last allocated word.  I
-  ;; (RLT) made it write to the last allocated word, which is where
-  ;; the zero-byte of the string is.  Look at the deftransform for
-  ;; make-array in array-tran.lisp.  For strings we always allocate
-  ;; enough space to hold the zero-byte.
-  (storew zero-tn alloc-tn -1)
+  (storew zero-tn alloc-tn 0)
   (move result vector))
 
 

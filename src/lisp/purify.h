@@ -1,5 +1,5 @@
 /*
- * $Header: /project/cmucl/cvsroot/src/lisp/purify.h,v 1.1 1992/07/28 20:15:25 wlott Exp $
+ * $Header: /home/CVS-cmucl/src/lisp/purify.h,v 1.1 1992/07/28 20:15:25 wlott Exp $
  */
 
 #if !defined(_PURIFY_H_)

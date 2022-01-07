@@ -5,11 +5,11 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/reader.lisp,v 1.32 2002/07/25 14:49:25 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/code/reader.lisp,v 1.22.2.2 2000/05/23 16:36:46 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
-;;; Spice Lisp Reader 
+;;; Spice Lisp Reader
 ;;; Written by David Dill
 ;;; Package system interface by Lee Schumacher.
 ;;; Runs in the standard Spice Lisp environment.
@@ -78,7 +78,7 @@
 
 (defun reader-eof-error (stream context)
   (error 'reader-eof-error :stream stream  :context context))
-  
+
 
 ;;;; Readtable implementation.
 
@@ -115,12 +115,13 @@
 	       :initial-element constituent)
    :type attribute-table)
   ;;
-  ;; The CHARACTER-MACRO-TABLE is a vector of CHAR-CODE-LIMIT functions.  One
-  ;; of these functions is called with appropriate arguments whenever any
-  ;; non-WHITESPACE character is encountered inside READ-PRESERVING-WHITESPACE.
-  ;; These functions are used to implement user-defined read-macros, system
-  ;; read-macros, and the number-symbol reader.
-  (character-macro-table 
+  ;; The CHARACTER-MACRO-TABLE is a vector of CHAR-CODE-LIMIT functions.
+  ;; One of these functions is called with appropriate arguments whenever
+  ;; any non-WHITESPACE character is encountered inside
+  ;; READ-PRESERVING-WHITESPACE.  These functions are used to implement
+  ;; user-defined read-macros, system read-macros, and the number-symbol
+  ;; reader.
+  (character-macro-table
    (make-array char-code-limit :initial-element #'undefined-macro-char)
    :type (simple-vector #.char-code-limit))
   ;;
@@ -158,7 +159,7 @@
 ;;; In case we get an error trying to parse a symbol, we want to rebind the
 ;;; above stuff so it's cool.
 
-(declaim (special *package* *keyword-package* *read-base*))
+(proclaim '(special *package* *keyword-package* *read-base*))
 
 
 
@@ -188,7 +189,7 @@
   (unless *read-suppress*
     (%reader-error stream "Undefined read-macro character ~S" char)))
 
-;;; The character attribute table is a CHAR-CODE-LIMIT vector of integers. 
+;;; The character attribute table is a CHAR-CODE-LIMIT vector of integers.
 
 (defmacro test-attribute (char whichclass rt)
   `(= (the fixnum (get-cat-entry ,char ,rt)) ,whichclass))
@@ -197,7 +198,7 @@
 
 ;;; Make this a function, since other people want to use it.
 ;;;
-(declaim (inline whitespacep))
+(proclaim '(inline whitespacep))
 (defun whitespacep (char &optional (rt *readtable*))
   (test-attribute char whitespace rt))
 
@@ -241,7 +242,7 @@
   (set-secondary-attribute #\. #.constituent-dot)
   (set-secondary-attribute #\+ #.constituent-sign)
   (set-secondary-attribute #\- #.constituent-sign)
-  (set-secondary-attribute #\/ #.constituent-slash)  
+  (set-secondary-attribute #\/ #.constituent-slash)
   (do ((i (char-code #\0) (1+ i)))
       ((> i (char-code #\9)))
     (set-secondary-attribute (code-char i) #.constituent-digit))
@@ -277,14 +278,12 @@
 	  (mapcar #'(lambda (pair) (cons (car pair)
 					 (copy-seq (cdr pair))))
 		  (dispatch-tables from-readtable)))
-    (setf (readtable-case to-readtable)
-	  (readtable-case from-readtable))
     to-readtable))
 
 (defun set-syntax-from-char (to-char from-char &optional
 				     (to-readtable *readtable*)
 				     (from-readtable ()))
-  "Causes the syntax of to-char to be the same as from-char in the 
+  "Causes the syntax of to-char to be the same as from-char in the
   optional readtable (defaults to the current readtable).  The
   from-table defaults the standard lisp readtable by being nil."
   (let ((from-readtable (or from-readtable std-lisp-readtable)))
@@ -365,7 +364,7 @@
   ;;*** un-constituent-ize some of these ***
   (let ((*readtable* std-lisp-readtable))
     (set-cat-entry #\tab #.whitespace)
-    (set-cat-entry #\linefeed #.whitespace)  
+    (set-cat-entry #\linefeed #.whitespace)
     (set-cat-entry #\space #.whitespace)
     (set-cat-entry #\page #.whitespace)
     (set-cat-entry #\return #.whitespace)
@@ -472,8 +471,8 @@
 ;;
 (defvar *sharp-equal-alist* ())
 
-(declaim (special *standard-input*))
- 
+(proclaim '(special *standard-input*))
+
 ;;; READ-PRESERVING-WHITESPACE behaves just like read only it makes sure
 ;;; to leave terminating whitespace in the stream.
 ;;;
@@ -745,7 +744,7 @@
 
 ;;;; Token fetching.
 
-(defvar *read-suppress* nil 
+(defvar *read-suppress* nil
   "Suppresses most interpreting of the reader when T")
 
 (defvar *read-base* 10
@@ -755,7 +754,7 @@
 ;;; CASIFY-READ-BUFFER  --  Internal
 ;;;
 ;;;    Modify the read-buffer according to READTABLE-CASE, ignoring escapes.
-;;; ESCAPES is a list of the escaped indices, in reverse order. 
+;;; ESCAPES is a list of the escaped indices, in reverse order.
 ;;;
 (defun casify-read-buffer (escapes)
   (let ((case (readtable-case *readtable*)))
@@ -797,7 +796,7 @@
 		       (setq all-upper nil))))
 	       (cond (all-lower (raise-em))
 		     (all-upper (lower-em))))))))))))
-  
+
 (defun read-token (stream firstchar)
   "This function is just an fsm that recognizes numbers and symbols."
   ;;check explicitly whether firstchar has entry for non-terminating
@@ -839,7 +838,7 @@
 	(#.constituent-dot (go SIGNDOT))
 	(#.escape (go ESCAPE))
 	(#.package-delimiter (go COLON))
-	(#.multiple-escape (go MULT-ESCAPE))	
+	(#.multiple-escape (go MULT-ESCAPE))
 	(#.delimiter (unread-char char stream) (go RETURN-SYMBOL))
 	(t (go SYMBOL)))
      LEFTDIGIT
@@ -1157,7 +1156,7 @@
      26 17 13 11 10 9 8 8 8 7 7 7 7 6 6 6 6 6 6 6 6 5 5 5 5 5 5 5 5 5 5 5 5 5 5)
   "Holds the mapping of base to 'safe' number of digits to read for a fixnum.")
 
-(defvar *integer-reader-base-power* 
+(defvar *integer-reader-base-power*
   '#(NIL NIL
      67108864 129140163 67108864 48828125 60466176 40353607
      16777216 43046721 100000000 19487171 35831808 62748517 105413504 11390625
@@ -1176,7 +1175,7 @@
 	  (do ((fix (truncate most-positive-fixnum base)
 		    (truncate fix base))
 	       (digits 0 (1+ digits)))
-	      ((zerop fix) digits))))	   
+	      ((zerop fix) digits))))
       (setf (aref *integer-reader-safe-digits* base)
 	    digits
 	    (aref *integer-reader-base-power* base)
@@ -1184,11 +1183,11 @@
 |#
 
 (defun make-integer ()
-  "Minimizes bignum-fixnum multiplies by reading a 'safe' number of digits, 
+  "Minimizes bignum-fixnum multiplies by reading a 'safe' number of digits,
   then multiplying by a power of the base and adding."
   (let* ((base *read-base*)
 	 (digits-per (aref *integer-reader-safe-digits* base))
-	 (base-power (aref *integer-reader-base-power* base)) 
+	 (base-power (aref *integer-reader-base-power* base))
 	 (negativep nil)
 	 (number 0))
     (declare (type index digits-per base-power))
@@ -1284,11 +1283,11 @@
 	     (multiple-value-bind (min-expo max-expo)
 		 (case float-format
 		   (short-float
-		    (values 
+		    (values
 		     #.(log least-positive-normalized-short-float 10s0)
 		     #.(log most-positive-short-float 10s0)))
 		   (single-float
-		    (values 
+		    (values
 		     #.(log least-positive-normalized-single-float 10f0)
 		     #.(log most-positive-single-float 10f0)))
 		   (double-float
@@ -1296,7 +1295,7 @@
 		     #.(log least-positive-normalized-double-float 10d0)
 		     #.(log most-positive-double-float 10d0)))
 		   (long-float
-		    (values 
+		    (values
 		     #.(log least-positive-normalized-long-float 10L0)
 		     #.(log most-positive-long-float 10L0))))
 	       (let ((correction (cond ((<= exponent min-expo)
@@ -1310,7 +1309,7 @@
 		 (setq num (make-float-aux number divisor float-format))
 		 (setq num (* num (expt 10 exponent)))
 		 (return-from make-float (if negative-fraction (- num) num))))))
-	  ;;should never happen:	
+	  ;;should never happen:
 	  (t (error "Internal error in floating point reader.")))))
 
 (defun make-float-aux (number divisor float-format)
@@ -1343,7 +1342,7 @@
     (let ((num (/ numerator denominator)))
       (if negative-number (- num) num))))
 
-       
+
 
 ;;;; dispatching macro cruft
 
@@ -1380,7 +1379,7 @@
   ;;get the dispatch char for macro (error if not there), diddle
   ;;entry for sub-char.
   (when (digit-char-p sub-char)
-    (error "Sub-Char must not be a decimal digit: ~S" sub-char))
+    (error "Sub-Char must not be a decibal digit: ~S" sub-char))
   (let* ((sub-char (char-upcase sub-char))
 	 (dpair (find disp-char (dispatch-tables rt)
 		      :test #'char= :key #'car)))
@@ -1388,7 +1387,7 @@
 	(setf (elt (the simple-vector (cdr dpair))
 		   (char-code sub-char))
 	      (coerce function 'function))
-	(error "~S is not a dispatch character." disp-char))))
+	(error "~S is not a dispatch char." disp-char))))
 
 (defun get-dispatch-macro-character
        (disp-char sub-char &optional (rt *readtable*))
@@ -1461,30 +1460,6 @@
 		  (string-input-stream-current stream))
 	(push stream read-from-string-spares)))))
 
-#|
-(defun read-delimited-list-from-string (string end-char
-					       &key (start 0) end
-					       recursive-p)
-  "The characters of string are successively given to the lisp reader and
-   the objects built by the reader is returned as a list.  Macro chars will
-   take effect."
-  (declare (string string))
-  (with-array-data ((string string :offset-var offset)
-		    (start start)
-		    (end (or end (length string))))
-    (unless read-from-string-spares
-      (push (internal-make-string-input-stream "" 0 0)
-	    read-from-string-spares))
-    (let ((stream (pop read-from-string-spares)))
-      (setf (string-input-stream-string stream) string)
-      (setf (string-input-stream-current stream) start)
-      (setf (string-input-stream-end stream) end)
-      (unwind-protect
-	  (values (read-delimited-list end-char stream recursive-p)
-		  (- (string-input-stream-current stream) offset))
-	(push stream read-from-string-spares)))))
-|#
-
 
 ;;;; PARSE-INTEGER.
 
@@ -1500,8 +1475,7 @@
 		     ((= i end)
 		      (if junk-allowed
 			  (return-from parse-integer (values nil end))
-			  (error 'simple-parse-error
-                                 :format-control "No non-whitespace characters in number.")))
+			  (error "No non-whitespace characters in number.")))
 		   (declare (fixnum i))
 		   (unless (whitespacep (char string i)) (return i))))
 	  (minusp nil)
@@ -1527,23 +1501,17 @@
 		     ((= jndex end))
 		   (declare (fixnum jndex))
 		   (unless (whitespacep (char string jndex))
-		     (error 'simple-parse-error
-                            :format-control "There's junk in this string: ~S."
-                            :format-arguments (list string))))
+		     (error "There's junk in this string: ~S." string)))
 		 (return nil))
 		(t
-		 (error 'simple-parse-error
-                        :format-control "There's junk in this string: ~S."
-                        :format-arguments (list string)))))
+		 (error "There's junk in this string: ~S." string))))
 	(incf index))
       (values
        (if found-digit
 	   (if minusp (- result) result)
 	   (if junk-allowed
 	       nil
-	       (error 'simple-parse-error
-                      :format-control "There are no digits in this string: ~S"
-                      :format-arguments (list string))))
+	       (error "There's no digits in this string: ~S" string)))
        index))))
 
 

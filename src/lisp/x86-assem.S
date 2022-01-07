@@ -1,6 +1,6 @@
 ### x86-assem.S -*- Mode: Asm; -*-
 /**
- * $Header: /project/cmucl/cvsroot/src/lisp/x86-assem.S,v 1.21 2002/08/23 17:01:02 pmai Exp $
+ * $Header: /home/CVS-cmucl/src/lisp/x86-assem.S,v 1.3.2.3 2000/05/23 16:38:33 pw Exp $
  *
  * Authors:	Paul F. Werkowski <pw@snoopy.mv.com>
  *		Douglas T. Crosher
@@ -16,14 +16,13 @@
 	
 #define LANGUAGE_ASSEMBLY
 #include "internals.h"
-#include "lispregs.h"
 
 #if defined __FreeBSD__
 #include <osreldate.h>
 #endif
 
 /* Minimize conditionalization for different OS naming schemes */
-#if defined (__linux__) || (__FreeBSD_version >= 300000) || defined (__NetBSD__)
+#if defined (__linux__) || (__FreeBSD_version >= 300000)
 #define GNAME(var) var
 #else
 #define GNAME(var) _##var
@@ -51,7 +50,7 @@
  * Return values are in eax and maybe edx for quads, or st(0) for
  * floats.
  *
- * It should work for lisp calls C calls lisp calls C ..
+ * It should work for lisp calls c calls lisp calls c ..
  */
 	.text
 	.align	align_16byte,0x90
@@ -123,7 +122,6 @@ Lfp_rtn_value:
 	.size	GNAME(call_into_c), . - GNAME(call_into_c)
 
 
-
 	.text	
 	.global GNAME(call_into_lisp)
 	.type  GNAME(call_into_lisp),@function
@@ -206,15 +204,15 @@ OnLispStack:
 	je	Ldone
 	movl	8(%ebx),%esi	# arg2
 Ldone:	
-	/* Registers eax, ecx, edx,edi,esi now live */
+	/* registers eax, ecx, edx,edi,esi now live */
 
-	/* Allocate new frame */
+	/* alloc new frame */
 	mov	%esp,%ebx	# current sp marks start of new frame
 	push	%ebp		# fp in save location S0
 	sub	$8,%esp		# Ensure 3 slots are allocated, one above.
 	mov	%ebx,%ebp	# switch to new frame
 
-	/* Indirect the closure */
+	/* indirect the closure */
 	call	*CLOSURE_FUNCTION_OFFSET(%eax)
 	
 	/* Multi-value return - blow off any extra values */
@@ -224,7 +222,7 @@ Ldone:
 /* Restore the stack, in case there was a stack change. */
 	popl	%esp		# c-sp
 
-/* Restore C regs: ebx esi edi */
+/* restore C regs: ebx esi edi */
 	popl	%edi
 	popl	%esi
 	popl	%ebx
@@ -258,7 +256,6 @@ GNAME(fpu_restore):
 	ret
 	.size	GNAME(fpu_restore),.-GNAME(fpu_restore)
 
-
 /*
  * The undefined-function trampoline.
  */
@@ -269,11 +266,13 @@ GNAME(fpu_restore):
 GNAME(undefined_tramp):
 	int3
 	.byte	trap_Error
-        /* Number of argument bytes */
         .byte   2
-	.byte	UNDEFINED_SYMBOL_ERROR
-        /* SC_OFFSET(sc_DescriptorReg,reg_EAX) */
-        .byte   SC_OFFSET(sc_DescriptorReg,0)
+#ifdef type_LongFloat
+        .byte   24
+#else
+        .byte   23
+#endif
+        .byte   sc_DescriptorReg # EAX in the Descriptor-reg SC.
 	ret
 	.size	GNAME(undefined_tramp), .-GNAME(undefined_tramp)
 

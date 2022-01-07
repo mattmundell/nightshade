@@ -1,5 +1,5 @@
 ;;; Screen painting routines for the IBM RT running X.
-
+;;;
 (in-package "HEMLOCK-INTERNALS")
 
 
@@ -284,9 +284,9 @@
 ;;; :enter-window event.  Defaulting this to nil causes the cursor to be
 ;;; hollow when the window comes up under the mouse, and you have to know
 ;;; how to fix it.  Defaulting it to t causes the cursor to always come up
-;;; full, as if Hemlock is the X listener, but this recovers naturally as
-;;; you move into the window.  This also coincides with the editor's border
-;;; coming up highlighted, even when the editor is not the listener.
+;;; full, as if The editor is the X listener, but this recovers naturally
+;;; as you move into the window.  This also coincides with the editor's
+;;; border coming up highlighted, even when the editor is not the listener.
 ;;;
 (defvar *hemlock-listener* t
   "Highlight border when the cursor is dropped and the editor can receive
@@ -321,7 +321,7 @@
 (defun frob-cursor (on)
   (if on (drop-cursor) (lift-cursor)))
 
-(declaim (special *default-border-pixmap* *highlight-border-pixmap*))
+(proclaim '(special *default-border-pixmap* *highlight-border-pixmap*))
 
 ;;; DROP-CURSOR and LIFT-CURSOR are separate functions from FROB-CURSOR
 ;;; because they are called a couple places (e.g., HUNK-EXPOSED-REGION and

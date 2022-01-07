@@ -1,6 +1,6 @@
 /*
 
- $Header: /project/cmucl/cvsroot/src/lisp/irix-os.h,v 1.3 1997/08/23 16:00:20 pw Exp $
+ $Header: /home/CVS-cmucl/src/lisp/irix-os.h,v 1.2.2.2 2000/05/23 16:38:28 pw Exp $
 
  This code was written as part of the CMU Common Lisp project at
  Carnegie Mellon University, and has been placed in the public domain.

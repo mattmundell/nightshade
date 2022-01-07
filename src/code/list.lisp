@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/list.lisp,v 1.26 2001/03/04 23:37:32 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/code/list.lisp,v 1.19.2.3 2000/11/15 11:37:03 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -39,19 +39,19 @@
 	  rassoc rassoc-if rassoc-if-not
 	  complement constantly))
 
-(declaim (maybe-inline
-	  tree-equal list-length nth %setnth nthcdr last make-list append
-	  copy-list copy-alist copy-tree revappend nconc nreconc butlast
-	  nbutlast ldiff member member-if member-if-not tailp adjoin union
-	  nunion intersection nintersection set-difference nset-difference
-	  set-exclusive-or nset-exclusive-or subsetp acons pairlis assoc
-	  assoc-if assoc-if-not rassoc rassoc-if rassoc-if-not subst subst-if
-	  subst-if-not nsubst nsubst-if nsubst-if-not sublis nsublis))
+(proclaim '(maybe-inline
+	    tree-equal list-length nth %setnth nthcdr last make-list append
+	    copy-list copy-alist copy-tree revappend nconc nreconc butlast
+	    nbutlast ldiff member member-if member-if-not tailp adjoin union
+	    nunion intersection nintersection set-difference nset-difference
+	    set-exclusive-or nset-exclusive-or subsetp acons pairlis assoc
+	    assoc-if assoc-if-not rassoc rassoc-if rassoc-if-not subst subst-if
+	    subst-if-not nsubst nsubst-if nsubst-if-not sublis nsublis))
 
 
 (in-package "EXTENSIONS")
 (export '(assq memq delq))
-(declaim (maybe-inline delq))
+(proclaim '(maybe-inline delq))
 (in-package "LISP")
 
 
@@ -91,7 +91,7 @@
                       (cons se1 se2))
 
 
-(declaim (maybe-inline tree-equal-test tree-equal-test-not))
+(proclaim '(maybe-inline tree-equal-test tree-equal-test-not))
 
 (defun tree-equal-test-not (x y test-not)
   (cond ((consp x)
@@ -723,7 +723,7 @@
 	  (steve-splice list1 res)
 	  (setf list1 (cdr list1))))
     res))
-  
+
 
 (defun intersection (list1 list2 &key key
 			   (test #'eql testp) (test-not nil notp))
@@ -826,7 +826,7 @@
 	     (if (null splicex)
 		 (setq list1 (cdr x))
 		 (rplacd splicex (cdr x)))
-	     (if (null splicey) 
+	     (if (null splicey)
 		 (setq list2 (cdr y))
 		 (rplacd splicey (cdr y)))
 	     (return ()))			; assume lists are really sets
@@ -861,7 +861,6 @@
 (defmacro assoc-guts (test-guy)
   `(do ((alist alist (cdr alist)))
        ((endp alist))
-     (declare (optimize (inhibit-warnings 3)))
      (if (car alist)
 	 (if ,test-guy (return (car alist))))))
 
@@ -988,8 +987,7 @@
 
 (defun memq (item list)
   "Returns tail of list beginning with first element eq to item"
-  (declare (inline member)
-	   (optimize (inhibit-warnings 3))) ; from MEMBER optimizations
+  (declare (inline member))
   (member item list :test #'eq))
 
 (defun assq (item alist)

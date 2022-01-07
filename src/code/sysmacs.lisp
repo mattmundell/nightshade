@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/sysmacs.lisp,v 1.25 2002/07/10 16:16:00 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/code/sysmacs.lisp,v 1.17.2.3 2000/08/10 13:16:42 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -67,7 +67,6 @@
   "Executes the forms in the body without doing a garbage collection."
   `(without-interrupts ,@body))
 
-#-no-hemlock
 (defmacro without-hemlock (&body body)
   `(progn
      (when (and hi::*in-the-editor* (null debug::*in-the-debugger*))
@@ -79,10 +78,6 @@
        (let ((device (hi::device-hunk-device
 		      (hi::window-hunk (hi::current-window)))))
 	 (funcall (hi::device-init device) device)))))
-
-#+no-hemlock
-(defmacro without-hemlock (&body body)
-  `(progn ,@body))
 
 
 

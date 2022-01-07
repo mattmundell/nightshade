@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/extensions.lisp,v 1.25 2001/03/13 16:52:14 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/code/extensions.lisp,v 1.22.2.1 1998/06/23 11:21:52 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -30,13 +30,13 @@
 ;;;
 ;;;    This is here until we figure out what to do with it.
 ;;;
-(declaim (inline undefined-value))
+(proclaim '(inline undefined-value))
 (defun undefined-value ()
   '%undefined%)
 
 ;;; REQUIRED-ARGUMENT  --  Public
 ;;;
-(declaim (ftype (function () nil) required-argument))
+(proclaim '(ftype (function () nil) required-argument))
 (defun required-argument ()
   "This function can be used as the default value for keyword arguments that
   must be always be supplied.  Since it is known by the compiler to never
@@ -128,7 +128,7 @@
 	   ,form)))))
 
 
-(define-setf-expander logbitp (index int &environment env)
+(define-setf-method logbitp (index int &environment env)
   (multiple-value-bind (temps vals stores store-form access-form)
 		       (get-setf-method int env)
     (let ((ind (gensym))
@@ -562,8 +562,8 @@
       `(progn
 	 (defvar ,var-name)
 	 (,init-form ,@(inits))
-	 (declaim (type (simple-vector ,total-size) ,var-name))
-	 (declaim (inline ,@(inlines)))
+	 (proclaim '(type (simple-vector ,total-size) ,var-name))
+	 (proclaim '(inline ,@(inlines)))
 	 ,@(forms)
 	 ',name))))
 

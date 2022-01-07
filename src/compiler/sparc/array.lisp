@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/sparc/array.lisp,v 1.23 2002/05/10 14:48:24 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/sparc/array.lisp,v 1.15.2.2 2000/05/23 16:37:44 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -31,15 +31,14 @@
   (:results (result :scs (descriptor-reg)))
   (:generator 0
     (pseudo-atomic ()
+      (inst or header alloc-tn other-pointer-type)
       (inst add ndescr rank (* (1+ array-dimensions-offset) vm:word-bytes))
       (inst andn ndescr 4)
-      (allocation header ndescr other-pointer-type)
+      (inst add alloc-tn ndescr)
       (inst add ndescr rank (fixnum (1- vm:array-dimensions-offset)))
       (inst sll ndescr ndescr vm:type-bits)
       (inst or ndescr ndescr type)
-      ;; Remove the extraneous fixnum tag bits because TYPE and RANK
-      ;; were fixnums
-      (inst srl ndescr ndescr fixnum-tag-bits)
+      (inst srl ndescr ndescr 2)
       (storew ndescr header 0 vm:other-pointer-type))
     (move result header)))
 
@@ -75,7 +74,7 @@
     (loadw temp x 0 vm:other-pointer-type)
     (inst sra temp vm:type-bits)
     (inst sub temp (1- vm:array-dimensions-offset))
-    (inst sll res temp fixnum-tag-bits)))
+    (inst sll res temp 2)))
 
 
 
@@ -176,7 +175,7 @@
 	 (:temporary (:scs (non-descriptor-reg) :to (:result 0)) temp result)
 	 (:generator 20
 	   (inst srl temp index ,bit-shift)
-	   (inst sll temp fixnum-tag-bits)
+	   (inst sll temp 2)
 	   (inst add temp (- (* vm:vector-data-offset vm:word-bytes)
 			     vm:other-pointer-type))
 	   (inst ld result object temp)
@@ -225,7 +224,7 @@
 	 (:temporary (:scs (non-descriptor-reg) :from (:argument 1)) shift)
 	 (:generator 25
 	   (inst srl offset index ,bit-shift)
-	   (inst sll offset fixnum-tag-bits)
+	   (inst sll offset 2)
 	   (inst add offset (- (* vm:vector-data-offset vm:word-bytes)
 			       vm:other-pointer-type))
 	   (inst ld old object offset)

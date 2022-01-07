@@ -1,6 +1,6 @@
 ;;; Word abbreviation mode.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 (defmode "Abbrev" :major-p nil :transparent-p t :precedence 2.0)
 

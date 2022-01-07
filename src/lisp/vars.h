@@ -1,4 +1,4 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/vars.h,v 1.1 1992/07/28 20:15:39 wlott Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/vars.h,v 1.1 1992/07/28 20:15:39 wlott Exp $ */
 
 
 extern void flush_vars(void);

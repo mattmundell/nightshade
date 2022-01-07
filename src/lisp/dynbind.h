@@ -1,4 +1,4 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/dynbind.h,v 1.1 1992/07/28 20:14:24 wlott Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/dynbind.h,v 1.1 1992/07/28 20:14:24 wlott Exp $ */
 
 #ifndef _DYNBIND_H_
 #define _DYNBIND_H_

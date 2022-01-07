@@ -29,6 +29,11 @@
    buffer.  Set to the new destination after each prompt."
   :value "Comparison")
 
+(defhvar "Source Compare Style"
+  "Formating style for text comparison output. () for a verbose style,
+   :terse for a terser one."
+  :value ())
+
 
 (defcommand "Buffer Changes" (p)
   "Generate a comparison of the current buffer with its file on disk."
@@ -48,47 +53,150 @@
 
 ;;; "Compare Buffers" creates two temporary buffers when there is a prefix.
 ;;; These get deleted when we're done.  Buffer-a and Buffer-b are used for
-;;; names is (FIX?) banners in either case.
+;;; names in banners in either case.
 ;;;
-(defcommand "Compare Buffers" (p &optional buffer-a buffer-b dest-buffer)
+(defcommand "Compare Buffers" (p &optional buffer-a buffer-b dest-buffer
+				 pathname-a pathname-b)
   "Performs a source comparison on two specified buffers.  If the prefix
    argument is supplied, only compare the regions in the buffer."
   "Performs a source comparison on two specified buffers, Buffer-A and
-   Buffer-B, putting the result of the comparison into the Dest-Buffer.
-   If the prefix argument is supplied, only compare the regions in the
-   buffer."
+   Buffer-B, putting the result of the comparison into the Dest-Buffer.  If
+   P is true, only compare the regions in the buffer.  If Pathname-* is
+   true use the value as the name of a file being compared."
   (srccom-choose-comparison-functions)
   (multiple-value-bind (buffer-a buffer-b dest-point
 		        delete-buffer-a delete-buffer-b)
-		       (get-srccom-buffers "Compare buffer: " buffer-a buffer-b
+		       (get-srccom-buffers "Compare buffer: "
+					   buffer-a buffer-b
 					   dest-buffer p)
     (with-output-to-mark (log dest-point)
-      (format log "Comparison of ~A and ~A.~%~%"
-	      (buffer-name buffer-a) (buffer-name buffer-b))
+      (case (value source-compare-style)
+	(:terse (format log "+++ ~A~%--- ~A.~%"
+		      (or pathname-a (buffer-name buffer-a))
+		      (or pathname-b (buffer-name buffer-b))))
+	(t (format log "Comparison of ~A and ~A.~%~%"
+		   (or pathname-a (buffer-name buffer-a))
+		   (or pathname-b (buffer-name buffer-b)))))
       (with-mark ((mark-a (buffer-start-mark (or delete-buffer-a buffer-a)))
 		  (mark-b (buffer-start-mark (or delete-buffer-b buffer-b))))
-	(loop
-	  (multiple-value-bind (diff-a diff-b)
-			       (srccom-find-difference mark-a mark-b)
-	    (when (null diff-a) (return nil))
-	    (format log "**** Buffer ~A:~%" (buffer-name buffer-a))
-	    (insert-region dest-point diff-a)
-	    (format log "**** Buffer ~A:~%" (buffer-name buffer-b))
-	    (insert-region dest-point diff-b)
-	    (format log "***************~%~%")
-	    (move-mark mark-a (region-end diff-a))
-	    (move-mark mark-b (region-end diff-b))
-	    (unless (line-offset mark-a 1) (return))
-	    (unless (line-offset mark-b 1) (return)))))
-	(format log "Done.~%"))
-    (when delete-buffer-a
-      (delete-buffer delete-buffer-a)
-      (delete-buffer delete-buffer-b))))
+	(let ((heading-a
+	       (case (value source-compare-style)
+		 (:terse (format nil
+			       "+++++++++++++++~%"))
+		 (t (if pathname-a
+			(format nil "**** File ~A:~%" pathname-a)
+			(format nil "**** Buffer ~A:~%" (buffer-name buffer-a))))))
+	      (heading-b
+	       (case (value source-compare-style)
+		 (:terse (format nil
+			       "---------------~%"))
+		 (t (if pathname-b
+			(format nil "**** File ~A:~%" pathname-b)
+			(format nil "**** Buffer ~A:~%" (buffer-name buffer-b))))))
+	      (terse (value source-compare-style)))
+	  (loop
+	    (multiple-value-bind (diff-a diff-b)
+				 (srccom-find-difference mark-a mark-b)
+	      (when (null diff-a) (return nil))
+	      (write-string heading-a log)
+	      (insert-region dest-point diff-a)
+	      (write-string heading-b log)
+	      (insert-region dest-point diff-b)
+	      (or terse (format log "***************~%~%"))
+	      (move-mark mark-a (region-end diff-a))
+	      (move-mark mark-b (region-end diff-b))
+	      (or (line-offset mark-a 1) (return))
+	      (or (line-offset mark-b 1) (return))))
+	  (or terse (format log "Done.~%")))))
+    (if delete-buffer-a (delete-buffer delete-buffer-a))
+    (if delete-buffer-b (delete-buffer delete-buffer-b))))
+
+
+(defcommand "Compare Files" (p &optional file1 file2)
+  "Compare two prompted files."
+  "Compare two prompted files."
+  (declare (ignore p))
+  (let* ((one (namestring
+	       (or file1
+		   (prompt-for-file
+		    :prompt "First file: "
+		    :help "Name of first of files to compare."
+		    :default (buffer-pathname (current-buffer))
+		    :must-exist nil))))
+	 (two (namestring
+	       (or file2
+		   (prompt-for-file
+		    :prompt "Second file: "
+		    :help "Name of second of files to compare."
+		    :default (buffer-pathname (current-buffer))
+		    :must-exist nil))))
+	 (buffer-one (make-unique-buffer (namestring one)))
+	 (buffer-two (make-unique-buffer (namestring two))))
+    (unwind-protect
+	(if (directoryp one)
+	    (let ((two-checked)
+		  (log-buffer (prompt-for-buffer
+			       :prompt "Putting results in buffer: "
+			       :must-exist nil
+			       :default-string
+			       (value source-compare-destination))))
+	      (declare (ignore two-checked))
+	      (setq log-buffer (make-buffer log-buffer))
+	      (setf (value source-compare-destination)
+		    (buffer-name log-buffer))
+	      (change-to-buffer log-buffer)
+	      (with-output-to-mark (log (buffer-point log-buffer))
+		(or (directoryp two)
+		    ;; FIX log instead
+		    (editor-error "~A is a directory and ~A is a file."
+				  one two))
+		(hlet ((source-compare-style :terse))
+		  ;; FIX recurse
+		  ;; FIX should this use streams? so can be split into lib fun
+		  (map-files one
+			     #'(lambda (file)
+				 (if (directoryp file)
+				     (format log "FIX ~A is a directory.~%~%"
+					     file)
+				     (let ((two-file (merge-pathnames (file-namestring file)
+								      two)))
+				       (if (probe-file two-file)
+					   (progn
+					     (if (directoryp two-file)
+						 (format log "FIX ~A is a directory.~%~%"
+							 two-file))
+					     ;; FIX skip offer to revert to CKP
+					     (read-buffer-file file buffer-one)
+					     (read-buffer-file two-file buffer-two)
+					     (compare-buffers-command nil
+								      buffer-one
+								      buffer-two
+								      log-buffer
+								      file
+								      two-file)
+					     ;; FIX (pushnew two-file two-checked)
+					     )
+					   (format log "~A only present in ~A.~%"
+						   (file-namestring file) one))))))
+		  ;; FIX print for rest of two
+		  )
+		(message "Directory comparison done.")))
+	    (progn
+	      (if (directoryp two)
+		  ;; FIX log instead
+		  (editor-error "~A is a file and ~A is a directory."
+				one two))
+	      (read-buffer-file one buffer-one)
+	      (read-buffer-file two buffer-two)
+	      (compare-buffers-command nil buffer-one buffer-two)
+	      (message "File comparison done.")))
+      (delete-buffer buffer-one)
+      (delete-buffer buffer-two))))
 
 
 ;;; "Merge Buffers" creates two temporary buffers when there is a prefix.
 ;;; These get deleted when we're done.  Buffer-a and Buffer-b are used for
-;;; names is (FIX?) banners in either case.
+;;; names in banners in either case.
 ;;;
 (defcommand "Merge Buffers" (p &optional buffer-a buffer-b dest-buffer)
   "Performs a source merge on two specified buffers.  If the prefix
@@ -177,7 +285,7 @@
   (unless buffer-b
     (setf buffer-b (prompt-for-buffer :prompt "With buffer: "
 				      :must-exist t
-				      :default (previous-buffer))))
+				      :default (other-buffer))))
   (unless dest-buffer
     (setf dest-buffer
 	  (prompt-for-buffer :prompt "Putting results in buffer: "
@@ -401,34 +509,34 @@
 ;;; of "Source Compare Ignore Case" and "Source Compare Ignore Indentation".
 ;;;
 (macrolet ((def-line= (name test &optional ignore-indentation)
-	     `(defun ,name (line-a line-b)
-		(or (eq line-a line-b)		; if they're both NIL
-		    (and line-a
-			 line-b
-			 (let* ((chars-a (line-string line-a))
-				(len-a (length chars-a))
-				(chars-b (line-string line-b))
-				(len-b (length chars-b)))
-			   (declare (simple-string chars-a chars-b))
-			   (cond
-			    ((and (= len-a len-b)
-				  (,test chars-a chars-b)))
-			    ,@(if ignore-indentation
-				  `((t
-				     (flet ((frob (chars len)
-					      (dotimes (i len nil)
-						(let ((char (schar chars i)))
-						  (unless
-						      (or (char= char #\space)
-							  (char= char #\tab))
-						    (return i))))))
-				       (let ((i (frob chars-a len-a))
-					     (j (frob chars-b len-b)))
-					 (if (and i j)
-					     (,test chars-a chars-b
-						    :start1 i :end1 len-a
-						    :start2 j :end2 len-b)
-					     )))))))))))))
+		      `(defun ,name (line-a line-b)
+			 (or (eq line-a line-b)		; if they're both NIL
+			     (and line-a
+				  line-b
+				  (let* ((chars-a (line-string line-a))
+					 (len-a (length chars-a))
+					 (chars-b (line-string line-b))
+					 (len-b (length chars-b)))
+				    (declare (simple-string chars-a chars-b))
+				    (cond
+				     ((and (= len-a len-b)
+					   (,test chars-a chars-b)))
+				     ,@(if ignore-indentation
+					   `((t
+					      (flet ((frob (chars len)
+						       (dotimes (i len nil)
+							 (let ((char (schar chars i)))
+							   (unless
+							       (or (char= char #\space)
+								   (char= char #\tab))
+							     (return i))))))
+						(let ((i (frob chars-a len-a))
+						      (j (frob chars-b len-b)))
+						  (if (and i j)
+						      (,test chars-a chars-b
+							     :start1 i :end1 len-a
+							     :start2 j :end2 len-b)
+						      )))))))))))))
 
   (def-line= srccom-ignore-case-and-indentation-line= string-equal t)
 

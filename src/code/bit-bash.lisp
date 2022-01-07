@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/bit-bash.lisp,v 1.21 2001/03/04 20:12:29 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/code/bit-bash.lisp,v 1.20 1997/02/05 16:15:32 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -104,7 +104,7 @@
 	 (ash number (- count))
 	 (ash (ldb (byte (- unit-bits count) 0) number) count)))))
 
-(declaim (inline start-mask end-mask fix-sap-and-offset))
+(proclaim '(inline start-mask end-mask fix-sap-and-offset))
 (defun start-mask (count)
   "Produce a mask that contains 1's for the COUNT ``start'' bits and 0's for
   the remaining ``end'' bits.  Only the lower 5 bits of COUNT are significant."
@@ -151,7 +151,7 @@
 
 ;;;; DO-CONSTANT-BIT-BASH
 
-(declaim (inline do-constant-bit-bash))
+(proclaim '(inline do-constant-bit-bash))
 (defun do-constant-bit-bash (dst dst-offset length value dst-ref-fn dst-set-fn)
   "Fill DST with VALUE starting at DST-OFFSET and continuing for LENGTH bits."
   (declare (type offset dst-offset) (type unit value)
@@ -204,7 +204,7 @@
 
 ;;;; DO-UNARY-BIT-BASH
 
-(declaim (inline do-unary-bit-bash))
+(proclaim '(inline do-unary-bit-bash))
 (defun do-unary-bit-bash (src src-offset dst dst-offset length
 			      dst-ref-fn dst-set-fn src-ref-fn)
   (declare (type offset src-offset dst-offset length)
@@ -348,7 +348,7 @@
 			    (32bit-logical-and value mask)
 			    (32bit-logical-andc2 orig mask))))))))))
        (t
-	;; They aren't aligned.
+	;; They arn't aligned.
 	(multiple-value-bind (words final-bits)
 			     (floor (+ dst-bit-offset length) unit-bits)
 	  (declare (type word-offset words) (type bit-offset final-bits))
@@ -514,3 +514,4 @@
 			(fix-sap-and-offset src src-offset)
      (do-unary-bit-bash src src-offset dst dst-offset length
 			#'%raw-bits #'%set-raw-bits #'word-sap-ref))))
+  

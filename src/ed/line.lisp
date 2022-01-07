@@ -28,7 +28,7 @@
 
 ;;;; The line object:
 
-(declaim (inline %make-line))
+(proclaim '(inline %make-line))
 (defstruct (line (:print-function %print-hline)
 		 (:constructor %make-line)
 		 (:predicate linep))
@@ -113,7 +113,7 @@
 ;;;
 ;;;    We can just return the Line-%Chars.
 ;;;
-(declaim (inline line-signature))
+(proclaim '(inline line-signature))
 (defun line-signature (line)
   "This function returns an object which serves as a signature for a line's
   contents.  It is guaranteed that any modification of text on the line will

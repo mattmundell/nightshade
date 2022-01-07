@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/interface/interface.lisp,v 1.12 2001/07/08 17:41:41 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/interface/interface.lisp,v 1.10 1996/05/08 10:43:56 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -773,15 +773,13 @@
 	     (ext:process-alive-p xt::*local-motif-server*))
     (ext:process-kill xt::*local-motif-server* :sigint)))
 
-(pushnew #'cleanup-motif cl::*cleanup-functions*)
+(in-package "LISP")
 
-;;(in-package "EXT")
-;;
-;;(defun quit (&optional recklessly-p)
-;;  "Terminates the current Lisp.  Things are cleaned up unless Recklessly-P is
-;;  non-Nil."
-;;  (if recklessly-p
-;;      (unix:unix-exit 0)
-;;      (progn
-;;	(interface::cleanup-motif)
-;;	(throw 'cl::%end-of-the-world 0))))
+(defun quit (&optional recklessly-p)
+  "Terminates the current Lisp.  Things are cleaned up unless Recklessly-P is
+  non-Nil."
+  (if recklessly-p
+      (unix:unix-exit 0)
+      (progn
+	(interface::cleanup-motif)
+	(throw '%end-of-the-world 0))))

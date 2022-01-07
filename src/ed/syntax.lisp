@@ -57,7 +57,7 @@
 (defvar *value-of-last-character-attribute-requested* nil
   "The value of the most recent character attribute, Do Not Bind.")
 
-(declaim (special *character-attribute-names*))
+(proclaim '(special *character-attribute-names*))
 
 
 ;;; Each bucket contains a list of character-attribute-bucket-size
@@ -238,14 +238,14 @@
   (with-attribute attribute
     (setf (attribute-descriptor-hooks obj) new-value)))
 
-(declaim (special *last-character-attribute-requested*
+(proclaim '(special *last-character-attribute-requested*
 		    *value-of-last-character-attribute-requested*))
 
 ;;; CHARACTER-ATTRIBUTE  --  Public
 ;;;
 ;;;    Return the value of a character attribute for some character.
 ;;;
-(declaim (inline character-attribute))
+(proclaim '(inline character-attribute))
 (defun character-attribute (attribute character)
   "Return the value of the the character-attribute Attribute for Character.
   If Character is Nil then return the end-value."
@@ -355,7 +355,7 @@
 
 
 
-(declaim (special *mode-names* *current-buffer*))
+(proclaim '(special *mode-names* *current-buffer*))
 
 ;;; SHADOW-ATTRIBUTE  --  Public
 ;;;

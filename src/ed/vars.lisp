@@ -96,7 +96,7 @@
 ;;;
 (defun %value (name)
   (let ((obj (get name 'hemlock-variable-value)))
-    (unless obj (undefined-variable-error name))
+    (or obj (undefined-variable-error name))
     (variable-object-value obj)))
 
 ;;; %SET-VALUE  --  Internal
@@ -181,7 +181,7 @@
   (intern (nsubstitute #\- #\space (the simple-string (string-upcase string)))
 	  (find-package "HEMLOCK")))
 
-(declaim (special *global-variable-names*))
+(proclaim '(special *global-variable-names*))
 
 ;;; DEFHVAR  --  Public
 ;;;

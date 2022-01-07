@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/seq.lisp,v 1.37 2002/08/08 15:28:54 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/code/seq.lisp,v 1.23.2.8 2000/09/27 18:26:27 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -30,9 +30,9 @@
 	  map-into split
           identity))
 
-	  
+
 ;;; Spice-Lisp specific stuff and utilities:
-	  
+
 (eval-when (compile)
 
 ;;; Seq-Dispatch does an efficient type-dispatch on the given Sequence.
@@ -123,7 +123,7 @@
 	 (make-array length)))
     (t
      (make-sequence-of-type (result-type-or-lose type) length))))
-  
+
 (defun elt (sequence index)
   "Returns the element of SEQUENCE specified by INDEX."
   (etypecase sequence
@@ -163,71 +163,48 @@
     (vector (length (truly-the vector sequence)))
     (list (length (truly-the list sequence)))))
 
-;; Check that the specifier-type SPEC-TYPE has a length compatible
-;; with the given length.  Return T if so.  SPEC-TYPE must be some
-;; kind of vector.  If the type system isn't initialized, we return T.
-(defun valid-sequence-and-length-p (spec-type length)
-  (if *type-system-initialized*
-      (let ((type-len (first (array-type-dimensions spec-type))))
-	(or (eq type-len '*)
-	    (= type-len length)))
-      ;; Type system not ready, so assume it's ok.
-      t))
-	 
 (defun make-sequence (type length &key (initial-element NIL iep))
   "Returns a sequence of the given Type and Length, with elements initialized
   to :Initial-Element."
   (declare (fixnum length))
-  (flet ((check-seq-len (spec-type length)
-	   (unless (valid-sequence-and-length-p spec-type length)
-	     (error 'simple-type-error
-		    :format-control
-		    "The length of ~S does not match the specified length of ~S."
-		    :format-arguments
-		    (list (type-specifier spec-type) length)))))
-
-    (let ((type (specifier-type type)))
-      (if (csubtypep type (specifier-type 'list))
-	  (make-list length :initial-element initial-element)
-	  (progn
-	    (cond ((csubtypep type (specifier-type 'string))
-		   (check-seq-len type length)
-		   (if iep
-		       (make-string length :initial-element initial-element)
-		       (make-string length)))
-		  ((csubtypep type (specifier-type 'simple-vector))
-		   (check-seq-len type length)
-		   (make-array length :initial-element initial-element))
-		  ((csubtypep type (specifier-type 'bit-vector))
-		   (check-seq-len type length)
-		   (if iep
-		       (make-array length :element-type '(mod 2)
-				   :initial-element initial-element)
-		       (make-array length :element-type '(mod 2))))
-		  ((csubtypep type (specifier-type 'vector))
-		   (if (typep type 'array-type)
-		       (let ((etype (type-specifier
-				     (array-type-specialized-element-type type)))
-			     (vlen (car (array-type-dimensions type))))
-			 (if (and (numberp vlen) (/= vlen length))
-			     (error 'simple-type-error
-				    ;; these two are under-specified by ANSI
-				    :datum (type-specifier type)
-				    :expected-type (type-specifier type)
-				    :format-control
-				    "The length of ~S does not match the specified length  of ~S."
-				    :format-arguments
-				    (list (type-specifier type) length)))
-			 (if iep
-			     (make-array length :element-type etype
-					 :initial-element initial-element)
-			     (make-array length :element-type etype)))
-		       (make-array length :initial-element initial-element)))
-		  (t (error 'simple-type-error
-			    :datum type
-			    :expected-type 'sequence
-			    :format-control "~S is a bad type specifier for sequences."
-			    :format-arguments (list (type-specifier type))))))))))
+  (let ((type (specifier-type type)))
+    (cond ((csubtypep type (specifier-type 'list))
+	   (make-list length :initial-element initial-element))
+	  ((csubtypep type (specifier-type 'string))
+	   (if iep
+	       (make-string length :initial-element initial-element)
+	       (make-string length)))
+	  ((csubtypep type (specifier-type 'simple-vector))
+	   (make-array length :initial-element initial-element))
+	  ((csubtypep type (specifier-type 'bit-vector))
+	   (if iep
+	       (make-array length :element-type '(mod 2)
+			   :initial-element initial-element)
+	       (make-array length :element-type '(mod 2))))
+	  ((csubtypep type (specifier-type 'vector))
+	   (if (typep type 'array-type)
+               (let ((etype (type-specifier
+                             (array-type-specialized-element-type type)))
+                     (vlen (car (array-type-dimensions type))))
+                 (if (and (numberp vlen) (/= vlen length))
+                   (error 'simple-type-error
+			  ;; these two are under-specified by ANSI
+			  :datum (type-specifier type)
+			  :expected-type (type-specifier type)
+			  :format-control
+			  "The length of ~S does not match the specified length  of ~S."
+			  :format-arguments
+			  (list (type-specifier type) length)))
+		 (if iep
+		     (make-array length :element-type etype
+				 :initial-element initial-element)
+		     (make-array length :element-type etype)))
+	       (make-array length :initial-element initial-element)))
+	  (t (error 'simple-type-error
+		    :datum type
+		    :expected-type 'sequence
+		    :format-control "~S is a bad type specifier for sequences."
+		    :format-arguments (list type))))))
 
 
 
@@ -267,7 +244,7 @@
 ;;; in the body of the function, and this is actually done in the support
 ;;; routines for other reasons (see above).
 (defun subseq (sequence start &optional end)
-  "Returns a copy of a subsequence of SEQUENCE starting with element number 
+  "Returns a copy of a subsequence of SEQUENCE starting with element number
    START and continuing to the end of SEQUENCE or the optional END."
   (seq-dispatch sequence
 		(list-subseq* sequence start end)
@@ -594,7 +571,7 @@
 	(do ((sequences ,sequences (cdr sequences))
 	     (lengths lengths (cdr lengths))
 	     (index 0)
-	     (result (make-sequence ,output-type-spec total-length)))
+	     (result (make-sequence-of-type ,output-type-spec total-length)))
 	    ((= index total-length) result)
 	  (declare (fixnum index))
 	  (let ((sequence (car sequences)))
@@ -726,9 +703,7 @@
 		    min-length)))))
     (let* ((args (make-list (length sequences)))
 	   (min-length (seqlen sequences))
-	   (result (if *type-system-initialized*
-		       (make-sequence output-type-spec min-length)
-		       (make-sequence-of-type output-type-spec min-length))))
+	   (result (make-sequence-of-type output-type-spec min-length)))
       (declare (type index min-length))
       (do ((index 0 (1+ index)))
 	  ((>= index min-length))
@@ -748,7 +723,7 @@
       result)))
 
 (defun map (output-type-spec function first-sequence &rest more-sequences)
-  "FUNCTION must take as many arguments as there are sequences provided.  The 
+  "FUNCTION must take as many arguments as there are sequences provided.  The
    result is a sequence such that element i is the result of applying FUNCTION
    to element i of each of the argument sequences."
   (let ((sequences (cons first-sequence more-sequences)))
@@ -784,7 +759,7 @@
 		   (mapcar #'(lambda (seq) (elt seq index))
 			   sequences)))))
   result-sequence)
-  
+
 
 ;;; Quantifiers:
 
@@ -821,8 +796,8 @@
 ) ; eval-when
 
 (defquantifier some
-  "PREDICATE is applied to the elements with index 0 of the sequences, then 
-   possibly to those with index 1, and so on.  SOME returns the first 
+  "PREDICATE is applied to the elements with index 0 of the sequences, then
+   possibly to those with index 1, and so on.  SOME returns the first
    non-() value encountered, or () if the end of a sequence is reached."
   nil t result)
 
@@ -834,7 +809,7 @@
   t nil nil)
 
 (defquantifier notany
-  "PREDICATE is applied to the elements with index 0 of the sequences, then 
+  "PREDICATE is applied to the elements with index 0 of the sequences, then
    possibly to those with index 1, and so on.  NOTANY returns () as soon
    as any invocation of PREDICATE returns a non-() value, or T if the end
    of a sequence is reached."
@@ -930,13 +905,10 @@
 
 (defun coerce (object output-type-spec)
   "Coerces the Object to an object of type Output-Type-Spec."
-  (labels ((coerce-error ()
-	     (error 'simple-type-error
-		    :format-control "~S can't be converted to type ~S."
-		    :format-arguments (list object output-type-spec)))
-	   (check-seq-len (type length)
-	     (unless (valid-sequence-and-length-p type length)
-	       (coerce-error))))
+  (flet ((coerce-error ()
+	   (error 'simple-type-error
+		  :format-control "~S can't be converted to type ~S."
+		  :format-arguments (list object output-type-spec))))
     (let ((type (specifier-type output-type-spec)))
       (cond
 	((%typep object output-type-spec)
@@ -969,12 +941,6 @@
 		  ((csubtypep type (specifier-type '(complex long-float)))
 		   (complex (%long-float (realpart object))
 			    (%long-float (imagpart object))))
-		  ((and (typep object 'rational)
-			(csubtypep type (specifier-type '(complex float))))
-		   ;; The case where object is complex, is handled way
-		   ;; above; where object is a float is handled below.
-		   ;; We only need to check for rationals here.
-		   (complex (%single-float object)))
 		  ((csubtypep type (specifier-type 'complex))
 		   (complex object))
 		  (t
@@ -991,7 +957,6 @@
 	     (vector-to-list* object)
 	     (coerce-error)))
 	((csubtypep type (specifier-type 'string))
-	 (check-seq-len type (length object))
 	 (typecase object
 	   (list (list-to-string* object))
 	   (string (string-to-simple-string* object))
@@ -999,14 +964,12 @@
 	   (t
 	    (coerce-error))))
 	((csubtypep type (specifier-type 'bit-vector))
-	 (check-seq-len type (length object))
 	 (typecase object
 	   (list (list-to-bit-vector* object))
 	   (vector (vector-to-bit-vector* object))
 	   (t
 	    (coerce-error))))
 	((csubtypep type (specifier-type 'vector))
-	 (check-seq-len type (length object))
 	 (typecase object
 	   (list (list-to-vector* object output-type-spec))
 	   (vector (vector-to-vector* object output-type-spec))
@@ -1314,13 +1277,13 @@
      (mumble-delete-from-end ,pred)))
 
 (defmacro normal-mumble-remove ()
-  `(mumble-remove 
+  `(mumble-remove
     (if test-not
 	(not (funcall test-not item (apply-key key this-element)))
 	(funcall test item (apply-key key this-element)))))
 
 (defmacro normal-mumble-remove-from-end ()
-  `(mumble-remove-from-end 
+  `(mumble-remove-from-end
     (if test-not
 	(not (funcall test-not item (apply-key key this-element)))
 	(funcall test item (apply-key key this-element)))))
@@ -1458,11 +1421,11 @@
 
 
 ;;; Remove-Duplicates:
-     
+
 ;;; Remove duplicates from a list. If from-end, remove the later duplicates,
 ;;; not the earlier ones. Thus if we check from-end we don't copy an item
 ;;; if we look into the already copied structure (from after :start) and see
-;;; the item. If we check from beginning we check into the rest of the 
+;;; the item. If we check from beginning we check into the rest of the
 ;;; original list up to the :end marker (this we have to do by running a
 ;;; do loop down the list that far and using our test.
 (defun list-remove-duplicates* (list test test-not start end key from-end)
@@ -1479,7 +1442,7 @@
 	((or (and end (= index (the fixnum end)))
 	     (atom current)))
       (declare (fixnum index))
-      (if (or (and from-end 
+      (if (or (and from-end
 		   (not (member (apply-key key (car current))
 				(nthcdr (1+ start) result)
 				:test test
@@ -1568,7 +1531,7 @@
 	((or (and end (= index (the fixnum end))) (null current))
 	 (cdr handle))
       (declare (fixnum index))
-      (if (do ((x (if from-end 
+      (if (do ((x (if from-end
 		      (nthcdr (1+ start) handle)
 		      (cdr current))
 		  (cdr x))
@@ -1579,18 +1542,18 @@
 	       nil)
 	    (declare (fixnum i))
 	    (if (if test-not
-		    (not (funcall test-not 
+		    (not (funcall test-not
 				  (apply-key key (car current))
 				  (apply-key key (car x))))
-		    (funcall test 
-			     (apply-key key (car current)) 
+		    (funcall test
+			     (apply-key key (car current))
 			     (apply-key key (car x))))
 		(return t)))
 	  (rplacd previous (cdr current))
 	  (setq previous (cdr previous))))))
 
 
-(defun vector-delete-duplicates* (vector test test-not key from-end start end 
+(defun vector-delete-duplicates* (vector test test-not key from-end start end
 					 &optional (length (length vector)))
   (declare (vector vector) (fixnum start length))
   (when (null end) (setf end (length vector)))
@@ -1645,7 +1608,7 @@
 			   ((case pred
 				   (normal
 				    (if test-not
-					(not 
+					(not
 					 (funcall test-not old (apply-key key elt)))
 					(funcall test old (apply-key key elt))))
 				   (if (funcall test (apply-key key elt)))
@@ -1675,7 +1638,7 @@
     (do ((elt))
 	((or (= index end) (= count 0)))
       (setq elt (aref sequence index))
-      (setf (aref result index) 
+      (setf (aref result index)
 	    (cond ((case pred
 			  (normal
 			    (if test-not
@@ -1746,7 +1709,7 @@
     (declare (type index length end)
 	     (fixnum count))
     (subst-dispatch 'if)))
-  
+
 
 ;;; Substitute-If-Not:
 
@@ -1769,7 +1732,7 @@
 
 ;;; NSubstitute:
 
-(defun nsubstitute (new old sequence &key from-end (test #'eql) test-not 
+(defun nsubstitute (new old sequence &key from-end (test #'eql) test-not
 		     end count key (start 0))
   "Returns a sequence of the same kind as Sequence with the same elements
   except that all elements equal to Old are replaced with New.  The Sequence
@@ -2029,7 +1992,7 @@
 (defun position (item sequence &key from-end (test #'eql) test-not (start 0)
 		 end key)
   "Returns the zero-origin index of the first element in SEQUENCE
-   satisfying the test (default is EQL) with the given ITEM."
+   satisfying the test (default is EQL) with the given ITEM"
   (seq-dispatch sequence
     (list-position* item sequence from-end test test-not start end key)
     (vector-position* item sequence from-end test test-not start end key)))
@@ -2363,7 +2326,7 @@
 
 )
 
-(defun mismatch (sequence1 sequence2 &key from-end (test #'eql) test-not 
+(defun mismatch (sequence1 sequence2 &key from-end (test #'eql) test-not
 			   (start1 0) end1 (start2 0) end2 key)
   "The specified subsequences of Sequence1 and Sequence2 are compared
    element-wise.  If they are of equal length and match in every element, the
@@ -2450,7 +2413,7 @@
 )
 
 (eval-when (compile eval)
- 
+
 (defmacro list-search (main sub)
   `(do ((main (nthcdr start2 ,main) (cdr main))
 	(index2 start2 (1+ index2))
@@ -2482,11 +2445,11 @@
 )
 
 
-(defun search (sequence1 sequence2 &key from-end (test #'eql) test-not 
+(defun search (sequence1 sequence2 &key from-end (test #'eql) test-not
 		(start1 0) end1 (start2 0) end2 key)
-  "A search is conducted using EQL for the first subsequence of sequence2 
-   which element-wise matches sequence1.  If there is such a subsequence in 
-   sequence2, the index of the its leftmost element is returned; 
+  "A search is conducted using EQL for the first subsequence of sequence2
+   which element-wise matches sequence1.  If there is such a subsequence in
+   sequence2, the index of the its leftmost element is returned;
    otherwise () is returned."
   (declare (fixnum start1 start2))
   (let ((end1 (or end1 (length sequence1)))

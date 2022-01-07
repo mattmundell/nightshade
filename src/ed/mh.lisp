@@ -3976,9 +3976,7 @@
   (let* ((folder (strip-folder-name folder))
 	 (pathname (merge-relative-pathnames folder (mh-directory-pathname)))
 	 (pf (probe-file pathname)))
-    (and pf
-	 (null (pathname-name pf))
-	 (null (pathname-type pf)))))
+    (and pf (directoryp pf))))
 
 (defun create-folder (folder)
   "Creates folder directory with default protection #o711 but considers the

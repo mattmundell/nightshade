@@ -7,17 +7,16 @@
 ;;; Scott Fahlman or slisp-group@cs.cmu.edu.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/tools/worldcom.lisp,v 1.81 2001/03/03 15:16:07 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/tools/worldcom.lisp,v 1.72.2.3 2000/08/12 07:33:09 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
 ;;; This file contains noise to compile the lisp world.
-;;; 
+;;;
 
 (in-package "USER")
 
 (defvar *byte-compile* #+small t #-small :maybe)
-(defvar *original-%deftype* #'lisp::%deftype)
 
 (with-compiler-log-file
     ("target:compile-lisp.log"
@@ -38,9 +37,10 @@
 	(declare (optimize (safety 1))))))
 (let ((*byte-compile-top-level* nil))
 
-;; FIX for reverting to pd loop
-(comf "target:code/loop")
-(load "target:code/loop")
+;;; Set the version of the core.
+;;;
+(set '*lisp-implementation-version* (read-line (open "target:VERSION")))
+
 
 ;;; these guys need to be first.
 (comf "target:code/struct") ; For structures.
@@ -97,13 +97,6 @@
   (comf "target:assembly/mips/arith" :assem t)
   (comf "target:assembly/mips/alloc" :assem t))
 
-(when (c:backend-featurep :ppc)
-  (comf "target:assembly/ppc/assem-rtns" :assem t)
-  (comf "target:assembly/ppc/array" :assem t)
-  (comf "target:assembly/ppc/arith" :assem t)
-  (comf "target:assembly/ppc/alloc" :assem t))
-
-
 ;;; these guys can supposedly come in any order, but not really.
 ;;; some are put at the end so macros don't run interpreted and stuff.
 
@@ -119,6 +112,7 @@
 ;;; prevent deftypes from taking effect at compile time so that we don't
 ;;; install interpreted type expanders causing the compiler to infinitely
 ;;; recurse.
+(defvar *original-%deftype* #'lisp::%deftype)
 (setf (fdefinition 'lisp::%deftype) #'list)
 (comf "target:code/typedefs")
 
@@ -187,8 +181,6 @@
   (comf "target:code/alpha-vm"))
 (when (c:backend-featurep :sgi)
   (comf "target:code/sgi-vm"))
-(when (c:backend-featurep :ppc)
-  (comf "target:code/ppc-vm"))
 
 (comf "target:code/symbol")
 (comf "target:code/bignum")
@@ -264,6 +256,7 @@
 (comf "target:code/describe" :byte-compile *byte-compile*)
 (comf "target:code/tty-inspect" :byte-compile *byte-compile*)
 
+(comf "target:code/calendar")
 (comf "target:code/format-time")
 #-no-runtime (comf "target:code/format-time")
 (comf "target:code/parse-time")
@@ -277,6 +270,7 @@
 (comf "target:code/internet")
 (comf "target:code/wire")
 (comf "target:code/remote")
+
 ;; FIX for first time
 (if (find-package "FTP")
     (rename-package "FTP" "FTP" nil)

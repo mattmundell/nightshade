@@ -7,34 +7,21 @@
  *
  * Douglas Crosher, 1996, 1997, 1998, 1999.
  *
- * $Header: /project/cmucl/cvsroot/src/lisp/gencgc.c,v 1.26 2002/01/28 20:19:39 pmai Exp $
+ * $Header: /home/CVS-cmucl/src/lisp/gencgc.c,v 1.11.2.5 2000/10/24 13:33:56 dtc Exp $
  *
  */
 
 #include <stdio.h>
 #include <signal.h>
 #include "lisp.h"
-#include "arch.h"
 #include "internals.h"
 #include "os.h"
 #include "globals.h"
 #include "interrupt.h"
 #include "validate.h"
 #include "lispregs.h"
-#include "interr.h"
+
 #include "gencgc.h"
-
-// FIX  (FIX assumes #define LISPOBJ(thing) thing)
-void *alien_nil = (void*) NIL;
-
-// FIX
-void* hack_ptr(void* obj) { return PTR((int)obj); }
-
-// FIX
-os_vm_prot_t os_vm_prot_read = OS_VM_PROT_READ;
-os_vm_prot_t os_vm_prot_write = OS_VM_PROT_WRITE;
-os_vm_prot_t os_vm_prot_execute = OS_VM_PROT_EXECUTE;
-os_vm_prot_t os_vm_prot_all = OS_VM_PROT_ALL;
 
 #define gc_abort() lose("GC invariant lost!  File \"%s\", line %d\n", \
 			__FILE__, __LINE__)
@@ -60,19 +47,12 @@ os_vm_prot_t os_vm_prot_all = OS_VM_PROT_ALL;
  * and only a few rare messages are printed at level 1.
  */
 unsigned gencgc_verbose = 0;
-//unsigned gencgc_verbose = 2;
 
 /*
  * To enable the use of page protection to help avoid the scavenging
  * of pages that don't have pointers to younger generations.
  */
-#ifdef __NetBSD__
-/* NetBSD on x86 has no way to retrieve the faulting address in the
- * SIGSEGV handler, so for the moment we can't use page protection. */
-boolean  enable_page_protection = FALSE;
-#else
 boolean  enable_page_protection = TRUE;
-#endif
 
 /*
  * Hunt for pointers to old-space, when GCing generations >= verify_gen.
@@ -104,10 +84,9 @@ boolean check_code_fixups = FALSE;
 
 /*
  * To enable unmapping of a page and re-mmaping it to have it zero filled.
- * Note: this can waste a lot of swap on FreeBSD and Open/NetBSD(?) so
- * don't unmap.
+ * Note: this can waste a lot of swap on FreeBSD so don't unmap.
  */
-#if defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)
+#if defined(__FreeBSD__)
 boolean gencgc_unmap_zero = FALSE;
 #else
 boolean gencgc_unmap_zero = TRUE;
@@ -152,10 +131,8 @@ unsigned long auto_gc_trigger = 0xffffffff;
 /*
  * The src. and dest. generations. Set before a GC starts scavenging.
  */
-int from_space;
-//static int from_space;
-int new_space;
-//static int new_space;
+static int from_space;
+static int new_space;
 
 
 /*
@@ -177,14 +154,12 @@ struct page *page_table;
 /*
  * Heap base, needed for mapping addresses to page structures.
  */
-//static void *heap_base = NULL;
-void *heap_base = NULL;
+static void *heap_base = NULL;
 
 /*
  * Calculate the start address for the given page number.
  */
-//inline void *page_address(int page_num)
-void *page_address(int page_num)
+inline void *page_address(int page_num)
 {
   return heap_base + PAGE_SIZE * page_num;
 }
@@ -205,6 +180,7 @@ inline int find_page_index(void *addr)
 
   return -1;
 }
+
 
 /*
  * A structure to hold the state of a generation.
@@ -269,8 +245,7 @@ struct generation {
  * generation structure than actual generations as the oldest
  * generations is temporarily raised then lowered.
  */
-//static struct generation generations[NUM_GENERATIONS + 1];
-struct generation generations[NUM_GENERATIONS + 1];
+static struct generation generations[NUM_GENERATIONS + 1];
 
 /*
  * The oldest generation that will currently be GCed by default.
@@ -295,8 +270,8 @@ unsigned int  gencgc_oldest_gen_to_gc = NUM_GENERATIONS - 1;
  * search of the heap. XX Gencgc obviously needs to be better
  * integrated with the lisp code.
  */
-//static int  last_free_page;
-int  last_free_page;
+static int  last_free_page;
+
 
 
 /*
@@ -400,7 +375,7 @@ static void print_generation_stats(int  verbose)
 
   /*
    * This code uses the FP instructions which may be setup for Lisp so
-   * they need to be saved and reset for C.
+   * they need to the saved and reset for C.
    */
   fpu_save(fpu_state);
 
@@ -443,7 +418,7 @@ static void print_generation_stats(int  verbose)
     }
 
     gc_assert(generations[i].bytes_allocated == generation_bytes_allocated(i));
-    fprintf(stderr, "   %8d: %5d %5d %5d %5d %8d %5d %8d %4d %3d %7.4f\n",
+    fprintf(stderr, "   %8d: %5d %5d %5d %5d %8d %5d %8d %4d %3d %7.4lf\n",
 	    i, boxed_cnt, unboxed_cnt, large_boxed_cnt, large_unboxed_cnt,
 	    generations[i].bytes_allocated,
 	    PAGE_SIZE * count_generation_pages(i) -
@@ -523,8 +498,7 @@ void *current_region_free_pointer;
 void *current_region_end_addr;
 
 /* The generation currently being allocated to. X */
-//static int  gc_alloc_generation;
-int  gc_alloc_generation;
+static int  gc_alloc_generation;
 
 /*
  * Find a new region with room for at least the given number of bytes.
@@ -737,24 +711,19 @@ static void gc_alloc_new_region(int nbytes, int unboxed,
  */
 
 #define NUM_NEW_AREAS 512
-//static int record_new_objects = 0;
-int record_new_objects = 0;
-//static int new_areas_ignore_page;
-int new_areas_ignore_page;
+static int record_new_objects = 0;
+static int new_areas_ignore_page;
 struct new_area {
   int  page;
   int  offset;
   int  size;
 };
-//static struct new_area (*new_areas)[];
-struct new_area (*new_areas)[];
-//static int new_areas_index;
-int new_areas_index;
+static struct new_area (*new_areas)[];
+static new_areas_index;
 int max_new_areas;
 
 /* Add a new area to new_areas. */
-//static void add_new_area(int first_page, int offset, int size)
-void add_new_area(int first_page, int offset, int size)
+static void add_new_area(int first_page, int offset, int size)
 {
   unsigned new_area_start,c;
   int i;
@@ -821,7 +790,7 @@ void add_new_area(int first_page, int offset, int size)
  * Update the tables for the alloc_region. The region may be added to
  * the new_areas.
  *
- * When done the alloc_region is setup so that the next quick alloc
+ * When done the alloc_region its setup so that the next quick alloc
  * will fail safely and thus a new region will be allocated. Further
  * it is safe to try and re-update the page table of this reset
  * alloc_region.
@@ -836,9 +805,6 @@ void gc_alloc_update_page_tables(int unboxed,
   int orig_first_page_bytes_used;
   int region_size;
   int byte_cnt;
-
-  // FIX
-  //fprintf(stderr, "alloc_region: %x\n", alloc_region);
 
 #if 0
   fprintf(stderr, "gc_alloc_update_page_tables to gen %d: ",
@@ -1459,13 +1425,10 @@ static inline void *gc_quick_alloc_large_unboxed(int nbytes)
 
 static int (*scavtab[256])(lispobj *where, lispobj object);
 static lispobj (*transother[256])(lispobj object);
-int (*sizetab[256])(lispobj *where);
-//static int (*sizetab[256])(lispobj *where);
+static int (*sizetab[256])(lispobj *where);
 
-struct weak_pointer *weak_pointers;
-//static struct weak_pointer *weak_pointers;
-struct scavenger_hook *scavenger_hooks = (struct scavenger_hook *) NIL;
-//static struct scavenger_hook *scavenger_hooks = (struct scavenger_hook *) NIL;
+static struct weak_pointer *weak_pointers;
+static struct scavenger_hook *scavenger_hooks = (struct scavenger_hook *) NIL;
 
 #define CEILING(x,y) (((x) + ((y) - 1)) & (~((y) - 1)))
 
@@ -1848,14 +1811,15 @@ static void scavenge(lispobj *start, long nwords)
 {
   while (nwords > 0) {
     lispobj object;
-    int words_scavenged;
+    int type, words_scavenged;
 
     object = *start;
 
     gc_assert(object != 0x01); /* Not a forwarding pointer. */
 
 #if DIRECT_SCAV
-    words_scavenged = (scavtab[TypeOf(object)])(start, object);
+    type = TypeOf(object);
+    words_scavenged = (scavtab[type])(start, object);
 #else
     if (Pointerp(object))
       /* It be a pointer. */
@@ -2014,6 +1978,8 @@ static int scav_function_pointer(lispobj *where, lispobj object)
 void sniff_code_object(struct code *code, unsigned displacement)
 {
   int nheader_words, ncode_words, nwords;
+  lispobj fheaderl;
+  struct function *fheaderp;
   void *p;
   void *constants_start_addr, *constants_end_addr;
   void *code_start_addr, *code_end_addr;
@@ -2058,7 +2024,7 @@ void sniff_code_object(struct code *code, unsigned displacement)
      * Check for code references.
      *
      * Check for a 32 bit word that looks like an absolute reference
-     * to within the code area of the code object.
+     * to within the code adea of the code object.
      */
     if (data >= code_start_addr - displacement
 	&& data < code_end_addr - displacement) {
@@ -2186,6 +2152,7 @@ static void apply_code_fixups(struct code *old_code, struct code *new_code)
   int nheader_words, ncode_words, nwords;
   void *constants_start_addr, *constants_end_addr;
   void *code_start_addr, *code_end_addr;
+  lispobj p;
   lispobj fixups = NIL;
   unsigned displacement = (unsigned) new_code - (unsigned) old_code;
   struct vector *fixups_vector;
@@ -2638,6 +2605,7 @@ static lispobj trans_list(lispobj object)
 {
   lispobj new_list_pointer;
   struct cons *cons, *new_cons;
+  int n = 0;
   lispobj cdr;
 
   gc_assert(from_space_p(object));
@@ -3780,7 +3748,7 @@ void scan_weak_pointers(void)
   struct weak_pointer *wp;
   for (wp = weak_pointers; wp != NULL; wp = wp->next) {
     lispobj value = wp->value;
-    lispobj *first_pointer;
+    lispobj first, *first_pointer;
 
     first_pointer = (lispobj *) PTR(value);
 
@@ -4004,7 +3972,7 @@ static void gc_init_tables(void)
 	for (i = 0; i < 256; i++)
 		transother[i] = trans_lose;
 
-	transother[type_Bignum] = trans_unboxed_large;
+	transother[type_Bignum] = trans_unboxed;
 	transother[type_Ratio] = trans_boxed;
 	transother[type_SingleFloat] = trans_unboxed;
 	transother[type_DoubleFloat] = trans_unboxed;
@@ -4231,7 +4199,7 @@ static lispobj* search_static_space(lispobj *pointer)
  * Faster version for searching the dynamic space. This will work even
  * if the object is in a current allocation region.
  */
-lispobj *search_dynamic_space(lispobj *pointer)
+lispobj* search_dynamic_space(lispobj *pointer)
 {
   int  page_index = find_page_index(pointer);
   lispobj *start;
@@ -4244,8 +4212,7 @@ lispobj *search_dynamic_space(lispobj *pointer)
   return search_space(start, pointer + 2 - start, pointer);
 }
 
-//static int valid_dynamic_space_pointer(lispobj *pointer)
-int valid_dynamic_space_pointer(lispobj *pointer)
+static int valid_dynamic_space_pointer(lispobj *pointer)
 {
   lispobj *start_addr;
 
@@ -4461,6 +4428,9 @@ int valid_dynamic_space_pointer(lispobj *pointer)
  */
 static void maybe_adjust_large_object(lispobj *where)
 {
+  int tag;
+  lispobj *new;
+  lispobj *source, *dest;
   int first_page;
   int nwords;
   int remaining_bytes;
@@ -4518,7 +4488,7 @@ static void maybe_adjust_large_object(lispobj *where)
   /* Find its current size. */
   nwords = (sizetab[TypeOf(where[0])])(where);
 
-  first_page = find_page_index((void *) where);
+  first_page = find_page_index((void *)where);
   gc_assert(first_page >= 0);
 
   /*
@@ -4531,7 +4501,7 @@ static void maybe_adjust_large_object(lispobj *where)
   gc_assert(page_table[first_page].first_object_offset == 0);
 
   next_page = first_page;
-  remaining_bytes = nwords * 4;
+  remaining_bytes = nwords*4;
   while (remaining_bytes > PAGE_SIZE) {
     gc_assert(PAGE_GENERATION(next_page) == from_space);
     gc_assert(PAGE_ALLOCATED(next_page));
@@ -4797,7 +4767,7 @@ static void scavenge_thread_stacks(void)
  *
  * It returns 1 if the page was write protected, else 0.
  */
-static int update_page_write_prot(unsigned page)
+static int update_page_write_prot(page)
 {
   int gen = PAGE_GENERATION(page);
   int j;
@@ -4964,8 +4934,7 @@ static void scavenge_generation(int generation)
   }
 
   if (gencgc_verbose > 1 && num_wp != 0)
-    fprintf(stderr, "Write protected %d pages within generation %d\n",
-	    num_wp, generation);
+    fprintf(stderr, "Write protected %d pages within generation %d\n", num_wp);
 
 #if SC_GEN_CK
   /*
@@ -5135,10 +5104,13 @@ static void scavenge_newspace_generation(int generation)
   /* The new_areas array currently being written to by gc_alloc */
   struct new_area  (*current_new_areas)[] = &new_areas_1;
   int current_new_areas_index;
+  int current_new_areas_allocated;
 
   /* The new_areas created but the previous scavenge cycle */
   struct new_area  (*previous_new_areas)[] = NULL;
   int previous_new_areas_index;
+  int previous_new_areas_allocated;
+
 
 #define SC_NS_GEN_CK 0
 #if SC_NS_GEN_CK
@@ -5282,16 +5254,16 @@ static void scavenge_newspace_generation(int generation)
  * would need to be unprotected anyway before unmapping in
  * free_oldspace; not sure what effect this has on paging?.
  */
-//static void unprotect_oldspace(void)
-void unprotect_oldspace(void)
+static void unprotect_oldspace(void)
 {
+  int bytes_freed = 0;
   int i;
 
   for (i = 0; i < last_free_page; i++)
     if (PAGE_ALLOCATED(i)
 	&& page_table[i].bytes_used != 0
 	&& PAGE_GENERATION(i) == from_space) {
-      void *page_start;
+      void *page_start, *addr;
 
       page_start = (void *) page_address(i);
 
@@ -5410,8 +5382,7 @@ static void print_ptr(lispobj *addr)
 
 extern int  undefined_tramp;
 
-void verify_space(lispobj*start, size_t words)
-//static void verify_space(lispobj*start, size_t words)
+static void verify_space(lispobj*start, size_t words)
 {
   int dynamic_space = (find_page_index((void*) start) != -1);
   int readonly_space = (READ_ONLY_SPACE_START <= (int) start &&
@@ -5609,12 +5580,6 @@ void verify_space(lispobj*start, size_t words)
   }
 }
 
-// FIX
-void verify_space1(int page, size_t words)
-{
-  verify_space(page_address(page), words);
-}
-
 static void verify_gc(void)
 {
   int read_only_space_size =
@@ -5633,8 +5598,7 @@ static void verify_gc(void)
   verify_space((lispobj*) &scavenger_hooks, 1);
 }
 
-//static void verify_generation(int  generation)
-void verify_generation(int  generation)
+static void verify_generation(int  generation)
 {
   int i;
 
@@ -5675,53 +5639,6 @@ void verify_generation(int  generation)
     }
   }
 }
-
-#if 1
-int verify_generation1(int i, int last_page, int region_unboxed, int generation)
-{
-//  int i;
-//
-//   for (i = 0; i < last_free_page; i++) {
-//     if (PAGE_ALLOCATED(i)
-// 	&& page_table[i].bytes_used != 0
-// 	&& PAGE_GENERATION(i) == generation) {
-//       int last_page;
-//       int region_unboxed = PAGE_UNBOXED(i);
-
-      /* This should be the start of a contiguous block */
-      gc_assert(page_table[i].first_object_offset == 0);
-
-      /*
-       * Need to find the full extent of this contiguous block in case
-       * objects span pages.
-       */
-
-      /*
-       * Now work forward until the end of this contiguous area is
-       * found.
-       */
-      for (last_page = i; ; last_page++)
-	/* Check if this is the last page in this contiguous block */
-	if (page_table[last_page].bytes_used < PAGE_SIZE
-	    /* Or it is PAGE_SIZE and is the last in the block */
-	    || !PAGE_ALLOCATED(last_page + 1)
-	    || ((PAGE_UNBOXED(last_page + 1)) ? 1 : 0) != region_unboxed
-	    || page_table[last_page + 1].bytes_used == 0
-	    || PAGE_GENERATION(last_page + 1) != generation
-	    || page_table[last_page + 1].first_object_offset == 0)
-	  break;
-
-         verify_space(page_address(i),
- 		      (page_table[last_page].bytes_used +
- 		      PAGE_SIZE * (last_page - i)) / 4);
-
-	return last_page;
-
-//       i = last_page;
-//     }
-//   }
-}
-#endif
 
 /* Check the all the free space is zero filled. */
 static void verify_zero_fill(void)
@@ -5778,49 +5695,11 @@ static void verify_dynamic_space(void)
 
 
 
-void os_protect1(int page, os_vm_size_t len, os_vm_prot_t protection)
-{
-  // page_start = (void *) page_address(i);
-  os_protect(page_address(page), len, protection);
-}
-
-//void write_protect_generation_pages1(int i)
-void write_protect_generation_pages1(void* page_start, int i)
-{
-//   int i;
-// 
-//   gc_assert(generation < NUM_GENERATIONS);
-// 
-//   for (i = 0; i < last_free_page; i++)
-//     if (PAGE_ALLOCATED(i) && !PAGE_UNBOXED(i)
-// 	&& page_table[i].bytes_used != 0
-// 	&& PAGE_GENERATION(i) == generation)  {
-//      void *page_start;
-
-//      page_start = (void *) page_address(i);
-	fprintf(stderr, "==== was .%x.\n", page_start);
-	fprintf(stderr, "==== would have been .%x.\n", page_address(i));
-
-      os_protect(page_start, PAGE_SIZE, OS_VM_PROT_READ | OS_VM_PROT_EXECUTE);
-
-//       /* Note the page as protected in the page tables */
-//       page_table[i].flags |= PAGE_WRITE_PROTECTED_MASK;
-//     }
-// 
-//   if (gencgc_verbose > 1)
-//     fprintf(stderr, "Write protected %d of %d pages in generation %d.\n",
-// 	    count_write_protect_generation_pages(generation),
-// 	    count_generation_pages(generation),
-// 	    generation);
-}
-
-#if 1
 /*
  * Write protect all the dynamic boxed pages in the given
  * generation.
  */
-//static void write_protect_generation_pages(int generation)
-void write_protect_generation_pages(int generation)
+static void write_protect_generation_pages(int generation)
 {
   int i;
 
@@ -5846,15 +5725,16 @@ void write_protect_generation_pages(int generation)
 	    count_generation_pages(generation),
 	    generation);
 }
-#endif
+
 
 /*
  * Garbage collect a generation. If raise is 0 the remains of the
  * generation are not raised to the next generation.
  */
-//static void	garbage_collect_generation(int generation, int raise)
-void	garbage_collect_generation(int generation, int raise)
+static void	garbage_collect_generation(int generation, int raise)
 {
+  unsigned long allocated = bytes_allocated;
+  unsigned long bytes_freed;
   unsigned long i;
   unsigned long read_only_space_size, static_space_size;
 
@@ -5931,7 +5811,6 @@ void	garbage_collect_generation(int generation, int raise)
    * Scavenge the Lisp functions of the interrupt handlers, taking
    * care to avoid SIG_DFL, SIG_IGN.
    */
-
   for (i = 0; i < NSIG; i++) {
     union interrupt_handler handler = interrupt_handlers[i];
     if ((handler.c != SIG_IGN) && (handler.c != SIG_DFL))
@@ -5943,12 +5822,11 @@ void	garbage_collect_generation(int generation, int raise)
 	   (lispobj *) SymbolValue(BINDING_STACK_POINTER) - binding_stack);
 
   /*
-   * Scavenge the scavenge_hooks in case this refers to a hook added
+   * Scavenge the scavenge_hooks in case this refers to a hooks added
    * in a prior generation GC. From here on the scavenger_hook will
    * only be updated with hooks already scavenged so this only needs
    * doing here.
    */
-
   scavenge((lispobj *) &scavenger_hooks, 1);
 
   if (SymbolValue(SCAVENGE_READ_ONLY_SPACE) != NIL) {
@@ -5984,7 +5862,7 @@ void	garbage_collect_generation(int generation, int raise)
 #define RESCAN_CHECK 0
 #if RESCAN_CHECK  
   /*
-   * As a check re-scavenge the newspace once; no new objects should
+   * As a check re-scavenge the newspace once; on new objects should
    * be found.
    */
   {
@@ -6015,7 +5893,7 @@ void	garbage_collect_generation(int generation, int raise)
   gc_alloc_update_page_tables(1, &unboxed_region);
 
   /* Free the pages in oldspace, but not those marked dont_move. */
-  free_oldspace();
+  bytes_freed = free_oldspace();
 
   /*
    * If the GC is not raising the age then lower the generation back
@@ -6056,9 +5934,8 @@ void	garbage_collect_generation(int generation, int raise)
     generations[generation].num_gc++;
 }
 
-// FIX used in save.c
 /* Update last_free_page then ALLOCATION_POINTER */
-void	update_x86_dynamic_space_free_pointer(void)
+int	update_x86_dynamic_space_free_pointer(void)
 {
   int last_page = -1;
   int i;
@@ -6073,315 +5950,7 @@ void	update_x86_dynamic_space_free_pointer(void)
 		 (lispobj) ((char *) heap_base + PAGE_SIZE * last_free_page));
 }
 
-#if 1
-void	collect_garbage2(unsigned last_gen, int gen, int raise)
-{
-  int i;
 
-  int gen_to_wp;
-
-#if 0
-  int gen = 0;
-  int raise;
-
-#if 0 // FIX
-  fprintf(stderr, "boxed_region: %x\n", &boxed_region);
-  fprintf(stderr, "unboxed_region: %x\n", &unboxed_region);
-#endif
-
-  boxed_region.free_pointer = current_region_free_pointer;
-
-  /* Check last_gen */
-  if (last_gen > NUM_GENERATIONS) {
-    fprintf(stderr, "** collect_garbage: last_gen = %d. Doing a level 0 GC.\n",
-	    last_gen);
-    last_gen = 0;
-  }
-
-  /* Flush the alloc regions updating the tables. */
-  gc_alloc_update_page_tables(0,&boxed_region);
-  gc_alloc_update_page_tables(1,&unboxed_region);
-
-  /* Verify the new objects created by lisp code. */
-  if (pre_verify_gen_0) {
-    fprintf(stderr, "Pre-Checking generation 0\n");
-    verify_generation(0);
-  }
-
-  if (gencgc_verbose > 1)
-    print_generation_stats(0);
-
-  scavenger_hooks = NIL;
-
-  do {
-    /* Collect the generation */
-
-    /* Never raise the oldest generation. */
-    if (gen >= gencgc_oldest_gen_to_gc)
-      raise = 0;
-    else 
-      /* Raise if: gen < last_gen */
-      if (gen < last_gen)
-	raise = 1;
-      else
-	/* Only raise if the age is >= the trigger age. */
-	if (generations[gen].num_gc >= generations[gen].trigger_age)
-	  raise = 1;
-	else
-	  raise = 0;
-
-    if (gencgc_verbose > 1)
-      fprintf(stderr, "Starting GC of generation %d with raise=%d alloc=%d trig=%d GCs=%d\n",
-	      gen,
-	      raise,
-	      generations[gen].bytes_allocated,
-	      generations[gen].gc_trigger,
-	      generations[gen].num_gc);
-
-    /*
-     * If an older generation is being filled then update its memory age.
-     */
-    if (raise == 1)
-      generations[gen + 1].cum_sum_bytes_allocated += generations[gen + 1].bytes_allocated;
-
-    garbage_collect_generation(gen,raise);
-
-    /* Reset the memory age cum_sum */
-    generations[gen].cum_sum_bytes_allocated = 0;
-
-    if (gencgc_verbose > 1) {
-      fprintf(stderr, "GC of generation %d finished:\n", gen);
-      print_generation_stats(0);
-    }
-
-    gen++;
-  }
-  while (gen <= gencgc_oldest_gen_to_gc
-	 && (gen < last_gen
-	     || (gen <= gencgc_oldest_gen_to_gc /* FIX just checked? */ && raise
-		 && generations[gen].bytes_allocated > generations[gen].gc_trigger
-		 && gen_av_mem_age(gen) > generations[gen].min_av_mem_age)));
-#endif
-  /*
-   * Now if gen-1 was raised all generations before gen are empty.If
-   * it wasn't raised then all generations before gen-1 are empty.
-   *
-   * Now objects within this gen's pages cannot pointer to younger
-   * generations unless they are written to. This can be exploited by
-   * write protecting the pages of gen; then when younger generations
-   * are GCed only the page written need scanning.
-   */
-  if (raise)
-    gen_to_wp = gen;
-  else
-    gen_to_wp = gen - 1;
-
-  /*
-   * Not much point in WPing pages in generation 0 as it is never
-   * scavenged (except promoted pages).
-   */
-  if (gen_to_wp > 0 && enable_page_protection) {
-    /* Check that they are all empty */
-    for (i = 0; i < gen_to_wp; i++)
-      if (generations[i].bytes_allocated != 0)
-	fprintf(stderr, "*** trying to write prot. gen. %d when gen. %d is not empty\n",
-		gen_to_wp, i);
-
-    write_protect_generation_pages(gen_to_wp);
-  }
-
-  /*
-   * Set gc_alloc back to generation 0. The current regions should be
-   * flushed after the above GCs.
-   */
-  gc_assert(boxed_region.free_pointer - boxed_region.start_addr == 0);
-  gc_alloc_generation = 0;
-
-  update_x86_dynamic_space_free_pointer();
-
-  current_region_free_pointer = boxed_region.free_pointer;
-  current_region_end_addr = boxed_region.end_addr;
-
-  /* Call the scavenger hook functions */
-  {
-    struct scavenger_hook *sh;
-    for (sh = (struct scavenger_hook *) PTR((int) scavenger_hooks);
-	 sh != (struct scavenger_hook *) PTR(NIL);) {
-      struct scavenger_hook *sh_next = (struct scavenger_hook *) PTR((int) sh->next);
-#if 0
-      fprintf(stderr, "Scav hook %x; next %x; calling scav hook fn %x\n",
-	      sh, sh_next, sh->function);
-#endif
-      funcall0(sh->function);
-      sh->next = NULL;
-      sh = sh_next;
-    }
-    scavenger_hooks = (struct scavenger_hook *) NIL;
-  }
-}
-#endif
-
-#if 0
-//void	call_garbage_collect_generation(int gen, int raise)
-void	call_garbage_collect_generation(unsigned last_gen, int gen, int raise)
-{
-    garbage_collect_generation(gen,raise);
-}
-#endif
-
-#if 1
-//void	collect_garbage1(unsigned last_gen)
-void	collect_garbage1(unsigned last_gen, int gen, int raise)
-{
-#if 0
-  int i;
-
-  int gen_to_wp;
-
-  int gen = 0;
-  int raise;
-
-  boxed_region.free_pointer = current_region_free_pointer;
-
-  /* Check last_gen */
-  if (last_gen > NUM_GENERATIONS) {
-    fprintf(stderr, "** collect_garbage: last_gen = %d. Doing a level 0 GC.\n",
-	    last_gen);
-    last_gen = 0;
-  }
-
-  /* Flush the alloc regions updating the tables. */
-  gc_alloc_update_page_tables(0,&boxed_region);
-  gc_alloc_update_page_tables(1,&unboxed_region);
-
-  /* Verify the new objects created by lisp code. */
-  if (pre_verify_gen_0) {
-    fprintf(stderr, "Pre-Checking generation 0\n");
-    verify_generation(0);
-  }
-
-  if (gencgc_verbose > 1)
-    print_generation_stats(0);
-
-  scavenger_hooks = NIL;
-
-  do {
-    /* Collect the generation */
-
-    /* Never raise the oldest generation. */
-    if (gen >= gencgc_oldest_gen_to_gc)
-      raise = 0;
-    else 
-      /* Raise if: gen < last_gen */
-      if (gen < last_gen)
-	raise = 1;
-      else
-	/* Only raise if the age is >= the trigger age. */
-	if (generations[gen].num_gc >= generations[gen].trigger_age)
-	  raise = 1;
-	else
-	  raise = 0;
-
-    if (gencgc_verbose > 1)
-      fprintf(stderr, "Starting GC of generation %d with raise=%d alloc=%d trig=%d GCs=%d\n",
-	      gen,
-	      raise,
-	      generations[gen].bytes_allocated,
-	      generations[gen].gc_trigger,
-	      generations[gen].num_gc);
-
-    /*
-     * If an older generation is being filled then update its memory age.
-     */
-    if (raise == 1)
-      generations[gen + 1].cum_sum_bytes_allocated += generations[gen + 1].bytes_allocated;
-#endif
-    garbage_collect_generation(gen,raise);
-
-    /* Reset the memory age cum_sum */
-    generations[gen].cum_sum_bytes_allocated = 0;
-
-    if (gencgc_verbose > 1) {
-      fprintf(stderr, "GC of generation %d finished:\n", gen);
-      print_generation_stats(0);
-    }
-#if 0
-    gen++;
-
-  }
-  while (gen <= gencgc_oldest_gen_to_gc
-	 && (gen < last_gen
-	     || (gen <= gencgc_oldest_gen_to_gc /* FIX just checked? */ && raise
-		 && generations[gen].bytes_allocated > generations[gen].gc_trigger
-		 && gen_av_mem_age(gen) > generations[gen].min_av_mem_age)));
-
-  /*
-   * Now if gen-1 was raised all generations before gen are empty.If
-   * it wasn't raised then all generations before gen-1 are empty.
-   *
-   * Now objects within this gen's pages cannot pointer to younger
-   * generations unless they are written to. This can be exploited by
-   * write protecting the pages of gen; then when younger generations
-   * are GCed only the page written need scanning.
-   */
-  if (raise)
-    gen_to_wp = gen;
-  else
-    gen_to_wp = gen - 1;
-
-  /*
-   * Not much point in WPing pages in generation 0 as it is never
-   * scavenged (except promoted pages).
-   */
-  if (gen_to_wp > 0 && enable_page_protection) {
-    /* Check that they are all empty */
-    for (i = 0; i < gen_to_wp; i++)
-      if (generations[i].bytes_allocated != 0)
-	fprintf(stderr, "*** trying to write prot. gen. %d when gen. %d is not empty\n",
-		gen_to_wp, i);
-
-    write_protect_generation_pages(gen_to_wp);
-  }
-
-  /*
-   * Set gc_alloc back to generation 0. The current regions should be
-   * flushed after the above GCs.
-   */
-  gc_assert(boxed_region.free_pointer - boxed_region.start_addr == 0);
-  gc_alloc_generation = 0;
-
-  update_x86_dynamic_space_free_pointer();
-
-  current_region_free_pointer = boxed_region.free_pointer;
-  current_region_end_addr = boxed_region.end_addr;
-
-  /* Call the scavenger hook functions */
-  {
-    struct scavenger_hook *sh;
-    for (sh = (struct scavenger_hook *) PTR((int) scavenger_hooks);
-	 sh != (struct scavenger_hook *) PTR(NIL);) {
-      struct scavenger_hook *sh_next = (struct scavenger_hook *) PTR((int) sh->next);
-#if 0
-      fprintf(stderr, "Scav hook %x; next %x; calling scav hook fn %x\n",
-	      sh, sh_next, sh->function);
-#endif
-      funcall0(sh->function);
-      sh->next = NULL;
-      sh = sh_next;
-    }
-    scavenger_hooks = (struct scavenger_hook *) NIL;
-  }
-#endif
-}
-#endif
-
-void	call_gc_alloc_update_page_tables()
-{
-  gc_alloc_update_page_tables(0,&boxed_region);
-  gc_alloc_update_page_tables(1,&unboxed_region);
-}
-
-#if 1
 /*
  * GC all generations below last_gen, raising their objects to the
  * next generation until all generations below last_gen are empty.
@@ -6394,11 +5963,10 @@ void	call_gc_alloc_update_page_tables()
  */
 void	collect_garbage(unsigned last_gen)
 {
-  int i;
-
-  int gen_to_wp;
   int gen = 0;
   int raise;
+  int gen_to_wp;
+  int i;
 
   boxed_region.free_pointer = current_region_free_pointer;
 
@@ -6422,7 +5990,7 @@ void	collect_garbage(unsigned last_gen)
   if (gencgc_verbose > 1)
     print_generation_stats(0);
 
-  scavenger_hooks = NIL;
+  scavenger_hooks = (struct scavenger_hook *) NIL;
 
   do {
     /* Collect the generation */
@@ -6469,7 +6037,7 @@ void	collect_garbage(unsigned last_gen)
   }
   while (gen <= gencgc_oldest_gen_to_gc
 	 && (gen < last_gen
-	     || (gen <= gencgc_oldest_gen_to_gc /* FIX just checked? */ && raise
+	     || (gen <= gencgc_oldest_gen_to_gc && raise
 		 && generations[gen].bytes_allocated > generations[gen].gc_trigger
 		 && gen_av_mem_age(gen) > generations[gen].min_av_mem_age)));
 
@@ -6529,9 +6097,7 @@ void	collect_garbage(unsigned last_gen)
     }
     scavenger_hooks = (struct scavenger_hook *) NIL;
   }
-
 }
-#endif
 
 
 /*
@@ -6544,6 +6110,7 @@ void	collect_garbage(unsigned last_gen)
 
 void	gc_free_heap(void)
 {
+  unsigned long  allocated = bytes_allocated;
   int page;
 
   if (gencgc_verbose > 1)
@@ -6704,6 +6271,7 @@ void gc_init(void)
   current_region_end_addr = boxed_region.end_addr;
 }
 
+
 /*
  * Pickup the dynamic space from after a core load.
  *
@@ -6751,11 +6319,10 @@ void do_pending_interrupt(void);
  * always disabled during a GC).
  * 
  * It is assumed by the vops that the returned space is zero
- * filled. E.g. the most significant word of a 2 word bignum in
- * move-from-unsigned.
+ * filled. E.g. the MS word of a 2 word bignum in move-from-unsigned.
  *
  * The check for a GC trigger is only performed when the current
- * region is full, so in most cases it's not needed.  Further maybe-gc
+ * region is full, so in most cases it's not needed. Further maybe-gc
  * is only called once because lisp will remember the need to collect
  * garbage and get to it when it can.
  *

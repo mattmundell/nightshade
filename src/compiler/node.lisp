@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/node.lisp,v 1.37 2001/03/04 20:12:24 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/node.lisp,v 1.34.2.2 2000/06/19 16:46:26 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -19,11 +19,11 @@
 (export '(component component-info block-number))
 
 ;;; Defvars for these variables appear later.
-(declaim (special *current-path* *lexical-environment* *current-component*
-		  *default-cookie* *default-interface-cookie*))
+(proclaim '(special *current-path* *lexical-environment* *current-component*
+		    *default-cookie* *default-interface-cookie*))
+  
 
-
-(declaim (inline internal-make-lexenv))
+(proclaim '(inline internal-make-lexenv))
 
 ;;; The LEXENV represents the lexical environment used for IR1 conversion.
 ;;;
@@ -72,7 +72,7 @@
   ;; The lexically enclosing cleanup, or NIL if none enclosing within Lambda.
   (cleanup nil :type (or cleanup null))
   ;;
-  ;; The representation of the current OPTIMIZE policy.
+  ;; The representation of the current OPTIMIZE policy. 
   (cookie *default-cookie* :type cookie)
   ;;
   ;; The policy that takes effect in XEPs and related syntax parsing functions.
@@ -111,7 +111,7 @@
 ;;; the results of evaluation.  This allows us to decouple the flow of results
 ;;; from the flow of control.  A continuation represents both, but the
 ;;; continuation can represent the case of a discarded result by having no
-;;; DEST.
+;;; DEST. 
 
 (defstruct (continuation
 	    (:print-function %print-continuation)
@@ -200,7 +200,7 @@
   ;;
   ;; An indication of what we have proven about how this contination's type
   ;; assertion is satisfied:
-  ;;
+  ;; 
   ;; NIL
   ;;    No type check is necessary (proven type is a subtype of the assertion.)
   ;;
@@ -250,7 +250,7 @@
   ;; indicates what we do controlwise after evaluating this node.  This may be
   ;; null during IR1 conversion.
   (cont nil :type (or continuation null))
-  ;;
+  ;; 
   ;; The continuation that this node is the next of.  This is null during
   ;; IR1 conversion when we haven't linked the node in yet or in nodes that
   ;; have been deleted from the IR1 by UNLINK-NODE.
@@ -260,7 +260,7 @@
   (lexenv *lexical-environment* :type lexenv)
   ;;
   ;; A representation of the source code responsible for generating this node.
-  ;;
+  ;; 
   ;; For a form introduced by compilation (does not appear in the original
   ;; source), the path begins with a list of all the enclosing introduced
   ;; forms.  This list is from the inside out, with the form immediately
@@ -276,7 +276,7 @@
   ;; Following is a list of integers describing the path taken through the
   ;; source to get to this point:
   ;;     (k l m ...) => (nth k (nth l (nth m ...)))
-  ;;
+  ;; 
   ;; The last element in the list is the top-level form number, which is the
   ;; ordinal number (in this call to the compiler) of the truly top-level form
   ;; containing the orignal source.
@@ -330,7 +330,7 @@
   (frob delete-p)
   (frob type-asserted)
   (frob test-modified))
-
+  
 
 ;;; The CBlock structure represents a basic block.  We include SSet-Element so
 ;;; that we can have sets of blocks.  Initially the SSet-Element-Number is
@@ -409,11 +409,11 @@
 ;;; The Block-Annotation structure is shared (via :include) by different
 ;;; block-info annotation structures so that code (specifically control
 ;;; analysis) can be shared.
-;;;
+;;; 
 (defstruct (block-annotation
 	    (:constructor nil))
   ;;
-  ;; The IR1 block that this block is in the Info for.
+  ;; The IR1 block that this block is in the Info for.  
   (block (required-argument) :type cblock)
   ;;
   ;; The next and previous block in emission order (not DFO).  This determines
@@ -430,7 +430,7 @@
 (defstruct (component (:print-function %print-component))
   ;;
   ;; The kind of component:
-  ;;
+  ;; 
   ;; NIL
   ;;     An ordinary component, containing non-top-level code.
   ;;
@@ -509,7 +509,7 @@
 (defprinter component
   name
   (reanalyze :test reanalyze))
-
+  
 
 ;;; The Cleanup structure represents some dynamic binding action.  Blocks are
 ;;; annotated with the current cleanup so that dynamic bindings can be removed
@@ -693,7 +693,7 @@
   (name :test name)
   value)
 
-
+  
 ;;; The Basic-Var structure represents information common to all variables
 ;;; which don't correspond to known local functions.
 ;;;
@@ -781,9 +781,9 @@
 				 (:where-from :defined)
 				 (:type (specifier-type 'function)))
 		       (:print-function %print-functional))
-  ;;
-  ;;
-  ;;
+  ;;        
+  ;;        
+  ;;        
   ;;
   ;; Some information about how this function is used.  These values are
   ;; meaningful:
@@ -875,7 +875,7 @@
   ;;
   ;; Various rare random info that dives code generation & stuff.
   (plist () :type list))
-
+ 
 (defprinter functional
   name)
 
@@ -915,12 +915,12 @@
   ;; this is a self-pointer.
   (home nil :type (or clambda null))
   ;;
-  ;; A list of the all lambdas that have been let-substituted in this
+  ;; A list of all the all the lambdas that have been let-substituted in this
   ;; lambda.  This is only non-null in lambdas that aren't lets.
   (lets () :type list)
   ;;
-  ;; A list of all the Entry nodes in this function and its lets.  Null in
-  ;; a let.
+  ;; A list of all the Entry nodes in this function and its lets.  Null an a
+  ;; let.
   (entries () :type list)
   ;;
   ;; A list of all the functions directly called from this function (or one of
@@ -1000,7 +1000,7 @@
   ;; An entry point which takes Max-Args fixed arguments followed by an
   ;; argument context pointer and an argument count.  This entry point deals
   ;; with listifying rest args and parsing keywords.  This is null when extra
-  ;; arguments aren't legal.
+  ;; arguments aren't legal.  
   (more-entry nil :type (or clambda null))
   ;;
   ;; The main entry-point into the function, which takes all arguments

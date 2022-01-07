@@ -1,8 +1,4 @@
-;;; "Site dependent" stuff for the editor.
-
-;;; If we were compiled with CLX support, we require it at runtime
-#+clx
-(require :clx)
+;;; "Site dependent" stuff for the editor.        -*- Package: Hemlock-internals -*-
 
 ;;; Stuff to set up the packages the editor uses.
 ;;;
@@ -26,7 +22,8 @@
 (export '(show-mark editor-sleep *input-transcript* fun-defined-from-pathname
 	  editor-describe-function pause store-cut-string
 	  fetch-cut-string schedule-event remove-scheduled-event
-	  enter-window-autoraise directoryp symlinkp merge-relative-pathnames
+	  enter-window-autoraise directoryp directory-name-p symlinkp
+	  merge-relative-pathnames
 	  ;;
 	  ;; Export default-font to prevent a name conflict that occurs due
 	  ;; to the editor variable "Default Font" defined in SITE-INIT
@@ -60,7 +57,7 @@
 ;;; *key-event-history* is defined in input.lisp, but it needs to be set in
 ;;; SITE-INIT, since MAKE-RING doesn't exist at load time for this file.
 ;;;
-(declaim (special *key-event-history*))
+(proclaim '(special *key-event-history*))
 
 ;;; SITE-INIT  --  Internal
 ;;;
@@ -160,16 +157,24 @@
    is assumed to be relative to default-directory.  The result is always a
    directory."
   (let ((pathname (merge-pathnames pathname default-directory)))
-    (if (directoryp pathname)
+    (if (directory-name-p pathname)
 	pathname
 	(pathname (concatenate 'simple-string
 			       (namestring pathname)
 			       "/")))))
 
+(defun directory-name-p (pathname)
+  "Returns whether pathname is a directory name, that is whether the name
+   and type components are ()."
+  (and (eq (pathname-name pathname) ())
+       (eq (pathname-type pathname) ())))
+
 (defun directoryp (pathname)
-  "Returns whether pathname names a directory, that is whether it has no
-   name and no type components."
-  (not (or (pathname-name pathname) (pathname-type pathname))))
+  "Returns whether pathname names a directory, that is whether the file
+   named by pathname is a directory."
+  (eq (unix::unix-file-kind (or (unix-namestring pathname)
+				(return-from directoryp nil)))
+      :directory))
 
 (defun symlinkp (pathname)
   "Returns whether pathname names a symbolic link."
@@ -219,15 +224,15 @@
 
 
 #+clx
-(declaim (special ed::*open-paren-highlight-font*
-		  ed::*active-region-highlight-font*))
+(proclaim '(special ed::*open-paren-highlight-font*
+		    ed::*active-region-highlight-font*))
 
 #+clx
 (defparameter lisp-fonts-pathnames '("library:fonts/"))
 
-(declaim (special *editor-input* *real-editor-input*))
+(proclaim '(special *editor-input* *real-editor-input*))
 
-(declaim (special *editor-input* *real-editor-input*))
+(proclaim '(special *editor-input* *real-editor-input*))
 
 ;;; INIT-RAW-IO  --  Internal
 ;;;
@@ -255,8 +260,8 @@
 ;;; Stop flaming from compiler due to CLX macros expanding into illegal
 ;;; declarations.
 ;;;
-(declaim (declaration values))
-(declaim (special *default-font-family*))
+(proclaim '(declaration values))
+(proclaim '(special *default-font-family*))
 
 ;;; font-map-size should be defined in font.lisp, but SETUP-FONT-FAMILY would
 ;;; assume it to be special, issuing a nasty warning.
@@ -332,7 +337,7 @@
   (when (variable-value 'ed::bell-style)
     (unix:unix-write 1 *editor-bell* 0 1)))
 
-(declaim (special *current-window*))
+(proclaim '(special *current-window*))
 
 ;;; BITMAP-BEEP is used in the editor for beeping when running under
 ;;; windowed input.
@@ -361,7 +366,7 @@
        ))))
 
 #+clx
-(declaim (special *foreground-background-xor*))
+(proclaim '(special *foreground-background-xor*))
 
 #+clx
 (defun flash-window-border (window)
@@ -475,13 +480,12 @@
 	     (*gc-notify-after* #'hemlock-gc-notify-after)
 	     (*standard-input* *illegal-read-stream*)
 	     (*query-io* *illegal-read-stream*))
-	 (cond ((not *editor-windowed-input*)
-		,@body)
-	       (t
-		#+clx
-		(ext:with-clx-event-handling
+	 (if *editor-windowed-input*
+	     #+clx (ext:with-clx-event-handling
 		    (*editor-windowed-input* #'ext:object-set-event-handler)
-		  ,@body)))))
+		    ,@body)
+	     #-clx ()
+	     ,@body)))
      (let ((device (device-hunk-device (window-hunk (current-window)))))
        (funcall (device-exit device) device))))
 
@@ -491,7 +495,7 @@
 (defun standard-device-exit ()
   (reset-input))
 
-(declaim (special *echo-area-window*))
+(proclaim '(special *echo-area-window*))
 
 ;;; Maybe bury/unbury editor window when we go to and from Lisp.  This
 ;;; should do something more sophisticated when we know what that is.
@@ -796,7 +800,7 @@
 ;;;
 
 #+clx
-(declaim (special *default-foreground-pixel* *default-background-pixel*))
+(proclaim '(special *default-foreground-pixel* *default-background-pixel*))
 
 #+clx
 (defvar *hemlock-cursor* nil "Holds cursor for editor windows.")
@@ -956,7 +960,7 @@
 #-glibc2
 (defvar old-ltchars)
 
-#+(or hpux irix bsd glibc2)
+#+(or hpux irix freebsd glibc2)
 (progn
   (defvar old-c-iflag)
   (defvar old-c-oflag)
@@ -972,7 +976,7 @@
 (defun setup-input ()
   (let ((fd *editor-file-descriptor*))
     (when (unix:unix-isatty 0)
-      #+(or hpux irix bsd glibc2)
+      #+(or hpux irix freebsd glibc2)
       (alien:with-alien ((tios (alien:struct unix:termios)))
 	(multiple-value-bind
 	    (val err)
@@ -1002,8 +1006,8 @@
 		      (lognot (logior unix:tty-icrnl unix:tty-ixon))))
 	(setf (alien:slot tios 'unix:c-oflag)
 	      (logand (alien:slot tios 'unix:c-oflag)
-		      (lognot #-bsd unix:tty-ocrnl
-			      #+bsd unix:tty-onlcr)))
+		      (lognot #-freebsd unix:tty-ocrnl
+			      #+freebsd unix:tty-onlcr)))
 	(setf (alien:deref (alien:slot tios 'unix:c-cc) unix:vdsusp) #xff)
 	(setf (alien:deref (alien:slot tios 'unix:c-cc) unix:veof) #xff)
 	(setf (alien:deref (alien:slot tios 'unix:c-cc) unix:vintr)
@@ -1020,7 +1024,7 @@
 	  (when (null val)
 	    (error "Could not tcsetattr, unix error ~S."
 		   (unix:get-unix-error-msg err)))))
-      #-(or hpux irix bsd glibc2)
+      #-(or hpux irix freebsd glibc2)
       (alien:with-alien ((sg (alien:struct unix:sgttyb)))
 	(multiple-value-bind
 	    (val err)
@@ -1031,7 +1035,7 @@
 	(let ((flags (alien:slot sg 'unix:sg-flags)))
 	  (setq old-flags flags)
 	  (setf (alien:slot sg 'unix:sg-flags)
-		(logand #-(or hpux irix bsd glibc2) (logior flags unix:tty-cbreak)
+		(logand #-(or hpux irix freebsd glibc2) (logior flags unix:tty-cbreak)
 			(lognot unix:tty-echo)
 			(lognot unix:tty-crmod)))
 	  (multiple-value-bind
@@ -1040,7 +1044,7 @@
 	    (if (null val)
 		(error "Could not set tty information, unix error ~S."
 		       (unix:get-unix-error-msg err))))))
-      #-(or hpux irix bsd glibc2)
+      #-(or hpux irix freebsd glibc2)
       (alien:with-alien ((tc (alien:struct unix:tchars)))
 	(multiple-value-bind
 	    (val err)
@@ -1102,7 +1106,7 @@
 (defun reset-input ()
   (when (unix:unix-isatty 0)
     (let ((fd *editor-file-descriptor*))
-      #+(or hpux irix bsd glibc2)
+      #+(or hpux irix freebsd glibc2)
       (when (boundp 'old-c-lflag)
 	(alien:with-alien ((tios (alien:struct unix:termios)))
 	  (multiple-value-bind
@@ -1139,7 +1143,7 @@
 	    (when (null val)
 	      (error "Could not tcsetattr, unix error ~S."
 		     (unix:get-unix-error-msg err))))))
-      #-(or hpux irix bsd glibc2)
+      #-(or hpux irix freebsd glibc2)
       (when (boundp 'old-flags)
 	(alien:with-alien ((sg (alien:struct unix:sgttyb)))
 	  (multiple-value-bind
@@ -1155,7 +1159,7 @@
 	      (unless val
 		(error "Could not set tty information, unix error ~S."
 		       (unix:get-unix-error-msg err)))))))
-      #-(or hpux irix bsd glibc2)
+      #-(or hpux irix freebsd glibc2)
       (when (and (boundp 'old-tchars)
 		 (simple-vector-p old-tchars)
 		 (eq (length old-tchars) 6))

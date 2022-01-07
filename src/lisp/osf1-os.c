@@ -1,5 +1,5 @@
 /*
- * $Header: /project/cmucl/cvsroot/src/lisp/osf1-os.c,v 1.1 1994/03/27 15:30:51 hallgren Exp $
+ * $Header: /home/CVS-cmucl/src/lisp/osf1-os.c,v 1.1 1994/03/27 15:30:51 hallgren Exp $
  *
  * OS-dependent routines.  This file (along with os.h) exports an
  * OS-independent interface to the operating system VM facilities.

@@ -198,7 +198,7 @@
 
 ;;;; Exported Primitives:
 
-(declaim (special *command-names*))
+(proclaim '(special *command-names*))
 
 ;;; BIND-KEY  --  Public.
 ;;;
@@ -438,9 +438,8 @@
 
 ;;; %COMMAND-LOOP  --  Internal
 ;;;
-;;;    Read commands from the terminal and execute them, forever.
-;;;
 (defun %command-loop ()
+  "Read commands from the terminal and execute them, forever."
   (let  ((cmd *current-command*)
 	 (trans *current-translation*)
 	 (*last-command-type* nil)

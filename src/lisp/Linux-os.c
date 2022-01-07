@@ -15,7 +15,7 @@
  * GENCGC support by Douglas Crosher, 1996, 1997.
  * Alpha support by Julian Dolby, 1999.
  *
- * $Header: /project/cmucl/cvsroot/src/lisp/Linux-os.c,v 1.12 2000/10/24 13:32:30 dtc Exp $
+ * $Header: /home/CVS-cmucl/src/lisp/Linux-os.c,v 1.2.2.3 2000/10/24 13:33:55 dtc Exp $
  *
  */
 
@@ -187,6 +187,7 @@ static boolean in_range_p(os_vm_address_t a, lispobj sbeg, size_t slen)
 
 boolean valid_addr(os_vm_address_t addr)
 {
+  int ret;
   os_vm_address_t newaddr;
   newaddr = os_trunc_to_page(addr);
 

@@ -1,4 +1,4 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/coreparse.c,v 1.6 1997/03/16 15:52:51 pw Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/coreparse.c,v 1.6 1997/03/16 15:52:51 pw Exp $ */
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/file.h>

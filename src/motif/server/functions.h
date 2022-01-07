@@ -1,6 +1,6 @@
 /*
 
- $Header: /project/cmucl/cvsroot/src/motif/server/functions.h,v 1.3 1997/08/22 20:49:33 pw Exp $
+ $Header: /home/CVS-cmucl/src/motif/server/functions.h,v 1.2.2.2 2000/05/23 16:38:36 pw Exp $
 
  This code was written as part of the CMU Common Lisp project at
  Carnegie Mellon University, and has been placed in the public domain.

@@ -5,11 +5,11 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/assembly/rt/array.lisp,v 1.5 1994/10/31 04:57:00 ram Exp $")
+  "$Header: /home/CVS-cmucl/src/assembly/rt/array.lisp,v 1.5 1994/10/31 04:57:00 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
-;;; $Header: /project/cmucl/cvsroot/src/assembly/rt/array.lisp,v 1.5 1994/10/31 04:57:00 ram Exp $
+;;; $Header: /home/CVS-cmucl/src/assembly/rt/array.lisp,v 1.5 1994/10/31 04:57:00 ram Exp $
 ;;;
 ;;; This file contains the support routines for arrays and vectors.
 ;;;

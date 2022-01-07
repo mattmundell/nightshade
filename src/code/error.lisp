@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/error.lisp,v 1.63 2002/08/22 22:23:29 pmai Exp $")
+  "$Header: /home/CVS-cmucl/src/code/error.lisp,v 1.46.2.7 2000/10/25 17:17:28 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -20,8 +20,7 @@
 
 (in-package "KERNEL")
 (export '(layout-invalid condition-function-name simple-control-error
-	  simple-file-error simple-program-error simple-parse-error
-          simple-style-warning
+	  simple-file-error simple-program-error simple-style-warning
 	  simple-undefined-function))
 
 (in-package "LISP")
@@ -368,7 +367,7 @@
 	    (:constructor make-condition-object (actual-initargs))
 	    (:alternate-metaclass instance condition-class
 				  make-condition-class))
-		      
+
   (function-name nil)
   ;;
   ;; Actual initargs supplied to MAKE-CONDITION.
@@ -464,7 +463,7 @@
 			   (if (functionp val)
 			       (funcall val)
 			       val)))))))
-  
+
     (if (condition-slot-initform-p slot)
 	(let ((initform (condition-slot-initform slot)))
 	  (if (functionp initform)
@@ -494,13 +493,11 @@
 	(return-from condition-reader-function
 		     (car (condition-slot-cell cslot)))))
 
-    (let ((val (getf (condition-assigned-slots condition) name 
+    (let ((val (getf (condition-assigned-slots condition) name
 		     *empty-slot*)))
       (if (eq val *empty-slot*)
 	  (let ((actual-initargs (condition-actual-initargs condition))
 		(slot (find-slot (condition-class-cpl class) name)))
-	    (unless slot
-	      (error "Slot ~S of ~S missing." name condition))
 	    (dolist (initarg (condition-slot-initargs slot))
 	      (let ((val (getf actual-initargs initarg *empty-slot*)))
 		(unless (eq val *empty-slot*)
@@ -522,7 +519,6 @@
 		    thing))
 	 (class (typecase thing
 		  (condition-class thing)
-		  ; FIX (still in pd version?) Warning: Undefined type CLASS    ; class from clos?
 		  (class
 		   (error 'simple-type-error
 			  :datum thing
@@ -586,12 +582,12 @@
     ;;
     ;; Initialize CPL slot.
     (setf (condition-class-cpl class)
-	  (remove-if-not #'condition-class-p 
+	  (remove-if-not #'condition-class-p
 			 (std-compute-class-precedence-list class))))
   (undefined-value))
 
 ); eval-when (compile load eval)
-  
+
 
 ;;; COMPUTE-EFFECTIVE-SLOTS  --  Internal
 ;;;
@@ -628,7 +624,7 @@
     (setf (condition-class-report class) report)
     (setf (condition-class-default-initargs class) default-initargs)
     (setf (documentation name 'type) documentation)
-    
+
     (dolist (slot slots)
       ;;
       ;; Set up reader & writer functions.
@@ -676,20 +672,12 @@
 				 &body options)
   "DEFINE-CONDITION Name (Parent-Type*) (Slot-Spec*) Option*
    Define NAME as a condition type.  This new type inherits slots and its
-   report function from the specified PARENT-TYPEs.  A slot spec is either
-   a symbol denoting the name of the slot, or a list of the form:
+   report function from the specified PARENT-TYPEs.  A slot spec is a list of:
+     (slot-name :reader <rname> :initarg <iname> {Option Value}*
 
-     (slot-name {slot-option value}*)
-
-   where slot-option is one of :READER, :WRITER, :ACCESSOR, :ALLOCATION,
-   :INITARG, :INITFORM, and :TYPE.
-
-   Each overall option is of the form
-
-     (option-name {value}*)
-
-   where option-name is one of :DEFAULT-INITARGS, :DOCUMENTATION,
-   and :REPORT.
+   The DEFINE-CLASS slot options :ALLOCATION, :INITFORM, [slot] :DOCUMENTATION
+   and :TYPE and the overall options :DEFAULT-INITARGS and
+   [type] :DOCUMENTATION are also allowed.
 
    The :REPORT option is peculiar to DEFINE-CONDITION.  Its argument is either
    a string or a two-argument lambda or function name.  If a function, the
@@ -742,6 +730,14 @@
 		  (t
 		   (error "Unknown slot option:~%  ~S" (first options))))))
 
+	    (unless (or (initargs) initform-p)
+	      (warn "Probable error: no initargs or initform for condition ~
+		     slot:~%  ~S"
+		    slot-name))
+	    (unless (readers)
+	      (warn "Probable error: no readers for condition slot:~%  ~S"
+		    slot-name))
+
 	    (all-readers (readers))
 	    (all-writers (writers))
 	    (slots `(make-condition-slot
@@ -754,7 +750,7 @@
 		     ,(if (constantp initform)
 			  `',(eval initform)
 			  `#'(lambda () ,initform)))))))
-      
+
       (dolist (option options)
 	(unless (consp option)
 	  (error "Bad option:~%  ~S" option))
@@ -781,6 +777,10 @@
 			    default-initargs)))))
 	  (t
 	   (error "Unknown option: ~S" (first option)))))
+
+      (when (all-writers)
+	(warn "Condition slot setters probably not allowed in ANSI CL:~%  ~S"
+	      (all-writers)))
 
       `(progn
 	 (eval-when (compile load eval)
@@ -820,7 +820,7 @@
 
 ;;;; Condition definitions.
 
-(define-condition serious-condition (condition)())  ; FIX add space bw )(?
+(define-condition serious-condition (condition) ())
 
 (define-condition error (serious-condition) ())
 
@@ -905,7 +905,6 @@
 
 ;;; INTERNAL
 (define-condition simple-program-error (simple-condition program-error)())
-(define-condition simple-parse-error (simple-condition program-error)())
 (define-condition simple-control-error (simple-condition control-error)())
 
 (define-condition simple-file-error (simple-condition file-error) ()
@@ -929,7 +928,7 @@
 	     "Error in ~S:  the variable ~S is unbound."
 	     (condition-function-name condition)
 	     (cell-error-name condition)))))
-  
+
 (define-condition undefined-function (cell-error) ()
   (:report
    (lambda (condition stream)
@@ -1027,9 +1026,9 @@
 			   annotated-cases))))))))
 |#
 
-;;; This macro doesn't work in older versions of the CMUCL system due to
-;;; lossage in closing over tags.  The previous version sets up unique
-;;; run-time tags.
+;;; This macro doesn't work in older version of CMUCL system due to lossage
+;;; in closing over tags.  The previous version sets up unique run-time
+;;; tags.
 ;;;
 (defmacro handler-case (form &rest cases)
   "(HANDLER-CASE form
@@ -1066,11 +1065,7 @@
 					       '(declare (ignore temp)))
 					  (go ,(car annotated-case)))))
 			   annotated-cases)
-			       (return-from ,tag
-				 #-x86 ,form
-				 #+x86 (multiple-value-prog1 ,form
-					 ;; Need to catch FP errors here!
-					 (kernel::float-wait))))
+			       (return-from ,tag ,form))
 		 ,@(mapcan
 		    #'(lambda (annotated-case)
 			(list (car annotated-case)
@@ -1084,7 +1079,7 @@
 					 ((not (cdr body))
 					  (car body))
 					 (t
-					  `(locally ,@body)))))))
+					  `(progn ,@body)))))))
 			   annotated-cases))))))))
 
 (defmacro ignore-errors (&rest forms)

@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/clx-ext.lisp,v 1.15 2001/03/04 20:12:30 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/code/clx-ext.lisp,v 1.12.2.3 1998/06/23 11:21:37 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -227,7 +227,7 @@
 
 (defvar *object-set-event-handler-print* nil)
 
-(declaim (declaration values))
+(proclaim '(declaration values))
 
 (defun object-set-event-handler (display)
   "This display event handler uses object sets to map event windows cross

@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/eval.lisp,v 1.35 2001/03/04 20:12:15 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/eval.lisp,v 1.31.2.2 2000/09/26 16:40:37 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -136,15 +136,15 @@
   "If an interpreted function goes uncalled for more than this many GCs, then
   it is eligible for flushing from the cache.")
 
-(declaim (type c::index
-	       *interpreted-function-cache-minimum-size*
-	       *interpreted-function-cache-threshold*))
+(proclaim '(type c::index
+		 *interpreted-function-cache-minimum-size*
+		 *interpreted-function-cache-threshold*))
 
 
 ;;; The list of INTERPRETED-FUNCTIONS that have translated definitions.
 ;;;
 (defvar *interpreted-function-cache* nil)
-(declaim (type list *interpreted-function-cache*))
+(proclaim '(type list *interpreted-function-cache*))
 
 
 ;;; MAKE-INTERPRETED-FUNCTION  --  Interface
@@ -229,7 +229,7 @@
 	(c::leaf-type (c::functional-entry-function def)))))
 
 
-;;;
+;;; 
 ;;; INTERPRETED-FUNCTION-NAME  --  Interface
 ;;;
 (defun interpreted-function-name (x)
@@ -358,7 +358,7 @@
 		       ;; ext:*before-gc-hook*.
 		       (eval-stack-set-top frame-ptr)
 		       (return-from
-			internal-apply-loop
+			internal-apply-loop 
 			(internal-apply ,lambda ,args ,calling-closure
 					nil)))))))
     `(cond ((c::node-tail-p node)
@@ -513,7 +513,7 @@
 		     (eval-stack-set-top stack-top)
 		     ;;
 		     ;; Push some bogus values for exit context to keep the
-		     ;; MV-BIND in the UNWIND-PROTECT translation happy.
+		     ;; MV-BIND in the UNWIND-PROTECT translation happy. 
 		     (eval-stack-push '(nil nil 0))
 		     (let ((node (c::continuation-next
 				  (c::block-start
@@ -625,14 +625,23 @@
   (setf *internal-apply-node-trace* on))
 
 
+;;;; INTERNAL-EVAL:
+
+(proclaim '(special lisp::*already-evaled-this*))
+
 ;;; INTERNAL-EVAL  --  Interface
 ;;;
 ;;;    Evaluate an arbitary form.  We convert the form, then call internal
-;;; apply on it.
+;;; apply on it.  If *ALREADY-EVALED-THIS* is true, then we bind it to NIL
+;;; around the apply to limit the inhibition to the lexical scope of the
+;;; EVAL-WHEN.
 ;;;
 (defun internal-eval (form &optional quietly)
   (let ((res (c:compile-for-eval form quietly)))
-    (internal-apply res nil '#())))
+    (if lisp::*already-evaled-this*
+	(let ((lisp::*already-evaled-this* nil))
+	  (internal-apply res nil '#()))
+	(internal-apply res nil '#()))))
 
 
 ;;; VALUE -- Internal.
@@ -780,13 +789,13 @@
 			   (catch unique-tag
 			     (internal-apply-loop node frame-ptr
 						  lambda args closure)))
-
+			 
 			 (when (eq values :fell-through)
 			   ;; We hit a %LEXICAL-EXIT-BREAKUP.
 			   ;; Interpreting state is set with MV-SETQ above.
 			   ;; Just get out of this branch and go on.
 			   (return))
-
+			 
 			 (unless (eq values :non-local-go)
 			   ;; We know we're non-locally exiting from a
 			   ;; BLOCK with values (saw a RETURN-FROM).
@@ -869,7 +878,7 @@
 ;;; valid value.  Each node branch tends to reference it at the beginning,
 ;;; and then there is no reference but a set at the end; the compiler then
 ;;; kills the variable between the reference in the dispatch branch and when
-;;; we set it at the end.  The problem is that most errors will occur in the
+;;; we set it at the end.  The problem is that most error will occur in the
 ;;; interpreter within one of these node dispatch branches.
 ;;;
 (defun reference-this-var-to-keep-it-alive (node)
@@ -945,7 +954,7 @@
 ;;;                  functional environment, then we use
 ;;;                  MAKE-INTERPRETED-FUNCTION to make a cached translation.
 ;;;                  Since it is too late to lazily convert, we set up the
-;;;                  INTERPRETED-FUNCTION to be already converted.
+;;;                  INTERPRETED-FUNCTION to be already converted. 
 ;;;
 (defun leaf-value (node frame-ptr closure)
   (let ((leaf (c::ref-leaf node)))

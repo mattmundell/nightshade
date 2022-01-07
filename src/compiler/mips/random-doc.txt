@@ -1,6 +1,6 @@
 -*- Mode: Text, Fill -*-
 
-$Header: /project/cmucl/cvsroot/src/compiler/mips/random-doc.txt,v 1.3 1990/03/02 17:40:56 ch Exp $
+$Header: /home/CVS-cmucl/src/compiler/mips/random-doc.txt,v 1.3 1990/03/02 17:40:56 ch Exp $
 
 DEFINE-STORAGE-BASE
 

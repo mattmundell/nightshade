@@ -31,7 +31,7 @@
 	      (parse-fields s)
 		(error "Unknown Terminal ~S in file ~S." name termcap-file))))))
 
-(declaim (inline termcap))
+(proclaim '(inline termcap))
 (defun termcap (name termcap)
   (cdr (assoc name termcap :test #'eq)))
 

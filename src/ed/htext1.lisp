@@ -618,25 +618,25 @@
 
 (defun line< (line1 line2)
   "Returns T if Line1 comes before Line2, NIL otherwise."
-  (if (neq (line-%buffer line1) (line-%buffer line2))
+  (or (eq (line-%buffer line1) (line-%buffer line2))
       (error "Lines in different buffers have no relation."))
   (< (line-number line1) (line-number line2)))
 
 (defun line<= (line1 line2)
   "Returns T if Line1 comes before or is the same as Line2, NIL otherwise."
-  (if (neq (line-%buffer line1) (line-%buffer line2))
+  (or (eq (line-%buffer line1) (line-%buffer line2))
       (error "Lines in different buffers have no relation."))
   (<= (line-number line1) (line-number line2)))
 
 (defun line>= (line1 line2)
   "Returns T if Line1 comes after or is the same as Line2, NIL otherwise."
-  (if (neq (line-%buffer line1) (line-%buffer line2))
+  (or (eq (line-%buffer line1) (line-%buffer line2))
       (error "Lines in different buffers have no relation."))
   (>= (line-number line1) (line-number line2)))
 
 (defun line> (line1 line2)
   "Returns T if Line1 comes after Line2, NIL otherwise."
-  (if (neq (line-%buffer line1) (line-%buffer line2))
+  (or (eq (line-%buffer line1) (line-%buffer line2))
       (error "Lines in different buffers have no relation."))
   (> (line-number line1) (line-number line2)))
 

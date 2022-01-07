@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/sparc/parms.lisp,v 1.34 2002/03/31 14:48:41 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/sparc/parms.lisp,v 1.24.2.3 2000/10/27 19:35:17 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -38,7 +38,7 @@
 (setf (backend-fasl-file-type *target-backend*) "sparcf")
 (setf (backend-fasl-file-implementation *target-backend*)
       sparc-fasl-file-implementation)
-(setf (backend-fasl-file-version *target-backend*) #x18d)
+(setf (backend-fasl-file-version *target-backend*) 7)
 (setf (backend-register-save-penalty *target-backend*) 3)
 (setf (backend-byte-order *target-backend*) :big-endian)
 (setf (backend-page-size *target-backend*)
@@ -51,11 +51,8 @@
 
 ;;;; Machine Architecture parameters:
 
-(export '(word-bits byte-bits word-shift word-bytes 
-	  fixnum-tag-bits fixnum-tag-mask positive-fixnum-bits
+(export '(word-bits byte-bits word-shift word-bytes float-sign-shift
 
-	  float-sign-shift
-	  
 	  single-float-bias single-float-exponent-byte
 	  single-float-significand-byte single-float-normal-exponent-min
 	  single-float-normal-exponent-max single-float-hidden-bit
@@ -91,14 +88,6 @@
 (defconstant word-bytes (/ word-bits byte-bits)
   "Number of bytes in a word.")
 
-(defconstant fixnum-tag-bits (1- lowtag-bits)
-  "Number of tag bits used for a fixnum")
-
-(defconstant fixnum-tag-mask (1- (ash 1 fixnum-tag-bits))
-  "Mask to get the fixnum tag")
-
-(defconstant positive-fixnum-bits (- word-bits fixnum-tag-bits 1)
-  "Maximum number of bits in a positive fixnum")
 
 (defconstant float-sign-shift 31)
 
@@ -188,7 +177,7 @@
 
 (export '(halt-trap pending-interrupt-trap error-trap cerror-trap
 	  breakpoint-trap function-end-breakpoint-trap
-	  after-breakpoint-trap pseudo-atomic-trap
+	  after-breakpoint-trap
 	  object-not-list-trap object-not-instance-trap
 	  trace-table-normal trace-table-call-site
 	  trace-table-function-prologue trace-table-function-epilogue))
@@ -202,7 +191,6 @@
   function-end-breakpoint
   after-breakpoint)
 
-;; Make sure this starts AFTER the last element of the above enum!
 (defenum (:prefix object-not- :suffix -trap :start 16)
   list
   instance)
@@ -273,14 +261,3 @@
 ;;; The number of bits per element in the assemblers code vector.
 ;;;
 (defparameter *assembly-unit-length* 8)
-
-
-;;;; Pseudo-atomic trap number.
-;;;;
-;;;; This should be any valid trap number. According to the Sparc
-;;;; Compliance Definition 2.4.1, only traps 16-31 are allowed for
-;;;; user applications.  All others are reserved.  It's ok if this
-;;;; number matches any of the other trap enums above because those
-;;;; are only used in an illtrap instruction, not the trap
-;;;; instruction.  This needs to be coordinated with the C code.
-(defconstant pseudo-atomic-trap 16)

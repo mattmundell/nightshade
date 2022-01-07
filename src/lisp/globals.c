@@ -1,4 +1,4 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/globals.c,v 1.3 2000/10/24 13:32:32 dtc Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/globals.c,v 1.2.2.1 2000/10/24 13:34:05 dtc Exp $ */
 
 /* Variables everybody needs to look at or frob on. */
 

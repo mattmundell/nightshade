@@ -6,7 +6,7 @@
 (export '(invoke-hook value setv hlet string-to-variable add-hook remove-hook
 	  defcommand with-mark use-buffer editor-error
 	  editor-error-format-string editor-error-format-arguments
-	  do-strings do-lines
+	  do-strings do-lines do-processes
 	  command-case reprompt with-output-to-mark with-input-from-region
 	  with-temp-buffer handle-lisp-errors with-output-to-window
 	  with-pop-up-display with-pop-up-window
@@ -365,7 +365,7 @@
 
 
 
-;;;; Do-Strings
+;;;; Do-*
 
 (defmacro do-strings ((string-var value-var table &optional result) &body forms)
   "Do-Strings (String-Var Value-Var Table [Result]) {declaration}* {form}*
@@ -387,10 +387,6 @@
 	   (declare (simple-string ,string-var))
 	   ,@forms)))))
 
-
-
-;;;; Do-Lines
-
 (defmacro do-lines ((line-var buffer-var) &body forms)
   "Do-Lines (Line-Var Buffer-Var) {declaration}* {form}*
   Iterate over the lines in a Buffer."
@@ -398,6 +394,26 @@
                        then (line-next ,line-var)
          while ,line-var do
      ,@forms))
+
+; (defmacro do-processes ((process buffer) &body body)
+;   `(loop for ,buffer in *buffer-list* do
+;      (when (buffer-minor-mode ,buffer "Process")
+;        (let ((,process (variable-value 'ed::process :buffer ,buffer)))
+; 	 ,@body))))
+(defmacro do-processes ((process buffer) &body (body decls))
+  "Do-Processes (Process Buffer) {declaration}* {form}*
+   Iterate over the processes active in any buffer.  Buffer is always
+   used."
+  (let ((buffer-list (gensym)))
+    `(let ((,buffer-list *buffer-list*))
+       (loop while ,buffer-list do
+	 (let ((,buffer (car ,buffer-list)))
+	   (when (buffer-minor-mode ,buffer "Process")
+	     (let ((,process (variable-value 'ed::process :buffer ,buffer)))
+	       ,@decls
+	       ,@body)))
+	 (setq ,buffer-list (cdr ,buffer-list))))))
+
 
 
 ;;;; COMMAND-CASE
@@ -499,7 +515,7 @@
 
 (defmacro strlen (str) `(length (the simple-string ,str)))
 (defmacro neq (a b) `(not (eq ,a ,b)))
-;; FIX rename comf when comf in setup.lisp renamed
+;; FIX rename comf (like logcom) when comf in setup.lisp renamed
 (defmacro complf (a) `(setf ,a (not ,a)))
 
 (defmacro in-lisp (&body body)
@@ -682,7 +698,7 @@
 	       (setf (window-buffer (current-window)) ,old-buffer))
 	   (delete-buffer ,buffer-var))))))
 
-(declaim (special *random-typeout-ml-fields* *buffer-names*))
+(proclaim '(special *random-typeout-ml-fields* *buffer-names*))
 
 (defvar *random-typeout-buffers* () "A list of random-typeout buffers.")
 
@@ -732,7 +748,7 @@
 
 ;;;; Error handling stuff.
 
-(declaim (special *echo-area-stream*))
+(proclaim '(special *echo-area-stream*))
 
 ;;; LISP-ERROR-ERROR-HANDLER is in macros.lisp instead of rompsite.lisp because
 ;;; it uses WITH-POP-UP-DISPLAY, and macros is compiled after rompsite.  It

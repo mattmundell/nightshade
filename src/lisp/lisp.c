@@ -1,7 +1,7 @@
 /*
  * main() entry point for a stand alone lisp image.
  *
- * $Header: /project/cmucl/cvsroot/src/lisp/lisp.c,v 1.25 2002/01/29 01:23:33 pmai Exp $
+ * $Header: /home/CVS-cmucl/src/lisp/lisp.c,v 1.11.2.7 2000/10/24 17:46:15 dtc Exp $
  *
  */
 
@@ -25,7 +25,6 @@
 #include "gc.h"
 #include "monitor.h"
 #include "validate.h"
-#include "interr.h"
 #if defined GENCGC
 #include "gencgc.h"
 #endif
@@ -85,7 +84,7 @@ static lispobj alloc_str_list(char *list[])
 
 /* And here be main. */
 
-int main(int argc, char *argv[], char *envp[])
+void main(int argc, char *argv[], char *envp[])
 {
     char *arg, **argptr;
     char *core = NULL, *default_core;
@@ -118,27 +117,27 @@ int main(int argc, char *argv[], char *envp[])
                 fprintf(stderr, "can only specify one core file.\n");
                 exit(1);
 	      }
-	    core = *++argptr;
-	    if (core == NULL)
+            core = *++argptr;
+            if (core == NULL)
 	      {
 		fprintf(stderr, "-core must be followed by the name of the core file to use.\n");
-		exit(1);
+                exit(1);
 	      }
 	  }
         else if (strcmp(arg, "-dynamic-space-size") == 0)
 	  {
-	    char *str = *++argptr;
+            char *str = *++argptr;
             if (str == NULL)
 	      {
-		fprintf(stderr, "-dynamic-space-size must be followed by the size to use in MBytes.\n");
-		exit(1);
+                fprintf(stderr, "-dynamic-space-size must be followed by the size to use in MBytes.\n");
+                exit(1);
 	      }
 	    dynamic_space_size = atoi(str) * 1024 * 1024;
 	    if (dynamic_space_size > DYNAMIC_SPACE_SIZE)
 	      {
-		fprintf(stderr, "-dynamic-space-size must be no greater than %d MBytes.\n",
+                fprintf(stderr, "-dynamic-space-size must be no greater than %d MBytes.\n",
 			DYNAMIC_SPACE_SIZE / (1024 * 1024));
-		exit(1);
+                exit(1);
 	      }
 	  }
 	else if (strcmp(arg, "-monitor") == 0)
@@ -172,12 +171,8 @@ int main(int argc, char *argv[], char *envp[])
 		if (stat(buf, &statbuf) == 0) {
 		    core = buf;
 		    break;
-		  }
+		}
 	    } while (*lib++ == ':');
-
-	    if (core == NULL)
-                fprintf(stderr, "WARNING: Couldn't find core in specified CMUCLLIB, using default path.\n");
-
 	}
 	if (core == NULL) {
 	    /* Note: the /usr/misc/.cmucl/lib/ default path is also wired
@@ -185,7 +180,11 @@ int main(int argc, char *argv[], char *envp[])
 #ifdef MACH
 	    strcpy(buf, "/usr/misc/.cmucl/lib/");
 #else
+#ifdef __linux__
+	    strcpy(buf, "/usr/lib/cmucl/");
+#else
 	    strcpy(buf, "/usr/local/lib/cmucl/lib/");
+#endif
 #endif
 	    strcat(buf, default_core);
 	    core = buf;

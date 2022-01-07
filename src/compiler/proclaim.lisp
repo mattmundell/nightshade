@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/proclaim.lisp,v 1.37 2002/07/22 17:02:43 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/proclaim.lisp,v 1.30.2.2 2000/07/07 11:04:32 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -49,7 +49,7 @@
 ;;; old uses will still get the old values.  *default-interface-cookie* holds
 ;;; any values specified by an OPTIMIZE-INTERFACE declaration.
 ;;;
-(declaim (type cookie *default-cookie* *default-interface-cookie*))
+(proclaim '(type cookie *default-cookie* *default-interface-cookie*))
 (defvar *default-cookie*)
 (defvar *default-interface-cookie*)
 
@@ -73,7 +73,7 @@
 ;;; functions.  This is bound by WITH-COMPILATION-UNIT.
 ;;;
 (defvar *undefined-warnings*)
-(declaim (list *undefined-warnings*))
+(proclaim '(list *undefined-warnings*))
 
 ;;; NOTE-NAME-DEFINED  --  Interface
 ;;;
@@ -172,9 +172,6 @@
 	      (&aux (aux arg))
 	      (t
 	       (compiler-error "Found garbage in lambda-list when expecting a keyword: ~S." arg)))))
-
-      (when (eq state '&rest)
-	(compiler-error "&rest not followed by required variable."))
       
       (values (required) (optional) restp rest keyp (keys) allowp (aux)
 	      morep more-context more-count))))
@@ -310,29 +307,22 @@
 
 ;;; DECLAIM  --  Public
 ;;;
-
+;;;    For now, just PROCLAIM without any EVAL-WHEN.
+;;;
 (defmacro declaim (&rest specs)
   "DECLAIM Declaration*
   Do a declaration for the global environment."
-  `(progn
-     (eval-when (:load-toplevel :execute)
-       ,@(mapcar #'(lambda (x)
-		     `(proclaim ',x))
-		 specs))
-     (eval-when (:compile-toplevel)
-       ,@(mapcar #'(lambda (x)
-		     `(%declaim ',x))
-		 specs))))
+  `(progn ,@(mapcar #'(lambda (x)
+			`(proclaim ',x))
+		    specs)))
+  
 
-(defun %declaim (x)
-  (proclaim x))
-
-;;; PROCLAIM  --  Public
+;;; %Proclaim  --  Interface
 ;;;
 ;;;    This function is the guts of proclaim, since it does the global
 ;;; environment updating.
 ;;;
-(defun proclaim (form)
+(defun %proclaim (form)
   (unless (consp form)
     (error "Malformed PROCLAIM spec: ~S." form))
   
@@ -343,26 +333,6 @@
        (dolist (name args)
 	 (unless (symbolp name)
 	   (error "Variable name is not a symbol: ~S." name))
-	 (unless (or (member (info variable kind name) '(:global :special))
-		     ;; If we are still in cold-load, and the package system
-		     ;; is not set up, the global db will claim all variables
-		     ;; are keywords/constants, because all symbols have the
-		     ;; same package nil.  Proceed normally in this case:
-		     (null (symbol-package :end)))
-	   (cond
-	     ((eq name 'nil)
-	      (error "Nihil ex nihil, can't declare ~S special." name))
-	     ((eq name 't)
-	      (error "Veritas aeterna, can't declare ~S special." name))
-	     ((keywordp name)
-	      (error "Can't declare ~S special, it is a keyword." name))
-	     (t
-	      (cerror "Proceed anyway."
-		      "Trying to declare ~S special, which is ~A." name
-		      (ecase (info variable kind name)
-			(:constant "a constant")
-			(:alien "an alien variable")
-			(:macro "a symbol macro"))))))
 	 (clear-info variable constant-value name)
 	 (setf (info variable kind name) :special)))
       (type
@@ -404,8 +374,8 @@
        ;; FTYPE.
        (when *type-system-initialized*
 	 (if (and (<= 2 (length args) 3) (listp (second args)))
-	     (proclaim `(ftype (function . ,(rest args)) ,(first args)))
-	     (proclaim `(type function . ,args)))))
+	     (%proclaim `(ftype (function . ,(rest args)) ,(first args)))
+	     (%proclaim `(type function . ,args)))))
       (optimize
        (setq *default-cookie*
 	     (process-optimize-declaration form *default-cookie*)))
@@ -435,14 +405,12 @@
       ((start-block end-block)) ; ignore.
       (t
        (cond ((member kind type-specifier-symbols)
-	      (proclaim `(type . ,form)))
-	     ((or (info type kind kind)
-		  (and (consp kind) (info type translator (car kind))))
-	      (proclaim `(type . ,form)))
+	      (%proclaim `(type . ,form)))
 	     ((not (info declaration recognized kind))
 	      (warn "Unrecognized proclamation: ~S." form))))))
   (undefined-value))
-
+;;;
+(setf (symbol-function 'proclaim) #'%proclaim)
 
 ;;; %NOTE-TYPE-DEFINED  --  Interface
 ;;;

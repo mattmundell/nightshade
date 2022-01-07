@@ -1,5 +1,5 @@
 /*
- * $Header: /project/cmucl/cvsroot/src/lisp/irix-os.c,v 1.1 1994/07/05 16:09:23 hallgren Exp $
+ * $Header: /home/CVS-cmucl/src/lisp/irix-os.c,v 1.1 1994/07/05 16:09:23 hallgren Exp $
  *
  * OS-dependent routines.  This file (along with os.h) exports an
  * OS-independent interface to the operating system VM facilities.

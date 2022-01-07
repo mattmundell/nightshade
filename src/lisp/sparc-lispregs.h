@@ -1,4 +1,4 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/sparc-lispregs.h,v 1.5 2000/10/27 19:42:31 dtc Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/sparc-lispregs.h,v 1.4.2.1 2000/10/27 19:41:22 dtc Exp $ */
 
 
 

@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/load.lisp,v 1.83 2002/04/07 00:14:12 pmai Exp $")
+  "$Header: /home/CVS-cmucl/src/code/load.lisp,v 1.62.2.4 2000/05/23 16:36:35 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -43,13 +43,7 @@
     "fasl")
   "A list of the object file types recognized by LOAD.")
 
-(defvar *load-lp-object-types*
-  '(#.(string-upcase (c:backend-fasl-file-type c:*backend*))
-    #.(string-upcase (c:backend-byte-fasl-file-type c:*backend*))
-    "FASL")
-  "A list of the object file types recognized by LOAD for logical pathnames.")
-
-(declaim (list *load-source-types* *load-object-types* *load-lp-object-types*))
+(declaim (list *load-source-types* *load-object-types*))
 
 (defvar *load-verbose* t
   "The default for the :VERBOSE argument to Load.")
@@ -72,13 +66,7 @@
   "Count of the number of recursive loads.")
 (declaim (type index *load-depth*))
 (defvar *fasl-file*)
-(declaim (type lisp-stream *fasl-file*))
-
-;; If non-nil, don't check that FASL files loaded into core have the
-;; same version number as the current backend. This is used when
-;; rebuilding CMUCL after having incremented the FASL-FILE-VERSION
-;; parameter.
-(defvar *skip-fasl-file-version-check* nil)
+(declaim (type lisp-stream fasl-file))
 
 
 ;;; LOAD-FRESH-LINE -- internal.
@@ -245,7 +233,7 @@
 
 ;;;; Utilities for reading from the fasl file.
 
-(declaim (inline read-byte))
+(proclaim '(inline read-byte))
 
 ;;; Fast-Read-U-Integer  --  Internal
 ;;;
@@ -412,12 +400,10 @@
 		(funcall (the function (svref fop-functions byte))))))))))
 
 
-;;; Check-Header returns t if it succesfully read a header from the file,
+;;; Check-Header returns t if t succesfully read a header from the file,
 ;;; or () if EOF was hit before anything was read.  An error is signaled
 ;;; if garbage is encountered.
-;;;
-;;; We check that the stream starts with the magic bytes "FASL FILE".
-;;; The end of the header is marked by the octet #xFF. 
+
 (defun check-header (file)
   (let ((byte (read-byte file NIL '*eof*)))
     (cond ((eq byte '*eof*) ())
@@ -478,8 +464,7 @@
 ;;;
 (defun load (filename &key (verbose nil verbose-p) (print nil print-p)
 		      (if-source-newer nil if-source-newer-p)
-		      (if-does-not-exist :error) contents
-		      (external-format :default))
+		      (if-does-not-exist :error) contents)
   "Loads the file named by Filename into the Lisp environment.  The file type
    (a.k.a extension) is defaulted if missing.  These options are defined:
 
@@ -511,11 +496,10 @@
    The variables *LOAD-VERBOSE*, *LOAD-PRINT* and EXT:*LOAD-IF-SOURCE-NEWER*
    determine the defaults for the corresponding keyword arguments.  These
    variables are also bound to the specified argument values, so specifying a
-   keyword affects nested loads.  The variables EXT:*LOAD-SOURCE-TYPES*,
-   EXT:*LOAD-OBJECT-TYPES*, and EXT:*LOAD-LP-OBJECT-TYPES* determine the file
-   types that we use for defaulting when none is specified."
-  (declare (type (or null (member :source :binary)) contents)
-	   (ignore external-format))
+   keyword affects nested loads.  The variables EXT:*LOAD-SOURCE-TYPES* and
+   EXT:*LOAD-OBJECT-TYPES* determine the file types that we use for defaulting
+   when none is specified."
+  (declare (type (or null (member :source :binary)) contents))
   (collect ((vars)
 	    (vals))
     (macrolet ((frob (wot)
@@ -544,7 +528,7 @@
 		   (fasload filename)
 		   (sloload filename))
 	       (let ((pn (merge-pathnames (pathname filename)
-					  *default-pathname-defaults* nil)))
+					  *default-pathname-defaults*)))
 		 (if (wild-pathname-p pn)
 		     (dolist (file (directory pn) t)
 		       (internal-load pn file if-does-not-exist contents))
@@ -611,18 +595,18 @@
 
 ;;; TRY-DEFAULT-TYPES  --  Internal
 ;;;
-(defun try-default-types (pathname types lp-types)
+(defun try-default-types (pathname types lp-type)
+  ;; Modified 18-Jan-97/pw for logical-pathname support.
   (flet ((frob (pathname type)
 	   (let* ((pn (make-pathname :type type :defaults pathname))
 		  (tn (probe-file pn)))
 	     (values pn tn))))
-    (dolist (type (if (logical-pathname-p pathname)
-		      lp-types types)
-	     (values nil nil))
-      (multiple-value-bind (pn tn)
-	  (frob pathname type)
-	(when tn
-	  (return (values pn tn)))))))
+    (if (logical-pathname-p pathname)
+	(frob pathname lp-type)
+	(dolist (type types (values nil nil))
+	  (multiple-value-bind (pn tn)(frob pathname type)
+	    (when tn
+	      (return (values pn tn))))))))
 
 ;;; INTERNAL-LOAD-DEFAULT-TYPE  --  Internal
 ;;;
@@ -631,10 +615,10 @@
 (defun internal-load-default-type (pathname if-does-not-exist)
   (multiple-value-bind
       (src-pn src-tn)
-      (try-default-types pathname *load-source-types* '("LISP"))
+      (try-default-types pathname *load-source-types* "LISP")
     (multiple-value-bind
 	(obj-pn obj-tn)
-	(try-default-types pathname *load-object-types* *load-lp-object-types*)
+	(try-default-types pathname *load-object-types* "FASL")
       (cond
        ((and obj-tn src-tn
 	     (> (file-write-date src-tn) (file-write-date obj-tn)))
@@ -1111,39 +1095,31 @@
 
 ;;;; Loading functions:
 
-;;; must be compatible with the function OPEN-FASL-FILE in compiler/dump.lisp
-;;; The old fop-code-format FOP is legacy support for FASL formats prior to
-;;; #x18d, which used a single octet for the version number.
-(clone-fop (fop-long-code-format 157 :nope)
-	   (fop-code-format 57)
+(define-fop (fop-code-format 57 :nope)
   (let ((implementation (read-arg 1))
-	(version (clone-arg)))
+	(version (read-arg 1)))
     (flet ((check-version (imp vers)
 	     (when (eql imp implementation)
 	       (unless (eql version vers)
-		 (cerror "Load ~A anyway"
-                         "~A was compiled for fasl-file version ~X, ~
-			 but this is version ~X"
-                         *fasl-file* version vers))
+		 (error "~A was compiled for fasl-file version ~A, ~
+			 but this is version ~A"
+			*fasl-file* version vers))
 	       t))
 	   (imp-name (imp)
-             (if (< -1 imp (length '#.c:fasl-file-implementations))
-                 (nth imp '#.c:fasl-file-implementations)
+	     (or (nth imp '#.c:fasl-file-implementations)
 		 "unknown machine")))
-    (unless (or *skip-fasl-file-version-check*
-                (check-version #.(c:backend-fasl-file-implementation
+    (unless (or (check-version #.(c:backend-fasl-file-implementation
 				  c:*backend*)
 			       #.(c:backend-fasl-file-version
 				  c:*backend*))
 		(check-version #.(c:backend-byte-fasl-file-implementation
 				  c:*backend*)
 			       c:byte-fasl-file-version))
-      (cerror "Load ~A anyway"
-              "~A was compiled for a ~A, but this is a ~A"
-              *Fasl-file*
-              (imp-name implementation)
-              (imp-name
-	       #.(c:backend-fasl-file-implementation c:*backend*)))))))
+      (error "~A was compiled for a ~A, but this is a ~A"
+	     *Fasl-file*
+	     (imp-name implementation)
+	     (imp-name #.(c:backend-fasl-file-implementation c:*backend*)))))))
+
 
 ;;; Load-Code loads a code object.  NItems objects are popped off the stack for
 ;;; the boxed storage section, then Size bytes of code are read in.
@@ -1399,4 +1375,4 @@
     code-object))
 
 
-(declaim (maybe-inline read-byte))
+(proclaim '(maybe-inline read-byte))

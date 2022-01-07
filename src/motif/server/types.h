@@ -1,6 +1,6 @@
 /*
 
- $Header: /project/cmucl/cvsroot/src/motif/server/types.h,v 1.2 1994/10/27 17:16:51 ram Exp $
+ $Header: /home/CVS-cmucl/src/motif/server/types.h,v 1.2 1994/10/27 17:16:51 ram Exp $
 
  This code was written as part of the CMU Common Lisp project at
  Carnegie Mellon University, and has been placed in the public domain.

@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/array-tran.lisp,v 1.28 2000/07/06 18:37:00 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/array-tran.lisp,v 1.19.2.4 2000/07/09 14:03:12 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

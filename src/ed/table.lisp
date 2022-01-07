@@ -223,7 +223,7 @@
 
 (defvar *string-buffer-size* 128)
 (defvar *string-buffer* (make-string *string-buffer-size*))
-(declaim (simple-string *string-buffer*))
+(proclaim '(simple-string *string-buffer*))
 
 (defvar *separator-positions* nil)
 
@@ -514,7 +514,7 @@
 
 (defvar *complete-string-buffer-size* 128)
 (defvar *complete-string-buffer* (make-string *complete-string-buffer-size*))
-(declaim (simple-string *complete-string-buffer*))
+(proclaim '(simple-string *complete-string-buffer*))
 
 (defun complete-string (string tables)
   "Attempts to complete the string String against the string tables in the

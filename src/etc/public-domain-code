@@ -1,0 +1,237 @@
+									                 -*- outline -*-
+
+* CMU CL 18C (base of Nightshade 1)
+
+code/ files in 18C that are PD, i.e. any mods before 18c were made by one
+of the original CMU authors.  (Also check commits on branches.)
+
+** pd
+
+** the rest
+
+run-program.lisp   pw
+parse-time.lisp    dtc
+reader.lisp        dtc (1 Based on patches from Tim Moore)
+				   pw, toy
+
+* CMU CL 2002-08-23-19h00 (base of Nightshade 0.0)
+
+code/ files in the 2002-08-23-19h00 CVS that are PD, i.e.  any mods before
+2002-08-23-19h00 were made by one of the original CMU authors.  (Also
+checked commits on branches.)
+
+(This is for switching from the 2002 base of 0.0 to 18C as base for 1.)
+
+** pd
+
+** the rest
+
+run-program.lisp
+	----------------------------
+	revision 1.23
+	date: 1998-06-16 07:58:57 +0100;  author: dtc;  state: Exp;  lines: +3 -1
+	Linux port update from Peter VanEynde: revision of the glibc2 support,
+	better hemlock tty mode support.
+	----------------------------
+	revision 1.22
+	date: 1997-03-13 22:19:02 +0000;  author: pw;  state: Exp;  lines: +10 -10
+	branches:  1.22.2;
+	Add :abort t to some CLOSE calls in process-close
+	----------------------------
+	revision 1.21
+	date: 1997-02-08 15:20:26 +0000;  author: pw;  state: Exp;  lines: +3 -2
+	Move misplaced hpux conditional that caused undefined symbol warning on non-hpux boxes.
+	----------------------------
+	----------------------------
+	revision 1.22.2.1
+	date: 1998-06-23 12:22:25 +0100;  author: pw;  state: Exp;  lines: +3 -1
+	This (huge) revision brings the RELENG_18 branch up to the current HEAD.
+	Note code/unix-glib2.lisp not yet included -- not sure it is ready to go.
+	----------------------------
+
+
+		+++ /home/matt/src/nightshade/src/code/run-program.lisp
+		--- :src/cmucl-2002-08-23-19h00/src/code/run-program.lisp.
+		+++++++++++++++
+		  "$Header: /home/CVS-cmucl/src/code/run-program.lisp,v 1.22.2.1 1998/06/23 11:22:25 pw Exp $")
+		---------------
+		  "$Header: /project/cmucl/cvsroot/src/code/run-program.lisp,v 1.25 2001/04/10 13:44:12 pw Exp $")
+		+++++++++++++++
+		---------------
+		  (declare (type process proc))
+		+++++++++++++++
+		---------------
+		  (declare (type process proc))
+		+++++++++++++++
+		---------------
+		  (declare (type process proc))
+		+++++++++++++++
+		---------------
+		  (declare (type process proc))
+		+++++++++++++++
+		---------------
+		  (declare (type process proc))
+
+parse-time.lisp
+	----------------------------
+	revision 1.8
+	date: 2000-11-27 17:23:15 +0000;  author: pw;  state: Exp;  lines: +6 -4
+	In decompose-string, fix error report generated when :error-on-mismatch
+	is true to indicate correct bogus character.
+	----------------------------
+	revision 1.7
+	date: 2000-06-07 13:35:39 +0100;  author: dtc;  state: Exp;  lines: +41 -11
+	o Extend parse-time to accept the patterns it matches as a keyword
+	  argument, allowing it to be used for parsing alternate date-time formats.
+
+	o Add support for parsing the three common HTTP time formats:
+	  RFC1123/RFC822, RFC850, and ANSI-C - requiring the new pattern symbol
+	  izone to handle the different time zone convention.
+	----------------------------
+	----------------------------
+	revision 1.6.2.1
+	date: 2000-06-07 13:49:28 +0100;  author: dtc;  state: Exp;  lines: +41 -11
+	o Extend parse-time to accept the patterns it matches as a keyword
+	  argument, allowing it to be used for parsing alternate date-time formats.
+
+	o Add support for parsing the three common HTTP time formats:
+	  RFC1123/RFC822, RFC850, and ANSI-C - requiring the new pattern symbol
+	  izone to handle the different time zone conventions.
+	----------------------------
+
+
+		+++ /home/matt/src/nightshade/src/code/parse-time.lisp
+		--- /home/matt/src/cmucl-2002-08-23-19h00-clean/src/code/parse-time.lisp.
+		+++++++++++++++
+		  "$Header: /home/CVS-cmucl/src/code/parse-time.lisp,v 1.6.2.1 2000/06/07 12:49:28 dtc Exp $")
+		---------------
+		  "$Header: /project/cmucl/cvsroot/src/code/parse-time.lisp,v 1.8 2000/11/27 17:23:15 pw Exp $")
+		+++++++++++++++
+				("pdt" . 7))
+		---------------
+				("pdt" . 7))
+		+++++++++++++++
+		  '(
+		---------------
+		  '(
+		+++++++++++++++
+			(hour (time-divider) (minute) (time-divider) (secondp) (am-pm)
+		---------------
+			(hour (time-divider) (minute) (time-divider) (secondp) (am-pm)
+		+++++++++++++++
+			(weekday)))
+
+		;;; HTTP header style date/time patterns: RFC1123/RFC822, RFC850, ANSI-C.
+		(defparameter *http-date-time-patterns*
+		  '(
+		---------------
+		))
+
+		;;; HTTP header style date/time patterns: RFC1123/RFC822, RFC850, ANSI-C.
+		(defparameter *http-date-time-patterns*
+		  '(
+		+++++++++++++++
+		;;; Sets the current values for the time and/or date parts of the
+		---------------
+		;;; Sets the current values for the time and/or date parts of the
+		+++++++++++++++
+				 (incf string-index))
+		---------------
+				 (incf string-index))
+		+++++++++++++++
+				 (error (concatenate 'simple-string ">>> " string
+							 "~%~VT^-- Bogus character encountered here.")
+					(+ string-index 4))
+		---------------
+				 (error
+				  'simple-error
+				  :format-control "Can't parse time/date string.~%>>> ~A~
+						   ~%~VT^-- Bogus character encountered here."
+				  :format-arguments (list string (+ string-index 4)))
+
+	the dtc additions are in 18c and the pw additions are to some other
+	part of the file, hence just copying across the 0.0+ additions
+
+reader.lisp
+	----------------------------
+	revision 1.32
+	date: 2002-07-25 15:49:25 +0100;  author: toy;  state: Exp;  lines: +14 -7
+	branches:  1.32.2;
+	From Eric Marsden:
+
+	  * the PARSE-INTEGER function should signal an error of type
+		PARSE-ERROR when the substring argument is not a valid
+		representation of an integer.
+	----------------------------
+	revision 1.31
+	date: 2001-07-16 14:21:07 +0100;  author: pmai;  state: Exp;  lines: +3 -1
+	ANSI conformance fix from António Leitão via Joao Cachopo:
+	  According to the standard, COPY-READTABLE should copy the setting of
+	  READTABLE-CASE but the current version of CMUCL does not.
+	----------------------------
+	revision 1.30
+	date: 2001-03-04 20:12:40 +0000;  author: pw;  state: Exp;  lines: +4 -4
+	Change most PROCLAIMs to DECLAIMs.
+	----------------------------
+	revision 1.29
+	date: 2000-05-23 07:37:24 +0100;  author: dtc;  state: Exp;  lines: +66 -46
+	Based on patches from Tim Moore; problem noted by Sam Steingold:
+	o Fix sharp-backslash which had been binding the *readtable* to the
+	  std-lisp-readtable and breaking the recognition of the end of the token.
+	o A new supporting function read-extended-token-escaped has been added
+	  that reads a token with the first character escaped, and
+	  internal-read-extended-token has been extended to handle the case in
+	  which the first character is to be escaped.
+	o Fix the handling of single escapes within a double escape, within
+	  the function internal-read-extended-token.
+	----------------------------
+	revision 1.28
+	date: 2000-02-25 14:56:02 +0000;  author: dtc;  state: Exp;  lines: +6 -5
+	Implement issue GET-MACRO-CHARACTER-READTABLE, the readtable argument
+	of get-macro-character and get-dispatch-macro-character is a readtable
+	designator and may be nil in which case it denotes the standard
+	readtable. From Peter Van Eynde's branch.
+	----------------------------
+	revision 1.27
+	date: 1998-05-15 02:01:02 +0100;  author: dtc;  state: Exp;  lines: +73 -77
+	Streamline the Gray streams related dispatch code.
+	----------------------------
+	revision 1.26
+	date: 1998-05-05 01:14:36 +0100;  author: dtc;  state: Exp;  lines: +5 -5
+	Restore the in-synonym-of, out-synonym-of, with-in-stream, and
+	with-out-stream macros incorrectly replaced in the recent Gray stream
+	changes.
+	----------------------------
+	revision 1.25
+	date: 1998-05-04 02:27:15 +0100;  author: dtc;  state: Exp;  lines: +85 -38
+	Gray streams support:
+	* Rename the 'stream structure class to sys:lisp-stream.
+	* Add a new none hierarchical 'stream built-in class which inherits
+	  from: instance, t.
+	* Hack in the new stream class as a mixin for the structure base
+	  lisp-stream class which now inherits from: stream, structure-object,
+	  instance, t.
+	* Add a new 'fundamental-stream standard-class which includes 'stream
+	  as a mixin, and add PCL hacks to allow this to be redefined after PCL is
+	  loaded to be (defclass fundamental-stream (standard-object stream) ...).
+	* Add appropriate support to the base stream functions to dispatch to
+	  the Gray stream functions for the handling of fundamental-streams.
+	  Some of the lisp-streams encapsulating CLOS streams still need
+	  a little work.
+	----------------------------
+	revision 1.24
+	date: 1998-03-28 17:11:50 +0000;  author: pw;  state: Exp;  lines: +11 -4
+	Removing simple-condition from the CPL of READER-ERROR broke
+	error processing (should have noticed earlier, dang!). This
+	change puts back the missing parts.
+	----------------------------
+	revision 1.23
+	date: 1998-03-26 13:20:48 +0000;  author: pw;  state: Exp;  lines: +2 -2
+	Change condition READER-ERROR to be a subclass of PARSE-ERROR
+	as required by ANSI spec.
+	----------------------------
+	revision 1.22
+	date: 1997-03-20 21:53:49 +0000;  author: pw;  state: Exp;  lines: +39 -7
+	branches:  1.22.2;
+	Ray Toy's fix for reading very large/small FP numbers
+	----------------------------

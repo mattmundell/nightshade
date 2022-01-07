@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/alpha/print.lisp,v 1.3 2001/02/20 20:54:32 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/alpha/print.lisp,v 1.2 1994/10/31 04:39:51 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -16,10 +16,7 @@
 
 (in-package "ALPHA")
 
-;;; Some room needs to be allocated on the number stack because call_into_c
-;;; pops two register args before calling into C and restores the NSP upon
-;;; return.
-;;;
+
 (define-vop (print)
   (:args (object :scs (descriptor-reg) :target a0))
   (:results (result :scs (descriptor-reg)))
@@ -37,9 +34,7 @@
 	(store-stack-tn nfp-save cur-nfp))
       (inst li (make-fixup "debug_print" :foreign) cfunc)
       (inst li (make-fixup "call_into_c" :foreign) temp)
-      (inst lda nsp-tn (- 16) nsp-tn)
       (inst jsr lip-tn temp (make-fixup "call_into_c" :foreign))
-      (inst lda nsp-tn 16 nsp-tn)
       (when cur-nfp
 	(maybe-load-stack-nfp-tn cur-nfp nfp-save temp))
       (move cfunc result))))

@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/save.lisp,v 1.44 2002/07/10 16:40:43 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/code/save.lisp,v 1.31.2.5 2000/11/04 17:06:19 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -14,7 +14,7 @@
 ;;; files and parsing environment variables.
 ;;;
 ;;; Written by William Lott.
-;;; 
+;;;
 ;;;
 (in-package "LISP")
 
@@ -90,9 +90,10 @@
 	    (list (default-directory))))
 
   (setf (search-list "library:")
-	(or (parse-unix-search-list :cmucllib)
-	    '("/usr/local/lib/cmucl/lib/")))
-  (setf (search-list "modules:") '("library:subsystems/")))
+	(or (parse-unix-search-list :nightshadelib)
+	    '(#+mach  "/usr/misc/.nightshade/lib/"
+	      #+linux "/usr/lib/nightshade/"
+	      #-(or mach linux) "/usr/local/lib/nightshade/lib/"))))
 
 
 
@@ -110,11 +111,10 @@
 				 (load-init-file t)
 				 (site-init "library:site-init")
 				 (print-herald t)
-				 (process-command-line t)
-				 (batch-mode nil))
-  "Saves a CMU Common Lisp core image in the file of the specified name.  The
-  following keywords are defined:
-  
+				 (process-command-line t))
+  "Saves a core image in the file of the specified name.  The
+   following keywords are defined:
+
   :purify
       If true (the default), do a purifying GC which moves all dynamically
   allocated objects into static space so that they stay pure.  This takes
@@ -129,12 +129,12 @@
 
   :environment-name
       Also passed to EXT:PURIFY when :PURIFY is T.  Rarely used.
-  
+
   :init-function
       This is the function that starts running when the created core file is
   resumed.  The default function simply invokes the top level
   read-eval-print loop.  If the function returns the lisp will exit.
-  
+
   :load-init-file
       If true, then look for an init.lisp or init.fasl file when the core
   file is resumed.
@@ -144,17 +144,7 @@
       library:site-init.  No error if this does not exist.
 
   :print-herald
-      If true (the default), print out the lisp system herald when starting.
-
-  :process-command-line
-      If true (the default), process command-line switches via the normal
-  mechanisms, otherwise ignore all switches (except those processed by the
-  C startup code).
-
-  :batch-mode
-      If nil (the default), then the presence of the -batch command-line
-  switch will invoke batch-mode processing.  If true, the produced core
-  will always be in batch-mode, regardless of any command-line switches."
+      If true (the default), print out the lisp system herald when starting."
 
   #+mp (mp::shutdown-multi-processing)
   (when (fboundp 'eval:flush-interpreted-function-cache)
@@ -166,7 +156,6 @@
 	      :environment-name environment-name)
       #-gencgc (gc) #+gencgc (gc :full t))
   (dolist (f *before-save-initializations*) (funcall f))
-  (setq ext:*batch-mode* (if batch-mode t nil))
   (labels
       ((%restart-lisp ()
 	 (with-simple-restart (abort "Skip remaining initializations.")
@@ -183,9 +172,7 @@
 				 :test #'(lambda (x y)
 					   (declare (simple-string x y))
 					   (string-equal x y)))))
-	       (when (and site-init
-			  (not (and process-command-line
-				    (find-switch "nositeinit"))))
+	       (when site-init
 		 (load site-init :if-does-not-exist nil :verbose nil))
 	       (when (and process-command-line (find-switch "edit"))
 		 (setf *editor-lisp-p* t))
@@ -200,7 +187,7 @@
 		       (load (merge-pathnames name #p"home:")
 			     :if-does-not-exist nil)
 		       (or (load "home:init" :if-does-not-exist nil)
-			   (load "home:.cmucl-init"
+			   (load "home:.nightshade"
 				 :if-does-not-exist nil))))))
 	     (when process-command-line
 	       (ext::invoke-switch-demons *command-line-switches*
@@ -241,15 +228,17 @@
    strings and functions (or function names).  Strings are printed, and
    functions are called with an output stream argument.")
 
-(setf (getf *herald-items* :common-lisp)
+(setf (getf *herald-items* :nightshade)
       `("Nightshade "
 	,#'(lambda (stream)
 	     (write-string (lisp-implementation-version) stream))
 	", running on "
-	,#'(lambda (stream) (write-string (machine-instance) stream))))
+	,#'(lambda (stream) (write-string (machine-instance) stream))
+	"."))
 
 (setf (getf *herald-items* :subsystems)
-      '(terpri "Loaded subsystems:"))
+      '(terpri
+	"Loaded subsystems:"))
 
 ;;; PRINT-HERALD  --  Public
 ;;;

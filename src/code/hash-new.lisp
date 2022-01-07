@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/hash-new.lisp,v 1.18 2002/07/10 16:15:59 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/code/hash-new.lisp,v 1.2.2.6 2000/11/04 17:10:35 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -217,9 +217,8 @@
 	       (values 'equalp #'equalp #'equalp-hash))
 	      (t
 	       (dolist (info *hash-table-tests*
-			     (error 'simple-program-error
-                                    :format-control "Unknown :TEST for MAKE-HASH-TABLE: ~S"
-				    :format-arguments (list test)))
+			     (error "Unknown :TEST for MAKE-HASH-TABLE: ~S"
+				    test))
 		 (destructuring-bind
 		  (test-name test-fun hash-fun)
 		  info
@@ -231,7 +230,7 @@
 	     (length (if (<= scaled-size 37) 37 (almost-primify scaled-size))))
 	(declare (type index size+1 scaled-size length))
 	(when weak-p
-	  (format *debug-io* ";; Creating unsupported weak-p hash table~%"))
+	  (format *debug-io* "* Creating unsupported weak-p hash table~%"))
 	(let* ((index-vector
 		(make-array length :element-type '(unsigned-byte 32)
 			    :initial-element 0))
@@ -863,21 +862,15 @@
 (defmacro sxhash-string (sequence)
   (let ((data (gensym))
 	(start (gensym))
-	(end (gensym))
-	(fill-end (gensym)))
-    (once-only ((n-sequence sequence))
-      `(let ((,fill-end (if (array-has-fill-pointer-p ,n-sequence)
-			    (fill-pointer ,n-sequence)
-			    nil)))
-	 (with-array-data ((,data (the (values string &rest t) ,n-sequence))
-			   (,start)
-			   (,end ,fill-end))
-	   (if (zerop ,start)
-	       (%sxhash-simple-substring ,data ,end)
-	       (sxhash-simple-string (coerce (the (values string &rest t)
-					       ,n-sequence)
-					     'simple-string))))))))
-
+	(end (gensym)))
+    `(with-array-data ((,data (the (values string &rest t) ,sequence))
+		       (,start)
+		       (,end))
+       (if (zerop ,start)
+	   (%sxhash-simple-substring ,data ,end)
+	   (sxhash-simple-string (coerce (the (values string &rest t)
+					      ,sequence)
+					 'simple-string))))))
 
 (defmacro sxhash-list (sequence depth &key (equalp nil))
   `(if (= ,depth sxhash-max-depth)

@@ -86,7 +86,7 @@
 ;;;
 ;;;    Modify the character-set Set to succeed for Character.
 ;;;
-(declaim (inline add-character-to-set))
+(proclaim '(inline add-character-to-set))
 (defun add-character-to-set (character set)
   (setf (aref (the (simple-array (mod 256)) set)
 	      (search-char-code character))

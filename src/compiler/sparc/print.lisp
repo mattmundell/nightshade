@@ -5,11 +5,11 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/sparc/print.lisp,v 1.3 1994/10/31 04:46:41 ram Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/sparc/print.lisp,v 1.3 1994/10/31 04:46:41 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
-;;; $Header: /project/cmucl/cvsroot/src/compiler/sparc/print.lisp,v 1.3 1994/10/31 04:46:41 ram Exp $
+;;; $Header: /home/CVS-cmucl/src/compiler/sparc/print.lisp,v 1.3 1994/10/31 04:46:41 ram Exp $
 ;;;
 ;;; This file contains VOPs for things like printing during %initial-function
 ;;; before the world is initialized.

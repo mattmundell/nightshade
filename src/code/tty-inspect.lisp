@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/tty-inspect.lisp,v 1.20 2001/11/21 22:58:34 pmai Exp $")
+  "$Header: /home/CVS-cmucl/src/code/tty-inspect.lisp,v 1.15.2.2 2000/05/23 16:36:51 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -37,7 +37,7 @@
 (defparameter inspect-length 10)
 (defparameter inspect-level 1)
 
-(declaim (inline numbered-parts-p))
+(proclaim '(inline numbered-parts-p))
 (defun numbered-parts-p (parts)
   (second parts))
 
@@ -110,7 +110,7 @@
 (defun do-tty-inspect-eval (command stream)
   (let ((result-list (restart-case (multiple-value-list (eval command))
 		       (nil () :report "Return to the TTY-INSPECTOR"
-			  (format stream "~%Returning to INSPECTOR.~%")
+			  (format stream "~%Returning to INPSECTOR.~%")
 			  (return-from do-tty-inspect-eval nil)))))
     (setf /// // // / / result-list)
     (setf +++ ++ ++ + + - - command)
@@ -222,10 +222,7 @@
 
 (defun describe-array-parts (object)
   (let* ((length (min (array-total-size object) inspect-length))
-	 (reference-array (make-array length
-				      :displaced-to object
-				      :element-type
-				      (array-element-type object)))
+	 (reference-array (make-array length :displaced-to object))
 	 (dimensions (array-dimensions object))
 	 (parts ()))
     (push (format nil "Object is ~:[a displaced~;an~] array of ~a.~%~

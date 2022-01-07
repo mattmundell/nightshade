@@ -80,7 +80,7 @@
  "There are no possible completions." s))))))
      ((and (eq *parse-type* :file) (not (zerop (length input))))
       (let ((pns (ambiguous-files (region-to-string *parse-input-region*)
-				  *parse-default*)))
+				  (or *parse-default* "") #| FIX |#)))
 	(declare (list pns))
 	(with-pop-up-display(s :height (+ (length pns) 2))
 	  (write-line help s)
@@ -114,7 +114,9 @@
   (multiple-value-bind
       (result win)
       (complete-file (filter-tildes typein)
-		     :defaults (directory-namestring *parse-default*)
+		     :defaults (if *parse-default* ;; FIX dir-namestring
+				   (directory-namestring *parse-default*)
+				   "")
 		     :ignore-types (value ignore-file-types))
     (when result
       (delete-region *parse-input-region*)
@@ -170,7 +172,7 @@
   Fields are defined by the :field separator attribute,
   the text being read in the echo area as a string in *parse-string-tables*."
   "Complete a field in a keyword.
-  If it is ambiguous and ``Beep On Ambiguity'' true beep.  Fields are
+  If it is ambiguous and ``Beep On Ambiguity'' is true beep.  Fields are
   separated by characters having a non-zero :parse-field-separator attribute,
   and this command should only be bound to characters having that attribute."
   (let ((typein (region-to-string *parse-input-region*)))
@@ -234,7 +236,7 @@
 	      (ring-push string *parse-history*))))
     (multiple-value-bind (res flag)
 			 (funcall *parse-verification-function* string)
-      (unless (or res flag) (editor-error))
+      (or res flag (editor-error))
       (exit-recursive-edit res))))
 
 (defcommand "Previous Parse" (p)
@@ -310,7 +312,7 @@
     (when (mark< tem *parse-starting-mark*) (editor-error))
     (kill-previous-word-command p)))
 
-(declaim (special *kill-ring*))
+(proclaim '(special *kill-ring*))
 
 (defcommand "Kill Parse" (p)
   "Kills any input so far."
@@ -327,7 +329,7 @@
   "Inserts *parse-default* at the point of the *echo-area-buffer*.
   If there is no default an editor-error is signalled."
   (declare (ignore p))
-  (unless *parse-default* (editor-error))
+  (or *parse-default* (editor-error))
   (insert-string (buffer-point *echo-area-buffer*) *parse-default*))
 
 (defcommand "Echo Area Backward Character" (p)

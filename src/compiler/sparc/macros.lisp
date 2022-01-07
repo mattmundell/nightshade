@@ -5,11 +5,11 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/sparc/macros.lisp,v 1.16 2002/05/10 14:48:24 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/sparc/macros.lisp,v 1.10 1994/10/31 04:46:41 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
-;;; $Header: /project/cmucl/cvsroot/src/compiler/sparc/macros.lisp,v 1.16 2002/05/10 14:48:24 toy Exp $
+;;; $Header: /home/CVS-cmucl/src/compiler/sparc/macros.lisp,v 1.10 1994/10/31 04:46:41 ram Exp $
 ;;;
 ;;; This file contains various useful macros for generating SPARC code.
 ;;;
@@ -28,34 +28,10 @@
     `(unless (location= ,n-dst ,n-src)
        (inst move ,n-dst ,n-src))))
 
-;; (loadw object base &optional (offset 0) (lowtag 0) temp)
-;;
-;; Load a word at a given address into the register OBJECT. The
-;; address of the word is in register BASE, plus an offset given by
-;; OFFSET, which is in words.  LOWTAG is an adjustment to OFFSET to
-;; account for any tag bits used in the BASE descriptor register.
-;;
-;; In some situations, the offset may be so large that it cannot fit
-;; into the offset field of the LD instruction (a 13-bit signed
-;; quantity).  In this situation, the TEMP non-descriptor register, if
-;; supplied, is used to compute the correct offset.  If TEMP is not
-;; given, the offset is assumed to fit.  (TEMP must be a
-;; non-descriptor because we store random values into it.  If OBJECT
-;; were always a non-descriptor, we wouldn't need the TEMP register.)
-;;
-;; Samething for storew, except we store OBJECT at the given address.
 (macrolet
     ((frob (op inst shift)
-     `(defmacro ,op (object base &optional (offset 0) (lowtag 0) temp)
-       (if temp
-	   (let ((offs (gensym)))
-	     `(let ((,offs (- (ash ,offset ,',shift) ,lowtag)))
-	       (if (typep ,offs '(signed-byte 13))
-		   (inst ,',inst ,object ,base ,offs)
-		   (progn
-		     (inst li ,temp ,offs)
-		     (inst ,',inst ,object ,base ,temp)))))
-	   `(inst ,',inst ,object ,base (- (ash ,offset ,',shift) ,lowtag))))))
+       `(defmacro ,op (object base &optional (offset 0) (lowtag 0))
+	  `(inst ,',inst ,object ,base (- (ash ,offset ,,shift) ,lowtag)))))
   (frob loadw ld word-shift)
   (frob storew st word-shift))
 
@@ -169,28 +145,6 @@
 
 ;;;; Storage allocation:
 
-;; Allocation macro
-;;
-;; This macro does the appropriate stuff to allocate space.
-;;
-;; The allocated space is stored in RESULT-TN with the lowtag LOWTAG
-;; applied.  The amount of space to be allocated is SIZE bytes (which
-;; must be a multiple of the lisp object size).
-(defmacro allocation (result-tn size lowtag)
-  ;; We assume we're in a pseudo-atomic so the pseudo-atomic bit is
-  ;; set.  If the lowtag also has a 1 bit in the same position, we're all
-  ;; set.  Otherwise, we need to zap out the lowtag from alloc-tn, and
-  ;; then or in the lowtag.
-  `(if (logbitp (1- lowtag-bits) ,lowtag)
-     (progn
-       (inst or ,result-tn alloc-tn ,lowtag)
-       (inst add alloc-tn ,size))
-     (progn
-       (inst andn ,result-tn alloc-tn lowtag-mask)
-       (inst or ,result-tn ,lowtag)
-       (inst add alloc-tn ,size))))
-
-
 (defmacro with-fixed-allocation ((result-tn temp-tn type-code size)
 				 &body body)
   "Do stuff to allocate an other-pointer object of fixed Size with a single
@@ -200,8 +154,8 @@
   initializes the object."
   (once-only ((result-tn result-tn) (temp-tn temp-tn)
 	      (type-code type-code) (size size))
-    `(pseudo-atomic ()
-       (allocation ,result-tn (pad-data-block ,size) other-pointer-type)
+    `(pseudo-atomic (:extra (pad-data-block ,size))
+       (inst or ,result-tn alloc-tn other-pointer-type)
        (inst li ,temp-tn (logior (ash (1- ,size) type-bits) ,type-code))
        (storew ,temp-tn ,result-tn 0 other-pointer-type)
        ,@body)))
@@ -319,12 +273,10 @@
 		     (emit-label ,fall-through))))
 	       (gen-other-immediate-test temp target not-target not-p immed))))
      (when fixnump
-       `((inst andcc zero-tn ,reg fixnum-tag-mask)
+       `((inst andcc zero-tn ,reg 3)
 	 ,(if (or lowtags hdrs)
-	      `(inst b :eq ,(if not-p not-target target)
-		     #+sparc-v9 ,(if not-p :pn :pt))
-	      `(inst b ,(if not-p :ne :eq) ,target
-		       #+sparc-v9 ,(if not-p :pn :pt)))))
+	      `(inst b :eq ,(if not-p not-target target))
+	      `(inst b ,(if not-p :ne :eq) ,target))))
      (when (or lowtags hdrs)
        `((inst and ,temp ,reg lowtag-mask)))
      (when lowtags
@@ -339,8 +291,7 @@
 			   (1- lowtag-limit) lowtags)))
      (when hdrs
        `((inst cmp ,temp ,lowtag)
-	 (inst b :ne ,(if not-p target not-target)
-	         #+sparc-v9 ,(if not-p :pn :pt))
+	 (inst b :ne ,(if not-p target not-target))
 	 (inst nop)
 	 (load-type ,temp ,reg (- ,lowtag))
 	 ,@(gen-other-immediate-test temp target not-target not-p hdrs))))))
@@ -482,16 +433,8 @@
 (defmacro pseudo-atomic ((&key (extra 0)) &rest forms)
   (let ((n-extra (gensym)))
     `(let ((,n-extra ,extra))
-       ;; Set the pseudo-atomic flag
        (without-scheduling ()
 	 (inst add alloc-tn 4))
        ,@forms
-       ;; Reset the pseudo-atomic flag
        (without-scheduling ()
-	;; Remove the pseudo-atomic flag
-	(inst add alloc-tn (- ,n-extra 4))
-	;; Check to see if pseudo-atomic interrupted flag is set (bit 0 = 1)
-	(inst andcc zero-tn alloc-tn 3)
-	;; The C code needs to process this correctly and fixup alloc-tn.
-	(inst t :ne pseudo-atomic-trap)
-	))))
+	 (inst taddcctv alloc-tn (- ,n-extra 4))))))

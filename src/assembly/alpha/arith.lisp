@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/assembly/alpha/arith.lisp,v 1.4 1998/08/05 09:03:37 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/assembly/alpha/arith.lisp,v 1.2.2.3 2000/05/23 16:35:49 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

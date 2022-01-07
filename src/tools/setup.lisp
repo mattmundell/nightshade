@@ -3,20 +3,14 @@
 ;;; **********************************************************************
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/tools/setup.lisp,v 1.31 2001/03/15 18:01:39 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/tools/setup.lisp,v 1.28.2.1 2000/05/23 16:39:07 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
 ;;;    Set up package environment and search lists for compiler.  Also some
 ;;; compilation utilities.
 ;;;
-
-;;; Ensure pre-ANSI defstruct processing occurs during system builds.
-(in-package "KERNEL")
-(defparameter *ansi-defstruct-options-p* nil)
-
 (in-package "USER")
-
 
 
 ;;; DUMP-PACKAGE-STATE  --  Public
@@ -112,11 +106,11 @@
 		(when shad
 		  (shadow shad new-pkg))
 		(new-packages (cons pkg new-pkg)))))
-	  
+
 	  (loop for (old . new) in (new-packages) do
 	    (dolist (use (package-use-list old))
 	      (use-package (trans-pkg use) new)))
-	  
+
 	  (loop for (old . new) in (new-packages) do
 	    (do-symbols (sym old)
 	      (let ((pkg (symbol-package sym))
@@ -194,7 +188,7 @@
 	    (handler-bind
 		((error #'(lambda (condition)
 			    (unless (typep condition 'c::compiler-error)
- 			      (format t "~A" condition)
+			      (format t "~A" condition)
 			      (format *error-output* "~2&~A~2&"
 				      condition)
 			      (when proceed
@@ -229,7 +223,6 @@
 	  ((c:target-featurep :x86) "x86/")
 	  ((c:target-featurep :alpha) "alpha/")
 	  ((c:target-featurep :sgi) "mips/")
-	  ((c:target-featurep :ppc) "ppc/")
 	  (t
 	   (error "What machine is this?")))
     (make-pathname :directory (pathname-directory f)))))

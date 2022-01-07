@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/hash.lisp,v 1.39 2000/07/06 18:36:37 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/code/hash.lisp,v 1.29.2.3 2000/07/09 14:03:00 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

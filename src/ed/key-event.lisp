@@ -43,7 +43,7 @@
 ;;;
 (defvar *names-to-keysyms*)
 
-(declaim (inline name-keysym keysym-names keysym-preferred-name))
+(proclaim '(inline name-keysym keysym-names keysym-preferred-name))
 
 (defun name-keysym (name)
   "This returns the keysym named name.  If name is unknown, this returns nil."

@@ -7,7 +7,7 @@
 ;;; Scott Fahlman or slisp-group@cs.cmu.edu.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/tools/worldbuild.lisp,v 1.43 2001/12/06 19:15:48 pmai Exp $")
+  "$Header: /home/CVS-cmucl/src/tools/worldbuild.lisp,v 1.35.2.1 1998/06/23 11:25:45 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -16,8 +16,8 @@
 
 (in-package "LISP")
 
-(unless (fboundp 'genesis)
-  (load "target:compiler/generic/new-genesis"))
+(or (fboundp 'genesis)
+    (load "target:compiler/generic/new-genesis"))
 
 (defparameter lisp-files
   `(,@(when (c:backend-featurep :pmax)
@@ -55,13 +55,6 @@
 	  "target:assembly/mips/array.assem"
 	  "target:assembly/mips/arith.assem"
 	  "target:assembly/mips/alloc.assem"))
-    ,@(when (c:backend-featurep :ppc)
-	'("target:assembly/ppc/assem-rtns.assem"
-	  "target:assembly/ppc/array.assem"
-	  "target:assembly/ppc/arith.assem"
-	  "target:assembly/ppc/alloc.assem"))
-
-
 
     "target:code/type-boot"
     "target:code/fdefinition"
@@ -133,7 +126,7 @@
 	'("target:code/osf1-os"))
     ,@(when (c:backend-featurep :irix)
 	'("target:code/irix-os"))
-    ,@(when (c:backend-featurep :BSD)
+    ,@(when (c:backend-featurep :FreeBSD)
 	'("target:code/bsd-os"))
     ,@(when (c:backend-featurep :Linux)
 	'("target:code/linux-os"))
@@ -162,8 +155,6 @@
 	'("target:code/alpha-vm"))
     ,@(when (c:backend-featurep :sgi)
 	'("target:code/sgi-vm"))
-    ,@(when (c:backend-featurep :ppc)
-	'("target:code/ppc-vm"))
 
     "target:code/signal"
     "target:code/interr"

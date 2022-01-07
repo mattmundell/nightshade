@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/pseudo-vops.lisp,v 1.9 1994/10/31 04:27:28 ram Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/pseudo-vops.lisp,v 1.9 1994/10/31 04:27:28 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -38,3 +38,4 @@
   (:vop-var vop)
   (:generator 0
     (funcall (symbol-function name) vop x y)))
+

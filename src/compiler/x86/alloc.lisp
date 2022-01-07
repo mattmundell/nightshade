@@ -7,7 +7,7 @@
 ;;; Scott Fahlman or slisp-group@cs.cmu.edu.
 ;;;
 (ext:file-comment
- "$Header: /project/cmucl/cvsroot/src/compiler/x86/alloc.lisp,v 1.7 1998/02/19 19:34:35 dtc Exp $")
+ "$Header: /home/CVS-cmucl/src/compiler/x86/alloc.lisp,v 1.2.2.1 1998/06/23 11:23:54 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

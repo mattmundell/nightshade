@@ -681,15 +681,6 @@
 	      (return lines))
 	    (line-offset mark -1))))))
 
-(defcommand "Delete Matching Lines" (p &optional string)
-  "Deletes all lines that match the search pattern using delete-region. If
-   the current region is active, limit the search to it. The argument is
-   ignored."
-  "Deletes all lines that match the search pattern using delete-region. If
-   the current region is active, limit the search to it. The argument is
-   ignored."
-  (flush-matching-lines-command p string))
-
 (defcommand "Flush Lines" (p &optional string)
   "Flush lines matching String.  Limit search to current region if current region is
    active."
@@ -715,14 +706,14 @@
 	  (buffer-end eol-mark))
 	(delete-region (region bol-mark eol-mark))))))
 
-(defcommand "Delete Non-Matching Lines" (p &optional string)
-  "Deletes all lines that do not match the search pattern using delete-region.
-   If the current-region is active, limit the search to it. The argument is
+(defcommand "Delete Matching Lines" (p &optional string)
+  "Deletes all lines that match the search pattern using delete-region. If
+   the current region is active, limit the search to it. The argument is
    ignored."
-  "Deletes all lines that do not match the search pattern using delete-region.
-   If the current-region is active, limit the search to it. The argument is
+  "Deletes all lines that match the search pattern using delete-region. If
+   the current region is active, limit the search to it. The argument is
    ignored."
-  (flush-non-matching-lines-command p string))
+  (flush-lines-command p string))
 
 (defcommand "Flush Other Lines" (p &optional string)
   "Flush lines, leaving those that match String.  Limit search to current
@@ -750,6 +741,15 @@
 	      (t
 	       (delete-region (region beg-mark stop-mark))
 	       (return)))))))
+
+(defcommand "Delete Non-Matching Lines" (p &optional string)
+  "Deletes all lines that do not match the search pattern using delete-region.
+   If the current-region is active, limit the search to it. The argument is
+   ignored."
+  "Deletes all lines that do not match the search pattern using delete-region.
+   If the current-region is active, limit the search to it. The argument is
+   ignored."
+  (flush-other-lines-command p string))
 
 (defun rule-flush-other-lines (region rule)
   (let ((start-mark (region-start region))
@@ -796,15 +796,6 @@
 	  (mark-after end)
 	  (delete-region (region (mark line 0) end)))))))
 
-(defcommand "Delete Non-Matching Lines" (p &optional string)
-  "Deletes all lines that do not match the search pattern using delete-region.
-   If the current-region is active, limit the search to it. The argument is
-   ignored."
-  "Deletes all lines that do not match the search pattern using delete-region.
-   If the current-region is active, limit the search to it. The argument is
-   ignored."
-  (flush-non-matching-lines-command p string))
-
 (defcommand "Flush Other Lines" (p &optional string)
   "Flush lines, leaving those that match String.  Limit search to current
    region if current region is active."
@@ -832,6 +823,14 @@
 	       (delete-region (region beg-mark stop-mark))
 	       (return)))))))
 
+(defcommand "Delete Non-Matching Lines" (p &optional string)
+  "Deletes all lines that do not match the search pattern using delete-region.
+   If the current-region is active, limit the search to it. The argument is
+   ignored."
+  "Deletes all lines that do not match the search pattern using delete-region.
+   If the current-region is active, limit the search to it. The argument is
+   ignored."
+  (flush-other-lines-command p string))
 
 
 (defcommand "Count Occurrences" (p &optional string)

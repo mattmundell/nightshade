@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/hppa/parms.lisp,v 1.8 2002/03/31 14:48:39 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/hppa/parms.lisp,v 1.5.2.2 2000/10/16 17:32:22 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -29,7 +29,7 @@
 (setf (backend-fasl-file-type *target-backend*) "hpf")
 (setf (backend-fasl-file-implementation *target-backend*)
       hppa-fasl-file-implementation)
-(setf (backend-fasl-file-version *target-backend*) #x18d)
+(setf (backend-fasl-file-version *target-backend*) 2)
 (setf (backend-register-save-penalty *target-backend*) 3)
 (setf (backend-byte-order *target-backend*) :big-endian)
 (setf (backend-page-size *target-backend*) 4096)

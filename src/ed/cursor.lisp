@@ -25,7 +25,7 @@
 ;;;    3) Call Real-Line-Length or Cached-Real-Line-Length to get the
 ;;; X position and number of times wrapped.
 
-(declaim (special the-sentinel))
+(proclaim '(special the-sentinel))
 
 (eval-when (compile eval)
 ;;; find-line

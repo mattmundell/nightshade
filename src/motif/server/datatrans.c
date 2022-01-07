@@ -1,6 +1,6 @@
 /*
 
- $Header: /project/cmucl/cvsroot/src/motif/server/datatrans.c,v 1.8 2000/02/15 11:59:25 pw Exp $
+ $Header: /home/CVS-cmucl/src/motif/server/datatrans.c,v 1.4.2.2 2000/05/23 16:38:36 pw Exp $
 
  This code was written as part of the CMU Common Lisp project at
  Carnegie Mellon University, and has been placed in the public domain.

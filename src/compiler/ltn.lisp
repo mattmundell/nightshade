@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/ltn.lisp,v 1.41 2001/03/04 20:12:21 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/ltn.lisp,v 1.38.2.3 2000/05/23 16:37:18 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -43,7 +43,7 @@
 ;;;
 ;;;    Return true if Policy is a safe policy.
 ;;;
-(declaim (inline policy-safe-p))
+(proclaim '(inline policy-safe-p))
 (defun policy-safe-p (policy)
   (declare (type policies policy))
   (or (eq policy :safe) (eq policy :fast-safe)))
@@ -55,7 +55,7 @@
 ;;; on CONT.  We delete the type check unless it is :ERROR (indicating a
 ;;; compile-time type error.)
 ;;;
-(declaim (inline flush-type-check))
+(proclaim '(inline flush-type-check))
 (defun flush-type-check (cont)
   (declare (type continuation cont))
   (when (member (continuation-type-check cont) '(t :no-check))
@@ -67,7 +67,7 @@
 ;;;
 ;;;    A annotated continuation's primitive-type.
 ;;;
-(declaim (inline continuation-ptype))
+(proclaim '(inline continuation-ptype))
 (defun continuation-ptype (cont)
   (declare (type continuation cont))
   (ir2-continuation-primitive-type (continuation-info cont)))
@@ -576,7 +576,7 @@
 ;;; representation selection when it is deciding which move VOP to use.
 ;;; Cont and TN are used to test for constant arguments.
 ;;;
-(declaim (inline operand-restriction-ok))
+(proclaim '(inline operand-restriction-ok))
 (defun operand-restriction-ok (restr type &key cont tn (t-ok t))
   (declare (type (or (member *) cons) restr)
 	   (type primitive-type type)
@@ -794,12 +794,12 @@
 (defvar *efficiency-note-limit* 2
   "This is the maximum number of possible optimization alternatives will be
   mentioned in a particular efficiency note.  NIL means no limit.")
-(declaim (type (or index null) *efficiency-note-limit*))
+(proclaim '(type (or index null) *efficiency-note-limit*))
 
 (defvar *efficiency-note-cost-threshold* 5
   "This is the minumum cost difference between the chosen implementation and
   the next alternative that justifies an efficiency note.")
-(declaim (type index *efficiency-note-cost-threshold*))
+(proclaim '(type index *efficiency-note-cost-threshold*))
 
 
 ;;; STRANGE-TEMPLATE-FAILURE  --  Internal

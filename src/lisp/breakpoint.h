@@ -1,5 +1,5 @@
 /*
- * $Header: /project/cmucl/cvsroot/src/lisp/breakpoint.h,v 1.1 1992/07/28 20:14:15 wlott Exp $
+ * $Header: /home/CVS-cmucl/src/lisp/breakpoint.h,v 1.1 1992/07/28 20:14:15 wlott Exp $
  */
 
 #ifndef _BREAKPOINT_H_

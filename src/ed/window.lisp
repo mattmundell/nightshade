@@ -20,7 +20,7 @@
 (defvar *current-window* nil "The current window object.")
 (defvar *window-list* () "A list of all window objects.")
 
-(declaim (inline current-window))
+(proclaim '(inline current-window))
 
 (defun current-window ()
   "Return the current window.  The current window is specially treated by
@@ -143,8 +143,8 @@
   (gethash name *modeline-field-names*))
 
 
-(declaim (inline modeline-field-name modeline-field-width
-		 modeline-field-function))
+(proclaim '(inline modeline-field-name modeline-field-width
+		   modeline-field-function))
 
 (defun modeline-field-name (ml-field)
   "Returns the name of a modeline field object."
@@ -163,7 +163,7 @@
   "Returns the width of a modeline field."
   (modeline-field-%width ml-field))
 
-(declaim (special *buffer-list*))
+(proclaim '(special *buffer-list*))
 
 (defun %set-modeline-field-width (ml-field width)
   (check-type ml-field modeline-field)
@@ -644,6 +644,8 @@
 			 (svref extensions::abbrev-weekday-table day)
 			 (svref extensions::abbrev-month-table (1- month))
 			 (if (> date 9) "" "0") date))))
+
+(declaim (special ed::*new-mail-p*))
 
 (make-modeline-field
  :replace t

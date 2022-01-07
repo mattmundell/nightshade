@@ -1,6 +1,6 @@
 /*
 
- $Header: /project/cmucl/cvsroot/src/lisp/FreeBSD-os.h,v 1.3 2000/04/12 17:31:19 pw Exp $
+ $Header: /home/CVS-cmucl/src/lisp/FreeBSD-os.h,v 1.1.2.2 2000/05/23 16:38:11 pw Exp $
 
  This code was written as part of the CMU Common Lisp project at
  Carnegie Mellon University, and has been placed in the public domain.

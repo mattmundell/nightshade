@@ -7,7 +7,7 @@
 ;;; Scott Fahlman or slisp-group@cs.cmu.edu.
 ;;;
 (ext:file-comment
- "$Header: /project/cmucl/cvsroot/src/compiler/x86/call.lisp,v 1.17 2002/08/01 13:06:06 toy Exp $")
+ "$Header: /home/CVS-cmucl/src/compiler/x86/call.lisp,v 1.2.2.1 1998/06/23 11:23:57 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -306,7 +306,7 @@
 	    for tn-ref = (tn-ref-across 2nd-tn-ref)
 	    then (tn-ref-across tn-ref)
 	    for count from 2 below register-arg-count
-	    do (inst mov (tn-ref-tn tn-ref) 2nd-tn))))
+	    do count (inst mov (tn-ref-tn tn-ref) 2nd-tn))))
       (inst mov ebx-tn esp-tn)
       (emit-label regs-defaulted)
       (inst mov esp-tn ebx-tn)))

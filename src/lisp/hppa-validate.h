@@ -1,6 +1,6 @@
 /*
 
- $Header: /project/cmucl/cvsroot/src/lisp/hppa-validate.h,v 1.4 1998/09/13 12:15:37 dtc Exp $
+ $Header: /home/CVS-cmucl/src/lisp/hppa-validate.h,v 1.3.2.1 2000/05/23 16:38:26 pw Exp $
 
  This code was written as part of the CMU Common Lisp project at
  Carnegie Mellon University, and has been placed in the public domain.

@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/assembly/hppa/array.lisp,v 1.5 1994/10/31 04:56:18 ram Exp $")
+  "$Header: /home/CVS-cmucl/src/assembly/hppa/array.lisp,v 1.5 1994/10/31 04:56:18 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

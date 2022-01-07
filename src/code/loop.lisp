@@ -5,12 +5,12 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/old-loop.lisp,v 1.10 1994/10/31 04:11:27 ram Exp $")
+  "$Header: /home/CVS-cmucl/src/code/old-loop.lisp,v 1.10 1994/10/31 04:11:27 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
 ;;; Loop facility, written by William Lott.
-;;; 
+;;;
 (in-package "LOOP")
 
 (in-package "LISP")
@@ -23,7 +23,7 @@
 
 ;;; These specials hold the different parts of the result as we are generating
 ;;; them.
-;;; 
+;;;
 (defvar *loop-name*)
 (defvar *outside-bindings*)
 (defvar *prologue*)
@@ -37,11 +37,11 @@
 (defvar *accumulation-variables*)
 
 ;;; This special holds the remaining stuff we need to parse.
-;;; 
+;;;
 (defvar *remaining-stuff*)
 
 ;;; This special holds a value that is EQ only to itself.
-;;; 
+;;;
 (defvar *magic-cookie* (list '<magic-cookie>))
 
 
@@ -196,7 +196,7 @@
 ;;;; LOOP itself.
 
 (defmacro loop (&rest stuff)
-  "General iteration facility.  See the FIX manual for details, 'cause it's
+  "General iteration facility.  See the manual for details, 'cause it's
   very confusing."
   (if (some #'atom stuff)
       (parse-loop stuff)
@@ -216,7 +216,7 @@
 ;;;; The parser.
 
 ;;; Top level parser.  Bind the specials, and call the other parsers.
-;;; 
+;;;
 (defun parse-loop (stuff)
   (let* ((*prologue* nil)
 	 (*outside-bindings* *magic-cookie*)
@@ -387,7 +387,7 @@
 ;;; These specials hold the vars that need to be bound for this FOR/AS clause
 ;;; and all of the FOR/AS clauses connected with AND.  All the *for-as-vars*
 ;;; are bound in parallel followed by the *for-as-sub-vars*.
-;;; 
+;;;
 (defvar *for-as-vars*)
 (defvar *for-as-sub-vars*)
 

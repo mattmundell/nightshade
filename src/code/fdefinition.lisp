@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/fdefinition.lisp,v 1.19 2001/12/10 02:53:16 pmai Exp $")
+  "$Header: /home/CVS-cmucl/src/code/fdefinition.lisp,v 1.15.2.1 1998/07/19 01:06:04 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -81,7 +81,7 @@
 ;;;
 (defun fdefinition-object (name create)
   "Return the fdefn object for NAME.  If it doesn't already exist and CREATE
-   is non-NIL, create a new (unbound) one."
+   it non-NIL, create a new (unbound) one."
   (declare (values (or fdefn null)))
   (unless (or (symbolp name)
 	      (and (consp name)
@@ -298,5 +298,4 @@
   (let ((fdefn (fdefinition-object name nil)))
     (when fdefn
       (fdefn-makunbound fdefn)))
-  (kernel:undefine-function-name name)
   name)

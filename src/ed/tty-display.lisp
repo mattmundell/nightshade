@@ -17,7 +17,7 @@
 (defvar *currently-selected-hunk* nil)
 (defvar *hunk-top-line*)
 
-(declaim (fixnum *hunk-top-line*))
+(proclaim '(fixnum *hunk-top-line*))
 
 (eval-when (compile eval)
 (defmacro select-hunk (hunk)
@@ -647,8 +647,8 @@
 	  (last-changed (window-last-changed window)))
       ;; Is there anything to do?
       (unless (eq first-changed the-sentinel)
-	(or (eq window *echo-area-window*)
-	    (ed::msg "re ~A" window))
+; 	(or (eq window *echo-area-window*)
+; 	    (ed::message "re ~A" window))
 	(if (and (eq first-changed last-changed)
 		 (zerop (dis-line-delta (car first-changed))))
 	    ;; One line changed.

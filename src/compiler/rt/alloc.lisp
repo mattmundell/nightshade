@@ -5,11 +5,11 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/rt/alloc.lisp,v 1.5 1994/10/31 04:45:41 ram Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/rt/alloc.lisp,v 1.5 1994/10/31 04:45:41 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
-;;; $Header: /project/cmucl/cvsroot/src/compiler/rt/alloc.lisp,v 1.5 1994/10/31 04:45:41 ram Exp $
+;;; $Header: /home/CVS-cmucl/src/compiler/rt/alloc.lisp,v 1.5 1994/10/31 04:45:41 ram Exp $
 ;;;
 ;;; Allocation VOPs for the IBM RT port.
 ;;;

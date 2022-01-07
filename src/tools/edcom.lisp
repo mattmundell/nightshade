@@ -1,22 +1,15 @@
 ;;; -*- Package: USER -*-
 ;;;
-;;; **********************************************************************
-;;;
-(ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/tools/hemcom.lisp,v 1.9 1999/01/09 11:05:20 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; This file compiles the editor.
 
 #+bootstrap
 (progn
   (when (ext:get-command-line-switch "slave")
-    (error "Cannot compile the editor in a slave due to its clobbering
-	    needed typescript routines by renaming the package."))
+    (error "Cannot compile the editor in a slave due to its clobbering needed
+    typescript routines by renaming the package."))
 
   ;;; Blast the old packages in case they are around.  We do this solely to
-  ;;; prove that the editor can compile cleanly without its having to exist
+  ;;; prove the editor can compile cleanly without its having to exist
   ;;; already.
   ;;;
   (copy-packages '("ED" "HI")))
@@ -49,17 +42,6 @@
 
 (pushnew :command-bits *features*)
 (pushnew :buffered-lines *features*)
-
-#-clx
-;;; If CLX has not been loaded, but has been compiled, then load it.
-;;;
-(when (probe-file (make-pathname :defaults "target:clx/clx-library"
-				 :type (c:backend-fasl-file-type c:*backend*)))
-  #+(and (not pcl) (not no-pcl-clx))
-  (load "target:pcl/pclload")
-  (load "target:clx/clx-library")
-  #+gencgc (gc :full t)
-  #-gencgc (ext:purify))
 
 (with-compiler-log-file
     ("target:compile-ed.log"
@@ -149,9 +131,9 @@
 (comf "target:ed/undo" :byte-compile t)
 (comf "target:ed/killcoms" :byte-compile t)
 (comf "target:ed/searchcoms" :byte-compile t)
-(comf "target:ed/filecoms")
+(comf "target:ed/filecoms" :byte-compile t)
 (comf "target:ed/indent" :byte-compile t)
-(comf "target:ed/highlight" :load t)
+(comf "target:ed/highlight")
 (comf "target:ed/lispmode")
 (comf "target:ed/comments" :byte-compile t)
 (comf "target:ed/fill")
@@ -194,14 +176,14 @@
 (comf "target:ed/lisp-lib" :byte-compile t)
 (comf "target:ed/completion" :byte-compile t)
 ;; FIX results in make-new-shell arg 1 nil when passed as t via "s c l i b" via .h "saving s c l i b"
-;(comf "target:ed/shell" :byte-compile t)
-(comf "target:ed/shell")
+(comf "target:ed/shell" :byte-compile t)
+;(comf "target:ed/shell")
 (comf "target:ed/debug" :byte-compile t)
 (comf "target:ed/netnews" :byte-compile t)
 (comf "target:ed/rcs" :byte-compile t)
 ;; FIX results in type error when kill descr-buffer in cvs-commit recurse edit of descr-buffer
-;(comf "target:ed/vc" :byte-compile t)
-(comf "target:ed/vc")
+(comf "target:ed/vc" :byte-compile t)
+;(comf "target:ed/vc")
 (comf "target:ed/dabbrev" :byte-compile t)
 (comf "target:ed/calendar")
 (comf "target:ed/sort" :byte-compile t)
@@ -209,10 +191,11 @@
 (comf "target:ed/www")
 (comf "target:ed/outline" :byte-compile t)
 (comf "target:ed/buildcoms" :byte-compile t)
+(comf "target:ed/break" :byte-compile t)
 
 ) ;WITH-COMPILATION-UNIT for commands
 
-;; Stuff we want compiled native:  ;; FIX more above
+;; Stuff we want compiled native:
 
 (comf "target:ed/spell-rt")
 (comf "target:ed/spell-corr")
@@ -347,4 +330,5 @@
  "target:ed/www"
  "target:ed/outline"
  "target:ed/buildcoms"
+ "target:ed/break"
  "target:ed/bindings")

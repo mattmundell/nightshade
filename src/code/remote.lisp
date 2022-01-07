@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/remote.lisp,v 1.6 1999/03/29 14:16:05 pw Exp $")
+  "$Header: /home/CVS-cmucl/src/code/remote.lisp,v 1.5.2.1 2000/05/23 16:36:47 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -48,11 +48,11 @@
 ;;; REMOTE -- public
 ;;;
 ;;; Execute the body remotely.  Subforms are executed locally in the lexical
-;;; envionment of the macro call.  No values are returned.
+;;; environment of the macro call.  No values are returned.
 ;;;
 (defmacro remote (wire-form &body forms)
   "Evaluates the given forms remotely.  No values are returned, as the
-remote evaluation is asynchronous."
+   remote evaluation is asynchronous."
   (let ((wire (gensym)))
     `(let ((,wire ,wire-form))
        ,@(mapcar #'(lambda (form)
@@ -226,7 +226,7 @@ to aborting due to a throw."
 
 
 ;;; DO-N-VALUE-CALL -- internal
-;;; 
+;;;
 ;;; For more values then 5, all the values are rolled into a list and passed
 ;;; back as the first value, so we use RETURN-1-VALUE to return it.
 ;;;
@@ -352,7 +352,7 @@ to aborting due to a throw."
 ;;;
 ;;; Just like the doc string says, connect to a remote server. A handler is
 ;;; installed to handle return values, etc.
-;;; 
+;;;
 (defun connect-to-remote-server (hostname port &optional on-death)
   "Connect to a remote request server addressed with the given host and port
    pair.  This returns the created wire."

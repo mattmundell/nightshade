@@ -1,4 +1,4 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/alpha-lispregs.h,v 1.3 1999/02/20 15:54:43 pw Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/alpha-lispregs.h,v 1.1.2.3 2000/05/23 16:38:13 pw Exp $ */
 
 #define NREGS	(32)
 

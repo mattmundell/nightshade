@@ -171,19 +171,21 @@
     (unless *bufed-buffer*
       (setf *bufed-buffer* buf)
       (setf *bufed-buffers-end*
-	    ;; -1 echo, -1 bufed.
-	    (- (length (the list *buffer-list*)) 2))
+	    ;; -1 echo, -1 bufed, -1 messages.
+	    (- (length (the list *buffer-list*)) 3))
       (setf *bufed-buffers* (make-array *bufed-buffers-end*))
       (setf (buffer-writable buf) t)
       (with-output-to-mark (s (buffer-point buf))
 	(let ((i 0))
 	  (do-strings (n b *buffer-names*)
 	    (declare (simple-string n))
-	    (unless (or (eq b *echo-area-buffer*)
-			(eq b buf))
-	      (bufed-write-line b n s)
-	      (setf (svref *bufed-buffers* i) (make-bufed-buffer b))
-	      (incf i)))))
+	    (or (eq b *echo-area-buffer*)
+		(eq b buf)
+		(eq b hi::*message-buffer*)
+		(progn
+		  (bufed-write-line b n s)
+		  (setf (svref *bufed-buffers* i) (make-bufed-buffer b))
+		  (incf i))))))
       (setf (buffer-writable buf) nil)
       (setf (buffer-modified buf) nil)
       (let ((fields (buffer-modeline-fields *bufed-buffer*)))
@@ -203,7 +205,13 @@
 		         &optional (buffer-pathname (buffer-pathname buffer)))
   (let ((modified (buffer-modified buffer)))
     (write-string (if modified " *" "  ") s)
-    (if buffer-pathname
+    (write-char (if (active-process-p buffer) #\+ #\ ) s)
+    (if (and buffer-pathname (file-namestring buffer-pathname))
+; 	(format s "~A  ~A~:[~50T~A~;~]~%"
+; 		(file-namestring buffer-pathname)
+; 		(directory-namestring buffer-pathname)
+; 		(string= (pathname-to-buffer-name buffer-pathname) name)
+; 		name)
 	(format s "~A  ~A~:[~50T~A~;~]~%"
 		(file-namestring buffer-pathname)
 		(directory-namestring buffer-pathname)
@@ -227,6 +235,7 @@
   (let ((pos (or pos (gensym))))
     `(when (and *bufed-buffers*
 		(not (eq *bufed-buffer* ,buffer))
+		(not (eq hi::*message-buffer* ,buffer))
 		(not (eq *echo-area-buffer* ,buffer)))
        (let ((,pos (position ,buffer *bufed-buffers* :key #'car
 			     :test #'eq :end *bufed-buffers-end*)))

@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/assembly/alpha/assem-rtns.lisp,v 1.3 1994/10/31 04:55:55 ram Exp $")
+  "$Header: /home/CVS-cmucl/src/assembly/alpha/assem-rtns.lisp,v 1.3 1994/10/31 04:55:55 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

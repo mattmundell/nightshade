@@ -1,5 +1,4 @@
-;;; This contains commands for sending debugger commands to slaves in the
-;;; debugger.
+;;; Commands for sending debugger commands to slaves in the debugger.
 
 (in-package "HEMLOCK")
 
@@ -308,7 +307,7 @@
 ;;; deactivate or delete them.  As it is now we probably have to delete all
 ;;; for a given function.  What about setting user supplied breakpoint
 ;;; hook-functions, or the editor supplying a nice set such as something to
-;;; simply print all locals at a certain location?
+;;; simply print all locals at a certain location.
 ;;;
 (defcommand "Debug Breakpoint" (p)
   "This tries to set a breakpoint in the \"Current Eval Server\" at the

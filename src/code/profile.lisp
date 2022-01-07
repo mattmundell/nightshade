@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/profile.lisp,v 1.21 2002/05/01 17:43:37 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/code/profile.lisp,v 1.16.2.2 1998/06/23 11:22:21 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -141,11 +141,6 @@
 
 (defvar *timed-functions* ()
   "List of functions that are currently being timed.")
-(defvar *no-calls* nil
-  "A list of profiled functions which weren't called.")
-(defvar *no-calls-limit* 20
-  "If the number of profiled functions that were not called is less than
-this, the functions are listed.  If NIL, then always list the functions.")
 
 ;;; We associate a PROFILE-INFO structure with each profiled function name.
 ;;; This holds the functions that we call to manipulate the closure which
@@ -181,9 +176,9 @@ this, the functions are listed.  If NIL, then always list the functions.")
 (defvar *enclosed-time* 0)
 (defvar *enclosed-consing* 0)
 (defvar *enclosed-profilings* 0)
-(declaim (type time-type *enclosed-time*))
-(declaim (type consing-type *enclosed-consing*))
-(declaim (fixnum *enclosed-profilings*))
+(proclaim '(type time-type *enclosed-time*))
+(proclaim '(type consing-type *enclosed-consing*))
+(proclaim '(fixnum *enclosed-profilings*))
 
 
 ;;; The number of seconds a bare function call takes.  Factored into the other
@@ -200,8 +195,8 @@ this, the functions are listed.  If NIL, then always list the functions.")
 ;;;
 (defvar *total-profile-overhead*)
 
-(declaim (single-float *call-overhead* *internal-profile-overhead*
-		       *total-profile-overhead*))
+(proclaim '(single-float *call-overhead* *internal-profile-overhead*
+			 *total-profile-overhead*))
 
 
 ;;;; Profile encapsulations:
@@ -286,17 +281,17 @@ this, the functions are listed.  If NIL, then always list the functions.")
 					    ,@required-args optional-args)
 				    `(funcall old-definition ,@required-args))
 			     (setq time-inc
-				   #-BSD
+				   #-FreeBSD
 				   (- (quickly-get-time) start-time)
-				   #+BSD
+				   #+FreeBSD
 				   (max (- (quickly-get-time) start-time) 0))
 			     (setq cons-inc (- (total-consing) start-consed))
 			     (setq profile-inc *enclosed-profilings*)
 			     (incf time
 				   (the time-type
-					#-BSD
+					#-FreeBSD
 					(- time-inc *enclosed-time*)
-					#+BSD
+					#+FreeBSD
 					(max (- time-inc *enclosed-time*) 0)))
 			     (incf consed
 				   (the consing-type
@@ -306,7 +301,7 @@ this, the functions are listed.  If NIL, then always list the functions.")
 		       (incf *enclosed-consing* cons-inc)
 		       (incf *enclosed-profilings*
 			     (the fixnum (1+ profile-inc)))))))
-
+	 
 	 (setf (gethash name *profile-info*)
 	       (make-profile-info
 		:name name
@@ -478,8 +473,8 @@ this, the functions are listed.  If NIL, then always list the functions.")
   (declare (optimize (speed 0)))
   (unless (boundp '*call-overhead*)
     (compute-time-overhead))
-  (let ((info ()))
-    (setf *no-calls* nil)
+  (let ((info ())
+	(no-call ()))
     (dolist (name names)
       (let ((pinfo (profile-info-or-lose name)))
 	(unless (eq (fdefinition name)
@@ -491,7 +486,7 @@ this, the functions are listed.  If NIL, then always list the functions.")
 	    (calls time consing profile callers)
 	    (funcall (profile-info-read-time pinfo))
 	  (if (zerop calls)
-	      (push name *no-calls*)
+	      (push name no-call)
 	      (push (make-time-info name calls
 				    (compensate-time calls time profile)
 				    consing
@@ -535,19 +530,20 @@ this, the functions are listed.  If NIL, then always list the functions.")
 	      "~%Estimated total profiling overhead: ~4,2F seconds~%"
 	      (* *total-profile-overhead* (float total-calls))))
 
-    (when *no-calls*
-      (let ((num-no-calls (length *no-calls*)))
-        (if (and *no-calls-limit*
-		 (numberp *no-calls-limit*)
-		 (> num-no-calls *no-calls-limit*))
-            (format *trace-output*
-                    "~%~@(~r~) profiled functions were not called. ~
-                      ~%See the variable profile::*no-calls* for a list."
-                    num-no-calls)
-            (format *trace-output*
-                    "~%The following profiled functions were not called:~
-                ~%~{~<~%~:; ~A~>~}~%"
-                    *no-calls*))))
+    (when no-call
+      (format *trace-output*
+	      "~%These functions were not called:~%~{~<~%~:; ~S~>~}~%"
+	      (sort no-call #'string<
+		    :key #'(lambda (n)
+			     (cond ((symbolp n)
+				    (symbol-name n))
+				   ((and (listp n)
+					 (eq (car n) 'setf)
+					 (consp (cdr n))
+					 (symbolp (cadr n)))
+				    (symbol-name (cadr n)))
+				   (t
+				    (princ-to-string n)))))))
     (values)))
 
 
@@ -574,7 +570,7 @@ this, the functions are listed.  If NIL, then always list the functions.")
 ;;;    Dummy function we profile to find profiling overhead.  Declare
 ;;; debug-info to make sure we have arglist info.
 ;;;
-(declaim (notinline compute-time-overhead-aux))
+(proclaim '(notinline compute-time-overhead-aux))
 (defun compute-time-overhead-aux (x)
   (declare (ext:optimize-interface (debug 2)))
   (declare (ignore x)))

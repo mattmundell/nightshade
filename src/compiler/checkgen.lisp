@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/checkgen.lisp,v 1.30 2000/07/09 13:59:58 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/checkgen.lisp,v 1.24.2.5 2000/07/09 14:03:12 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

@@ -1,4 +1,4 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/print.c,v 1.13 2001/01/09 19:46:57 dtc Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/print.c,v 1.4.2.3 2000/05/23 16:38:30 pw Exp $ */
 #include <stdio.h>
 
 #include "print.h"
@@ -12,7 +12,7 @@ static int max_lines = 20, cur_lines = 0;
 static int max_depth = 5, brief_depth = 2, cur_depth = 0;
 static int max_length = 5;
 static boolean dont_decend = FALSE, skip_newline = FALSE;
-static int cur_clock = 0;
+static cur_clock = 0;
 
 static void print_obj(char *prefix, lispobj obj);
 
@@ -510,21 +510,12 @@ static void print_otherptr(lispobj obj)
                 break;
 
             case type_SimpleVector:
+            case type_InstanceHeader:
                 NEWLINE;
                 printf("length = %ld", length);
                 ptr++;
                 index = 0;
                 while (length-- > 0) {
-                    sprintf(buffer, "%d: ", index++);
-                    print_obj(buffer, *ptr++);
-                }
-                break;
-
-            case type_InstanceHeader:
-                NEWLINE;
-                printf("length = %ld", count);
-                index = 0;
-                while (count-- > 0) {
                     sprintf(buffer, "%d: ", index++);
                     print_obj(buffer, *ptr++);
                 }

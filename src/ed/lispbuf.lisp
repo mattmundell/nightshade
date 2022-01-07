@@ -25,7 +25,7 @@
 
 ;;;; Eval Mode Interaction.
 
-(declaim (special * ** *** - + ++ +++ / // /// *prompt*))
+(proclaim '(special * ** *** - + ++ +++ / // /// *prompt*))
 
 (defun setup-eval-mode (buffer)
   (let ((point (buffer-point buffer)))

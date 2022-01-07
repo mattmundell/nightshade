@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/typetran.lisp,v 1.39 2000/08/09 13:00:17 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/typetran.lisp,v 1.29.2.4 2000/08/09 12:59:51 dtc Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

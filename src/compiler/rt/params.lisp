@@ -5,11 +5,11 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/rt/params.lisp,v 1.14 1994/10/31 04:45:41 ram Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/rt/params.lisp,v 1.14 1994/10/31 04:45:41 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
-;;; $Header: /project/cmucl/cvsroot/src/compiler/rt/params.lisp,v 1.14 1994/10/31 04:45:41 ram Exp $
+;;; $Header: /home/CVS-cmucl/src/compiler/rt/params.lisp,v 1.14 1994/10/31 04:45:41 ram Exp $
 ;;;
 ;;; This file contains some parameterizations of various VM attributes for the
 ;;; IBM RT.  This file is separate from other stuff, so we can compile and

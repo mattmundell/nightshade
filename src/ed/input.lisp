@@ -1,4 +1,4 @@
-;;; This file contains the code that handles input to the editor.
+;;; The code that handles input to the editor.
 
 (in-package "HEMLOCK-INTERNALS")
 
@@ -23,6 +23,7 @@
 (defvar *real-editor-input* ()
   "Useful when we want to read from the terminal when *editor-input* is
    rebound.")
+
 
 ;; FIX where should this go?
 (define-condition editor-top-level-catcher ())
@@ -82,7 +83,7 @@
 (defvar *key-event-history* nil
   "This ring holds the last 60 key-events read by the command interpreter.")
 
-(declaim (special *input-transcript*))
+(proclaim '(special *input-transcript*))
 
 ;;; DQ-EVENT is used in editor stream methods for popping off input.
 ;;; If there is an event not yet read in Stream, then pop the queue
@@ -146,33 +147,16 @@
 
 ;;;; Input method macro.
 
-(defvar *in-editor-stream-input-method* nil
-  "This keeps us from undefined nasties like re-entering the editor stream
+(defvar *in-hemlock-stream-input-method* nil
+  "This keeps us from undefined nasties like re-entering editor stream
    input methods from input hooks and scheduled events.")
 
-(declaim (special *screen-image-trashed*))
+(proclaim '(special *screen-image-trashed*))
 
 ;;; These are the characters GET-KEY-EVENT notices when it pays attention
 ;;; to aborting input.  This happens via EDITOR-INPUT-METHOD-MACRO.
 ;;;
 (defparameter editor-abort-key-events (list #k"Control-g" #k"Control-G"))
-
-(defun cleanup-for-wm-closed-display (closed-display)
-  #-CLX
-  (declare (ignore closed-display))
-  ;; Remove fd-handlers
-  #+CLX
-  (ext:disable-clx-event-handling closed-display)
-  ;; Close file descriptor and note DEAD.
-  #+CLX
-  (xlib::close-display closed-display)
-  ;;
-  ;; At this point there is not much sense to returning to Lisp
-  ;; as the editor cannot be re-entered (there are lots of pointers
-  ;; to the dead display around that will cause subsequent failures).
-  ;; Maybe could switch to tty mode then (save-all-files-and-exit)?
-  ;; For now, just assume user wanted an easy way to kill the session.
-  (ext:quit))
 
 (defmacro abort-key-event-p (key-event)
   `(member ,key-event editor-abort-key-events))
@@ -194,37 +178,15 @@
 ;;; we should prompt the user using the input method (recursively even).
 ;;;
 (eval-when (compile eval)
-
 (defmacro editor-input-method-macro ()
-  `(handler-bind
-       ((error
-	 (lambda (condition)
-	   (when (typep condition 'stream-error)
-	     (let* ((stream (stream-error-stream condition))
-		    (display *editor-windowed-input*)
-		    (display-stream
-		     #+CLX
-		     (and display (xlib::display-input-stream display))))
-	       (when (eq stream display-stream)
-		 ;;(format *error-output* "~%Editor: Display died!~%~%")
-		 (cleanup-for-wm-closed-display display)
-		 (exit ()))
-	       (let ((device
-		      (device-hunk-device (window-hunk (current-window)))))
-		 (funcall (device-exit device) device))
-	       (invoke-debugger condition)))))
-	#+(and CLX )
-	(xlib:closed-display
-	 (lambda (condition)
-	   (let ((display (xlib::closed-display-display condition)))
-	     (format *error-output*
-		     "Closed display on stream ~a~%"
-		     (xlib::display-input-stream display)))
-	   (exit ())))
-	)
-;     (when *in-editor-stream-input-method*
+  `(handler-bind ((error #'(lambda (condition)
+			     (let ((device (device-hunk-device
+					    (window-hunk (current-window)))))
+			       (funcall (device-exit device) device))
+			     (invoke-debugger condition))))
+;     (when *in-hemlock-stream-input-method*
 ;       (error "Entering editor stream input method recursively!"))
-     (let ((*in-editor-stream-input-method* t)
+     (let ((*in-hemlock-stream-input-method* t)
 	   (nrw-fun (device-note-read-wait
 		     (device-hunk-device (window-hunk (current-window)))))
 	   key-event)
@@ -246,9 +208,10 @@
 	 (or ignore-abort-attempts-p
 	     (progn
 	       (beep)
-	       (signal 'editor-top-level-catcher nil))))
+	       (throw 'editor-top-level-catcher nil))))
        key-event)))
 ) ;eval-when
+
 
 
 ;;;; Editor input from windowing system.
@@ -440,7 +403,7 @@
 	   (random-typeout-cleanup stream)
 	   (throw 'more-punt nil)))))
 
-(declaim (special *more-prompt-action*))
+(proclaim '(special *more-prompt-action*))
 
 (defun maybe-keep-random-typeout-window (stream)
   (let* ((window (random-typeout-stream-window stream))

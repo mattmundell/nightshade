@@ -1,5 +1,5 @@
 /*
- * $Header: /project/cmucl/cvsroot/src/lisp/hpux-os.c,v 1.4 1993/11/12 20:08:22 wlott Exp $
+ * $Header: /home/CVS-cmucl/src/lisp/hpux-os.c,v 1.4 1993/11/12 20:08:22 wlott Exp $
  *
  * OS-dependent routines.  This file (along with os.h) exports an
  * OS-independent interface to the operating system VM facilities.

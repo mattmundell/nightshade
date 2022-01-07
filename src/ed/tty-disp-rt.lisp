@@ -2,7 +2,6 @@
 
 (in-package "HEMLOCK-INTERNALS")
 
-
 
 ;;;; Terminal init and exit methods.
 
@@ -50,16 +49,16 @@
 ;;;
 (defun get-terminal-attributes (&optional (fd 1))
   (alien:with-alien ((winsize (alien:struct unix:winsize))
-                     #-(or glibc2 bsd)
+                     #-(or glibc2 freebsd)
 		     (sgtty (alien:struct unix:sgttyb))
-                     #+bsd ; termios
+                     #+freebsd ; termios
 		     (tios (alien:struct unix:termios)))
     (let ((size-win (unix:unix-ioctl fd unix:TIOCGWINSZ
 				     (alien:alien-sap winsize)))
-          #-(or glibc2 bsd)
+          #-(or glibc2 freebsd)
 	  (speed-win (unix:unix-ioctl fd unix:TIOCGETP
 				      (alien:alien-sap sgtty)))
-	  #+bsd
+	  #+freebsd
 	  (speed-win (unix:unix-tcgetattr fd (alien:alien-sap tios))))
       (flet ((frob (val)
 	       (if (and size-win (not (zerop val)))
@@ -68,12 +67,12 @@
 	(values
 	 (frob (alien:slot winsize 'unix:ws-row))
 	 (frob (alien:slot winsize 'unix:ws-col))
-         #-(or glibc2 bsd)
+         #-(or glibc2 freebsd)
 	 (and speed-win
 	      (setq *terminal-baud-rate*
 		    (svref unix:terminal-speeds
 			   (alien:slot sgtty 'unix:sg-ospeed))))
-	 #+bsd
+	 #+freebsd
 	 (and speed-win
 	      (setq *terminal-baud-rate* (unix:unix-cfgetospeed tios)))
          #+glibc2
@@ -86,10 +85,10 @@
 
 (defvar *redisplay-output-buffer*
   (make-string redisplay-output-buffer-length))
-(declaim (simple-string *redisplay-output-buffer*))
+(proclaim '(simple-string *redisplay-output-buffer*))
 
 (defvar *redisplay-output-buffer-index* 0)
-(declaim (fixnum *redisplay-output-buffer-index*))
+(proclaim '(fixnum *redisplay-output-buffer-index*))
 
 ;;; WRITE-AND-MAYBE-WAIT  --  Internal
 ;;;

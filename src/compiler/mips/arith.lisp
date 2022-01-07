@@ -5,11 +5,11 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/mips/arith.lisp,v 1.54 2000/01/17 16:42:24 dtc Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/mips/arith.lisp,v 1.52.2.2 2000/05/23 16:37:38 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
-;;; $Header: /project/cmucl/cvsroot/src/compiler/mips/arith.lisp,v 1.54 2000/01/17 16:42:24 dtc Exp $
+;;; $Header: /home/CVS-cmucl/src/compiler/mips/arith.lisp,v 1.52.2.2 2000/05/23 16:37:38 pw Exp $
 ;;;
 ;;;    This file contains the VM definition arithmetic VOPs for the MIPS.
 ;;;

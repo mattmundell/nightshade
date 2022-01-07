@@ -4,7 +4,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/generic/gengc-genesis.lisp,v 1.15 1994/10/31 04:38:06 ram Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/generic/gengc-genesis.lisp,v 1.15 1994/10/31 04:38:06 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

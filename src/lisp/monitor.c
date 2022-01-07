@@ -1,4 +1,4 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/monitor.c,v 1.12 2000/10/27 19:25:55 dtc Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/monitor.c,v 1.6.2.2 2000/05/23 16:38:29 pw Exp $ */
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -19,16 +19,9 @@
 #include "monitor.h"
 #include "print.h"
 #include "arch.h"
-#if 0
 #include "gc.h"
-#endif
 #include "search.h"
 #include "purify.h"
-#if 0
-#if defined GENCGC
-#include "gencgc.h"
-#endif
-#endif
 
 extern boolean isatty(int fd);
 
@@ -36,7 +29,7 @@ typedef void cmd(char **ptr);
 
 static cmd call_cmd, dump_cmd, print_cmd, quit, help;
 static cmd flush_cmd, search_cmd, regs_cmd, exit_cmd;
-static cmd /* gc_cmd, */ print_context_cmd;
+static cmd gc_cmd, print_context_cmd;
 static cmd backtrace_cmd, purify_cmd, catchers_cmd;
 static cmd grab_sigs_cmd;
 
@@ -54,7 +47,7 @@ static struct cmd {
     {"d", NULL, dump_cmd},
     {"exit", "Exit this instance of the monitor.", exit_cmd},
     {"flush", "flush all temp variables.", flush_cmd},
-    /* {"gc", "collect garbage (caveat collector).", gc_cmd}, */
+    {"gc", "collect garbage (caveat collector).", gc_cmd},
     {"grab-signals", "Set the signal handlers to call LDB.", grab_sigs_cmd},
     {"purify", "purify (caveat purifier).", purify_cmd},
     {"print", "print object at ADDRESS.", print_cmd},
@@ -327,12 +320,10 @@ static void exit_cmd(char **ptr)
     done = TRUE;
 }
 
-#if 0
 static void gc_cmd(char **ptr)
 {
     collect_garbage();
 }
-#endif
 
 static void purify_cmd(char **ptr)
 {

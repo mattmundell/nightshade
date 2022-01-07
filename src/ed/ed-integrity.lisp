@@ -13,11 +13,11 @@
 (in-package "ED")
 
 
-(declaim (special hemlock-internals::*debugging-tty-redisplay*
-		  hemlock-internals::*testing-delete-queue*
-		  hemlock-internals::*testing-insert-queue*
-		  hemlock-internals::*testing-moved*
-		  hemlock-internals::*testing-writes*))
+(proclaim '(special hemlock-internals::*debugging-tty-redisplay*
+		    hemlock-internals::*testing-delete-queue*
+		    hemlock-internals::*testing-insert-queue*
+		    hemlock-internals::*testing-moved*
+		    hemlock-internals::*testing-writes*))
 
 
 (defcommand "Setup Tty Buffer" (p)

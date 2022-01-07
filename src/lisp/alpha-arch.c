@@ -1,6 +1,6 @@
 /*
 
- $Header: /project/cmucl/cvsroot/src/lisp/alpha-arch.c,v 1.6 2000/10/24 13:32:30 dtc Exp $
+ $Header: /home/CVS-cmucl/src/lisp/alpha-arch.c,v 1.3.2.3 2000/10/24 13:33:55 dtc Exp $
 
  This code was written as part of the CMU Common Lisp project at
  Carnegie Mellon University, and has been placed in the public domain.

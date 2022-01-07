@@ -1,4 +1,4 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/interrupt.h,v 1.6 1997/11/25 15:27:32 dtc Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/interrupt.h,v 1.4.2.2 2000/05/23 16:38:27 pw Exp $ */
 
 #if !defined(_INCLUDE_INTERRUPT_H_)
 #define _INCLUDE_INTERRUPT_H_

@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/generic/vm-ir2tran.lisp,v 1.9 1997/01/18 14:31:15 ram Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/generic/vm-ir2tran.lisp,v 1.9 1997/01/18 14:31:15 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;

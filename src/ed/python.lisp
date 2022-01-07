@@ -166,7 +166,6 @@
 		 (reverse-find-character tem #\()
 		 (1+ (mark-column tem)))
 		(t
-		 (msg "m ~A" mark)
 		 (+ (- (mark-column mark)
 		       (mod (mark-column mark) (value spaces-per-tab)))
 		    (value spaces-per-tab))
@@ -201,7 +200,6 @@
 
 (defun insert-python-indentation (mark)
   (let ((chars (python-indentation mark)))
-    (msg "chars ~A" chars)
     (line-start mark)
     (delete-horizontal-space mark)
     (funcall (value indent-with-tabs) mark chars)))

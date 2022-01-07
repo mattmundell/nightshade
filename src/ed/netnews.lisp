@@ -804,7 +804,7 @@
     (setf (nn-info-last-batch-p nn-info) last-batch-p)
     (setf (nn-info-from-end-p nn-info) nil)))
 
-(declaim (special *nn-last-command-issued*))
+(proclaim '(special *nn-last-command-issued*))
 
 (defun nn-send-many-head-requests (stream first last out-of-order-p)
   (do ((i first (1+ i)))

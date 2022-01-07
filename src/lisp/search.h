@@ -1,5 +1,5 @@
 /*
- * $Header: /project/cmucl/cvsroot/src/lisp/search.h,v 1.1 1992/07/28 20:15:32 wlott Exp $
+ * $Header: /home/CVS-cmucl/src/lisp/search.h,v 1.1 1992/07/28 20:15:32 wlott Exp $
  */
 
 #ifndef _SEARCH_H_

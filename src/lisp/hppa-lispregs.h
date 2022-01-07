@@ -1,4 +1,4 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/hppa-lispregs.h,v 1.2 1993/07/27 15:04:16 hallgren Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/hppa-lispregs.h,v 1.2 1993/07/27 15:04:16 hallgren Exp $ */
 
 #define NREGS	(32)
 

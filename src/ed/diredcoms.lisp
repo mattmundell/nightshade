@@ -1,7 +1,7 @@
 ;;; Simple directory editing support.
 ;;; This file contains site dependent calls.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 (defmode "Dired" :major-p t
@@ -313,8 +313,8 @@
 ;;; an error.
 ;;;
 (defun dired-frob-deletion (patternp deletep)
-  (unless (editor-bound-p 'dired-information)
-    (editor-error "Not in Dired buffer."))
+  (or (editor-bound-p 'dired-information)
+      (editor-error "Not in Dired buffer."))
   (with-mark ((mark (current-point) :left-inserting))
     (let* ((dir-info (value dired-information))
 	   (files (dired-info-files dir-info))
@@ -617,6 +617,7 @@
 	  (end (length files)))
 	 ((eq pos end))
       (when (equal pathname (dired-file-pathname (aref files pos)))
+	(buffer-start (current-point))
 	(line-offset (current-point) pos)
 	(return-from dired-from-buffer-pathname-command)))))
 
@@ -642,7 +643,7 @@
   "Toggle display of backup files, updating buffer."
   (declare (ignore p))
   (or (editor-bound-p 'dired-information)
-      (editor-error "Must be in Dired buffer."))
+      (editor-error "Must be in a Dired buffer."))
   ;; FIX (decf? ie (- universe universe)
   (hi::complf (dired-info-backup-files-p (value dired-information)))
   (dired-update-buffer-command nil t))
@@ -652,7 +653,7 @@
   "Toggle display of files starting with `.', updating buffer."
   (declare (ignore p))
   (or (editor-bound-p 'dired-information)
-      (editor-error "Must be in Dired buffer."))
+      (editor-error "Must be in a Dired buffer."))
   ;; FIX
   (hi::complf (dired-info-dot-files-p (value dired-information)))
   (dired-update-buffer-command nil t))
@@ -857,8 +858,7 @@
    the same with directories and the value of \"Dired Directory Expunge
    Confirm\"."
   (declare (ignore p))
-  (when (expunge-dired-files)
-    (dired-update-buffer-command nil))
+  (if (expunge-dired-files) (dired-update-buffer-command nil))
   (maintain-dired-consistency))
 
 (defcommand "Dired Quit" (p)
@@ -879,7 +879,8 @@
   :value t)
 
 (defun expunge-dired-files ()
-  (multiple-value-bind (marked-files marked-dirs) (get-delete-marked-dired-files)
+  (multiple-value-bind (marked-files marked-dirs)
+		       (get-delete-marked-dired-files)
     (let ((dired:*error-function* #'dired-error-function)
 	  (dired:*report-function* #'dired-report-function)
 	  (dired:*yesp-function* #'dired-yesp-function)
@@ -897,7 +898,8 @@
 	(dolist (file-info marked-files)
 	  (let ((pathname (car file-info))
 		(write-date (cdr file-info)))
-	    (if (= write-date (file-write-date pathname))
+	    ;; FIX assuming write-date only nil for broken symlinks
+	    (if (if write-date (= write-date (file-write-date pathname)) t)
 		(dired:delete-file (namestring pathname) :clobber t
 				   :recursive nil)
 		(message "~A has been modified, so it remains."
@@ -1215,7 +1217,7 @@
 		 :help '("Name of File or Directory to delete.  ~
 			  One wildcard is permitted.")
 		 :must-exist nil)))
-	 (ed::directoryp (directoryp spec))
+	 (directoryp (directoryp spec))
 	 (dired:*error-function* #'dired-error-function)
 	 (dired:*report-function* #'dired-report-function)
 	 (dired:*yesp-function* #'dired-yesp-function)
@@ -1300,37 +1302,6 @@
 	 (dired:*yesp-function* #'dired-yesp-function))
     (dired:symlink-file source dest))
   (maintain-dired-consistency))
-
-(defcommand "Compare Files" (p &optional file1 file2)
-  "Compare two prompted files."
-  "Compare two prompted files."
-  (declare (ignore p))
-  (let* ((one (namestring
-	       (or file1
-		   (prompt-for-file
-		    :prompt "First file: "
-		    :help "Name of first of files to compare."
-		    :default (buffer-pathname (current-buffer))
-		    :must-exist nil))))
-	 (two (namestring
-	       (or file2
-		   (prompt-for-file
-		    :prompt "Second file: "
-		    :help "Name of second of files to compare."
-		    :default (buffer-pathname (current-buffer))
-		    :must-exist nil))))
-	 (buffer-one (make-buffer (format nil "~A-~A"
-					  (pathname-name one)
-					  (gensym))))
-	 (buffer-two (make-buffer (format nil "~A-~A"
-					  (pathname-name two)
-					  (gensym)))))
-    ;; FIX Could print-dir into buffers if files are dirs.
-    (read-buffer-file one buffer-one)
-    (read-buffer-file two buffer-two)
-    (compare-buffers-command nil buffer-one buffer-two)
-    (delete-buffer buffer-one)
-    (delete-buffer buffer-two)))
 
 (defun maintain-dired-consistency ()
   (dolist (info *pathnames-to-dired-buffers*)
@@ -1505,13 +1476,14 @@
 	 (length (length files))
 	 (marked-files ())
 	 (marked-dirs ()))
-    (unless files (editor-error "Not in Dired buffer."))
+    (or files (editor-error "Not in Dired buffer."))
     (do ((i 0 (1+ i)))
 	((= i length) (values (nreverse marked-files) (nreverse marked-dirs)))
       (let* ((thing (svref files i))
 	     (pathname (dired-file-pathname thing)))
 	(when (and (dired-file-deleted-p thing) ; file marked for delete
-		   (probe-file pathname)) 	; file still exists
+		   (or (symlinkp pathname)
+		       (probe-file pathname))) 	; file still exists
 	  (if (directoryp pathname)
 	      (push (cons pathname (file-write-date pathname)) marked-dirs)
 	      (push (cons pathname (file-write-date pathname))
@@ -1568,7 +1540,7 @@
 (defun dired-directorify (pathname)
   (let ((directory (ext:unix-namestring pathname)))
     (if directory
-	(if (directoryp directory)
+	(if (directory-name-p directory)
 	    directory
 	    (pathname (concatenate 'simple-string (namestring directory) "/"))))
     pathname))
@@ -1637,7 +1609,10 @@
 		(dired-update-buffer-command nil))
 	      (let ((files (locate regex)))
 		(if files
-		    (dired-guts nil nil "/" nil nil nil files name `(locate ,regex))
+		    (dired-guts nil nil "/" nil nil nil files name
+				(eval `(lambda (info)
+					 (declare (ignore info))
+					 (locate ,regex))))
 		    (message "Failed to locate any matching files."))))))))
 
 
@@ -1718,9 +1693,12 @@
 	      (let ((files (find-files pathname exp recurse)))
 		(if files
 		    (dired-guts nil nil "/" nil nil nil
-				files name `(find-files ,pathname
-							,exp
-							,recurse))
+				files name
+				(eval `(lambda (info)
+					 (declare (ignore info))
+					 (find-files ,pathname
+						     ,exp
+						     ,recurse))))
 		    (message "Failed to find any files."))))))))
 |#
 
@@ -1764,9 +1742,12 @@
 		     (files (list-files pathname predicate :recurse recurse)))
 		(if files
 		    (dired-guts nil nil "/" nil nil nil
-				files name `(list-files ,pathname
-							,predicate
-							:recurse ,recurse))
+				files name
+				(eval `(lambda (info)
+					 (declare (ignore info))
+					 (list-files ,pathname
+						     ,predicate
+						     :recurse ,recurse))))
 		    (message "Failed to find any files."))))))))
 
 (defcommand "Dired Find" (p)
@@ -1874,7 +1855,7 @@
 	       (lambda (file)
 		 ;; FIX may be better to use a stream for this case
 		 ;; (with-open-file
-		 (or (eq (unix::unix-file-kind file) :directory)
+		 (or (directoryp file)
 		     (hi::with-temp-buffer (buffer file)
 		       (message "search ~A (~A) for .~A. from ~A with ~A" buffer file rule (buffer-point buffer) *pattern*)
 		       (if (find-pattern (buffer-point buffer) *pattern*)
@@ -1924,13 +1905,19 @@
 		(push buffer *last-search-buffer-stack*)
 		(change-to-buffer buffer)
 		(dired-update-buffer-command nil))
-	      (let ((files (search-files pathname exp recurse display-matches)))
+	      (let ((files (search-files pathname exp
+					 recurse display-matches)))
 		(if files
 		    (push (dired-guts nil nil "/" nil
-				      (if display-matches '(:name ": " 1 ": " 2))
+				      (if display-matches
+					  '(:name ": " 1 ": " 2))
 				      nil files name
-				      `(search-files ,pathname ,exp
-						     ,recurse ,display-matches))
+				      (eval `(lambda (info)
+					       (declare (ignore info))
+					       (search-files ,pathname
+							     ,exp
+							     ,recurse
+							     ,display-matches))))
 			  *last-search-buffer-stack*)
 		    (message "Failed to match in any files."))))))))
 |#
@@ -1970,10 +1957,13 @@
 	      (let ((files (search-files pathname exp recurse display-matches)))
 		(if files
 		    (push (dired-guts nil nil "/" nil
-				      (if display-matches '(:name ": " 1 ": " 2))
+				      (if display-matches
+					  '(:name ": " 1 ": " 2))
 				      nil files name
-				      `(search-files ,pathname ,exp
-						     ,recurse ,display-matches))
+				      (eval `(lambda (info)
+					       (declare (ignore info))
+					       (search-files ,pathname ,exp
+							     ,recurse ,display-matches))))
 			  *last-search-buffer-stack*)
 		    (message "Failed to match in any files."))))))))
 

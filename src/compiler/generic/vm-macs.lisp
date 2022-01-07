@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/generic/vm-macs.lisp,v 1.18 2002/01/15 20:43:06 toy Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/generic/vm-macs.lisp,v 1.16 1997/01/18 14:31:15 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -235,15 +235,14 @@
 	  big-endian-fasl-file-implementation
 	  little-endian-fasl-file-implementation
 	  alpha-fasl-file-implementation
-	  sgi-fasl-file-implementation
-	  ppc-fasl-file-implementation))
+	  sgi-fasl-file-implementation))
 
 ;;; Constants for the different implementations.  These are all defined in
 ;;; one place to make sure they are all unique.
 
 (defparameter fasl-file-implementations
   '(nil "Pmax" "Sparc" "RT" "RT/AFPA" "x86" "HPPA"
-	"Big-endian byte-code" "Little-endian byte-code" "Alpha" "SGI" "PPC"))
+	"Big-endian byte-code" "Little-endian byte-code" "Alpha" "SGI"))
 (defconstant pmax-fasl-file-implementation 1)
 (defconstant sparc-fasl-file-implementation 2)
 (defconstant rt-fasl-file-implementation 3)
@@ -254,7 +253,6 @@
 (defconstant little-endian-fasl-file-implementation 8)
 (defconstant alpha-fasl-file-implementation 9)
 (defconstant sgi-fasl-file-implementation 10)
-(defconstant ppc-fasl-file-implementation 11)
 
 ;;; The maximum number of SCs in any implementation.
 (defconstant sc-number-limit 32)

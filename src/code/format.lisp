@@ -5,7 +5,7 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/code/format.lisp,v 1.44 2002/03/14 11:50:13 pmai Exp $")
+  "$Header: /home/CVS-cmucl/src/code/format.lisp,v 1.36.2.4 2000/05/23 16:36:30 pw Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
@@ -13,7 +13,7 @@
 ;;;
 ;;; Written by William Lott, with lots of stuff stolen from the previous
 ;;; version by David Adam and later rewritten by Bill Maddox.
-;;; 
+;;;
 
 (in-package "FORMAT")
 (use-package "EXT")
@@ -64,7 +64,7 @@
    (arguments :reader format-error-arguments :initarg :arguments :initform nil)
    (control-string :reader format-error-control-string
 		   :initarg :control-string
-		   :initform *default-format-error-control-string*) 
+		   :initform *default-format-error-control-string*)
    (offset :reader format-error-offset :initarg :offset
 	   :initform *default-format-error-offset*)
    (print-banner :reader format-error-print-banner :initarg :print-banner
@@ -203,7 +203,7 @@
 ;;; Used by the expander stuff.  Initially starts as T, and gets set to NIL
 ;;; if someone needs to do something strange with the arg list (like use
 ;;; the rest, or something).
-;;; 
+;;;
 (defvar *only-simple-args*)
 
 ;;; *ORIG-ARGS-AVAILABLE* -- internal.
@@ -212,13 +212,13 @@
 ;;; If someone doesn't like this, they (throw 'need-orig-args nil) and we try
 ;;; again with it bound to T.  If this is T, we don't try to do anything
 ;;; fancy with args.
-;;; 
+;;;
 (defvar *orig-args-available* nil)
 
 ;;; *SIMPLE-ARGS* -- internal.
 ;;;
 ;;; Used by the expander stuff.  List of (symbol . offset) for simple args.
-;;; 
+;;;
 (defvar *simple-args*)
 
 
@@ -240,7 +240,7 @@
     ~&            Does a FRESH-LINE
 
      where n is the width of the field in which the object is printed.
-  
+
   DESTINATION controls where the result will go.  If DESTINATION is T, then
   the output is sent to the standard output stream.  If it is NIL, then the
   output is returned in a string as the value of the call.  Otherwise,
@@ -441,13 +441,13 @@ FIX
      (pprint-pop)
      (pop args)))
 
-(eval-when (:compile-toplevel :execute)
+(eval-when (compile eval)
 
 ;;; NEXT-ARG -- internal.
 ;;;
 ;;; This macro is used to extract the next argument from the current arg list.
 ;;; This is the version used by format directive interpreters.
-;;; 
+;;;
 (defmacro next-arg (&optional offset)
   `(progn
      (when (null args)
@@ -630,11 +630,10 @@ FIX
     (write-string string stream))
   (dotimes (i minpad)
     (write-char padchar stream))
-  (and mincol minpad colinc
-       (do ((chars (+ (length string) minpad) (+ chars colinc)))
-	   ((>= chars mincol))
-	 (dotimes (i colinc)
-	   (write-char padchar stream))))
+  (do ((chars (+ (length string) minpad) (+ chars colinc)))
+      ((>= chars mincol))
+    (dotimes (i colinc)
+      (write-char padchar stream)))
   (when padleft
     (write-string string stream)))
 
@@ -888,13 +887,13 @@ FIX
 	"fifth" "sixth" "seventh" "eighth" "ninth")
   "Table of ordinal ones-place digits in English")
 
-(defconstant ordinal-tens 
+(defconstant ordinal-tens
   #(nil "tenth" "twentieth" "thirtieth" "fortieth"
 	"fiftieth" "sixtieth" "seventieth" "eightieth" "ninetieth")
   "Table of ordinal tens-place digits in English")
 
 (defun format-print-small-cardinal (stream n)
-  (multiple-value-bind 
+  (multiple-value-bind
       (hundreds rem) (truncate n 100)
     (when (plusp hundreds)
       (write-string (svref cardinal-ones hundreds) stream)
@@ -1093,13 +1092,13 @@ FIX
    (t
     (let ((spaceleft w))
       (when (and w (or atsign (minusp number))) (decf spaceleft))
-      (multiple-value-bind 
+      (multiple-value-bind
 	  (str len lpoint tpoint)
 	  (lisp::flonum-to-string (abs number) spaceleft d k)
 	;;if caller specifically requested no fraction digits, suppress the
 	;;optional trailing zero
 	(when (and d (zerop d)) (setq tpoint nil))
-	(when w 
+	(when w
 	  (decf spaceleft len)
 	  ;;optional leading zero
 	  (when lpoint
@@ -1203,7 +1202,7 @@ FIX
 	      (multiple-value-bind
 		  (fstr flen lpoint)
 		  (lisp::flonum-to-string num spaceleft fdig k fmin)
-		(when w 
+		(when w
 		  (decf spaceleft flen)
 		  (when lpoint
 		    (if (> spaceleft 0)
@@ -1224,7 +1223,7 @@ FIX
 					 (format-exponent-marker number))
 				     stream)
 			 (write-char (if (minusp expt) #\- #\+) stream)
-			 (when e 
+			 (when e
 			   ;;zero-fill before exponent if necessary
 			   (dotimes (i (- e (length estr)))
 			     (write-char #\0 stream)))
@@ -1270,7 +1269,7 @@ FIX
 	   (or (float-infinity-p number)
 	       (float-nan-p number)))
       (prin1 number stream)
-      (multiple-value-bind (ignore n) 
+      (multiple-value-bind (ignore n)
 	  (lisp::scale-exponent (abs number))
 	(declare (ignore ignore))
 	;;Default d if omitted.  The procedure is taken directly
@@ -1278,7 +1277,7 @@ FIX
 	;;very efficient, since we generate the digits twice.
 	;;Future maintainers are encouraged to improve on this.
 	(unless d
-	  (multiple-value-bind (str len) 
+	  (multiple-value-bind (str len)
 	      (lisp::flonum-to-string (abs number))
 	    (declare (ignore str))
 	    (let ((q (if (= len 1) 1 (1- len))))
@@ -1314,7 +1313,7 @@ FIX
 			     (lisp::flonum-to-string number nil d nil)
 	  (declare (ignore ig2 ig3))
 	  (when colon (write-string signstr stream))
-	  (dotimes (i (- w signlen (max 0 (- n pointplace)) strlen))
+	  (dotimes (i (- w signlen (- n pointplace) strlen))
 	    (write-char pad stream))
 	  (unless colon (write-string signstr stream))
 	  (dotimes (i (- n pointplace)) (write-char #\0 stream))
@@ -2416,19 +2415,17 @@ FIX
 				  ;; expansion.
 				  (subseq foo (1+ slash) (1- end)))))
 	   (first-colon (position #\: name))
-	   (second-colon (if first-colon (position #\: name :start (1+ first-colon))))
-	   (package-name (if first-colon
+	   (last-colon (if first-colon (position #\: name :from-end t)))
+	   (package-name (if last-colon
 			     (subseq name 0 first-colon)
-			     "COMMON-LISP-USER"))
+			     "USER"))
 	   (package (find-package package-name)))
       (unless package
 	(error 'format-error
-	       :complaint "No package named ~S"
+	       :complaint "No package named ``~A''."
 	       :arguments (list package-name)))
-      (intern (cond
-                ((and second-colon (= second-colon (1+ first-colon)))
-                 (subseq name (1+ second-colon)))
-                (first-colon
-                 (subseq name (1+ first-colon)))
-                (t name))
-              package))))
+      (intern (if first-colon
+		  (subseq name (1+ first-colon))
+		  name)
+	      package))))
+

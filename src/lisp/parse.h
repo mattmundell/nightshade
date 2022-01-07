@@ -1,4 +1,4 @@
-/* $Header: /project/cmucl/cvsroot/src/lisp/parse.h,v 1.1 1992/07/28 20:15:16 wlott Exp $ */
+/* $Header: /home/CVS-cmucl/src/lisp/parse.h,v 1.1 1992/07/28 20:15:16 wlott Exp $ */
 
 /* All parse routines take a char ** as their only argument */
 

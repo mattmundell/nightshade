@@ -5,11 +5,11 @@
 ;;; Carnegie Mellon University, and has been placed in the public domain.
 ;;;
 (ext:file-comment
-  "$Header: /project/cmucl/cvsroot/src/compiler/sparc/pred.lisp,v 1.2 1994/10/31 04:46:41 ram Exp $")
+  "$Header: /home/CVS-cmucl/src/compiler/sparc/pred.lisp,v 1.2 1994/10/31 04:46:41 ram Exp $")
 ;;;
 ;;; **********************************************************************
 ;;;
-;;; $Header: /project/cmucl/cvsroot/src/compiler/sparc/pred.lisp,v 1.2 1994/10/31 04:46:41 ram Exp $
+;;; $Header: /home/CVS-cmucl/src/compiler/sparc/pred.lisp,v 1.2 1994/10/31 04:46:41 ram Exp $
 ;;;
 ;;;    This file contains the VM definition of predicate VOPs for the SPARC.
 ;;;

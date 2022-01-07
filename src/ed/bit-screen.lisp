@@ -7,22 +7,21 @@
 	  *random-typeout-hook* *create-initial-windows-hook*))
 
 
-(declaim (special *echo-area-window*))
+(proclaim '(special *echo-area-window*))
 
 ;;; We have an internal notion of window groups on bitmap devices.  Every
 ;;; editor window has a hunk slot which holds a structure with information
-;;; about physical real-estate on some device.  Bitmap-hunks have an X
-;;; window and a window-group.  The X window is a child of the
-;;; window-group's window.  The echo area, pop-up display window, and the
-;;; initial window are all in their own group.
+;;; about physical real-estate on some device.  Bitmap-hunks have an X window
+;;; and a window-group.  The X window is a child of the window-group's window.
+;;; The echo area, pop-up display window, and the initial window are all in
+;;; their own group.
 ;;;
-;;; MAKE-WINDOW splits the current window which is some child window in a
-;;; group.  If the user supplied an X window, it becomes the parent window
-;;; of some new group, and we make a child for the editor window.  If the
-;;; user supplies ask-user, we prompt for a group/parent window.  We link
-;;; the hunks for NEXT-WINDOW and PREVIOUS-WINDOW only within a group, so
-;;; the group maintains a stack of windows that always fill the entire
-;;; group window.
+;;; MAKE-WINDOW splits the current window which is some child window in a group.
+;;; If the user supplied an X window, it becomes the parent window of some new
+;;; group, and we make a child for the editor window.  If the user supplies
+;;; ask-user, we prompt for a group/parent window.  We link the hunks for
+;;; NEXT-WINDOW and PREVIOUS-WINDOW only within a group, so the group maintains
+;;; a stack of windows that always fill the entire group window.
 ;;;
 
 ;;; This is the object set for editor windows.  All types of incoming X
@@ -55,7 +54,7 @@
 
 (defvar *highlight-border-pixmap* nil
   "This is the color of the border of the current window when the mouse
-  cursor is over any Hemlock window.")
+   cursor is over any editor window.")
 
 
 
@@ -576,12 +575,12 @@
 
 ;;;; Handling boundary crossing events.
 
-;;; Entering and leaving a window are handled basically the same except that it
-;;; is possible to get an entering event under X without getting an exiting
-;;; event; specifically, when the mouse is in a Hemlock window that is over
-;;; another window, and someone buries the top window, Hemlock only gets an
-;;; entering event on the lower window (no exiting event for the buried
-;;; window).
+;;; Entering and leaving a window are handled basically the same except
+;;; that it is possible to get an entering event under X without getting an
+;;; exiting event; specifically, when the mouse is in an editor window that
+;;; is over another window, and someone buries the top window, the editor
+;;; only gets an entering event on the lower window (no exiting event for
+;;; the buried window).
 ;;;
 ;;; :enter-notify and :leave-notify events are sent because we select
 ;;; :enter-window and :leave-window events.
@@ -635,6 +634,14 @@
   "If the window created by splitting a window would be shorter than this,
   then we create an overlapped window the same size instead.")
 
+;;; The width must be that of a tab for the screen image builder, and the
+;;; height must be one line (two with a modeline).
+;;;
+(defconstant minimum-window-lines 1
+  "Windows must have at least this many lines.")
+(defconstant minimum-window-columns 8
+  "Windows must be at least this many characters wide.")
+
 (eval-when (compile eval load)
 (defconstant xwindow-border-width 2 "X border around X windows")
 (defconstant xwindow-border-width*2 (* xwindow-border-width 2))
@@ -648,9 +655,9 @@
 ;;;
 (defun new-hemlock-window-name ()
   (let ((*print-base* 10))
-    (format nil "Hemlock ~S" (incf *hemlock-window-count*))))
+    (format nil "Nightshade editor ~S" (incf *hemlock-window-count*))))
 
-(declaim (inline surplus-window-height surplus-window-height-w/-modeline))
+(proclaim '(inline surplus-window-height surplus-window-height-w/-modeline))
 ;;;
 (defun surplus-window-height (thumb-bar-p)
   (+ hunk-top-border (if thumb-bar-p
@@ -703,12 +710,12 @@
      t)))
 
 (defvar *create-window-hook* #'default-create-window-hook
-  "Hemlock calls this function when it makes a new X window for a new group.
-   It passes as arguments the X display, x (from MAKE-WINDOW), y (from
-   MAKE-WINDOW), width (from MAKE-WINDOW), height (from MAKE-WINDOW), a name
-   for the window's icon-name, font-family (from MAKE-WINDOW), modelinep (from
-   MAKE-WINDOW), and whether the window will have a thumb-bar meter.  The
-   function returns a window or nil.")
+  "The editor calls this function when it makes a new X window for a new
+   group.  It passes as arguments the X display, x (from MAKE-WINDOW), y
+   (from MAKE-WINDOW), width (from MAKE-WINDOW), height (from MAKE-WINDOW),
+   a name for the window's icon-name, font-family (from MAKE-WINDOW),
+   modelinep (from MAKE-WINDOW), and whether the window will have a
+   thumb-bar meter.  The function returns a window or nil.")
 
 ;;; BITMAP-MAKE-WINDOW -- Internal.
 ;;;
@@ -760,7 +767,7 @@
     ;; link it into the current window's group.  When ask-user is non-nil,
     ;; we make a new group too.
     (cond ((or window ask-user)
-	   ;; This occurs when we make the world's first Hemlock window.
+	   ;; This occurs when we make the world's first editor window.
 	   (unless *current-window*
 	     (setq *current-window* (bitmap-hunk-window hunk)))
 	   (setf (bitmap-hunk-previous hunk) hunk)
@@ -858,7 +865,7 @@
 			parent 0 (+ cy new-ch)
 			cw (- ch new-ch) font-width font-height
 			icon-name)))
-	      ;; No need to reshape current Hemlock window structure here
+	      ;; No need to reshape current editor window structure here
 	      ;; since this call will send an appropriate event.
 	      (setf (xlib:drawable-height cwin) new-ch)
 	      ;; Set hints on parent, so the user can't resize it to be
@@ -878,11 +885,12 @@
 ;;; clicks unless the window has a name; this could be used better.
 ;;;
 (defun make-xwindow-like-hwindow (window)
-  "This returns an group/parent xwindow with dimensions suitable for making a
-   Hemlock window like the argument window.  The new window's position should
-   be the same as the argument window's position relative to the root.  When
-   setting standard properties, we set x, y, width, and height to tell window
-   managers to put the window where we intend without querying the user."
+  "This returns an group/parent xwindow with dimensions suitable for making
+   an editor window like the argument window.  The new window's position
+   should be the same as the argument window's position relative to the
+   root.  When setting standard properties, we set x, y, width, and height
+   to tell window managers to put the window where we intend without
+   querying the user."
   (let* ((hunk (window-hunk window))
 	 (font-family (bitmap-hunk-font-family hunk))
 	 (xwin (bitmap-hunk-xwindow hunk)))
@@ -910,8 +918,8 @@
   (xlib:destroy-window xparent))
 ;;;
 (defvar *delete-window-hook* #'default-delete-window-hook
-  "Hemlock calls this function to delete an X group/parent window.  It passes
-   the X window as an argument.")
+  "The editor calls this function to delete an X group/parent window.  It
+   passes the X window as an argument.")
 
 
 ;;; BITMAP-DELETE-WINDOW  --  Internal
@@ -999,11 +1007,11 @@
 ;;; by deleting hunk's window.  If this is possible, then we must also move the
 ;;; next window up to where hunk's window was.
 ;;;
-;;; When we reconfigure the window, we must set the hunk trashed.  This is a
-;;; hack since twm is broken again and is sending exposure events before
-;;; reconfigure notifications.  Hemlock relies on the protocol's statement that
-;;; reconfigures come before exposures to set the hunk trashed before getting
-;;; the exposure.  For now, we'll do it here too.
+;;; When we reconfigure the window, we must set the hunk trashed.  This is
+;;; a hack since twm is broken again and is sending exposure events before
+;;; reconfigure notifications.  The editor relies on the protocol's
+;;; statement that reconfigures come before exposures to set the hunk
+;;; trashed before getting the exposure.  For now, we'll do it here too.
 ;;;
 (defun merge-with-next-window (hunk y h)
   (declare (fixnum y h))
@@ -1129,7 +1137,7 @@
 ;;; Random typeout is done to a bitmap-hunk-output-stream
 ;;; (Bitmap-Hunk-Stream.Lisp).  These streams have an associated hunk
 ;;; that is used for its font-family, foreground and background color,
-;;; and X window pointer.  The hunk is not associated with any Hemlock
+;;; and X window pointer.  The hunk is not associated with any editor
 ;;; window, and the low level painting routines that use hunk dimensions
 ;;; are not used for output.  The X window is resized as necessary with
 ;;; each use, but the hunk is only registered for input and boundary
@@ -1153,7 +1161,7 @@
 ;;; Hemlock window using specials set in INIT-BITMAP-SCREEN-MANAGER.  If
 ;;; given a window, we will change the height subject to the constraint
 ;;; that the bottom won't be off the screen.  Any resulting window has
-;;; input and boundary crossing events selected, a hemlock cursor defined,
+;;; input and boundary crossing events selected, an editor cursor defined,
 ;;; and is mapped.
 ;;;
 (defun default-random-typeout-hook (device window height)
@@ -1400,10 +1408,10 @@
 			  w echo-height ff-width ff-height)))))))))
 
 (defvar *create-initial-windows-hook* #'default-create-initial-windows-hook
-  "The editor uses this function when it initializes the screen manager to
-   make the first windows, typically the main and echo area windows.  It
-   takes an editor device as a required argument.  It sets *current-window*
-   and *echo-area-window*.")
+  "Hemlock uses this function when it initializes the screen manager to make
+   the first windows, typically the main and echo area windows.  It takes a
+   Hemlock device as a required argument.  It sets *current-window* and
+   *echo-area-window*.")
 
 (defun make-echo-xwindow (root x y width height)
   (let* ((font-width (font-family-width *default-font-family*))

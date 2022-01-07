@@ -43,7 +43,7 @@
   sense)
 
 
-(declaim (inline buffer-name buffer-pathname buffer-region))
+(proclaim '(inline buffer-name buffer-pathname buffer-region))
 
 (defun buffer-region (buffer)
   "Return the region which contains Buffer's text."
@@ -59,7 +59,7 @@
   "Return Buffer's string name."
   (buffer-%name buffer))
 
-(declaim (special *buffer-names*))
+(proclaim '(special *buffer-names*))
 
 (defun %set-buffer-name (buffer name)
   (multiple-value-bind (entry foundp) (getstring name *buffer-names*)
@@ -235,7 +235,7 @@
   (with-mode-and-buffer (name nil buffer)
     (not (null (memq mode (buffer-mode-objects buffer))))))
 
-(declaim (special *mode-names*))
+(proclaim '(special *mode-names*))
 
 ;;; %SET-BUFFER-MINOR-MODE  --  Public
 ;;;
@@ -303,7 +303,7 @@
 ;;;; CURRENT-BUFFER, CURRENT-POINT, CURRENT-LINE, and buffer using setup
 ;;;; and cleanup.
 
-(declaim (inline current-buffer))
+(proclaim '(inline current-buffer))
 
 (defun current-buffer () "Return the current buffer object." *current-buffer*)
 
@@ -364,7 +364,7 @@
 
 (defvar *in-a-recursive-edit* nil "True if we are in a recursive edit.")
 
-(declaim (inline in-recursive-edit))
+(proclaim '(inline in-recursive-edit))
 
 (defun in-recursive-edit ()
   "Returns whether the calling point is dynamically within a recursive edit
