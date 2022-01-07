@@ -143,7 +143,7 @@ vm_address_t test;
 
         segments = curseg;
     }
-    
+
     for (curseg = 0; curseg < segments; curseg++)
         if (addr_map[curseg].start <= test && test < addr_map[curseg].start + addr_map[curseg].length)
             return TRUE;

@@ -1,28 +1,9 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/system.lisp,v 1.3.2.2 2000/05/23 16:38:03 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; x86 VM definitions of various system hacking operations.
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; Enhancements/debugging by Douglas T. Crosher 1996,1997,1998,1999.
-;;;
 
-(in-package :x86)
+(in-package "X86")
 
 
-;;;; Type frobbing VOPs
+;;;; Type frobbing VOPs.
 
 (define-vop (get-lowtag)
   (:translate get-lowtag)
@@ -61,16 +42,17 @@
     ;; must be an other immediate
     (inst mov eax object)
     (inst jmp done)
-    
+
     FUNCTION-PTR
     (load-type al-tn object (- vm:function-pointer-type))
     (inst jmp done)
-    
+
     OTHER-PTR
     (load-type al-tn object (- vm:other-pointer-type))
-    
+
     DONE
     (inst movzx result al-tn)))
+
 
 (define-vop (function-subtype)
   (:translate function-subtype)
@@ -136,6 +118,7 @@
     (inst mov al-tn (make-ea :byte :base x :disp (- other-pointer-type)))
     (storew eax x 0 other-pointer-type)
     (move res x)))
+
 
 (define-vop (make-fixnum)
   (:args (ptr :scs (any-reg descriptor-reg) :target res))
@@ -160,7 +143,7 @@
 		   (immediate (tn-value type))))))
 
 
-;;;; Allocation
+;;;; Allocation.
 
 (define-vop (dynamic-space-free-pointer)
   (:results (int :scs (sap-reg)))
@@ -238,7 +221,7 @@
   (:generator 3
     (loadw result function function-self-slot function-pointer-type)
     (inst lea result
-	  (make-ea :byte :base result 
+	  (make-ea :byte :base result
 		   :disp (- function-pointer-type
 			    (* function-code-offset word-bytes))))))
 
@@ -270,12 +253,11 @@
 
 ;; Would have really liked to use a source-transform for this, but they
 ;; don't work with setf functions.
-;; 
+;;
 (defknown ((setf %funcallable-instance-function)) (function function) function
   (unsafe))
 (deftransform (setf %funcallable-instance-function) ((value fin))
   '(setf (%function-self fin) value))
-
 
 
 ;;;; Other random VOPs.
@@ -300,8 +282,9 @@
   (:generator 1
     (note-next-instruction vop :internal-error)
     (inst wait)))
+
 
-;;;; Dynamic vop count collection support
+;;;; Dynamic vop count collection support.
 
 (define-vop (count-me)
   (:args (count-vector :scs (descriptor-reg)))
@@ -312,7 +295,6 @@
 				other-pointer-type)))))
 
 
-
 (defknown sys:scrub-control-stack () (values))
 
 ;;; Scrub the control stack.
@@ -372,9 +354,9 @@
   (:generator 25
     (inst cmp inherit nil-value)
     (inst jmp :e FRESH-STACK)
-    
+
     ;; Child inherits the stack of the parent.
-    
+
     ;; Setup the return context.
     (inst push (make-fixup nil :code-object return))
     (inst push ebp-tn)
@@ -434,12 +416,12 @@
 	  temp)
     (inst inc index)
     (inst jmp-short LOOP)
-    
+
     RETURN
     ;; Stack already clean if it reaches here. Parent returns NIL.
     (inst mov child nil-value)
     (inst jmp-short DONE)
-    
+
     STACK-SAVE-DONE
     ;; Cleanup the stack
     (inst add esp-tn 8)
@@ -516,10 +498,9 @@
     ;; Pop the frame pointer, and resume at the return address.
     (inst pop ebp-tn)
     (inst ret)
-    
+
     ;; Original thread resumes, stack has been cleaned up.
     RETURN))
-
 
 (export 'control-stack-return)
 (defknown control-stack-return ((simple-array (unsigned-byte 32) (*)))

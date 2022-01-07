@@ -1,27 +1,10 @@
-;;; -*- Package: RT -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/c-call.lisp,v 1.11 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/rt/c-call.lisp,v 1.11 1994/10/31 04:45:41 ram Exp $
-;;;
-;;; This file contains the VOPs and other necessary machine specific support
-;;; routines for call-out to C.
-;;;
-;;; Written by William Lott.
-;;; Converted by Bill Chiles.
-;;;
+;;; The VOPs and other necessary machine specific support routines for
+;;; call-out to C.
 
 (in-package "RT")
+
 (use-package "ALIEN")
 (use-package "ALIEN-INTERNALS")
-
 
 
 ;;;; Make-call-out-tns and support stuff.
@@ -30,7 +13,6 @@
   (make-wired-tn (primitive-type-or-lose primitive-type)
 		 (sc-number-or-lose sc-name)
 		 offset))
-
 
 (defstruct arg-state
   (offset 0))
@@ -160,7 +142,6 @@
 
 
 ;;;; Vops.
-
 
 (define-vop (foreign-symbol-address)
   (:translate foreign-symbol-address)

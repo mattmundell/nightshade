@@ -1,24 +1,6 @@
-;;; -*- Package: MIPS; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/subprim.lisp,v 1.2 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/rt/subprim.lisp,v 1.2 1994/10/31 04:45:41 ram Exp $
-;;;
 ;;; Linkage information for standard static functions, and random vops.
-;;;
-;;; Written by William Lott.
-;;; Converted for IBM RT by Bill Chiles.
-;;;
 
 (in-package "RT")
-
 
 
 ;;;; Length
@@ -57,9 +39,5 @@
 
       (emit-label done)
       (move result count))))
-       
 
 (define-static-function length (object) :translate length)
-
-
-

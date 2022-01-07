@@ -1,18 +1,5 @@
-;;; -*- Mode: Lisp; Package: Lisp; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-;;; $Header: /home/CVS-cmucl/src/tools/worldload.lisp,v 1.81.2.1 1998/06/23 11:25:45 pw Exp $
-;;;
-;;; **********************************************************************
-;;;
-;;; This file loads the parts of the system that aren't cold loaded and
-;;; saves the resulting core image.  It writes "lisp.core" in the
-;;; DEFAULT-DIRECTORY.
+;;; Load the parts of the system that aren't cold loaded and save the
+;;; resulting core image.  Write "lisp.core" in the DEFAULT-DIRECTORY.
 
 (in-package "LISP")
 
@@ -32,9 +19,10 @@
 
 ;;; Set the version of the core.
 ;;;
-(set '*lisp-implementation-version* (read-line (open "target:VERSION")))
+(set '*version* (read-line (open "target:VERSION")))
 
-;;; Load the rest of the reader (maybe byte-compiled.)
+;;; Load the rest of the reader (maybe byte-compiled).
+;;;
 (maybe-byte-load "target:code/sharpm")
 (maybe-byte-load "target:code/backq")
 (setq std-lisp-readtable (copy-readtable *readtable*))
@@ -47,13 +35,13 @@
 (maybe-byte-load "target:code/defmacro")
 (maybe-byte-load "target:code/sysmacs")
 
-;;; Define a bunch of search lists relative to target:
+;;; Define many search lists relative to target.
 ;;;
 (setf (ext:search-list "code:") '("target:code/"))
 (setf (ext:search-list "c:") '("target:compiler/"))
 (setf (ext:search-list "vm:")
       '(#+(or pmax sgi) "c:mips/"
-        #+sparc "c:sparc/"
+	#+sparc "c:sparc/"
 	#+rt "c:rt/"
 	#+hppa "c:hppa/"
 	#+x86 "c:x86/"
@@ -70,15 +58,15 @@
 (setf (ext:search-list "e:") '("target:ed/"))
 (setf (ext:search-list "ed:") '("target:ed/"))
 (setf (ext:search-list "clx:") '("target:clx/"))
-(setf (ext:search-list "pcl:") '("target:pcl/"))
 (setf (ext:search-list "tools:") '("target:tools/"))
+(setf (ext:search-list "etc:") '("target:etc/"))
 
 ;;; Make sure the package structure is correct.
 ;;;
 (maybe-byte-load "code:exports")
 
 ;;; Load random code sources.
-
+;;;
 (maybe-byte-load "code:calendar")
 (maybe-byte-load "code:format-time")
 (maybe-byte-load "code:parse-time")
@@ -104,17 +92,28 @@
 #-runtime (maybe-byte-load "code:ftp")
 (maybe-byte-load "code:foreign")
 (maybe-byte-load "code:setf-funs")
-(maybe-byte-load "code:module")
 (maybe-byte-load "code:loop")
 #-(or gengc runtime) (maybe-byte-load "code:room")
+#-runtime (maybe-byte-load "code:shell")
 #-runtime (maybe-byte-load "code:base64")
-#-runtime (maybe-byte-load "code:table")
+#-runtime (maybe-byte-load "code:config")
+#-runtime (maybe-byte-load "code:dired")
+#-runtime (maybe-byte-load "code:deftest")
+;; Must precede users like mh.
+#-runtime (maybe-byte-load "code:parse")
 #-runtime (maybe-byte-load "code:mh")
 #-runtime (maybe-byte-load "code:doc")
 #-runtime (maybe-byte-load "code:db")
 #-runtime (maybe-byte-load "code:build")
+#-runtime (maybe-byte-load "code:terminal")
+#-runtime (maybe-byte-load "code:sync")
+#-runtime (maybe-byte-load "code:packagem")
+
+;;#+clx #-runtime (maybe-byte-load "code:xlib")
+;;#+clx #-runtime (maybe-byte-load "code:clx-ext")
 
 ;;; Overwrite some cold-loaded stuff with byte-compiled versions, if any.
+;;;
 #-(or gengc cgc)	; x86/cgc has stuff in static space.
 (progn
   (byte-load-over "code:debug")
@@ -131,6 +130,7 @@
 	:environment-name "Kernel")
 
 ;;; Load the compiler.
+;;;
 #-(or no-compiler runtime)
 (progn
   (maybe-byte-load "c:loadcom.lisp")
@@ -151,23 +151,22 @@
 	  :environment-name (concatenate 'string (c:backend-name c:*backend*)
 					 " backend")))
 
-;;; Editor.
+;;; Load the editor.
 ;;;
-#-(or no-hemlock runtime)
+#-(or no-editor runtime)
 (maybe-byte-load "ed:ed-library")
 
-(defvar *target-sl*)
-(setq *target-sl* (search-list "target:"))
-
-; FIX
-;;; Don't include the search lists used for loading in the resultant core.
+;;; Load random code sources that depend on the editor.
 ;;;
-;(lisp::clear-all-search-lists)
+#-runtime (maybe-byte-load "code:docnode")
 
-;;; Set up a default for modules and target:
+;;; Reset the "target" search list.
 ;;;
-(setf (search-list "modules:") '("./"))
-(setf (search-list "target:") *target-sl*)
+(setf (search-list "target:") *save-target*)
+
+;;; Set the build time.
+;;;
+(set '*build-time* (get-universal-time))
 
 ;;; Okay, build the core!
 ;;;
@@ -185,7 +184,7 @@
   (setq +++ nil)
   (setq *** nil)
   (setq /// nil)
-  ;;
+
   ;; Enable the garbage collector.  But first fake it into thinking that
   ;; we don't need to garbage collect.  The save-lisp is going to call purify
   ;; so any garbage will be collected then.
@@ -205,10 +204,9 @@
   ;;; Reset the counter of the number of native code fixups.
   #+x86 (setf x86::*num-fixups* 0)
 
-  ;;
   ;; Save the lisp.  If RUNTIME, there is nothing new to purify, so don't.
   (save-lisp "lisp.core"
 	     :root-structures
-	     #-(or runtime no-hemlock) `(ed ,hi::*global-command-table*)
-	     #+(or runtime no-hemlock) ()
+	     #-(or runtime no-editor) `(ed ,edi::*global-command-table*)
+	     #+(or runtime no-editor) ()
 	     :purify #+runtime nil #-runtime t))

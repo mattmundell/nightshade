@@ -125,7 +125,7 @@
 
 ;;; WRITE-PACKED-BIT-VECTOR  --  Interface
 ;;;
-;;;    Write Bits out to Vec.  Bits must be an eight-bit multiple.
+;;; Write Bits out to Vec.  Bits must be an eight-bit multiple.
 ;;;
 (defun write-packed-bit-vector (bits vec)
   (declare (type simple-bit-vector bits))

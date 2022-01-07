@@ -1,14 +1,3 @@
-;;; -*- Package: MIPS -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/mips/assem-rtns.lisp,v 1.32 1994/10/31 04:56:40 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 (in-package "MIPS")
 
 
@@ -71,7 +60,7 @@
   (inst subu count (fixnum 1))
   (inst bne count zero-tn loop)
   (inst addu dst vm:word-bytes)
-		
+
   (inst b done)
   (inst nop)
 
@@ -87,12 +76,12 @@
   DEFAULT-A5-AND-ON
   (inst move a5 null-tn)
   DONE
-  
+
   ;; Clear the stack.
   (move ocfp-tn cfp-tn)
   (move cfp-tn ocfp)
   (inst addu csp-tn ocfp-tn nvals)
-  
+
   ;; Return.
   #-gengc
   (lisp-return lra lip)
@@ -136,7 +125,7 @@
 
   ;; Calculate NARGS (as a fixnum)
   (inst subu nargs csp-tn args)
-     
+
   ;; Load the argument regs (must do this now, 'cause the blt might
   ;; trash these locations)
   (inst lw a0 args (* 0 vm:word-bytes))
@@ -151,7 +140,7 @@
   (inst blez count done)
   (inst addu src args (* vm:word-bytes register-arg-count))
   (inst addu dst cfp-tn (* vm:word-bytes register-arg-count))
-	
+
   LOOP
   ;; Copy one arg.
   (inst lw temp src)
@@ -160,7 +149,7 @@
   (inst addu count (fixnum -1))
   (inst bgtz count loop)
   (inst addu dst dst vm:word-bytes)
-	
+
   DONE
   ;; We are done.  Do the jump.
   #-gengc
@@ -193,17 +182,17 @@
 
   (let ((error (generate-error-code nil invalid-unwind-error)))
     (inst beq block zero-tn error))
-  
+
   #-gengc (load-symbol-value cur-uwp lisp::*current-unwind-protect-block*)
   #+gengc (loadw cur-uwp mutator-tn mutator-current-unwind-protect-slot)
   (loadw target-uwp block vm:unwind-block-current-uwp-slot)
   (inst bne cur-uwp target-uwp do-uwp)
   (inst nop)
-      
+
   (move cur-uwp block)
 
   do-exit
-      
+
   (loadw cfp-tn cur-uwp vm:unwind-block-current-cont-slot)
   (loadw code-tn cur-uwp vm:unwind-block-current-code-slot)
   #-gengc
@@ -223,7 +212,6 @@
   #-gengc (store-symbol-value next-uwp lisp::*current-unwind-protect-block*)
   #+gengc (storew next-uwp mutator-tn mutator-current-unwind-protect-slot))
 
-
 (define-assembly-routine
     throw
     ((:arg target descriptor-reg a0-offset)
@@ -231,27 +219,27 @@
      (:arg count any-reg nargs-offset)
      (:temp catch any-reg a1-offset)
      (:temp tag descriptor-reg a2-offset))
-  
+
   (progn start count) ; We just need them in the registers.
 
   #-gengc (load-symbol-value catch lisp::*current-catch-block*)
   #+gengc (loadw catch mutator-tn mutator-current-catch-block-slot)
-  
+
   loop
-  
+
   (let ((error (generate-error-code nil unseen-throw-tag-error target)))
     (inst beq catch zero-tn error)
     (inst nop))
-  
+
   (loadw tag catch vm:catch-block-tag-slot)
   (inst beq tag target exit)
   (inst nop)
   (loadw catch catch vm:catch-block-previous-catch-slot)
   (inst b loop)
   (inst nop)
-  
+
   exit
-  
+
   (move target catch)
   (inst j (make-fixup 'unwind :assembly-routine))
   (inst nop))

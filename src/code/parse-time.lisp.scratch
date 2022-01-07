@@ -1,0 +1,8 @@
+(defun bracketed-zone (thing)
+  (when (stringp thing)
+    (let ((len (length thing)))
+      (and (> len 2)
+	   (eq (char thing 0) #\()
+	   (eq (char thing (1- len)) #\))
+	   (zone (subseq thing 1 (1- len)))))))
+

@@ -64,7 +64,7 @@
 ;;;; Conversions, special dates.
 
 (defun quotient (m n)
-   (floor (/ m n)))
+  (floor (/ m n)))
 
 (defun extract-month (date)
   "Month field of $date$ = (month day year)."

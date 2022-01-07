@@ -1,5 +1,3 @@
-;;; -*- Package: HEAPANAL -*-
-
 (in-package "HEAPANAL")
 (use-package "SYSTEM")
 (use-package "EXT")
@@ -30,7 +28,7 @@
 	    (:constructor make-heap-info (pid))
 	    (:print-function %print-heap-info))
   ;;
-  ;; The UNIX pid for the task we are interested in.
+  ;; The Unix pid for the task we are interested in.
   (pid (required-argument))
   ;;
   ;; The MACH port for the task.
@@ -155,7 +153,7 @@
        (< ptr (heap-info-dynamic-end info))))
 
 
-;;;; 
+;;;;
 
 (defun grovel-stack (info start end)
   (let ((addr start))
@@ -380,7 +378,7 @@
 				 vm:instance-pointer-type)
 			      (= (sap-ref-32
 				  (read-heap info
-					     (- address 
+					     (- address
 						vm:instance-pointer-type))
 				  4)
 				 type-address))

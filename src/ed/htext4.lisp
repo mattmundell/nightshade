@@ -3,7 +3,7 @@
 (in-package "EDI")
 
 (export '(delete-characters delete-region delete-and-save-region copy-region
-	  filter-region))
+	  filter-region write-region))
 
 
 ;;;; DELETE-CHARACTERS.
@@ -12,7 +12,10 @@
 (defvar *internal-temp-mark* (internal-make-mark nil nil :temporary))
 
 (defun delete-characters (mark &optional (n 1))
-  "Deletes N characters after the mark (or -N before if N is negative)."
+  "Delete $n character after $mark (or -$n before if $n is negative).  If
+   there are fewer than $n characters after (or -$n before) the mark, then
+   return (); otherwise, returns true.  If $n is zero, and $mark is in some
+   buffer, then leave the buffer-modified flag of mark's buffer as it is."
   (let* ((line (mark-line mark))
 	 (charpos (mark-charpos mark))
 	 (length (line-length* line)))
@@ -53,12 +56,35 @@
 	  (delete-region *internal-temp-region*) t)
 	 (t nil)))))))
 
+#[ Region Functions
+
+{function:ed:region}
+{function:ed:regionp}
+{function:ed:make-empty-region}
+{function:ed:copy-region}
+{function:ed:region-to-string}
+{function:ed:string-to-region}
+{function:ed:line-to-region}
+{function:ed:write-region}
+{function:ed:region-start}
+{function:ed:region-end}
+{function:ed:region-bounds}
+{function:ed:set-region-bounds}
+{function:ed:count-lines}
+{function:ed:count-characters}
+{function:ed:check-region-query-size}
+{evariable:Region Query Size}
+]#
 
 
 ;;;; DELETE-REGION.
 
+;; FIX reclaim-region? release-region?
 (defun delete-region (region)
-  "Deletes the Region."
+  "Delete $region.  This is faster than `delete-and-save-region', which
+   copies lines.  If $region is empty and contained in some buffer's
+   buffer-region, then leave the buffer-modified flag of the buffer as it
+   is."
   (let* ((start (region-start region))
 	 (end (region-end region))
 	 (first-line (mark-line start))
@@ -80,7 +106,17 @@
 		       (if (<= charpos last-charpos)
 			   first-charpos
 			   (- charpos num))
-		       charpos))))
+		       charpos))
+		 ;; Leave only the last of any font marks.
+		 (let ((last))
+		   (loop for mark in (line-marks first-line) do
+		     (when (and (fast-font-mark-p mark)
+				(>= (mark-charpos mark) first-charpos)
+				(<= (mark-charpos mark) last-charpos))
+		       (if last (delete-font-mark last))
+		       (setq last mark)))
+		   (if (and last (eq (next-character last) #\linefeed))
+		       (delete-font-mark last)))))
 	      (t
 	       ;; hairy case -- squish lines together:
 	       (close-line)
@@ -95,22 +131,41 @@
 		   (%sp-byte-blt last-chars last-charpos new-chars first-charpos
 				 length)
 		   (setf (line-chars first-line) new-chars))
-		 ;; fix up the first line's marks:
+		 ;; Clear font marks from first line.
+		 (loop for mark in (line-marks first-line) do
+		   (when (and (fast-font-mark-p mark)
+			      (>= (mark-charpos mark) first-charpos))
+		     (delete-font-mark mark)))
+		 ;; Adjust the marks on the first line.
 		 (move-some-marks (charpos first-line)
 		   (if (> charpos first-charpos)
 		       first-charpos
 		       charpos))
-		 ;; fix up the marks of the lines in the middle and mash
-		 ;;line-%buffer:
+		 ;; Adjust the marks of the lines in the middle and mash
+		 ;; line-%buffer.
 		 (do* ((line (line-next first-line) (line-next line))
 		       (count (incf *disembodied-buffer-counter*)))
 		      ((eq line last-line)
 		       (setf (line-%buffer last-line) count))
 		   (setf (line-%buffer line) count)
+		   ;; Clear font marks from line.
+		   (loop for mark in (line-marks line) do
+		     (when (and (fast-font-mark-p mark)
+				(>= (mark-charpos mark) first-charpos))
+		       (delete-font-mark mark)))
 		   (move-some-marks (ignore line first-line)
 		     (declare (ignore ignore))
 		     first-charpos))
-		 ;; and fix up the last line's marks:
+		 ;; Clear font marks from last line.
+		 (let ((last))
+		   (loop for mark in (line-marks last-line) do
+		     (when (and (fast-font-mark-p mark)
+				(< (mark-charpos mark) last-charpos))
+		       (if last (delete-font-mark last))
+		       (setq last mark)))
+		   (if (and last (eq last-charpos (line-length last-line)))
+		       (delete-font-mark last)))
+		 ;; Adjust the marks on the last line.
 		 (move-some-marks (charpos last-line first-line)
 		   (if (<= charpos last-charpos)
 		       first-charpos
@@ -121,12 +176,14 @@
 		   (setf (line-next first-line) next)
 		   (when next (setf (line-previous next) first-line))))))))))
 
-
 
 ;;;; DELETE-AND-SAVE-REGION.
 
 (defun delete-and-save-region (region)
-  "Deletes Region and returns a region containing the deleted characters."
+  "Delete $region and return a region containing the text from the original
+   region.  If $region is empty and contained in some buffer's
+   buffer-region, then leave the buffer-modified flag of the buffer as it
+   is and return a unique empty region."
   (let* ((start (region-start region))
 	 (end (region-end region))
 	 (first-line (mark-line start))
@@ -152,15 +209,13 @@
 		 (declare (simple-string new-chars))
 		 (%sp-byte-blt open-chars right-open-pos new-chars 0 num)
 		 (setq right-open-pos new-right)
-		 ;; and fix up any marks in there:
+		 ;; Adjust any marks in the region.
 		 (move-some-marks (charpos first-line)
 		   (if (> charpos first-charpos)
 		       (if (<= charpos last-charpos)
 			   first-charpos
 			   (- charpos num))
 		       charpos))
-		 ;; FIX merge next w last, maybe add ~move-some-marks w a
-		 ;; mark var.
 		 ;; Leave only the last of any font marks.
 		 (let ((last))
 		   (loop for mark in (line-marks first-line) do
@@ -209,7 +264,11 @@
 		     ((eq line last-line)
 		      (setf (line-%buffer last-line) count))
 		   (setf (line-%buffer line) count)
-		   ;; FIX kill font-marks?
+		   ;; Clear font marks from line.
+		   (loop for mark in (line-marks line) do
+		     (when (and (fast-font-mark-p mark)
+				(>= (mark-charpos mark) first-charpos))
+		       (delete-font-mark mark)))
 		   (move-some-marks (ignore line first-line)
 		     (declare (ignore ignore))
 		     first-charpos))
@@ -222,10 +281,7 @@
 		   (when after
 		     (setf (line-previous after) first-line
 			   (line-next last-line) nil)))
-
 		 ;; Clear font marks from first line.
-		 ;; FIX merge next two, maybe add ~move-some-marks w a mark
-		 ;; var.
 		 (loop for mark in (line-marks first-line) do
 		   (when (and (fast-font-mark-p mark)
 			      (>= (mark-charpos mark) first-charpos))
@@ -261,7 +317,9 @@
 ;;;; COPY-REGION.
 
 (defun copy-region (region)
-  "Returns a region containing a copy of the text within Region."
+  "Return a region containing a copy of the text in $region.  The resulting
+   region is completely separate from $region with respect to data
+   references -- marks, lines, text, etc."
   (let* ((start (region-start region))
 	 (end (region-end region))
 	 (first-line (mark-line start))
@@ -320,18 +378,27 @@
 
 ;;; FILTER-REGION  --  Public
 ;;;
-;;;    After we deal with the nasty boundry conditions of the first and
-;;; last lines, we just scan through lines in the region replacing their
-;;; chars with the result of applying the function to the chars.
+;;; After we deal with the nasty boundry conditions of the first and last
+;;; lines, we just scan through lines in the region replacing their chars
+;;; with the result of applying the function to the chars.
 ;;;
 (defun filter-region (function region)
-  "This function filters the text in a region though a Lisp function.  The
-   argument function must map from a string to a string.  It is passed each
-   line string from region in order, and each resulting string replaces the
-   original.  The function must neither destructively modify its argument nor
-   modify the result string after it is returned.  The argument will always be
-   a simple-string.  It is an error for any string returned to contain
-   newlines."
+  "Filter the text in $region through $function.
+
+   $function must map from a string to a string.  Pass $function each line
+   from region in order as a simple-string.  Replace the passed string with
+   the string returned from $function.  $function must:
+
+     - leave its argument as it is
+
+     - leave the returned string as it was returned after returning
+
+     - return a string that is a valid line (it is an error for the string
+       to contain newlines.
+
+   As an example, a region can be uppercased with:
+
+         (filter-region #'string-upcase region)"
   (let* ((start (region-start region))
 	 (start-line (mark-line start))
 	 (first (mark-charpos start))
@@ -347,9 +414,10 @@
 		    (new-left (+ first rlen))
 		    (delta (- new-left left-open-pos)))
 	       (declare (simple-string res))
-	       (when (> new-left right-open-pos)
-		 (grow-open-chars (+ new-left line-cache-length)))
+	       (if (> new-left right-open-pos)
+		   (grow-open-chars (+ new-left line-cache-length)))
 	       (%sp-byte-blt res 0 open-chars first left-open-pos)
+	       ;; FIX may need font mark handling
 	       ;;
 	       ;; Move marks to start or end of region, depending on kind.
 	       (dolist (m (line-marks start-line))
@@ -374,9 +442,10 @@
 	       (%sp-byte-blt first-chars 0 new 0 first)
 	       (%sp-byte-blt res 0 new first nlen)
 	       (setf (line-%chars start-line) new))
+	     ;; FIX may need font mark handling
 	     ;;
-	     ;; Fix up marks on the first line, saving any within the region
-	     ;; to be dealt with later.
+	     ;; Adjust any marks on the first line, saving any within the
+	     ;; region to be dealt with later.
 	     (let ((outside ()))
 	       (dolist (m (line-marks start-line))
 		 (if (<= (mark-charpos m) first)
@@ -402,6 +471,7 @@
 		 (grow-open-chars (+ rlen line-cache-length)))
 	       (%sp-byte-blt res 0 open-chars 0 rlen)
 	       (setq left-open-pos rlen)
+	       ;; FIX may need font mark handling
 	       ;;
 	       ;; Adjust marks after the end of the region and save ones in it.
 	       (let ((outside ()))
@@ -426,3 +496,14 @@
 			(setf (mark-line m) start-line)
 			(push m (line-marks start-line)))))))))
     region))
+
+
+;;;; WRITE-REGION.
+
+(defun write-region (region &optional (stream *standard-output*))
+  "Output $region to $stream."
+  (do-region-lines (line region (write-string (line-string line) stream))
+    (write-string (line-string line) stream)
+    (write-char #\newline stream)))
+
+

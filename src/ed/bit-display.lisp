@@ -4,16 +4,14 @@
 
 (export '(redisplay redisplay-all))
 
-
 
 ;;; prepare-window-for-redisplay  --  Internal
 ;;;
-;;;    Called by make-window to do whatever redisplay wants to set up
-;;; a new window.
+;;; Called by make-window to do whatever redisplay wants to set up a new
+;;; window.
 ;;;
 (defun prepare-window-for-redisplay (window)
   (setf (window-old-lines window) 0))
-
 
 
 ;;;; Dumb window redisplay.
@@ -38,13 +36,11 @@
 	    unaltered-bits))
     (setf (bitmap-hunk-start hunk) (cdr (window-first-line window)))))
 
-
 ;;; DUMB-LINE-REDISPLAY is used when the line is known to be cleared already.
 ;;;
 (defun dumb-line-redisplay (hunk dl)
   (hunk-write-line hunk dl)
   (setf (dis-line-flags dl) unaltered-bits (dis-line-delta dl) 0))
-
 
 
 ;;;; Smart window redisplay.
@@ -96,16 +92,16 @@
 
 ); eval-when (compile eval)
 
-
-;;; SMART-WINDOW-REDISPLAY only re-writes lines which may have been changed,
-;;; and updates them with smart-line-redisplay if not very much has changed.
-;;; Lines which have moved are copied.  We must be careful not to redisplay
-;;; the window with the cursor down since it is not guaranteed to be out of
-;;; the way just because we are in redisplay; LIFT-CURSOR is called just before
-;;; the screen may be altered, and it takes care to know whether the cursor
-;;; is lifted already or not.  At the end, if the cursor had been down,
-;;; DROP-CURSOR puts it back; it doesn't matter if LIFT-CURSOR was never called
-;;; since it does nothing if the cursor is already down.
+;;; SMART-WINDOW-REDISPLAY only re-writes lines which may have been
+;;; changed, and updates them with smart-line-redisplay if little has
+;;; changed.  Lines which have moved are copied.  We must be careful not to
+;;; redisplay the window with the cursor down since it is not guaranteed to
+;;; be out of the way just because we are in redisplay; LIFT-CURSOR is
+;;; called just before the screen may be altered, and it takes care to know
+;;; whether the cursor is lifted already or not.  At the end, if the cursor
+;;; had been down, DROP-CURSOR puts it back; it doesn't matter if
+;;; LIFT-CURSOR was never called since it does nothing if the cursor is
+;;; already down.
 ;;;
 (defun smart-window-redisplay (window)
   (let* ((hunk (window-hunk window))
@@ -152,7 +148,8 @@
 	      unaltered-bits)))
     ;;
     (setf (bitmap-hunk-start hunk) (cdr (window-first-line window)))
-    (when liftp (drop-cursor))))
+    (when liftp
+      (drop-cursor))))
 
 ;;; COMPUTE-CHANGES is used once in smart-window-redisplay, and it scans
 ;;; through the changed dis-lines in a window, computes the changes needed
@@ -269,10 +266,150 @@
       ((zerop rewrite))
     (smart-line-redisplay hunk (spop *display-rewrite-stack* rewrite))))
 
-
 ;;; SMART-LINE-REDISPLAY is called when the screen is mostly the same,
 ;;; clear to eol after we write it to avoid annoying flicker.
 ;;;
 (defun smart-line-redisplay (hunk dl)
   (hunk-replace-line hunk dl)
   (setf (dis-line-flags dl) unaltered-bits (dis-line-delta dl) 0))
+
+
+#[ Use with X Windows
+
+You should use the editor on a workstation with a bitmap display and a windowing
+system since the editor makes good use of a non-ASCII device, mouse, and the
+extra modifier keys typically associated with workstations.  This section
+discusses using the editor under X windows, the only supported windowing system.
+
+[ Window Groups                   ]
+[ Event Translation               ]
+[ Selection Commands              ]  Copying and pasting.
+[ Cut Buffer Commands             ]
+[ Redisplay and Screen Management ]
+[ Window Managers                 ]  Interacting with window managers.
+]#
+
+#[ Window Groups
+
+The editor manages windows under X in groups.  This allows the editor to be more
+sophisticated in its window management without being rude in the X paradigm of
+screen usage.  With window groups, the editor can ignore where the groups are,
+but within a group, it can maintain the window creation and deletion behavior
+users expect in editors without any interference from window managers.
+
+Initially there are two groups, a main window and the `Echo Area'.  If you
+keep a pop-up display, see section [pop-up], the editor puts the window it
+creates in its own group.  There are commands for creating new groups.
+
+The editor only links windows within a group for purposes of the `Next
+Window', `Previous Window', and `Delete Next Window' commands.  To move
+between groups, you must use the `Point to Here' command bound to the
+mouse.
+
+Window manager commands can reshape and move groups on the screen.
+]#
+
+#[ Event Translation
+
+Each X key event is translated into a canonical input representation, a
+key-event.  The X key event consists of a scan-code and modifier bits, and
+these translate to an X keysym.  This keysym and the modifier bits map to a
+key-event.
+
+If you type a key with a shift key held down, this typically maps to a
+distinct X keysym.  For example, the shift of 3 is #, and these have
+different X keysyms.  Some keys map to the same X keysym regardless of the
+shift bit, such as Tab, Space, Return, etc.  When the X lock bit is on, the
+system treats this as a caps lock, only mapping keysyms for lowercase
+letters to shifted keysyms.
+
+The key-event has a keysym and a field of bits.  The X keysyms map directly
+to the key-event keysyms.  There is a distinct mapping for each CLX
+modifier bit to a key-event bit.  This tends to eliminate shift and lock
+modifiers, so key-events usually only have control, meta, hyper, and super
+bits on.  Hyper and super usually get turned on with prefix key-events that
+set them on the following key-event, but certain keys on the keyboard can
+become hyper and super keys.  See the X manuals and the [Editor Extension]
+manual ([FIX] which node?) for details.
+
+The system also maps mouse input to key-events.  Each mouse button has distinct
+key-event keysyms for whether the user pressed or released it.  For
+convenience, the editor makes use of an odd property of converting mouse events
+to key-events.  If you enter a mouse event with the shift key held down,
+the editor sees the key-event keysym for the mouse event, but the key-event has
+the super bit turned on.  For example, if you press the left button with the
+shift key pressed, the editor sees S-Leftdown.
+
+Note that with the two button mouse on the IBM RT PC, the only way to to send
+Middledown is to press both the left and right buttons simultaneously.
+This is awkward, and it often confuses the X server.  For this reason, the
+commands bound to the middle button are also bound to the shifted left button,
+S-Leftdown, which is much easier to type.
+]#
+
+#[ Redisplay and Screen Management
+
+These variables control a number of the characteristics of the editor bitmap
+screen management.
+
+{evariable:Bell Style}
+{evariable:Beep Border Width}
+{evariable:Reverse Video}
+{evariable:Thumb Bar Meter}
+{evariable:Set Window Autoraise}
+
+The variables `Default Initial Window Width', `Default Initial Window
+Height', `Default Initial Window X' and `Default Initial Window Y'
+determine the size and position of the first window.  The width and height
+are specified in character units, and the x and y are specified in pixels.
+
+`Default Window Height' and `Default Window Width' determine the width and
+height for interactive window creation, such as making a window with the
+command `New Window'.
+
+{evariable:Cursor Bitmap File}
+{evariable:Default Font}
+]#
+
+#[ Window Managers
+
+Notes on configuring window managers to work well with the editor when it
+is running as an X application.
+
+FIX placement with panels
+
+== In General ==
+
+FIX The key bindings depend on a right hand Alt key to be effective.  Often the
+right Alt key is bound to AltGr.
+
+[ Gnome (Metacity) ]
+[ KDE (kwin)       ]
+[ Sawfish          ]
+]#
+
+#[ Gnome (Metacity)
+
+The editor windows raise as necessary.  Most importantly, the Echo window
+raises to show messages and to take input.  Metacity seems to prevent this
+(the window flashes in the taskbar on the panel, instead of raising).
+
+FIX How to allow window raise?
+]#
+
+#[ KDE (kwin)
+
+The editor windows raise as necessary.  Most importantly, the Echo window
+raises to show messages and to take input.  Some configurations of kwin
+prevent window raising (the window flashes in the taskbar on the panel
+instead).  To allow windows to raise, in
+
+    Menu > Settings > Desktop > Window Behaviour
+
+on the advanced tab set "Focus stealing prevention level" to "None".
+]#
+
+#[ Sawfish
+
+FIX placement
+]#

@@ -2,6 +2,51 @@
 
 (in-package "EDI")
 
+
+;;; prepare-window-for-redisplay  --  Internal
+;;;
+;;; Called by make-window to do whatever redisplay wants to set up a new
+;;; window.
+;;;
+(defun prepare-window-for-redisplay (window)
+  (setf (window-old-lines window) 0))
+
+(defun tty-reverse-video (new-value)
+  (if (editor-bound-p 'reverse-video)
+      (if (eq new-value (value ed::reverse-video))
+	  (return-from tty-reverse-video))
+      (or new-value
+	  (return-from tty-reverse-video)))
+  (let ((old-fore (value ed::initial-foreground-color)))
+    (setv ed::initial-foreground-color
+	  (value ed::initial-background-color))
+    (setv ed::initial-background-color old-fore))
+  (let ((old-fore (value ed::initial-modeline-foreground-color)))
+    (setv ed::initial-modeline-foreground-color
+	  (value ed::initial-modeline-background-color))
+    (setv ed::initial-modeline-background-color old-fore))
+  (when *editor-has-been-entered*
+    (let* ((current-window (current-window))
+	   (current-hunk (window-hunk current-window))
+	   (device (device-hunk-device current-hunk)))
+      (dolist (hunk (device-hunks device))
+	(reverse-video-frob-tty-hunk hunk))
+      (dolist (rt-info *random-typeout-buffers*)
+	(let ((window (random-typeout-stream-window (cdr rt-info))))
+	  (if window
+	      (reverse-video-frob-tty-hunk (window-hunk window))))))))
+
+(defun reverse-video-frob-tty-hunk (hunk)
+  (let ((old-fore (tty-hunk-foreground-color hunk)))
+    (setf (tty-hunk-foreground-color hunk)
+	  (tty-hunk-background-color hunk))
+    (setf (tty-hunk-background-color hunk) old-fore)))
+
+#-clx
+(defun reverse-video-hook-fun (name kind where new-value)
+  (declare (ignore name kind where))
+  (tty-reverse-video new-value)
+  (redisplay-all))
 
 
 ;;;; Terminal screen initialization
@@ -17,13 +62,24 @@
 	 (echo-height (value ed::echo-area-height))
 	 (main-lines (- height echo-height 1)) ;-1 for echo modeline.
 	 (main-text-lines (1- main-lines)) ;also main-modeline-pos.
-	 (last-text-line (1- main-text-lines)))
+	 (last-text-line (1- main-text-lines))
+	 (foreground-color (if (value ed::initial-foreground-color)
+			       (funcall (device-make-color device)
+					device
+					(value ed::initial-foreground-color))))
+	 (background-color (if (value ed::initial-background-color)
+			       (funcall (device-make-color device)
+					device
+					(value ed::initial-background-color)))))
+    (pushnew device *devices*)
     (setf (device-bottom-window-base device) last-text-line)
     ;;
     ;; Make echo area.
     (let* ((echo-hunk (make-tty-hunk :position (1- height) :height echo-height
 				     :text-position (- height 2)
-				     :text-height echo-height :device device))
+				     :text-height echo-height :device device
+				     :foreground-color foreground-color
+				     :background-color background-color))
 	   (echo (internal-make-window :hunk echo-hunk)))
       (setf *echo-area-window* echo)
       (setf (device-hunk-window echo-hunk) echo)
@@ -38,7 +94,9 @@
 				     :height main-lines
 				     :text-position last-text-line
 				     :text-height main-text-lines
-				     :device device))
+				     :device device
+				     :foreground-color foreground-color
+				     :background-color background-color))
 	   (main (internal-make-window :hunk main-hunk)))
       (setf (device-hunk-window main-hunk) main)
       (setf *current-window* main)
@@ -49,12 +107,11 @@
       (setf (device-hunk-previous main-hunk) main-hunk
 	    (device-hunk-next main-hunk) main-hunk)
       (setf (device-hunks device) main-hunk))
-    (defhvar "Paren Pause Period"
+    (defevar "Paren Pause Period"
       "This is how long commands that deal with \"brackets\" shows the cursor at
       the matching \"bracket\" for this number of seconds."
       :value 0.5
       :mode "Lisp")))
-
 
 
 ;;;; Building devices from termcaps.
@@ -68,8 +125,8 @@
 (defun make-tty-device (name)
   (let ((termcap (get-termcap name))
 	(device (%make-tty-device :name name)))
-    (when (termcap :overstrikes termcap)
-      (error "Terminal sufficiently irritating -- not currently supported."))
+    (if (termcap :overstrikes termcap)
+	(error "Overstrikes in termcap, needs implementing."))
     ;;
     ;; Similar device slots.
     (setf (device-init device) #'init-tty-device)
@@ -86,6 +143,8 @@
     (setf (device-previous-window device) #'tty-previous-window)
     (setf (device-make-window device) #'tty-make-window)
     (setf (device-delete-window device) #'tty-delete-window)
+    (setf (device-set-foreground-color device) #'tty-set-foreground-color)
+    (setf (device-set-background-color device) #'tty-set-background-color)
     (setf (device-random-typeout-setup device) #'tty-random-typeout-setup)
     (setf (device-random-typeout-cleanup device) #'tty-random-typeout-cleanup)
     (setf (device-random-typeout-full-more device) #'do-tty-full-more)
@@ -94,6 +153,7 @@
     (setf (device-force-output device) #'tty-force-output)
     (setf (device-finish-output device) #'tty-finish-output)
     (setf (device-beep device) #'tty-beep)
+    (setf (device-make-color device) #'tty-make-color)
     ;;
     ;; A few useful values.
     (setf (tty-device-dumbp device)
@@ -131,6 +191,7 @@
 	  (if (termcap :clear-to-eol termcap)
 	      #'clear-to-eol
 	      #'space-to-eol))
+    (setf (tty-device-space-to-eol device) #'space-to-eol)
     (setf (tty-device-clear-lines device) #'clear-lines)
     (setf (tty-device-clear-to-eow device) #'clear-to-eow)
     ;;
@@ -165,8 +226,8 @@
     (setf (tty-device-clear-to-eol-string device)
 	  (termcap :clear-to-eol termcap))
     (let ((clear-string (termcap :clear-display termcap)))
-      (unless clear-string
-	(error "A terminal with \"clear display\" is required."))
+      (or clear-string
+	  (error "A terminal with \"clear display\" is required."))
       (setf (tty-device-clear-string device) clear-string))
     (setf (tty-device-open-line-string device)
 	  (termcap :open-line termcap))
@@ -184,8 +245,8 @@
     ;;
     ;; Cursor motion slots.
     (let ((cursor-motion (termcap :cursor-motion termcap)))
-      (unless cursor-motion
-	(error "A terminal with \"cursor motion\" is required."))
+      (or cursor-motion
+	  (error "A terminal with \"cursor motion\" is required."))
       (let ((x-add-char (getf cursor-motion :x-add-char))
 	    (y-add-char (getf cursor-motion :y-add-char))
 	    (x-condx-char (getf cursor-motion :x-condx-char))
@@ -222,21 +283,27 @@
 	(setf (tty-device-original-pair-string device) original-pair)
 	(setf (tty-device-adjust-fg-string device) adjust-fg)
 	(setf (tty-device-adjust-bg-string device) adjust-bg)
-	;; FIX only when fg,bg have one % each (like xterm)
-	(let* ((fg-param-start (search "%" adjust-fg))
-	       (bg-param-start (search "%" adjust-bg)))
+	(let* ((fg-param-start (search "%d" adjust-fg))
+	       (fg-p-start (search "%p" adjust-fg))
+	       (bg-param-start (search "%d" adjust-bg))
+	       (bg-p-start (search "%p" adjust-bg)))
 	  (when fg-param-start
 	    (setf (aref adjust-fg fg-param-start) #\~)
-	    (setf (aref adjust-fg (+ fg-param-start 1)) #\A))
+	    (setf (aref adjust-fg (1+ fg-param-start)) #\A))
 	  (when bg-param-start
 	    (setf (aref adjust-bg bg-param-start) #\~)
-	    (setf (aref adjust-bg (+ bg-param-start 1)) #\A))
-	  (dotimes (font (max colors) 8)
-	    (define-tty-font font (format nil adjust-fg font) original-pair)
-	    (define-tty-font (+ font 8)
-			     (format nil adjust-bg font) original-pair))))
-      (when (and start-underscore end-underscore)
-	(define-tty-font 19 start-underscore end-underscore)))
+	    (setf (aref adjust-bg (1+ bg-param-start)) #\A))
+	  ;; FIX What is %p for? (on ansi term and others)
+	  (when fg-p-start
+	    (setf (aref adjust-fg fg-p-start) #\0)
+	    (setf (aref adjust-fg (1+ fg-p-start)) #\0))
+	  (when bg-p-start
+	    (setf (aref adjust-bg bg-p-start) #\0)
+	    (setf (aref adjust-bg (1+ bg-p-start)) #\0))))
+      ;; FIX 19 is more than (1- font-map-size) if #+clx
+      ;;(when (and start-underscore end-underscore)
+      ;;  (define-tty-font 19 start-underscore end-underscore))
+      )
     ;;
     ;; Screen image initialization.
     (let* ((lines (tty-device-lines device))
@@ -255,13 +322,13 @@
 			       ask-user x y width height proportion)
   (declare (ignore window font-family ask-user x y width height))
   (let* ((old-window (current-window))
-	 (victim (window-hunk old-window))
-	 (text-height (tty-hunk-text-height victim))
+	 (old-hunk (window-hunk old-window))
+	 (text-height (tty-hunk-text-height old-hunk))
 	 (availability (if modelinep (1- text-height) text-height)))
     (when (> availability 1)
       (let* ((new-lines (truncate (* availability proportion)))
 	     (old-lines (- availability new-lines))
-	     (pos (device-hunk-position victim))
+	     (pos (device-hunk-position old-hunk))
 	     (new-height (if modelinep (1+ new-lines) new-lines))
 	     (new-text-pos (if modelinep (1- pos) pos))
 	     (new-hunk (make-tty-hunk :position pos
@@ -272,15 +339,23 @@
 	     (new-window (internal-make-window :hunk new-hunk)))
 	(declare (fixnum new-lines old-lines pos new-height new-text-pos))
 	(setf (device-hunk-window new-hunk) new-window)
-	(let* ((old-text-pos-diff (- pos (tty-hunk-text-position victim)))
+	(let* ((old-text-pos-diff (- pos (tty-hunk-text-position old-hunk)))
 	       (old-win-new-pos (- pos new-height)))
 	  (declare (fixnum old-text-pos-diff old-win-new-pos))
-	  (setf (device-hunk-height victim)
-		(- (device-hunk-height victim) new-height))
-	  (setf (tty-hunk-text-height victim) old-lines)
-	  (setf (device-hunk-position victim) old-win-new-pos)
-	  (setf (tty-hunk-text-position victim)
+	  (setf (device-hunk-height old-hunk)
+		(- (device-hunk-height old-hunk) new-height))
+	  (setf (tty-hunk-text-height old-hunk) old-lines)
+	  (setf (device-hunk-position old-hunk) old-win-new-pos)
+	  (setf (tty-hunk-text-position old-hunk)
 		(- old-win-new-pos old-text-pos-diff)))
+	(setf (tty-hunk-foreground-color new-hunk)
+	      (if (value ed::initial-foreground-color)
+		  (funcall (device-make-color device)
+			   device (value ed::initial-foreground-color))))
+	(setf (tty-hunk-background-color new-hunk)
+	      (if (value ed::initial-background-color)
+		  (funcall (device-make-color device)
+			   device (value ed::initial-background-color))))
 	(setup-window-image start new-window new-lines
 			    (window-width old-window))
 	(prepare-window-for-redisplay new-window)
@@ -288,13 +363,12 @@
 	  (setup-modeline-image (line-buffer (mark-line start)) new-window))
 	(change-window-image-height old-window old-lines)
 	(shiftf (device-hunk-previous new-hunk)
-		(device-hunk-previous (device-hunk-next victim))
+		(device-hunk-previous (device-hunk-next old-hunk))
 		new-hunk)
-	(shiftf (device-hunk-next new-hunk) (device-hunk-next victim) new-hunk)
+	(shiftf (device-hunk-next new-hunk) (device-hunk-next old-hunk) new-hunk)
 	(setf *currently-selected-hunk* nil)
 	(setf *screen-image-trashed* t)
 	new-window))))
-
 
 
 ;;;; Deleting a window
@@ -337,6 +411,62 @@
 (defun tty-previous-window (window)
   (device-hunk-window (device-hunk-previous (window-hunk window))))
 
+
+;;;; Setting window attributes.
+
+(defun tty-set-foreground-color (window color)
+  (let* ((hunk (window-hunk window))
+	 (device (device-hunk-device hunk)))
+    (setf (tty-hunk-foreground-color hunk)
+	  (funcall (device-make-color device) device color))))
+
+(defun tty-set-background-color (window color)
+  (let* ((hunk (window-hunk window))
+	 (device (device-hunk-device hunk)))
+    (setf (tty-hunk-background-color hunk)
+	  (funcall (device-make-color device) device color))))
+
+
+;;;; Colors.
+
+(defun tty-make-color (device color)
+  (or (and (tty-device-colors device)
+	   (>= (tty-device-colors device) 8))
+      (return-from tty-make-color))
+  ;;; Map color to tty color id.
+  (etypecase color
+    (list
+     (let* ((red (car color))
+	    (green (cadr color))
+	    (blue (caddr color))
+	    (red-green (- red green))
+	    (green-blue (- green blue))
+	    (red-blue (- red blue)))
+       (if (and (< -0.34 red-green 0.34)
+		(< -0.34 green-blue 0.34)
+		(< -0.34 red-blue 0.34))
+	   ;; The values are close to each other.
+	   (if (> red 0.5)
+	       ;; White.
+	       7
+	       ;; Black.
+	       0)
+	   ;; There is distance between values.
+	   (cond ((> red-green 0.34)
+		  (if (> red-blue 0.34)
+		      1 ; Red.
+		      5)) ; Magenta.
+		 ((> green-blue 0.34)
+		  (if (< red-green -0.34)
+		      2 ; Green.
+		      3)) ; Yellow.
+		 ((< red-blue -0.34)
+		  (if (< green-blue -0.34)
+		      4 ; Blue.
+		      6)) ; Cyan.
+		 (t
+		  ;; Else white.  Can this happen?
+		  7)))))))
 
 
 ;;;; Random typeout support
@@ -361,21 +491,41 @@
 (defun change-tty-random-typeout-window (window height)
   (update-modeline-field (window-buffer window) window :more-prompt)
   (let* ((height-1 (1- height))
-	 (hunk (window-hunk window)))
+	 (hunk (window-hunk window))
+	 (device (device-hunk-device hunk)))
     (setf (device-hunk-position hunk) height-1
 	  (device-hunk-height hunk) height
 	  (tty-hunk-text-position hunk) (1- height-1)
 	  (tty-hunk-text-height hunk) height-1)
+    (setf (tty-hunk-foreground-color hunk)
+	  (if (value ed::initial-foreground-color)
+	      (funcall (device-make-color device)
+		       device (value ed::initial-foreground-color))))
+    (setf (tty-hunk-background-color hunk)
+	  (if (value ed::initial-background-color)
+	      (funcall (device-make-color device)
+		       device (value ed::initial-background-color))))
     (change-window-image-height window height-1)
     window))
 
 (defun make-tty-random-typeout-window (device mark height)
   (let* ((height-1 (1- height))
-	 (hunk (make-tty-hunk :position height-1
-			      :height height
-			      :text-position (1- height-1)
-			      :text-height height-1
-			      :device device))
+	 (hunk (make-tty-hunk
+		:position height-1
+		:height height
+		:text-position (1- height-1)
+		:text-height height-1
+		:device device
+		:foreground-color
+		(if (value ed::initial-foreground-color)
+		    (funcall (device-make-color device)
+			     device
+			     (value ed::initial-foreground-color)))
+		:background-color
+		(if (value ed::initial-background-color)
+		    (funcall (device-make-color device)
+			     device
+			     (value ed::initial-background-color)))))
 	 (window (internal-make-window :hunk hunk)))
     (setf (device-hunk-window hunk) window)
     (setf (device-hunk-device hunk) device)

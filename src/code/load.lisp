@@ -12,24 +12,34 @@
 (in-package "LISP")
 
 
-;;;; Variables:
+#[ Load
+
+{function:load}
+
+{variable:ext:*load-source-types*}
+{variable:ext:*load-object-types*}
+{variable:ext:*load-if-source-newer*}
+]#
+
+
+;;;; Variables.
 
 ;;; Public:
 
 (defvar *load-if-source-newer* :load-object
-  "The default for the :IF-SOURCE-NEWER argument to load.")
+  "Fallback value for the :if-source-newer argument to `load'.")
 
 (declaim (type (member :load-object :load-source :query :compile)
 	       *load-if-source-newer*))
 
 (defvar *load-source-types* '("lisp" "l" "cl" "lsp")
-  "The source file types which LOAD recognizes.")
+  "A list of the source file types recognizes by `load'.")
 
 (defvar *load-object-types*
   '(#.(c:backend-fasl-file-type c:*backend*)
     #.(c:backend-byte-fasl-file-type c:*backend*)
     "fasl")
-  "A list of the object file types recognized by LOAD.")
+  "A list of the object file types recognized by `load'.")
 
 (declaim (list *load-source-types* *load-object-types*))
 
@@ -73,10 +83,11 @@
   (write-char #\space))
 
 
-;;;; The Fop-Table:
+;;;; The Fop-Table.
 ;;;
-;;;    The table is implemented as a simple-vector indexed by the table
-;;; offset.  We may need to have several, since load can be called recursively.
+;;; The table is implemented as a simple-vector indexed by the table
+;;; offset.  We may need to have several, since load can be called
+;;; recursively.
 
 (defvar *free-fop-tables* (list (make-array 1000))
   "List of free fop tables for the fasloader.")
@@ -110,9 +121,9 @@
        (setq *current-fop-table-index* (1+ ,n-index))
        (setf (svref *current-fop-table* ,n-index) ,thing))))
 
-;;;; The Fop-Stack:
+;;;; The Fop-Stack.
 ;;;
-;;;  The is also in a simple-vector, but it grows down, since it is somewhat
+;;; The is also in a simple-vector, but it grows down, since it is somewhat
 ;;; cheaper to test for overflow that way.
 ;;;
 (defvar *fop-stack* (make-array 100)
@@ -139,8 +150,8 @@
 
 ;;; With-Fop-Stack  --  Internal
 ;;;
-;;;    Cache information about the fop-stack in local variables.  Define
-;;; a local macro to pop from the stack.  Push the result of evaluation if
+;;; Cache information about the fop-stack in local variables.  Define a
+;;; local macro to pop from the stack.  Push the result of evaluation if
 ;;; specified.
 ;;;
 (defmacro with-fop-stack (pushp &body forms)
@@ -175,13 +186,13 @@
 		(progn ,@forms)
 		(setq *fop-stack-pointer* ,n-index)))))))
 
-;;; FOP database:
+;;; FOP database.
 
 (defvar fop-codes (make-array 256)
   "Vector indexed by a FaslOP that yields the FOP's name.")
 
 (defvar fop-functions
-  (make-array 256 :initial-element #'(lambda () (error "Losing FOP!")))
+  (make-array 256 :initial-element #'(lambda () (error "Losing FOP.")))
   "Vector indexed by a FaslOP that yields a function of 0 arguments which
   will perform the operation.")
 
@@ -189,10 +200,10 @@
 
 ;;; Define-FOP  --  Internal
 ;;;
-;;;    Defines Name as a fasl operation, with op-code op.  If pushp is :nope,
-;;; the body neither pushes or pops the fop stack.  If it is nil, then
-;;; the body may pop, but the result is ignored.  If it is true, the result
-;;; is pushed on the stack.
+;;; Defines Name as a fasl operation, with op-code op.  If pushp is :nope,
+;;; the body neither pushes or pops the fop stack.  If it is nil, then the
+;;; body may pop, but the result is ignored.  If it is true, the result is
+;;; pushed on the stack.
 ;;;
 (defmacro define-fop ((name op &optional (pushp t)) &rest forms)
   `(progn
@@ -206,8 +217,8 @@
 
 ;;; Clone-Fop  --  Internal
 ;;;
-;;;    Defines a pair of fops which are identical except in that one reads
-;;; a four byte argument and the other reads a one byte argument.  The
+;;; Defines a pair of fops which are identical except in that one reads a
+;;; four byte argument and the other reads a one byte argument.  The
 ;;; argument can be accessed by using the Clone-Arg macro.
 ;;;
 (defmacro clone-fop ((name op &optional (pushp t))
@@ -224,7 +235,7 @@
 
 ;;; Fast-Read-U-Integer  --  Internal
 ;;;
-;;;    Expands into code to read an N-byte unsigned integer using
+;;; Expands into code to read an N-byte unsigned integer using
 ;;; fast-read-byte.
 ;;;
 (defmacro fast-read-u-integer (n)
@@ -237,7 +248,7 @@
 
 ;;; Fast-Read-Variable-U-Integer  --  Internal
 ;;;
-;;;    Like Fast-Read-U-Integer, but the size may be determined at run time.
+;;; Like Fast-Read-U-Integer, but the size may be determined at run time.
 ;;;
 (defmacro fast-read-variable-u-integer (n)
   (let ((n-pos (gensym))
@@ -253,7 +264,7 @@
 
 ;;; Fast-Read-S-Integer  --  Internal
 ;;;
-;;;    Read a signed integer.
+;;; Read a signed integer.
 ;;;
 (defmacro fast-read-s-integer (n)
   (declare (optimize (speed 0)))
@@ -269,7 +280,7 @@
 
 ;;; Read-Arg  --  Internal
 ;;;
-;;;    Read an N-byte unsigned integer from the *fasl-file*
+;;; Read an N-byte unsigned integer from the *fasl-file*
 ;;;
 (defmacro read-arg (n)
   (declare (optimize (speed 0)))
@@ -280,7 +291,7 @@
 	  (fast-read-u-integer ,n)
 	  (done-with-fast-read-byte)))))
 
-;;; Fasload:
+;;; Fasload.
 
 (defun do-load-verbose (stream)
   (when *load-verbose*
@@ -291,8 +302,8 @@
 	  (format t "Loading stuff from ~S.~%" stream)))))
 
 (defun fasload (stream)
-  (when (zerop (file-length stream))
-    (error "Attempt to load an empty FASL FILE:~%  ~S" (namestring stream)))
+  (if (zerop (file-length stream))
+      (error "Attempt to load an empty FASL FILE:~%  ~S" (namestring stream)))
   (do-load-verbose stream)
   (let* ((*fasl-file* stream)
 	 (*current-fop-table* (or (pop *free-fop-tables*) (make-array 1000)))
@@ -419,7 +430,7 @@
     (declare (fixnum index byte bits))))
 
 
-;;; Sloload:
+;;;; Sloload.
 
 ;;; Something not EQ to anything read from a file:
 
@@ -429,73 +440,87 @@
 
 (defun sloload (stream)
   (do-load-verbose stream)
-  (do ((sexpr (read stream nil load-eof-value)
-	      (read stream nil load-eof-value)))
-      ((eq sexpr load-eof-value))
-    (if *load-print*
-	(let ((results (multiple-value-list (eval sexpr))))
-	  (load-fresh-line)
-	  (format t "~{~S~^, ~}~%" results))
-	(eval sexpr)))
-  t)
+  (let ((eval::*interp-source-hack* (pathname stream)))
+    (do ((sexpr (read stream nil load-eof-value)
+		(read stream nil load-eof-value)))
+	((eq sexpr load-eof-value))
+      (if *load-print*
+	  (let ((results (multiple-value-list (eval sexpr))))
+	    (load-fresh-line)
+	    (format t "~{~S~^, ~}~%" results))
+	  (eval sexpr)))
+    t))
 
 
+;; FIX if dir of same name then skip dir (eg :.ni/ :.ni.lisp should load ni.lisp)
 ;;; LOAD  --  Public
 ;;;
-;;;    This function mainly sets up special bindings and then calls
+;;; This function mainly sets up special bindings and then calls
 ;;; sub-functions.  We conditionally bind the switches with PROGV so that
-;;; people can set them in their init files and have the values take effect.
-;;; If the compiler is loaded, we make the compiler-policy local to LOAD by
-;;; binding it to itself.
+;;; people can set them in their init files and have the values take
+;;; effect.  If the compiler is loaded, we make the compiler-policy local
+;;; to LOAD by binding it to itself.
 ;;;
-(defun load (filename &key (verbose nil verbose-p) (print nil print-p)
-		      (if-source-newer nil if-source-newer-p)
-		      (if-does-not-exist :error) contents)
-  "Loads the file named by Filename into the Lisp environment.  The file type
-   (a.k.a extension) is defaulted if missing.  These options are defined:
+(defun load (filename &key
+		      ((:verbose *load-verbose*) *load-verbose*)
+		      ((:print *load-print*) *load-print*)
+		      ((:if-source-newer *load-if-source-newer*) *load-if-source-newer*)
+		      (if-does-not-exist :error)
+		      contents
+		      (restart-p t))
+  "Load the file named by $filename into the Lisp environment.  Fill in the
+   file type (a.k.a. extension) if it is missing.
 
-   :IF-SOURCE-NEWER <keyword>
-	If the file type is not specified, and both source and object files
+   $filename may be a wildcard pathname such as \"*.lisp\", in which case
+   all matching files are loaded.
+
+   If $filename has a pathname-type (a.k.a.  extension), then load that
+   exact file, otherwise use a heuristic to load the \"right\" file.
+   Determine the fallback source and binary file types from variables
+   *load-source-types* and *load-object-types*.  If only the source or the
+   binary file exists, then quietly load that file.  Similarly, if both the
+   source and binary file exist, and the binary file is newer than the
+   source file, then load the binary file.
+
+   These options are defined:
+
+   $if-source-newer <keyword>
+	If the file type is left out, and both source and binary files
         exist, then this argument controls which is loaded:
-	    :LOAD-OBJECT - load object file (default),
-	    :LOAD-SOURCE - load the source file,
-	    :COMPILE - compile the source and then load the object file, or
+	    :LOAD-OBJECT - load binary file, even if source newer.
+	    :LOAD-SOURCE - load the source file, even if binary newer.
+	    :COMPILE - compile the source and then load the binary file, or
 	    :QUERY - ask the user which to load.
 
-   :IF-DOES-NOT-EXIST {:ERROR | NIL}
-       If :ERROR (the default), signal an error if the file can't be located.
-       If NIL, simply return NIL (LOAD normally returns T.)
+   $if-does-not-exist {:error | ()}
+       If :error, signal an error on failure to load the file.  If (),
+       simply return () (instead of returning t.)
 
-   :VERBOSE {T | NIL}
-       If true (the default), print a line describing each file loaded.
+   $verbose {t | ()}
+       If true, print a line describing each file loaded.
 
-   :PRINT {T | NIL}
+   $print {t | ()}
        If true, print information about loaded values.  When loading the
-       source, the result of evaluating each top-level form is printed.
+       source, print the result of evaluating each top-level form.
 
-   :CONTENTS {NIL | :SOURCE | :BINARY}
-       Forces the input to be interpreted as a source or object file, instead
-       of guessing based on the file type.  This also inhibits file type
-       defaulting.  Probably only necessary if you have source files with a
+   $contents {() | :source | :binary}
+       Force the input to be interpreted as a source or binary file,
+       instead of guessing based on the file type.  This also inhibits file
+       type defaulting.  Probably only necessary for source files with a
        \"fasl\" type.
 
-   The variables *LOAD-VERBOSE*, *LOAD-PRINT* and EXT:*LOAD-IF-SOURCE-NEWER*
-   determine the defaults for the corresponding keyword arguments.  These
-   variables are also bound to the specified argument values, so specifying a
-   keyword affects nested loads.  The variables EXT:*LOAD-SOURCE-TYPES* and
-   EXT:*LOAD-OBJECT-TYPES* determine the file types that we use for defaulting
-   when none is specified."
+   $restart-p
+       If true, load the file inside a simple restart, otherwise any errors
+       FIX travel up to the caller.
+
+   The variables *load-verbose*, *load-print* and
+   ext:*load-if-source-newer* determine the fallback values for the
+   corresponding keyword arguments.  These variables are also bound to the
+   specified argument values, so specifying a keyword affects nested
+   loads."
   (declare (type (or null (member :source :binary)) contents))
   (collect ((vars)
 	    (vals))
-    (macrolet ((frob (wot)
-		 `(when ,(concat-pnames wot '-p)
-		    (vars ',(intern (format nil "*LOAD-~A*" wot)))
-		    (vals ,wot))))
-      (frob if-source-newer)
-      (frob verbose)
-      (frob print))
-
     (when (boundp 'c::*default-cookie*)
       (vars 'c::*default-cookie* 'c::*default-interface-cookie*)
       (vals c::*default-cookie* c::*default-interface-cookie*))
@@ -504,47 +529,51 @@
       (let ((*package* *package*)
 	    (*readtable* *readtable*)
 	    (*load-depth* (1+ *load-depth*)))
-	(values
-	 (with-simple-restart (continue "Return NIL from load of ~S." filename)
-	   (if (streamp filename)
-	       (if (or (eq contents :binary)
-		       (and (null contents)
-			    (equal (stream-element-type filename)
-				   '(unsigned-byte 8))))
-		   (fasload filename)
-		   (sloload filename))
-	       (let ((pn (merge-pathnames (pathname filename)
-					  *default-pathname-defaults*)))
-		 (if (wild-pathname-p pn)
-		     (dolist (file (directory pn) t)
-		       (internal-load pn file if-does-not-exist contents))
-		     (let ((tn (probe-file pn)))
-		       (if (or tn (pathname-type pn) contents)
-			   (internal-load pn tn if-does-not-exist contents)
-			   (internal-load-default-type
-			    pn if-does-not-exist))))))))))))
+	(flet ((%load ()
+		 (if (streamp filename)
+		     (if (or (eq contents :binary)
+			     (and (null contents)
+				  (equal (stream-element-type filename)
+					 '(unsigned-byte 8))))
+			 (fasload filename)
+			 (sloload filename))
+		     (let ((pn (merge-pathnames (pathname filename)
+						*default-pathname-defaults*)))
+		       (if (wild-pathname-p pn)
+			   (dolist (file (directory pn) t)
+			     (internal-load pn file if-does-not-exist contents))
+			   (let ((tn (probe-file pn)))
+			     (if (or tn (pathname-type pn) contents)
+				 (internal-load pn tn if-does-not-exist contents)
+				 (internal-load-default-type
+				  pn if-does-not-exist))))))))
+	  (values
+	   (if restart-p
+	       (with-simple-restart (continue "Return NIL from load of ~S." filename)
+		 (%load))
+	       (%load))))))))
 
 ;;; INTERNAL-LOAD  --  Internal
 ;;;
-;;;    Load the stuff in a file when we have got the name.
+;;; Load the stuff in a file when we have got the name.
 ;;;
 (defun internal-load (pathname truename if-does-not-exist contents)
-  (unless truename
-    (return-from
-     internal-load
-     (ecase if-does-not-exist
-       (:error
-	(restart-case (error 'simple-file-error
-			     :pathname pathname
-			     :format-control "~S does not exist."
-			     :format-arguments (list (namestring pathname)))
-	  (check-again () :report "See if it exists now."
-	    (load pathname))
-	  (use-value () :report "Prompt for a new name."
-	    (write-string "New name: " *query-io*)
-	    (force-output *query-io*)
-	    (load (read-line *query-io*)))))
-       ((nil) nil))))
+  (or truename
+      (return-from
+       internal-load
+       (ecase if-does-not-exist
+	 (:error
+	  (restart-case (error 'simple-file-error
+			       :pathname pathname
+			       :format-control "~S does not exist."
+			       :format-arguments (list (namestring pathname)))
+	    (check-again () :report "See if it exists now."
+			 (load pathname))
+	    (use-value () :report "Prompt for a new name."
+	      (write-string "New name: " *query-io*)
+	      (force-output *query-io*)
+	      (load (read-line *query-io*)))))
+	 ((nil) nil))))
 
   (let ((*load-truename* truename)
 	(*load-pathname* pathname))
@@ -593,7 +622,7 @@
 
 ;;; INTERNAL-LOAD-DEFAULT-TYPE  --  Internal
 ;;;
-;;;    Handle the case of INTERNAL-LOAD where the file does not exist.
+;;; Handle the case of INTERNAL-LOAD where the file does not exist.
 ;;;
 (defun internal-load-default-type (pathname if-does-not-exist)
   (multiple-value-bind
@@ -638,7 +667,7 @@
 	(internal-load pathname nil if-does-not-exist nil))))))
 
 
-;;;; Actual FOP definitions:
+;;;; Actual FOP definitions.
 
 (define-fop (fop-nop 0 :nope))
 (define-fop (fop-pop 1 nil) (push-table (pop-stack)))
@@ -649,7 +678,7 @@
 (define-fop (fop-empty-list 4) ())
 (define-fop (fop-truth 5) t)
 (define-fop (fop-misc-trap 66)
-	    (%primitive make-other-immediate-type 0 vm:unbound-marker-type))
+  (%primitive make-other-immediate-type 0 vm:unbound-marker-type))
 
 (define-fop (fop-character 68)
   (code-char (read-arg 3)))
@@ -687,12 +716,12 @@
 
 (define-fop (fop-verify-table-size 62 :nope)
   (if (/= *current-fop-table-index* (read-arg 4))
-      (error "Fasl table of improper size.  Bug!")))
+      (error "Fasl table of improper size.  Error.")))
 (define-fop (fop-verify-empty-stack 63 :nope)
   (if (/= *fop-stack-pointer* *fop-stack-pointer-on-entry*)
-      (error "Fasl stack not empty.  Bug!")))
+      (error "Fasl stack not empty.  Error.")))
 
-;;;; Loading symbols:
+;;;; Loading symbols.
 
 (defvar *load-symbol-buffer* (make-string 100))
 (declaim (simple-string *load-symbol-buffer*))
@@ -743,7 +772,7 @@
     (or (find-package name)
 	(error "The package ~S does not exist." name))))
 
-;;;; Loading numbers:
+;;;; Loading numbers.
 
 (clone-fop (fop-integer 33)
 	   (fop-small-integer 34)
@@ -829,7 +858,7 @@
       (done-with-fast-read-byte))))
 
 
-;;;; Loading lists:
+;;;; Loading lists.
 
 (define-fop (fop-list 15)
   (do ((res () (cons (pop-stack) res))
@@ -866,7 +895,7 @@
   (frob fop-list*-8 32 list* 9))
 
 
-;;;; Loading arrays:
+;;;; Loading arrays.
 
 (clone-fop (fop-string 37)
 	   (fop-small-string 38)
@@ -946,7 +975,7 @@
 
 ;;; FOP-INT-VECTOR  --  Internal
 ;;;
-;;; *** NOT *** the FOP-INT-VECTOR as currently documented in rtguts.  Size
+;;; FIX *** NOT *** the FOP-INT-VECTOR as currently documented in rtguts.  Size
 ;;; must be a directly supported I-vector element size, with no extra bits.
 ;;; This must be packed according to the local byte-ordering, allowing us to
 ;;; directly read the bits.
@@ -983,6 +1012,7 @@
 ;;;
 ;;; Same as FOP-INT-VECTOR, except this is for signed simple-arrays.
 ;;; It appears that entry 50 and 51 are clear.
+;;;
 (define-fop (fop-signed-int-vector 50)
   (prepare-for-fast-read-byte *fasl-file*
     (let* ((len (fast-read-u-integer 4))
@@ -1045,6 +1075,7 @@
 	  (declare (type index n))))))
 
 ;;;; Fixing up circularities.
+
 (define-fop (fop-rplaca 200 nil)
   (let ((obj (svref *current-fop-table* (read-arg 4)))
 	(idx (read-arg 4))
@@ -1074,7 +1105,7 @@
 (define-fop (fop-nthcdr 203 t)
   (nthcdr (read-arg 4) (pop-stack)))
 
-;;;; Loading functions:
+;;;; Loading functions.
 
 (define-fop (fop-code-format 57 :nope)
   (let ((implementation (read-arg 1))
@@ -1126,8 +1157,8 @@
 ;;; Moving native code during a GC or purify is not trivial on the x86
 ;;; port, so there are a few options for code placement.
 ;;;
-;;; Byte-compiled code objects can always be moved so can be place in
-;;; the dynamics heap.  This is enabled with
+;;; Byte-compiled code objects can always be moved so can be placed in the
+;;; dynamics heap.  This is enabled with
 ;;; *load-byte-compiled-code-to-dynamic-space*.
 ;;;
 ;;; Native code top level forms only have a short life so can be
@@ -1161,16 +1192,15 @@
 	     (tto (first stuff))	; trace-table-offset
 	     (load-to-dynamic-space
 	      (or *enable-dynamic-space-code*
-	       ;; Definitely Byte compiled code?
-	       (and *load-byte-compiled-code-to-dynamic-space*
-		    (c::debug-info-p dbi)
-		    (not (c::compiled-debug-info-p dbi)))
-	       ;; Or a x86 top level form.
-	       (and *load-x86-tlf-to-dynamic-space*
-		    (c::compiled-debug-info-p dbi)
-		    (string= (c::compiled-debug-info-name dbi)
-			     "Top-Level Form")))) )
-
+		  ;; Definitely Byte compiled code?
+		  (and *load-byte-compiled-code-to-dynamic-space*
+		       (c::debug-info-p dbi)
+		       (not (c::compiled-debug-info-p dbi)))
+		  ;; Or a x86 top level form.
+		  (and *load-x86-tlf-to-dynamic-space*
+		       (c::compiled-debug-info-p dbi)
+		       (string= (c::compiled-debug-info-name dbi)
+				"Top-Level Form")))))
 	(setq stuff (nreverse stuff))
 
 	;; Check that tto is always a list for byte-compiled

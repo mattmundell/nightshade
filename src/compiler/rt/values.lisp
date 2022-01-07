@@ -1,26 +1,6 @@
-;;; -*- Package: RT; Log: c.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/values.lisp,v 1.4 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/rt/values.lisp,v 1.4 1994/10/31 04:45:41 ram Exp $
-;;;
-;;; This file contains the implementation of unknown-values VOPs.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Converted for IBM RT by Bill Chiles.
-;;;
+;;; The implementation of unknown-values VOPs.
 
 (in-package "RT")
-
-
 
 (define-vop (reset-stack-pointer)
   (:args (ptr :scs (word-pointer-reg)))
@@ -64,7 +44,6 @@
 	   (storew temp start-temp i)))))
     (move start start-temp)
     (inst li count (fixnum nvals))))
-
 
 ;;; VALUES-LIST -- VOP.
 ;;;

@@ -1,4 +1,0 @@
-<Limit GET>
-order deny,allow
-allow from all
-</Limit>

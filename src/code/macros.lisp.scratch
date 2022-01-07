@@ -1,0 +1,11 @@
+
+(defmacro fi (test &optional (else t else-supplied) (then ()))
+  "Backward if.  First arg (TEST) is a predicate.  If it is true then the
+   second form (ELSE) is evaluated, else the first form (THEN) is
+   evaluated.  (fi x) == (fi x x ())."
+  (if else-supplied
+      `(if ,test ,then ,else)
+      (let ((dicate (gensym)))
+	`(let ((,dicate ,test)) (if ,dicate
+				    () ; Here, the end.
+				    ,dicate)))))

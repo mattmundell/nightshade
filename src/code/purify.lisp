@@ -9,7 +9,7 @@
 
 ;;; COMPACT-ENVIRONMENT-AUX  --  Internal
 ;;;
-;;;    Compact the info environment.  Written with gratuitous recursion to
+;;; Compact the info environment.  Written with gratuitous recursion to
 ;;; make sure that our (and compact-info-environment's) local variables are
 ;;; above the stack top when purify runs.
 ;;;
@@ -28,24 +28,34 @@
     n)))
 
 (defun purify (&key root-structures (environment-name "Auxiliary"))
-  "This function optimizes garbage collection by moving all currently live
-   objects into non-collected storage.  ROOT-STRUCTURES is an optional list of
-   objects which should be copied first to maximize locality.
+  "Optimize garbage collection by moving all currently live objects into
+   static storage.  Once statically allocated, the objects are kept in
+   memory forever, even if all pointers to them are dropped.  This function
+   should generally be called after a large system has been loaded and
+   initialized.
 
-   DEFSTRUCT structures defined with the (:PURE T) option are moved into
-   read-only storage, further reducing GC cost.  List and vector slots of pure
-   structures are also moved into read-only storage.
+   $root-structures is an optional list of objects which should be copied
+   first to maximize locality.  This should be a list of the main entry
+   points for the resulting core image.  The purification process tries to
+   localize symbols, functions, etc., in the core image so that paging
+   performance is improved.  The default value is () which means that Lisp
+   objects will still be localized although probably less optimally than
+   they could be.
 
-   ENVIRONMENT-NAME is gratuitous documentation for compacted version of the
-   current global environment (as seen in C::*INFO-ENVIRONMENT*.)  If NIL is
-   supplied, then environment compaction is inhibited."
+   Move structures defined with the (:PURE T) option into read-only
+   storage, further reducing GC cost.  Also move list and vector slots of
+   pure structures into read-only storage.
+
+   $environment-name is gratuitous documentation for compacted version of
+   the current global environment (as seen in c::*info-environment*).  If
+   () is supplied, then turn off environment compaction."
 
   (when environment-name (compact-environment-aux environment-name 200))
 
   (let ((*gc-notify-before*
 	 #'(lambda (bytes-in-use)
 	     (declare (ignore bytes-in-use))
-	     (write-string "[Doing purification: ")
+	     (write-string "[Purifying: ")
 	     (force-output)))
 	(*internal-gc*
 	 #'(lambda ()
@@ -54,7 +64,7 @@
 	(*gc-notify-after*
 	 #'(lambda (&rest ignore)
 	     (declare (ignore ignore))
-	     (write-line "Done.]"))))
+	     (write-line "done.]"))))
     #-gencgc (gc t)
     #+gencgc (gc :verbose t))
   nil)

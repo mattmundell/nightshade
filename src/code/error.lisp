@@ -15,6 +15,7 @@
 	  ;; The following are found in Macros.Lisp:
 	  check-type assert etypecase ctypecase ecase ccase
 	  ;;
+	  ;; FIX
 	  ;; These are all the new things to export from "LISP" now that this
 	  ;; proposal has been accepted.
 	  *break-on-signals* *debugger-hook* signal handler-case handler-bind
@@ -37,6 +38,17 @@
 	  floating-point-inexact floating-point-invalid-operation))
 
 (in-package "CONDITIONS")
+
+
+;;;; Conditions.
+
+#[ Conditions
+
+{function:signal}
+{function:handler-bind}
+{function:handler-case}
+]#
+
 
 ;;;; Keyword utilities.
 
@@ -68,7 +80,6 @@
 
 ) ;eval-when
 
-
 
 ;;;; Restarts.
 
@@ -76,7 +87,7 @@
 ;;;
 (defvar *restart-clusters* '())
 
-;;;  An ALIST (condition . restarts) which records the restarts currently
+;;; An ALIST (condition . restarts) which records the restarts currently
 ;;; associated with Condition.
 ;;;
 (defvar *condition-restarts* ())
@@ -176,8 +187,8 @@
 
 (defun invoke-restart (restart &rest values)
   "Calls the function associated with the given restart, passing any given
-   arguments.  If the argument restart is not a restart or a currently active
-   non-nil restart name, then a control-error is signalled."
+   arguments.  If the argument restart is not a restart or a currently
+   active true restart name, then a control-error is signalled."
   (let ((real-restart (find-restart restart)))
     (unless real-restart
       (error 'simple-control-error
@@ -188,7 +199,7 @@
 (defun invoke-restart-interactively (restart)
   "Calls the function associated with the given restart, prompting for any
    necessary arguments.  If the argument restart is not a restart or a
-   currently active non-nil restart name, then a control-error is signalled."
+   currently active true restart name, then a control-error is signalled."
   (let ((real-restart (find-restart restart)))
     (unless real-restart
       (error 'simple-control-error
@@ -234,8 +245,8 @@
 ); eval-when (compile load eval)
 
 (defmacro restart-case (expression &body clauses)
-  "(RESTART-CASE form
-   {(case-name arg-list {keyword value}* body)}*)
+  "(RESTART-CASE form {(case-name arg-list {keyword value}* body)}*)
+
    The form is evaluated in a dynamic context where the clauses have special
    meanings as points to which control may be transferred (see INVOKE-RESTART).
    When clauses contain the same case-name, FIND-RESTART will find the first
@@ -421,19 +432,19 @@
 ); EVAL-WHEN (COMPILE LOAD EVAL)
 
 
-;;;; Condition reporting:
+;;;; Condition reporting.
 
 (defun %print-condition (s stream d)
   (declare (ignore d))
   (if *print-escape*
       (print-unreadable-object (s stream :identity t :type t))
       (dolist (class (condition-class-cpl (class-of s))
-		     (error "No REPORT?  Shouldn't happen!"))
+		     (error "There should be a report."))
 	(let ((report (condition-class-report class)))
 	  (when report
 	    (return (funcall report s stream)))))))
 
-;;;; Condition slots:
+;;;; Condition slots.
 
 (defvar *empty-slot* '(empty))
 
@@ -568,16 +579,15 @@
     ;;
     ;; Initialize CPL slot.
     (setf (condition-class-cpl class)
-	  (remove-if-not #'condition-class-p
-			 (std-compute-class-precedence-list class))))
+	  (keep-if #'condition-class-p
+		   (std-compute-class-precedence-list class))))
   (undefined-value))
 
 ); eval-when (compile load eval)
 
-
 ;;; COMPUTE-EFFECTIVE-SLOTS  --  Internal
 ;;;
-;;;   Compute the effective slots of class, copying inherited slots and
+;;; Compute the effective slots of class, copying inherited slots and
 ;;; side-effecting direct slots.
 ;;;
 (defun compute-effective-slots (class)
@@ -601,7 +611,6 @@
 		(t
 		 (res (copy-structure sslot)))))))
     (res)))
-
 
 (defun %define-condition (name slots documentation report default-initargs)
   (let ((class (find-class name)))
@@ -652,7 +661,6 @@
 			 (return t))))
 	     (push slot (condition-class-hairy-slots class))))))))
   name)
-
 
 (defmacro define-condition (name (&rest parent-types) (&rest slot-specs)
 				 &body options)
@@ -787,7 +795,8 @@
 (defvar *handler-clusters* nil)
 
 (defmacro handler-bind (bindings &body forms)
-  "(HANDLER-BIND ( {(type handler)}* )  body)
+  "handler-bind ( {(type handler)}* )  body
+
    Executes body in a dynamic context where the given handler bindings are
    in effect.  Each handler must take the condition being signalled as an
    argument.  The bindings are searched first to last in the event of a
@@ -872,7 +881,6 @@
 	      (type-error-datum condition)
 	      (case-failure-name condition)
 	      (case-failure-possibilities condition)))))
-
 
 (define-condition program-error (error) ())
 (define-condition parse-error   (error) ())
@@ -1021,11 +1029,12 @@
 ;;       eg have to handler-bind around %command-loop in ed to get backtrace
 (defmacro handler-case (form &rest cases)
   "(HANDLER-CASE form { (type ([var]) body) }* )
-   Executes form in a context with handlers established for the condition
-   types.  A peculiar property allows type to be :no-error.  If such a clause
-   occurs, and form returns normally, all its values are passed to this clause
-   as if by MULTIPLE-VALUE-CALL.  The :no-error clause accepts more than one
-   var specification."
+
+   Execute $form in a context with handlers established for the condition
+   types.  A peculiar property allows type to be :no-error.  If such a
+   clause occurs, and form returns normally, all its values are passed to
+   this clause as if by `multiple-value-call'.  The :no-error clause
+   accepts more than one var specification."
   (let ((no-error-clause (assoc ':no-error cases)))
     (if no-error-clause
 	(let ((normal-return (make-symbol "normal-return"))
@@ -1072,10 +1081,9 @@
 
 (defmacro ignore-errors (&rest forms)
   "Execute forms after establishing a handler for all error conditions.  On
-   error the handler returns nil and the signalled condition."
+   error the handler returns () and the signalled condition."
   `(handler-case (progn ,@forms)
-     (error (condition) (values nil condition))))
-
+     (error (condition) (values () condition))))
 
 
 ;;;; Restart definitions.

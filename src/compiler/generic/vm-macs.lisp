@@ -1,21 +1,7 @@
-;;; -*- Package: VM -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/generic/vm-macs.lisp,v 1.16 1997/01/18 14:31:15 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains some macros and constants that are object-format
-;;; specific or are used for defining the object format.
-;;;
-;;; Written by William Lott and Christopher Hoover.
-;;; 
-(in-package "VM")
+;;; Some macros and constants that are object-format specific or are used
+;;; for defining the object format.
 
+(in-package "VM")
 
 
 ;;;; Other random stuff.
@@ -28,6 +14,7 @@
 (defmacro pad-data-block (words)
   `(logandc2 (+ (ash ,words word-shift) lowtag-mask) lowtag-mask))
 
+; FIX maybe s/b in code:?
 ;;; DEFENUM -- Internal Interface.
 ;;;
 (defmacro defenum ((&key (prefix "") (suffix "") (start 0) (step 1))
@@ -65,7 +52,6 @@
 	  slot-offset slot-length slot-options *primitive-objects*
 	  define-for-each-primitive-object))
 
-
 (defun remove-keywords (options keywords)
   (cond ((null options) nil)
 	((member (car options) keywords)
@@ -95,7 +81,6 @@
   (size 0 :type fixnum)
   (variable-length nil :type (member t nil)))
 
-
 (defvar *primitive-objects* nil)
 
 (defun %define-primitive-object (primobj)
@@ -105,7 +90,6 @@
 		(remove name *primitive-objects*
 			:key #'primitive-object-name :test #'eq)))
     name))
-
 
 (defmacro define-primitive-object
 	  ((name &key header lowtag alloc-trans (type t))
@@ -174,7 +158,6 @@
 	   ,@(constants))
 	 ,@(forms)))))
 
-
 
 ;;;; reffer and setter definition stuff.
 
@@ -221,7 +204,7 @@
   `(%def-alloc ',name ,words ,variable-length ,header ,lowtag ,inits))
 
 
-;;;; Some general constant definitions:
+;;;; Some general constant definitions.
 
 (in-package "C")
 

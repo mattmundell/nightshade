@@ -1,50 +1,74 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/typetran.lisp,v 1.29.2.4 2000/08/09 12:59:51 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains stuff that implements the portable IR1 semantics of
-;;; type tests.  The main thing we do is convert complex type tests into
-;;; simpler code that can be compiled inline.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; Stuff that implements the portable IR1 semantics of type tests.  The
+;;; main thing we do is convert complex type tests into simpler code that
+;;; can be compiled inline.
+
 (in-package "C")
 
 
-;;;; Type predicate translation:
+;;; FIX this should be where?
+#[ Type System Parameterization
+
+The main aspect of the VM that is likely to vary for good reason is the type
+system:
+
+ * Different systems will have different ways of representing dynamic type
+   information.  The primary effect this has on the compiler is causing VMR
+   conversion of type tests and checks to be implementation dependent.
+   Rewriting this code for each implementation shouldn't be a big problem,
+   since the portable semantics of types has already been dealt with.
+
+ * Different systems will have different specialized number and array types,
+   and different VOPs specialized for these types.  It is easy to add this kind
+   of knowledge without affecting the rest of the compiler.  All you have to
+   do is define the VOPs and translations.
+
+ * Different systems will offer different specialized storage resources
+   such as floating-point registers, and will have additional kinds of
+   primitive-types.  The storage class mechanism handles a large part of this,
+   but there may be some problem in getting VMR conversion to realize the
+   possibly large hidden costs in implicit moves to and from these specialized
+   storage resources.  Probably the answer is to have some sort of general
+   mechanism for determining the primitive-type for a TN given the Lisp type,
+   and then to have some sort of mechanism for automatically using specialized
+   Move VOPs when the source or destination has some particular primitive-type.
+
+       How to deal with list/null(symbol)/cons in primitive-type structure?  Since
+       cons and symbol aren't used for type-specific template selection, it isn't
+       really all that critical.  Probably Primitive-Type should return the List
+       primitive type for all of Cons, List and Null (indicating when it is exact).
+       This would allow type-dispatch for simple sequence functions (such as length)
+       to be done using the standard template-selection mechanism.
+	   Not a wired assumption
+]#
+
+
+;;;; Type predicate translation.
 ;;;
-;;;    We maintain a bidirectional association between type predicates and the
-;;; tested type.  The presence of a predicate in this association implies that
-;;; it is desirable to implement tests of this type using the predicate.  This
-;;; is true both of very simple types.  These are either predicates that the
-;;; back end is likely to have special knowledge about, or predicates so
-;;; complex that the only reasonable implentation is via function call.
+;;; We maintain a bidirectional association between type predicates and the
+;;; tested type.  The presence of a predicate in this association implies
+;;; that it is desirable to implement tests of this type using the
+;;; predicate.  This is true both of very simple types.  These are either
+;;; predicates that the back end is likely to have special knowledge about,
+;;; or predicates so complex that the only reasonable implentation is via
+;;; function call.
 ;;;
-;;;    Some standard types (such as SEQUENCE) are best tested by letting the
-;;; TYPEP source transform do its thing with the expansion.  These types (and
-;;; corresponding predicates) are not maintained in this association.  In this
-;;; case, there need not be any predicate function unless it is required by
-;;; Common Lisp.
+;;; Some standard types (such as SEQUENCE) are best tested by letting the
+;;; TYPEP source transform do its thing with the expansion.  These types
+;;; (and corresponding predicates) are not maintained in this association.
+;;; In this case, there need not be any predicate function unless it is
+;;; required by Common Lisp.
 ;;;
-;;;    The mappings between predicates and type structures is stored in the
-;;; backend structure, so that different backends can support different sets
-;;; of predicates.
-;;;
+;;; The mappings between predicates and type structures is stored in the
+;;; backend structure, so that different backends can support different
+;;; sets of predicates.
 
 ;;; Define-Type-Predicate  --  Interface
 ;;;
 (defmacro define-type-predicate (name type)
   "Define-Type-Predicate Name Type
-  Establish an association between the type predicate Name and the
-  corresponding Type.  This causes the type predicate to be recognized for
-  purposes of optimization."
+   Establish an association between the type predicate Name and the
+   corresponding Type.  This causes the type predicate to be recognized for
+   purposes of optimization."
   `(%define-type-predicate ',name ',type))
 ;;;
 (defun %define-type-predicate (name specifier)
@@ -58,26 +82,25 @@
     name))
 
 
-;;;; IR1 transforms:
+;;;; IR1 transforms.
 
 ;;; Typep IR1 transform  --  Internal
 ;;;
-;;;    If we discover the type argument is constant during IR1 optimization,
-;;; then give the source transform another chance.  The source transform can't
-;;; pass, since we give it an explicit constant.  At worst, it will convert to
-;;; %Typep, which will prevent spurious attempts at transformation (and
-;;; possible repeated warnings.) 
+;;; If we discover the type argument is constant during IR1 optimization,
+;;; then give the source transform another chance.  The source transform
+;;; can't pass, since we give it an explicit constant.  At worst, it will
+;;; convert to %Typep, which will prevent spurious attempts at
+;;; transformation (and possible repeated warnings.)
 ;;;
 (deftransform typep ((object type))
   (unless (constant-continuation-p type)
     (give-up "Can't open-code test of non-constant type."))
   `(typep object ',(continuation-value type)))
 
-
 ;;; IR1-Transform-Type-Predicate  --  Internal
 ;;;
-;;;    If the continuation Object definitely is or isn't of the specified type,
-;;; then return T or NIL as appropriate.  Otherwise quietly Give-Up.
+;;; If the continuation Object definitely is or isn't of the specified
+;;; type, then return T or NIL as appropriate.  Otherwise quietly Give-Up.
 ;;;
 (defun ir1-transform-type-predicate (object type)
   (declare (type continuation object) (type ctype type))
@@ -86,10 +109,9 @@
 	  ((csubtypep otype type) 't)
 	  (t (give-up)))))
 
-
 ;;; %Typep IR1 transform  --  Internal
 ;;;
-;;;    Flush %Typep tests whose result is known at compile time.
+;;; Flush %Typep tests whose result is known at compile time.
 ;;;
 (deftransform %typep ((object type))
   (unless (constant-continuation-p type) (give-up))
@@ -99,9 +121,9 @@
 
 ;;; Fold-Type-Predicate IR1 transform  --  Internal
 ;;;
-;;;    This is the IR1 transform for simple type predicates.  It checks whether
-;;; the single argument is known to (not) be of the appropriate type, expanding
-;;; to T or NIL as apprporiate.
+;;; This is the IR1 transform for simple type predicates.  It checks
+;;; whether the single argument is known to (not) be of the appropriate
+;;; type, expanding to T or NIL as apprporiate.
 ;;;
 (deftransform fold-type-predicate ((object) * * :node node :defun-only t)
   (let ((ctype (gethash (leaf-name
@@ -112,20 +134,20 @@
     (assert ctype)
     (ir1-transform-type-predicate object ctype)))
 
-
 ;;; FIND-CLASS IR1 Transform  --  Internal
 ;;;
-;;;    If FIND-CLASS is called on a constant class, locate the CLASS-CELL at
+;;; If FIND-CLASS is called on a constant class, locate the CLASS-CELL at
 ;;; load time.
-;;; 
+;;;
 (deftransform find-class ((name) ((constant-argument symbol)) *
 			  :when :both)
   (let* ((name (continuation-value name))
 	 (cell (find-class-cell name)))
     `(or (class-cell-class ',cell)
 	 (error "Class not yet defined: ~S" ',name))))
+
 
-;;;; Standard type predicates:
+;;;; Standard type predicates.
 
 (defun define-standard-type-predicates ()
   (define-type-predicate arrayp array)
@@ -157,9 +179,8 @@
 
 (define-standard-type-predicates)
 
-
 
-;;;; Transforms for type predicates not implemented primitively:
+;;;; Transforms for type predicates not implemented primitively.
 ;;;
 ;;; See also VM dependent transforms.
 
@@ -167,13 +188,13 @@
   `(not (consp ,x)))
 
 
-;;;; Typep source transform:
+;;;; Typep source transform.
 
 ;;; Transform-Numeric-Bound-Test  --  Internal
 ;;;
-;;;    Return a form that tests the variable N-Object for being in the binds
-;;; specified by Type.  Base is the name of the base type, for declaration.  We
-;;; make safety locally 0 to inhibit any checking of this assertion.
+;;; Return a form that tests the variable N-Object for being in the binds
+;;; specified by Type.  Base is the name of the base type, for declaration.
+;;; We make safety locally 0 to inhibit any checking of this assertion.
 ;;;
 #-negative-zero-is-not-zero
 (defun transform-numeric-bound-test (n-object type base)
@@ -234,25 +255,24 @@
 				  (<= (float-sign ,x) (float-sign ,y))
 				  (<= ,x ,y)))))))))))
 
-
 ;;; Source-Transform-Numeric-Typep  --  Internal
 ;;;
-;;;    Do source transformation of a test of a known numeric type.  We can
-;;; assume that the type doesn't have a corresponding predicate, since those
-;;; types have already been picked off.  In particular, Class must be
-;;; specified, since it is unspecified only in NUMBER and COMPLEX.  Similarly,
-;;; we assume that Complexp is always specified.
+;;; Do source transformation of a test of a known numeric type.  We can
+;;; assume that the type doesn't have a corresponding predicate, since
+;;; those types have already been picked off.  In particular, Class must be
+;;; specified, since it is unspecified only in NUMBER and COMPLEX.
+;;; Similarly, we assume that Complexp is always specified.
 ;;;
-;;;    For non-complex types, we just test that the number belongs to the base
-;;; type, and then test that it is in bounds.  When Class is Integer, we check
-;;; to see if the range is no bigger than FIXNUM.  If so, we check for FIXNUM
-;;; instead of INTEGER.  This allows us to use fixnum comparison to test the
-;;; bounds.
+;;; For non-complex types, we just test that the number belongs to the base
+;;; type, and then test that it is in bounds.  When Class is Integer, we
+;;; check to see if the range is no bigger than FIXNUM.  If so, we check
+;;; for FIXNUM instead of INTEGER.  This allows us to use fixnum comparison
+;;; to test the bounds.
 ;;;
-;;;    For complex types, we must test for complex, then do the above on both
-;;; the real and imaginary parts.  When Class is float, we need only check the
-;;; type of the realpart, since the format of the realpart and the imagpart
-;;; must be the same.
+;;; For complex types, we must test for complex, then do the above on both
+;;; the real and imaginary parts.  When Class is float, we need only check
+;;; the type of the realpart, since the format of the realpart and the
+;;; imagpart must be the same.
 ;;;
 (defun source-transform-numeric-typep (object type)
   (let* ((class (numeric-type-class type))
@@ -279,12 +299,11 @@
 			  ,(transform-numeric-bound-test n-imag type
 							 base))))))))))
 
-
 ;;; Source-Transform-Hairy-Typep  --  Internal
 ;;;
-;;;    Do the source transformation for a test of a hairy type.  AND, SATISFIES
-;;; and NOT are converted into the obvious code.  We convert unknown types to
-;;; %TYPEP, emitting an efficiency note if appropriate.
+;;; Do the source transformation for a test of a hairy type.  AND,
+;;; SATISFIES and NOT are converted into the obvious code.  We convert
+;;; unknown types to %TYPEP, emitting an efficiency note if appropriate.
 ;;;
 (defun source-transform-hairy-typep (object type)
   (declare (type hairy-type type))
@@ -299,18 +318,18 @@
 	     (satisfies `(if (funcall #',(second spec) ,object) t nil))
 	     ((not and)
 	      (once-only ((n-obj object))
-		`(,(first spec) ,@(mapcar #'(lambda (x) 
+		`(,(first spec) ,@(mapcar #'(lambda (x)
 					      `(typep ,n-obj ',x))
 					  (rest spec))))))))))
 
-
 ;;; Source-Transform-Union-Typep  --  Internal
 ;;;
-;;;    Do source transformation for Typep of a known union type.  If a union
-;;; type contains LIST, then we pull that out and make it into a single LISTP
-;;; call.  Note that if SYMBOL is in the union, then LIST will be a subtype
-;;; even without there being any (member NIL).  We just drop through to the
-;;; general code in this case, rather than trying to optimize it.
+;;; Do source transformation for Typep of a known union type.  If a union
+;;; type contains LIST, then we pull that out and make it into a single
+;;; LISTP call.  Note that if SYMBOL is in the union, then LIST will be a
+;;; subtype even without there being any (member NIL).  We just drop
+;;; through to the general code in this case, rather than trying to
+;;; optimize it.
 ;;;
 (defun source-transform-union-typep (object type)
   (let* ((types (union-type-types type))
@@ -321,7 +340,7 @@
 	     (once-only ((n-obj object))
 	       `(if (listp ,n-obj)
 		    t
-		    (typep ,n-obj 
+		    (typep ,n-obj
 			   '(or ,@(mapcar #'type-specifier
 					  (remove (specifier-type 'cons)
 						  (remove mtype types)))
@@ -331,7 +350,6 @@
 	     `(or ,@(mapcar #'(lambda (x)
 				`(typep ,n-obj ',(type-specifier x)))
 			    types)))))))
-
 
 ;;; Source-Transform-Cons-Typep  --  Internal
 ;;;
@@ -355,10 +373,9 @@
 			`((typep (cdr ,n-obj)
 				 ',(type-specifier cdr-type))))))))))
 
-
 ;;; FIND-SUPERTYPE-PREDICATE  --  Internal
 ;;;
-;;;    Return the predicate and type from the most specific entry in
+;;; Return the predicate and type from the most specific entry in
 ;;; *TYPE-PREDICATES* that is a supertype of Type.
 ;;;
 (defun find-supertype-predicate (type)
@@ -374,12 +391,11 @@
 	  (setq res (cdr x)))))
     (values res res-type)))
 
-
 ;;; TEST-ARRAY-DIMENSIONS  --  Internal
 ;;;
-;;;    Return forms to test that Obj has the rank and dimensions specified by
-;;; Type, where Stype is the type we have checked against (which is the same
-;;; but for dimensions.)
+;;; Return forms to test that Obj has the rank and dimensions specified by
+;;; Type, where Stype is the type we have checked against (which is the
+;;; same but for dimensions.)
 ;;;
 (defun test-array-dimensions (obj type stype)
   (declare (type array-type type stype))
@@ -398,10 +414,9 @@
 	      (res `(= (array-dimension ,obj ,i) ,dim)))))
 	(res)))))
 
-
 ;;; SOURCE-TRANSFORM-ARRAY-TYPEP  --  Internal
 ;;;
-;;;    If we can find a type predicate that tests for the type w/o dimensions,
+;;; If we can find a type predicate that tests for the type w/o dimensions,
 ;;; then use that predicate and test for dimensions.  Otherwise, just do
 ;;; %TYPEP.
 ;;;
@@ -417,16 +432,15 @@
 		,@(test-array-dimensions n-obj type stype)))
 	`(%typep ,obj ',(type-specifier type)))))
 
-
 ;;; Instance typep IR1 transform  --  Internal
 ;;;
-;;;    Transform a type test against some instance type. The type test is
+;;; Transform a type test against some instance type. The type test is
 ;;; flushed if the result is known at compile time.  If not properly named,
 ;;; error.  If sealed and has no subclasses, just test for layout-EQ.  If a
 ;;; structure then test for layout-EQ and then a general test based on
-;;; layout-inherits. If safety is important, then we also check if the layout
-;;; for the object is invalid and signal an error if so.  Otherwise, look up
-;;; the indirect class-cell and call CLASS-CELL-TYPEP at runtime.
+;;; layout-inherits. If safety is important, then we also check if the
+;;; layout for the object is invalid and signal an error if so.  Otherwise,
+;;; look up the indirect class-cell and call CLASS-CELL-TYPEP at runtime.
 ;;;
 (deftransform %instance-typep ((object spec) (* *) * :node node :when :both)
   (assert (constant-continuation-p spec))
@@ -484,7 +498,7 @@
 			  t
 			  (and (> (layout-inheritance-depth ,n-layout) ,idepth)
 			       (locally (declare (optimize (safety 0)))
-				 (eq (svref (layout-inherits ,n-layout) 
+				 (eq (svref (layout-inherits ,n-layout)
 					    ,idepth)
 				     ',layout))))))))
 	   ((and layout (>= (layout-inheritance-depth layout) 0))
@@ -510,16 +524,16 @@
 				    ',(find-class-cell name)
 				    object)))))))))
 
-
 ;;; Source-Transform-Typep  --  Internal
 ;;;
-;;;    If the specifier argument is a quoted constant, then we consider
+;;; If the specifier argument is a quoted constant, then we consider
 ;;; converting into a simple predicate or other stuff.  If the type is
-;;; constant, but we can't transform the call, then we convert to %Typep.  We
-;;; only pass when the type is non-constant.  This allows us to recognize
-;;; between calls that might later be transformed sucessfully when a constant
-;;; type is discovered.  We don't give an efficiency note when we pass, since
-;;; the IR1 transform will give one if necessary and appropriate.
+;;; constant, but we can't transform the call, then we convert to %Typep.
+;;; We only pass when the type is non-constant.  This allows us to
+;;; recognize between calls that might later be transformed sucessfully
+;;; when a constant type is discovered.  We don't give an efficiency note
+;;; when we pass, since the IR1 transform will give one if necessary and
+;;; appropriate.
 ;;;
 ;;; If the type is Type= to a type that has a predicate, then expand to that
 ;;; predicate.  Otherwise, we dispatch off of the type's type.  These

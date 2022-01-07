@@ -1,21 +1,5 @@
-;;; -*- Package: ALPHA; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/cell.lisp,v 1.2 1994/10/31 04:39:51 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the VM definition of various primitive memory access
-;;; VOPs for the Alpha.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Converted by Sean Hallgren
-;;; 
+;;; The VM definition of various primitive memory access VOPs for the
+;;; Alpha.
 
 (in-package "ALPHA")
 
@@ -45,7 +29,7 @@
     (storew value object offset lowtag)))
 
 
-;;;; Symbol hacking VOPs:
+;;;; Symbol hacking VOPs.
 
 ;;; The compiler likes to be able to directly SET symbols.
 ;;;
@@ -98,7 +82,6 @@
   (:policy :fast)
   (:translate symbol-value))
 
-
 
 ;;;; Fdefinition (fdefn) objects.
 
@@ -140,7 +123,6 @@
       (storew lip fdefn fdefn-raw-addr-slot other-pointer-type)
       (storew function fdefn fdefn-function-slot other-pointer-type)
       (move function result))))
-          
 
 (define-vop (fdefn-makunbound)
   (:policy :fast-safe)
@@ -153,7 +135,6 @@
     (inst li (make-fixup "undefined_tramp" :foreign) temp)
     (move fdefn result)
     (storew temp fdefn fdefn-raw-addr-slot other-pointer-type)))
-
 
 
 ;;;; Binding and Unbinding.
@@ -174,7 +155,6 @@
     (#+gengc storew-and-remember-slot #-gengc storew
 	     val symbol symbol-value-slot other-pointer-type)))
 
-
 (define-vop (unbind)
   (:temporary (:scs (descriptor-reg)) symbol value)
   (:generator 0
@@ -184,7 +164,6 @@
 	     value symbol symbol-value-slot other-pointer-type)
     (storew zero-tn bsp-tn (- binding-symbol-slot binding-size))
     (inst subq bsp-tn (* 2 word-bytes) bsp-tn)))
-
 
 (define-vop (unbind-to-here)
   (:args (arg :scs (descriptor-reg any-reg) :target where))
@@ -213,7 +192,6 @@
       (inst beq temp loop)
 
       (emit-label done))))
-
 
 
 ;;;; Closure indexing.
@@ -248,9 +226,8 @@
 (define-vop (value-cell-set cell-set)
   (:variant value-cell-value-slot other-pointer-type))
 
-
 
-;;;; Instance hackery:
+;;;; Instance hackery.
 
 (define-vop (instance-length)
   (:policy :fast-safe)
@@ -280,7 +257,6 @@
 (define-full-setter instance-index-set * instance-slots-offset
   instance-pointer-type (descriptor-reg any-reg null zero) * %instance-set)
 
-
 
 ;;;; Code object frobbing.
 
@@ -289,7 +265,6 @@
 
 (define-full-setter code-header-set * 0 other-pointer-type
   (descriptor-reg any-reg null zero) * code-header-set)
-
 
 
 ;;;; Mutator accessing.
@@ -313,7 +288,6 @@
   (:results (res :scs (sap-reg)))
   (:result-types system-area-pointer))
 
-
 (define-vop (mutator-ub32-set)
   (:policy :fast-safe)
   (:args (arg :scs (unsigned-reg) :target res))
@@ -336,7 +310,6 @@
   (:arg-types system-area-pointer)
   (:results (res :scs (sap-reg)))
   (:result-types system-area-pointer))
-
 
 (eval-when (compile eval)
   (defmacro define-mutator-accessors (slot type writable)

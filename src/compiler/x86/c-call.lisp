@@ -1,26 +1,8 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/c-call.lisp,v 1.3.2.3 2000/05/23 16:37:52 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the VOPs and other necessary machine specific support
-;;; routines for call-out to C.
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; Debugging and Enhancements by Douglas Crosher 1996,1997,1998,1999.
-;;;
+;;; The VOPs and other necessary machine specific support routines for
+;;; call-out to C.
 
-(in-package :x86)
+(in-package "X86")
+
 (use-package :alien)
 (use-package :alien-internals)
 
@@ -218,7 +200,7 @@
   (:vop-var vop)
   (:save-p t)
   (:ignore args ecx edx)
-  (:generator 0 
+  (:generator 0
     (cond ((policy node (> space speed))
 	   (move eax function)
 	   (inst call (make-fixup (extern-alien-name "call_into_c") :foreign)))

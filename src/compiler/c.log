@@ -381,7 +381,7 @@
 
 /afs/cs.cmu.edu/project/clisp/new-compiler/compiler/fndb.lisp
 18-Jan-90 12:33:17, Edit by Ram.
-  Added %STANDARD-CHAR-P and %STRING-CHAR-P to the imports list. 
+  Added %STANDARD-CHAR-P and %STRING-CHAR-P to the imports list.
 
 /afs/cs.cmu.edu/project/clisp/new-compiler/compiler/globaldb.lisp
 18-Jan-90 12:24:34, Edit by Ram.
@@ -712,7 +712,7 @@
 08-Dec-89 09:58:33, Edit by Ram.
   IR1 invariants now a bit different: :DELETED continuations can only be
   received by blocks with DELETE-P set, and blocks with DELETE-P set can have
-  no successors. 
+  no successors.
 
 /afs/cs.cmu.edu/project/clisp/new-compiler/compiler/locall.lisp
 08-Dec-89 09:51:24, Edit by Ram.
@@ -842,7 +842,7 @@
 /afs/cs.cmu.edu/project/clisp/new-compiler/compiler/ir1tran.lisp
 04-Dec-89 09:38:18, Edit by Ram.
   Flushed :SEMI-INLINE and :ALWAYS-INLINE values for INLINEP.  Added
-  :MAYBE-INLINE, which is interpreted in a more advisory manner.  Changed 
+  :MAYBE-INLINE, which is interpreted in a more advisory manner.  Changed
   IR1-CONVERT-GLOBAL-INLINE so that it does something like the old
   :SEMI-INLINE case for all inline calls so that recursive functions can be
   INLINE.
@@ -920,7 +920,7 @@
   be optional.  One possible fix would be to do tail annotation in IR1
   optimization, but then you would have to run IR1 optimize to get proper tail
   recursion.  This might not be much of an issue, since we will probably always
-  want to do at least some IR1 optimization. 
+  want to do at least some IR1 optimization.
 
 /afs/cs.cmu.edu/project/clisp/new-compiler/compiler/srctran.lisp
 27-Nov-89 12:35:17, Edit by Ram.
@@ -1065,7 +1065,7 @@
   dump them as lists so that Genesis can eval them.  The normal top-level form
   compilation must be suppressed, since the package system isn't initialized at
   the time that top-level forms run.
-  
+
 /afs/cs.cmu.edu/project/clisp/new-compiler/compiler/dfo.lisp
 05-Nov-89 13:45:11, Edit by Ram.
   Changed FIND-INITIAL-DFO to return top-level components at the end of the
@@ -1132,7 +1132,7 @@
   asserted type.  This should be unnecessary, and was made incorrect by the
   continuation representation change.  If the node was the last in a block and
   the value wasn't used, then the value would be asserted to be of the NIL
-  type, resulting in a warning. 
+  type, resulting in a warning.
 
 /afs/cs.cmu.edu/project/clisp/new-compiler/compiler/ir1util.lisp
 17-Oct-89 10:51:27, Edit by Ram.
@@ -1198,7 +1198,7 @@
 04-Oct-89 15:39:27, Edit by Ram.
   When I changed Propagate-Local-Call-Args to clear the Continuation-Reoptimize
   flags, I forgot that a local call continuation can be NIL (for an unused
-  argument.) 
+  argument.)
 
 /afs/cs.cmu.edu/project/clisp/new-compiler/compiler/ir1opt.lisp
 04-Oct-89 11:05:48, Edit by Ram.
@@ -1231,7 +1231,7 @@
 30-Aug-89 14:37:36, Edit by Ram.
   Changed Change-Leaf-Ref (and hence Substitute-Leaf) to use Derive-Node-Type
   on the Ref with the Leaf-Type so that substituting a variable causes the new
-  type to be noticed. 
+  type to be noticed.
 
 /afs/cs.cmu.edu/project/clisp/new-compiler/compiler/ir1opt.lisp
 30-Aug-89 14:30:44, Edit by Ram.
@@ -1263,7 +1263,7 @@
   the current block's home lambda's bind block to see if it is in a different
   component.  We need to do this to ensure that all code in a given environment
   ends up in the same component, since any successor might be a non-local exit
-  (into a different environment.)  
+  (into a different environment.)
 
 /afs/cs.cmu.edu/project/clisp/new-compiler/compiler/ir1tran.lisp
 18-Aug-89 15:46:51, Edit by Ram.
@@ -1299,7 +1299,7 @@
   Changed Find-Template to intersect the Node-Derived-Type with the
   Continuation-Asserted-Type rather than using the Continuation-Derived-Type in
   the case where we are allowed to use the result type assertion.  This works
-  better when the continuation has multiple uses. 
+  better when the continuation has multiple uses.
 
 /afs/cs.cmu.edu/project/clisp/new-compiler/compiler/typetran.lisp
 24-Jul-89 14:25:09, Edit by Ram.
@@ -1325,7 +1325,7 @@
   Fixed goof in IR2-Convert-Local-Unknown call, where it was converting the
   result TN list to TN-refs twice.  For some reason, this was dying with a
   highly mysterious error in Reference-TN-List.  Perhaps this file was last
-  compiled with an unsafe policy? 
+  compiled with an unsafe policy?
 
 /afs/cs.cmu.edu/project/clisp/new-compiler/compiler/life.lisp
 11-Jul-89 19:29:05, Edit by Ram.
@@ -1373,7 +1373,7 @@
   NLX uses of unknown-values continuations as generators, and we stop
   our graph walk when we hit the component root.  These changes were
   necessitated by the decision to make %NLX-Entry no longer use the values
-  continuation. 
+  continuation.
 
 /afs/cs.cmu.edu/project/clisp/new-compiler/compiler/pack.lisp
 03-Jul-89 11:31:36, Edit by Ram.
@@ -1446,7 +1446,7 @@
   In Flush-Dest and Reoptimize-Continuation, take care not to assume that the
   Continuation-Block is an undeleted block.  Instead, we pick up the component
   to reoptimize from the uses or Dest.
-  
+
 /usr1/lisp/compiler/ir2tran.lisp, 17-May-89 12:48:35, Edit by Ram.
   In Move-Results-Coerced and Move-Results-Checked, subtract Nsrc from Ndest,
   rather than the other way around.
@@ -1728,7 +1728,7 @@
   Changed Node-Ends-Block to set the start and end cleanups of the *new* block
   (not the old) to the ending cleanup of the old block.  This is clearly more
   right, but may not be totally right.
- 
+
 /usr1/lisp/compiler/life.lisp, 27-Jan-89 17:09:01, Edit by Ram.
   Make Clear-Lifetime-Info always set the TN-Local slot for local TNs, using
   some other referencing block when there there are global conflicts.
@@ -1788,7 +1788,7 @@
   Made Annotate-1-Value-Continuation delay global function references to
   functions that aren't notinline.  Made LTN-Default-Call,
   LTN-Analyze-Full-Call and LTN-Analyze-MV-Call annotate their function
-  continuation. 
+  continuation.
 
 /usr0/ram/compiler/flowsimp.lisp, 11-Feb-88 16:44:48, Edit by Ram.
   Now that returns aren't being picked off in flow-graph-simplify, we have to
@@ -1820,7 +1820,7 @@
 /usr0/ram/compiler/ir1tran.lisp, 11-Feb-88 13:12:47, Edit by Ram.
   Added :Optional Functional-Kind that is initially specified for the
   entry-point lambdas in optional-dispatches so that we know there may be
-  references to the function through the optional dispatch. 
+  references to the function through the optional dispatch.
 
 /usr0/ram/compiler/ir1util.lisp, 11-Feb-88 12:23:11, Edit by Ram.
   Changed assertion in Control-Equate to allow an existing value-equate to the
@@ -1865,7 +1865,7 @@
 /usr0/ram/compiler/ir1opt.lisp, 21-Jan-88 17:50:52, Edit by Ram.
   Made Check-Types intersect the new type with the Node-Derived-Type for all
   the continuation uses so that IR1Opt doesn't go and change the type right
-  back. 
+  back.
 
 /usr0/ram/compiler/main.lisp, 21-Jan-88 17:31:57, Edit by Ram.
 /usr0/ram/compiler/ir1opt.lisp, 21-Jan-88 17:30:31, Edit by Ram.
@@ -1964,7 +1964,7 @@
   points.  This represents reality better, making lots of things previously
   special-cased automatically happen in our favor.  We really needed this for
   environment analysis and IR2 conversion to work.
-  
+
   Functional-Entry-Kind is replaced by Functional-Kind and
   Functional-Entry-Function.  The Kind is kind of like the old Entry-Kind.  The
   Entry-Function is the XEP (or a back-pointer in an XEP).  Uses of Entry-Kind
@@ -2024,7 +2024,7 @@
   Changed propagate-from-calls to punt if any use is a mv-combination.  Changed
   Top-Down-Optimize not to Substitute-Let-Vars unless the only use is not a
   MV-Combination.  Un-commented-out the substituion of functionals for non-set
-  let vars. 
+  let vars.
 
 /usr1/ram/compiler/locall.lisp, 13-Aug-87 18:31:24, Edit by Ram
   Frobbed Find-Top-Level-Code to recognize DEFUNs with no calls as
@@ -2036,7 +2036,7 @@
   known calls to be recognized again (I'm sure that worked at one point.
   Perhaps before they were becoming known later on somehow?).  This is all not
   really right anyway, given the broken interpretation of function types
-  currently used in IR1. 
+  currently used in IR1.
 
 /usr/ram/compiler/ir1tran.slisp, 12-Jan-87 11:48:32, Edit by Ram
   Fixed Find-Source-Paths to use a DO with ATOM test rather than a dolist, so

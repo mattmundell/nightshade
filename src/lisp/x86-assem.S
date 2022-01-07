@@ -13,7 +13,7 @@
 
 
 #include "x86-validate.h"
-	
+
 #define LANGUAGE_ASSEMBLY
 #include "internals.h"
 
@@ -36,12 +36,12 @@
 #else
 #define	align_4byte	2
 #define	align_8byte	3
-#define	align_16byte	4	
-#endif			
+#define	align_16byte	4
+#endif
 
 	.text
 	.global	GNAME(foreign_function_call_active)
-	
+
 
 /*
  * The C function will preserve ebx, esi, edi, and ebp across its
@@ -59,7 +59,7 @@
 GNAME(call_into_c):
 	movl	$1,GNAME(foreign_function_call_active)
 
-/* Save the return lisp address in ebx */	
+/* Save the return lisp address in ebx */
 	popl	%ebx
 
 /* Setup the NPX for C */
@@ -98,7 +98,7 @@ GNAME(call_into_c):
 	movl	%ecx,%eax	# maybe return value
 
 	movl	$0,GNAME(foreign_function_call_active)
-/* Return */	
+/* Return */
 	jmp	*%ebx
 
 Lfp_rtn_value:
@@ -116,21 +116,21 @@ Lfp_rtn_value:
 /* Don't need to restore eax as the result is in st(0) */
 
 	movl	$0,GNAME(foreign_function_call_active)
-/* Return */	
+/* Return */
 	jmp	*%ebx
 
 	.size	GNAME(call_into_c), . - GNAME(call_into_c)
 
 
-	.text	
+	.text
 	.global GNAME(call_into_lisp)
 	.type  GNAME(call_into_lisp),@function
-		
+
 /* The C conventions require that ebx, esi, edi, and ebp be preserved
 	across function calls. */
 /* The *alien-stack* pointer is setup on the first call_into_lisp when
    the stack changes. */
-	
+
 	.align	align_16byte,0x90
 GNAME(call_into_lisp):
 	pushl	%ebp		# save old frame pointer
@@ -147,7 +147,7 @@ GNAME(call_into_lisp):
 	orl	$0x00000300,%eax	# Set precision to 64 bits
 #else
 	orl	$0x00000200,%eax	# Set precision to 53 bits
-#endif	
+#endif
 	pushl	%eax
 	fldcw	(%esp)		# Recover modes
 	popl	%eax
@@ -160,12 +160,12 @@ GNAME(call_into_lisp):
 	fldz
 	fldz
 	fldz
-	
+
 /* Save C regs: ebx esi edi */
 	pushl	%ebx
 	pushl	%esi
 	pushl	%edi
-	
+
 /* clear descriptor regs */
 	xorl	%eax,%eax	# lexenv
 	xorl	%ebx,%ebx	# available
@@ -203,7 +203,7 @@ OnLispStack:
 	cmpl	$8,%ecx
 	je	Ldone
 	movl	8(%ebx),%esi	# arg2
-Ldone:	
+Ldone:
 	/* registers eax, ecx, edx,edi,esi now live */
 
 	/* alloc new frame */
@@ -214,10 +214,10 @@ Ldone:
 
 	/* indirect the closure */
 	call	*CLOSURE_FUNCTION_OFFSET(%eax)
-	
+
 	/* Multi-value return - blow off any extra values */
 	mov	%ebx, %esp
-	/* Single value return */	
+	/* Single value return */
 
 /* Restore the stack, in case there was a stack change. */
 	popl	%esp		# c-sp
@@ -230,7 +230,7 @@ Ldone:
 /* Restore the NPX state */
 	frstor  (%esp)
 	addl	$108, %esp
-	
+
 	popl	%ebp		# c-sp
 	movl	%edx,%eax	# c-val
 	ret
@@ -305,9 +305,9 @@ GNAME(function_end_breakpoint_guts):
 	movl	$4,%ecx		# Setup ecx for one return value.
 	movl	$NIL,%edi	# Default second value
 	movl	$NIL,%esi	# Default third value
-		
+
 multiple_value_return:
-	
+
 	.global GNAME(function_end_breakpoint_trap)
 GNAME(function_end_breakpoint_trap):
 	int3
@@ -404,7 +404,7 @@ l1:	fstl	0(%edx)
 	fstp	%st(0)
 	ret
 	.size	GNAME(i586_bzero),.-GNAME(i586_bzero)
-#endif	
+#endif
 
 
 /*
@@ -416,7 +416,7 @@ l1:	fstl	0(%edx)
    All registers must be preserved except the destination.
    The C conventions will preserve ebx, esi, edi, and ebp.
    So only eax, ecx, and edx need special care here. */
-		
+
 	.globl	GNAME(alloc_to_eax)
 	.type	GNAME(alloc_to_eax),@function
 	.align	align_4byte,0x90
@@ -712,7 +712,7 @@ GNAME(alloc_16_to_edi):
 	popl	%eax
 	ret
 	.size	GNAME(alloc_16_to_edi),.-GNAME(alloc_16_to_edi)
-		
+
 
 
 #ifdef GENCGC

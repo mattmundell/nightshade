@@ -1,25 +1,9 @@
-;;; -*- Package: ALPHA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/system.lisp,v 1.2 1994/10/31 04:39:51 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    Alpha VM definitions of various system hacking operations.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Mips conversion by William Lott and Christopher Hoover.
-;;; Alpha conversion by Sean Hallgren.
-;;;
+;;; Alpha VM definitions of various system hacking operations.
+
 (in-package "ALPHA")
 
 
-;;;; Type frobbing VOPs
+;;;; Type frobbing VOPs.
 
 (define-vop (get-lowtag)
   (:translate get-lowtag)
@@ -62,7 +46,7 @@
 
     OTHER-PTR
     (load-type result object (- other-pointer-type))
-      
+
     DONE))
 
 (define-vop (function-subtype)
@@ -164,7 +148,7 @@
        (inst bis res temp res)))))
 
 
-;;;; Allocation
+;;;; Allocation.
 
 (define-vop (dynamic-space-free-pointer)
   (:results (int :scs (sap-reg)))
@@ -224,7 +208,6 @@
 
 ;;;; Other random VOPs.
 
-
 (defknown unix::do-pending-interrupt () (values))
 (define-vop (unix::do-pending-interrupt)
   (:policy :fast-safe)
@@ -232,13 +215,12 @@
   (:generator 1
     (inst gentrap pending-interrupt-trap)))
 
-
 (define-vop (halt)
   (:generator 1
     (inst gentrap halt-trap)))
 
 
-;;;; Dynamic vop count collection support
+;;;; Dynamic vop count collection support.
 
 (define-vop (count-me)
   (:args (count-vector :scs (descriptor-reg)))

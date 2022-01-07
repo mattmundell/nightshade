@@ -1,24 +1,6 @@
-;;; -*- Package: ALPHA; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/arith.lisp,v 1.3.2.2 2000/10/23 16:22:10 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/alpha/arith.lisp,v 1.3.2.2 2000/10/23 16:22:10 dtc Exp $
-;;;
-;;;    This file contains the VM definition arithmetic VOPs for the MIPS.
-;;;
-;;; Written by Rob MacLachlan
-;;; Converted by Sean Hallgren
-;;; 
+;;; VM definition arithmetic VOPs.
 
 (in-package "ALPHA")
-
 
 
 ;;;; Unary operations.
@@ -59,11 +41,10 @@
   (:generator 1
     (inst not x res)))
 
-
 
 ;;;; Binary fixnum operations.
 
-;;; Assume that any constant operand is the second arg...
+;;; Assume that any constant operand is the second arg.
 
 (define-vop (fast-fixnum-binop)
   (:args (x :target r :scs (any-reg))
@@ -166,7 +147,6 @@
 (define-binop logand 1 3 and (unsigned-byte 6) (unsigned-byte 8))
 (define-binop logxor 1 3 xor (unsigned-byte 6) (unsigned-byte 8))
 
-
 ;;; Shifting
 
 (define-vop (fast-ash/unsigned=>unsigned)
@@ -188,11 +168,11 @@
     (inst bne temp done)
     (inst srl number 31 result)
     (inst br zero-tn done)
-      
+
     POSITIVE
     ;; The result-type assures us that this shift will not overflow.
     (inst sll number amount result)
-      
+
     DONE))
 
 (define-vop (fast-ash/signed=>signed)
@@ -214,11 +194,11 @@
     (inst bne temp done)
     (inst sra number 31 result)
     (inst br zero-tn done)
-      
+
     POSITIVE
     ;; The result-type assures us that this shift will not overflow.
     (inst sll number amount result)
-      
+
     DONE))
 
 (define-vop (fast-ash-c/unsigned=>unsigned)
@@ -318,7 +298,6 @@
     (inst and temp mask temp)
     (inst addq num temp res)))
 
-
 ;;; Multiply
 
 (define-vop (fast-*/fixnum=>fixnum fast-fixnum-binop)
@@ -338,9 +317,8 @@
   (:generator 3
     (inst mulq x y r)))
 
-
 
-;;;; Binary conditional VOPs:
+;;;; Binary conditional VOPs.
 
 (define-vop (fast-conditional)
   (:conditional)
@@ -510,9 +488,9 @@
   (:args (x :scs (any-reg descriptor-reg)))
   (:arg-types * (:constant (signed-byte 6)))
   (:variant-cost 6))
-  
+
 
-;;;; 32-bit logical operations
+;;;; 32-bit logical operations.
 
 (define-vop (merge-bits)
   (:translate merge-bits)
@@ -534,7 +512,6 @@
       (inst bis res temp res)
       (emit-label done)
       (move res result))))
-
 
 (define-vop (32bit-logical)
   (:args (x :scs (unsigned-reg))
@@ -591,7 +568,6 @@
 (deftransform 32bit-logical-orc2 ((x y) (* *))
   '(32bit-logical-or x (32bit-logical-not y)))
 
-
 (define-vop (shift-towards-someplace)
   (:policy :fast-safe)
   (:args (num :scs (unsigned-reg))
@@ -615,7 +591,6 @@
   (:generator 1
     (inst and amount #x1f temp)
     (inst sll num temp r)))
-
 
 
 ;;;; Bignum stuff.
@@ -697,7 +672,6 @@
     (inst addq lo carry-in lo)
     (inst srl lo 32 hi)
     (inst mskll lo 4 lo)))
-
 
 (define-vop (bignum-mult-and-add-4-arg)
   (:translate bignum::%multiply-and-add)
@@ -797,7 +771,6 @@
       (signed-reg
        (inst sll digit 32 res)
        (inst sra res 32 res)))))
-
 
 (define-vop (digit-ashr)
   (:translate bignum::%ashr)

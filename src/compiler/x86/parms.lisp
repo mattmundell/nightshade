@@ -1,27 +1,9 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: python-x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/x86/parms.lisp,v 1.4.2.5 2000/10/16 17:32:24 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains some parameterizations of various VM
-;;; attributes for the x86.  This file is separate from other stuff so 
-;;; that it can be compiled and loaded earlier. 
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; Enhancements/debugging by Douglas T. Crosher 1996,1997.
-;;;
+;;; Some parameterizations of various VM attributes for the x86.  This file
+;;; is separate from other stuff so that it can be compiled and loaded
+;;; earlier.
 
-(in-package :x86)
+(in-package "X86")
+
 (use-package :c)
 
 ;;; ### Note: we simultaneously use ``word'' to mean a 32 bit quantity and
@@ -52,7 +34,7 @@
 #|
 ;;;
 ;;; windows NT uses a memory system granularity of 64K, which means everything
-;;; that gets mapped must be a multiple of that.  The real page size is 512, but 
+;;; that gets mapped must be a multiple of that.  The real page size is 512, but
 ;;; that doesn't do us a whole lot of good.  Effectively, the page size is 64K
 ;;;
 (setf (backend-page-size *target-backend*) 65536)
@@ -85,8 +67,6 @@
 	  float-imprecise-trap-bit float-invalid-trap-bit
 	  float-divide-by-zero-trap-bit))
 
-	  
-
 (eval-when (compile load eval)
 
 (defconstant word-bits 32
@@ -105,9 +85,9 @@
 (eval-when (compile load eval)
 (defconstant float-sign-shift 31)
 
-;; These values were taken from the alpha code. The values for
-;; bias and exponent min/max are not the same as shown in the 486 book.
-;; They may be correct for how Python uses them.
+;; These values were taken from the alpha code.  The values for bias and
+;; exponent min/max are not the same as shown in the 486 book.  They may be
+;; correct for how Python uses them.
 (defconstant single-float-bias 126)	; Intel says 127
 (defconstant single-float-exponent-byte (byte 8 23))
 (defconstant single-float-significand-byte (byte 23 0))
@@ -172,14 +152,14 @@
 	  target-dynamic-space-start))
 
 ;;; Where to put the different spaces.
-;;; 
+;;;
 (defparameter target-read-only-space-start #x10000000)
 (defparameter target-static-space-start    #x28000000)
 (defparameter target-dynamic-space-start   #x48000000)
 
 ;;; Given that NIL is the first thing allocated in static space, we
 ;;; know its value at compile time:
-;;; 
+;;;
 (defparameter nil-value #x2800000B)
 
 
@@ -209,7 +189,6 @@
   call-site
   function-prologue
   function-epilogue)
-
 
 
 ;;;; Static symbols.
@@ -304,22 +283,14 @@
       spare-3
       spare-2
       spare-1
-      
+
       ;; Used by CGC.
       *x86-cgc-active-p*
-      *static-blue-bag*		; Must be last or change C code
-      ))
+      *static-blue-bag*))		; Must be last or change C code
 
 (defparameter static-functions
   '(length
     two-arg-+ two-arg-- two-arg-* two-arg-/ two-arg-< two-arg-> two-arg-= eql
-    %negate two-arg-and two-arg-ior two-arg-xor two-arg-gcd two-arg-lcm
-    ))
+    %negate two-arg-and two-arg-ior two-arg-xor two-arg-gcd two-arg-lcm))
 
-;;;
-;;; Stuff added by jrd ----
-;;;
-
-
-;;; cf the sparc PARMS.LISP
 (defparameter *assembly-unit-length* 8)

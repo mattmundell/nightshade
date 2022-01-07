@@ -1,20 +1,6 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/ctype.lisp,v 1.32.2.1 2000/07/07 09:34:20 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains code which knows about both the type representation
-;;; and the compiler IR1 representation.  This stuff is used for doing type
-;;; checking.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; Code which knows about both the type representation and the compiler
+;;; IR1 representation.  Used for type checking.
+
 (in-package "C")
 
 ;;; These are the functions that are to be called when a problem is detected.
@@ -28,7 +14,7 @@
 
 ;;; The function that we use for type checking.  The derived type is the first
 ;;; argument and the type we are testing against is the second argument.  The
-;;; function should return values like Csubtypep. 
+;;; function should return values like Csubtypep.
 ;;;
 (defvar *test-function*)
 
@@ -42,10 +28,9 @@
 (defvar *lossage-detected*)
 (defvar *slime-detected*)
 
-
 ;;; Note-Lossage, Note-Slime  --  Internal
 ;;;
-;;;    Signal a warning if appropriate and set the *lossage-detected* flag.
+;;; Signal a warning if appropriate and set the *lossage-detected* flag.
 ;;;
 (defun note-lossage (format-string &rest format-args)
   (declare (string format-string))
@@ -59,7 +44,6 @@
   (when *warning-function*
     (apply *warning-function* format-string format-args)))
 
-
 (proclaim '(special *compiler-error-context*))
 
 
@@ -67,17 +51,16 @@
 
 ;;; ALWAYS-SUBTYPEP  --  Interface
 ;;;
-;;;    A dummy version of SUBTYPEP useful when we want a functional like
+;;; A dummy version of SUBTYPEP useful when we want a functional like
 ;;; subtypep that always returns true.
 ;;;
 (defun always-subtypep (type1 type2)
   (declare (ignore type1 type2))
   (values t t))
 
-
 ;;; Valid-Function-Use  --  Interface
 ;;;
-;;;    Determine whether a use of a function is consistent with its type.
+;;; Determine whether a use of a function is consistent with its type.
 ;;; These values are returned:
 ;;;    T, T: the call is definitely valid.
 ;;;    NIL, T: the call is definitely invalid.
@@ -116,7 +99,7 @@
 	 (max-args (+ min-args (length optional)))
 	 (rest (function-type-rest type))
 	 (keyp (function-type-keyp type)))
-    
+
     (cond
      ((function-type-wild-args type)
       (do ((i 1 (1+ i))
@@ -146,7 +129,7 @@
       (check-fixed-and-rest args (append required optional) rest)
       (when keyp
 	(check-keywords args max-args type))))
-    
+
     (let* ((dtype (node-derived-type call))
 	   (return-type (function-type-returns type))
 	   (cont (node-cont call))
@@ -164,21 +147,20 @@
 	      ((not int)
 	       (note-lossage "The result is a ~S, not a ~S."
 			     (type-specifier out-type)
-			     (type-specifier return-type)))))) 
-    
+			     (type-specifier return-type))))))
+
     (cond (*lossage-detected* (values nil t))
 	  (*slime-detected* (values nil nil))
 	  (t (values t t)))))
 
-
 ;;; Check-Arg-Type  --  Internal
 ;;;
-;;;    Check that the derived type of the continuation Cont is compatible with
-;;; Type.  N is the arg number, for error message purposes.  We return true if
-;;; arg is definitely o.k.  If the type is a magic CONSTANT-TYPE, then we check
-;;; for the argument being a constant value of the specified type.  If there is
-;;; a manfest type error (DERIVED-TYPE = NIL), then we flame about the asserted
-;;; type even when our type is satisfied under the test.
+;;; Check that the derived type of the continuation Cont is compatible with
+;;; Type.  N is the arg number, for error message purposes.  We return true
+;;; if arg is definitely o.k.  If the type is a magic CONSTANT-TYPE, then
+;;; we check for the argument being a constant value of the specified type.
+;;; If there is a manfest type error (DERIVED-TYPE = NIL), then we flame
+;;; about the asserted type even when our type is satisfied under the test.
 ;;;
 (defun check-arg-type (cont type n)
   (declare (type continuation cont) (type ctype type) (type index n))
@@ -219,12 +201,11 @@
 		nil)
 	       (t t)))))))
 
-  
 ;;; Check-Fixed-And-Rest  --  Internal
 ;;;
-;;;    Check that each of the type of each supplied argument intersects with
-;;; the type specified for that argument.  If we can't tell, then we complain
-;;; about the slime.
+;;; Check that each of the type of each supplied argument intersects with
+;;; the type specified for that argument.  If we can't tell, then we
+;;; complain about the slime.
 ;;;
 (defun check-fixed-and-rest (args types rest)
   (declare (list args types) (type (or ctype null) rest))
@@ -239,10 +220,9 @@
     (declare (fixnum n))
     (check-arg-type (car arg) (car type) n)))
 
-
 ;;; Check-Keywords  --  Internal
 ;;;
-;;;    Check that the keyword args are of the correct type.  Each keyword
+;;; Check that the keyword args are of the correct type.  Each keyword
 ;;; should be known and the corresponding argument should be of the correct
 ;;; type.  If the keyword isn't a constant, then we can't tell, so we note
 ;;; slime.
@@ -271,10 +251,9 @@
 		 (check-arg-type (second key) (key-info-type info)
 				 (1+ n))))))))))
 
-
 ;;; Definition-Type  --  Interface
 ;;;
-;;;    Construct a function type from a definition.
+;;; Construct a function type from a definition.
 ;;;
 ;;; Due to the lack of a (list x) type specifier, we can't reconstruct the
 ;;; &rest type.
@@ -303,7 +282,7 @@
 		     (setq rest *universal-type*))
 		    (:more-count))
 		  (req type))))
-	  
+
 	  (make-function-type
 	   :required (req)  :optional (opt)  :rest rest  :keywords (keys)
 	   :keyp (optional-dispatch-keyp functional)
@@ -312,17 +291,15 @@
 		     (lambda-tail-set
 		      (optional-dispatch-main-entry functional))))))))
 
-
 
-;;;; Approximate function types:
+;;;; Approximate function types.
 ;;;
-;;;    Approximate function types provide a condensed representation of all the
-;;; different ways that a function has been used.  If we have no declared or
-;;; defined type for a function, then we build an approximate function type
-;;; by examining each use of the function.  When we encounter a definition or
-;;; proclamation, we can check the actual type for compatibity with the
-;;; previous uses.
-
+;;; Approximate function types provide a condensed representation of all
+;;; the different ways that a function has been used.  If we have no
+;;; declared or defined type for a function, then we build an approximate
+;;; function type by examining each use of the function.  When we encounter
+;;; a definition or proclamation, we can check the actual type for
+;;; compatibity with the previous uses.
 
 (defstruct (approximate-function-type)
   ;;
@@ -339,7 +316,6 @@
   ;; that looked like keyword arguments.  There are distinct structures
   ;; describing each argument position in which the keyword appeared.
   (keys () :type list))
-
 
 (defstruct (approximate-key-info)
   ;;
@@ -358,12 +334,11 @@
   ;; :allow-other-keys.
   (allowp nil :type (member t nil)))
 
-
 ;;; Note-Function-Use  --  Interface
 ;;;
-;;;    Return an Approximate-Function-Type representing the context of Call.
-;;; If Type is supplied and not null, then we merge the information into the
-;;; information already accumulated in Type.
+;;; Return an Approximate-Function-Type representing the context of Call.
+;;; If Type is supplied and not null, then we merge the information into
+;;; the information already accumulated in Type.
 ;;;
 (defun note-function-use (call &optional type)
   (declare (type combination call)
@@ -412,7 +387,7 @@
 				     (= (approximate-key-info-position x)
 					pos)))
 			    (keys)))
-		      (val-type (continuation-type val))) 
+		      (val-type (continuation-type val)))
 		  (cond (old
 			 (pushnew val-type
 				  (approximate-key-info-types old)
@@ -425,10 +400,9 @@
 				:types (list val-type))))))))))))
     type))
 
-
 ;;; Valid-Approximate-Type  --  Interface
 ;;;
-;;;    Similar to Valid-Function-Use, but checks an Approximate-Function-Type
+;;; Similar to Valid-Function-Use, but checks an Approximate-Function-Type
 ;;; against a real function type.
 ;;;
 (defun valid-approximate-type (call-type type &optional
@@ -478,10 +452,9 @@
 	  (*slime-detected* (values nil nil))
 	  (t (values t t)))))
 
-
 ;;; Check-Approximate-Fixed-And-Rest  --  Internal
 ;;;
-;;;    Check that each of the types used at each arg position is compatible
+;;; Check that each of the types used at each arg position is compatible
 ;;; with the actual type.
 ;;;
 (defun check-approximate-fixed-and-rest (call-type fixed rest)
@@ -496,10 +469,9 @@
       (unless decl-type (return))
       (check-approximate-arg-type (car types) decl-type "~:R" n))))
 
-
 ;;; Check-Approximate-Arg-Type  --  Internal
 ;;;
-;;;    Check that each of the call-types is compatible with Decl-Type,
+;;; Check that each of the call-types is compatible with Decl-Type,
 ;;; complaining if not or if we can't tell.
 ;;;
 (defun check-approximate-arg-type (call-types decl-type context &rest args)
@@ -519,12 +491,11 @@
       (note-lossage "~:(~?~) argument should be a ~S but was a ~S in a previous call."
 		    context args (type-specifier decl-type) (type-specifier losers)))))
 
-
 ;;; Check-Approximate-Keywords  --  Internal
 ;;;
-;;;    Check the types of each manifest keyword that appears in a keyword
-;;; argument position.  Check the validity of all keys that appeared in valid
-;;; keyword positions.
+;;; Check the types of each manifest keyword that appears in a keyword
+;;; argument position.  Check the validity of all keys that appeared in
+;;; valid keyword positions.
 ;;;
 ;;; ### We could check the Approximate-Function-Type-Types to make sure that
 ;;; all arguments in keyword positions were manifest keywords.
@@ -541,7 +512,7 @@
 			 (> pos max-args) (evenp (- pos max-args)))
 		(types (approximate-key-info-types call-key)))))
 	  (check-approximate-arg-type (types) (key-info-type key) "~S" name))))
-    
+
     (unless (function-type-allowp type)
       (collect ((names () adjoin))
 	(dolist (call-key call-keys)
@@ -560,7 +531,7 @@
 
 ;;; TRY-TYPE-INTERSECTIONS  --  Internal
 ;;;
-;;;    Intersect Lambda's var types with Types, giving a warning if there is a
+;;; Intersect Lambda's var types with Types, giving a warning if there is a
 ;;; mismatch.  If all intersections are non-null, we return lists of the
 ;;; variables and intersections, otherwise we return NIL, NIL.
 ;;;
@@ -583,31 +554,31 @@
 	  vars types)
     (values vars (res))))
 
-
 ;;; FIND-OPTIONAL-DISPATCH-TYPES  --  Internal
 ;;;
-;;;    Check that the optional-dispatch OD conforms to Type.  We return the
-;;; values of TRY-TYPE-INTERSECTIONS if there are no syntax problems, otherwise
-;;; NIL, NIL.
+;;; Check that the optional-dispatch OD conforms to Type.  We return the
+;;; values of TRY-TYPE-INTERSECTIONS if there are no syntax problems,
+;;; otherwise NIL, NIL.
 ;;;
-;;;    Note that the variables in the returned list are the actual original
-;;; variables (extracted from the optional dispatch arglist), rather than the
-;;; variables that are arguments to the main entry.  This difference is
+;;; Note that the variables in the returned list are the actual original
+;;; variables (extracted from the optional dispatch arglist), rather than
+;;; the variables that are arguments to the main entry.  This difference is
 ;;; significant only for keyword args with hairy defaults.  Returning the
 ;;; actual vars allows us to use the right variable name in warnings.
 ;;;
-;;;    A slightly subtle point: with keywords and optionals, the type in the
-;;; function type is only an assertion on calls --- it doesn't constrain the
-;;; type of default values.  So we have to union in the type of the default.
-;;; With optionals, we can't do any assertion unless the default is constant.
+;;; A slightly subtle point: with keywords and optionals, the type in the
+;;; function type is only an assertion on calls --- it doesn't constrain
+;;; the type of default values.  So we have to union in the type of the
+;;; default.  With optionals, we can't do any assertion unless the default
+;;; is constant.
 ;;;
-;;;    With keywords, we exploit our knowledge about how hairy keyword
+;;; With keywords, we exploit our knowledge about how hairy keyword
 ;;; defaulting is done when computing the type assertion to put on the
-;;; main-entry argument.  In the case of hairy keywords, the default has been
-;;; clobbered with NIL, which is the value of the main-entry arg in the
-;;; unsupplied case, whatever the actual default value is.  So we can just
-;;; assume the default is constant, effectively unioning in NULL, and not
-;;; totally blow off doing any type assertion.
+;;; main-entry argument.  In the case of hairy keywords, the default has
+;;; been clobbered with NIL, which is the value of the main-entry arg in
+;;; the unsupplied case, whatever the actual default value is.  So we can
+;;; just assume the default is constant, effectively unioning in NULL, and
+;;; not totally blow off doing any type assertion.
 ;;;
 (defun find-optional-dispatch-types (od type where)
   (declare (type optional-dispatch od) (type function-type type)
@@ -696,11 +667,10 @@
 
       (try-type-intersections (vars) (res) where))))
 
-
 ;;; FIND-LAMBDA-TYPES  --  Internal
 ;;;
-;;;    Check that Type doesn't specify any funny args, and do the intersection.
-;;; 
+;;; Check that Type doesn't specify any funny args, and do the intersection.
+;;;
 (defun find-lambda-types (lambda type where)
   (declare (type clambda lambda) (type function-type type) (string where))
   (flet ((frob (x what)
@@ -722,19 +692,18 @@
 	(values nil nil)
 	(try-type-intersections vars req where))))
 
-
 ;;; ASSERT-DEFINITION-TYPE  --  Interface
 ;;;
-;;;    Check for syntactic and type conformance between the definition
+;;; Check for syntactic and type conformance between the definition
 ;;; Functional and the specified Function-Type.  If they are compatible and
 ;;; Really-Assert is T, then add type assertions to the defintion from the
 ;;; Function-Type.
 ;;;
-;;;    If there is a syntactic or type problem, then we call Error-Function
-;;; with an error message using Where as context describing where Function-Type
-;;; came from.
+;;; If there is a syntactic or type problem, then we call Error-Function
+;;; with an error message using Where as context describing where
+;;; Function-Type came from.
 ;;;
-;;;    If there is no problem, we return T (even if Really-Assert was false).
+;;; If there is no problem, we return T (even if Really-Assert was false).
 ;;; If there was a problem, we return NIL.
 ;;;
 (defun assert-definition-type

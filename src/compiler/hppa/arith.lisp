@@ -1,21 +1,6 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/arith.lisp,v 1.4.2.1 2000/05/23 16:37:35 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the VM definition arithmetic VOPs for the HP-PA.
-;;;
-;;; Written by William Lott.
-;;; 
+;;; The VM definition arithmetic VOPs for the HP-PA.
 
 (in-package "HPPA")
-
 
 
 ;;;; Unary operations.
@@ -58,7 +43,6 @@
   (:translate lognot)
   (:generator 1
     (inst uaddcm zero-tn x res)))
-
 
 
 ;;;; Binary fixnum operations.
@@ -297,7 +281,6 @@
 	   ;; Count=0?  Shouldn't happen, but it's easy:
 	   (move number result)))))
 
-
 (define-vop (signed-byte-32-len)
   (:translate integer-length)
   (:note "inline (signed-byte 32) integer-length")
@@ -468,7 +451,7 @@
     (move r-pass r)))
 
 
-;;;; Binary conditional VOPs:
+;;;; Binary conditional VOPs.
 
 (define-vop (fast-conditional)
   (:conditional)
@@ -509,7 +492,6 @@
   (:args (x :scs (unsigned-reg)))
   (:arg-types unsigned-num (:constant (signed-byte 11)))
   (:info target not-p y))
-
 
 (defmacro define-conditional-vop (translate signed-cond unsigned-cond)
   `(progn
@@ -576,9 +558,9 @@
 (define-vop (generic-eql-c/fixnum fast-eql-c/fixnum)
   (:arg-types * (:constant (signed-byte 9)))
   (:variant-cost 6))
-  
+
 
-;;;; 32-bit logical operations
+;;;; 32-bit logical operations.
 
 (define-vop (32bit-logical)
   (:args (x :scs (unsigned-reg))
@@ -633,7 +615,6 @@
 (deftransform 32bit-logical-orc2 ((x y) (* *))
   '(32bit-logical-or x (32bit-logical-not y)))
 
-
 (define-vop (shift-towards-someplace)
   (:policy :fast-safe)
   (:args (num :scs (unsigned-reg))
@@ -657,7 +638,6 @@
   (:generator 1
     (inst mtctl amount :sar)
     (inst shd zero-tn num :variable r)))
-
 
 
 ;;;; Bignum stuff.

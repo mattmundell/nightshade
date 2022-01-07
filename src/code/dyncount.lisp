@@ -68,7 +68,7 @@ VOP classification.
     (with-standard-io-syntax
       (let ((*print-readably* nil))
 	(format s "~A~%Version ~A on ~A~%"
-		comment (lisp-implementation-version)
+		comment (version)
 		(machine-instance))
 	(format-universal-time s (get-universal-time))
 	(terpri s)

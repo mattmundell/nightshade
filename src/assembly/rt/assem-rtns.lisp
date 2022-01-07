@@ -1,19 +1,4 @@
-;;; -*- Package: RT; Log: c.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/rt/assem-rtns.lisp,v 1.6 1994/10/31 04:57:00 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/assembly/rt/assem-rtns.lisp,v 1.6 1994/10/31 04:57:00 ram Exp $
-;;;
-
 (in-package "RT")
-
 
 
 ;;;; Non-local exit noise.
@@ -65,12 +50,12 @@
 			  (:temp catch any-reg a1-offset)
 			  (:temp tag descriptor-reg a2-offset)
 			  (:temp ndescr non-descriptor-reg nl0-offset))
-  
+
   ;; These are needed by UNWIND, but not by us directly.
   (declare (ignore start count))
 
   (load-symbol-value catch lisp::*current-catch-block*)
-  
+
   LOOP
 
   (let ((error (generate-error-code nil unseen-throw-tag-error target)))
@@ -88,7 +73,6 @@
   (move target catch)
   (inst cai ndescr (make-fixup 'unwind :assembly-routine))
   (inst b ndescr))
-
 
 
 ;;;; Return unknown multiple values (known not to be one value).
@@ -150,7 +134,6 @@
   ;;
   ;; Return.
   (lisp-return lra lip))
-
 
 
 ;;;; Copying more args on call (known to be at least one more arg.)
@@ -240,13 +223,13 @@
   ;; Are we done copying stack more args?
   (inst c count/src srcstart)
   (inst bnc :lt CMA-LOOP)
-  
+
   ;; Figure out which argument registers may be more args.
   (inst c fixedargs (fixnum 2))
   (inst bc :eq two-fixed-args)
   (inst c fixedargs (fixnum 1))
   (inst bc :eq one-fixed-arg)
-  
+
   ;; Copy register more args being careful to stop before running out of args.
   (storew a0 ocsp)
   (inst c nargs-tn (fixnum 1))
@@ -268,7 +251,6 @@
   (inst dec csp-tn (* 3 word-bytes))
   (loadw count/src nsp-tn -1)
   (inst b lip-tn))
-
 
 
 ;;;; Tail call variable.

@@ -50,32 +50,38 @@
 				      (current-exceptions nil current-x-p)
 				      (accrued-exceptions nil accrued-x-p)
 				      (fast-mode nil fast-mode-p))
-  "This function sets options controlling the floating-point hardware.  If a
-  keyword is not supplied, then the current value is preserved.  Possible
-  keywords:
+  "Set options controlling the floating-point hardware.  If called as a
+   leaf, then preserve the current value.  Possible keywords:
 
-   :TRAPS
-       A list of the exception conditions that should cause traps.  Possible
-       exceptions are :UNDERFLOW, :OVERFLOW, :INEXACT, :INVALID,
-       :DIVIDE-BY-ZERO, and on the X86 :DENORMALIZED-OPERAND.  Initially
-       all traps except :INEXACT are enabled.
+     % $traps
 
-   :ROUNDING-MODE
-       The rounding mode to use when the result is not exact.  Possible values
-       are :NEAREST, :POSITIVE-INFINITY, :NEGATIVE-INFINITY and :ZERO.
-       Initially, the rounding mode is :NEAREST.
+       A list of the exception conditions that should cause traps.
+       Possible exceptions are :underflow, :overflow, :inexact, :invalid,
+       :divide-by-zero, and on the X86 :denormalized-operand.  Initially
+       all traps except :inexact are enabled.  \xlref{float-traps}
 
-   :CURRENT-EXCEPTIONS
-   :ACCRUED-EXCEPTIONS
-       These arguments allow setting of the exception flags.  The main use is
-       setting the accrued exceptions to NIL to clear them.
+     % $rounding-mode
 
-   :FAST-MODE
+       The rounding mode to use when the result is not exact.  Possible
+       values are :nearest, :positive-infinity, :negative-infinity and
+       :zero.  Initially, the rounding mode is :nearest.
+
+     % $current-exceptions :accrued-exceptions
+
+       Lists of exception keywords used to set the exception flags.  The
+       $current-exceptions are the exceptions for the previous operation,
+       so setting it hardly useful.  The $accrued-exceptions are a
+       cumulative record of the exceptions that occurred since the last
+       time these flags were cleared.  Specifying () clears any accrued
+       exceptions.
+
+     % :fast-mode
+
        Set the hardware's \"fast mode\" flag, if any.  When set, IEEE
        conformance or debuggability may be impaired.  Some machines may not
-       have this feature, in which case the value is always NIL.
+       have this feature, in which case the value is always ().
 
-   GET-FLOATING-POINT-MODES may be used to find the floating point modes
+   `get-floating-point-modes' may be used to find the floating point modes
    currently in effect."
   (let ((modes (floating-point-modes)))
     (when traps-p
@@ -101,12 +107,13 @@
 ;;; GET-FLOATING-POINT-MODES  --  Public
 ;;;
 (defun get-floating-point-modes ()
-  "This function returns a list representing the state of the floating point
-   modes.  The list is in the same format as the keyword arguments to
-   SET-FLOATING-POINT-MODES, i.e.
+  "This function returns a list representing the state of the floating
+   point modes.  The list is in the same format as the keyword arguments to
+   `set-floating-point-modes', i.e.
+
        (apply #'set-floating-point-modes (get-floating-point-modes))
 
-   sets the floating point modes to their current values (and thus is a no-op)."
+   sets the floating point modes to their current values."
   (flet ((exc-keys (bits)
 	   (macrolet ((frob ()
 			`(collect ((res))

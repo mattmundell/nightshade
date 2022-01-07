@@ -1,45 +1,118 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/locall.lisp,v 1.46.2.4 2000/09/07 12:17:11 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file implements local call analysis.  A local call is a function
-;;; call between functions being compiled at the same time.  If we can tell at
-;;; compile time that such a call is legal, then we change the combination
-;;; to call the correct lambda, mark it as local, and add this link to our call
-;;; graph.  Once a call is local, it is then eligible for let conversion, which
+;;; Local call analysis.  A local call is a function call between functions
+;;; being compiled at the same time.  If we can tell at compile time that
+;;; such a call is legal, then we change the combination to call the
+;;; correct lambda, mark it as local, and add this link to our call graph.
+;;; Once a call is local, it is then eligible for let conversion, which
 ;;; places the body of the function inline.
 ;;;
-;;;    We cannot always do a local call even when we do have the function being
-;;; called.  Calls that cannot be shown to have legal arg counts are not
-;;; converted.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; We cannot always do a local call even when we do have the function
+;;; being called.  Calls that cannot be shown to have legal arg counts are
+;;; not converted.
+
 (in-package :c)
 
+#[ Local Call Analysis
+
+    Find calls to local functions and convert them to local calls to the
+    correct entry point, doing keyword parsing, etc.  Recognize once-called
+    functions as `let's.  Create "external entry points" for entry-point
+    functions.
+
+Phase position: 2/23 (front)
+
+Presence: mandatory
+
+Files: locall
+
+Entry functions: `local-call-analyze', `local-call-analyze-1'
+
+Call sequences:
+
+    local-call-analyze
+      local-call-analyze-1
+        reference-entry-point
+        convert-call-if-possible
+          maybe-expand-local-inline
+          convert-lambda-call
+            convert-call
+              propagate-to-args
+              merge-tail-sets
+          convert-hairy-call
+          convert-mv-call
+      maybe-let-convert
+        let-convert
+          move-return-stuff
+          merge-lets
+
+[Implicit Continuation Representation] describes blocks.
+
+component  described where?
+
+    initial component
+
+All calls to local functions (known named functions and LETs) are resolved
+to the exact LAMBDA node which is to be called.  If the call is
+syntactically illegal, then we emit a warning and mark the reference as
+:notinline, forcing the call to be a full call.  We don't even think about
+converting APPLY calls; APPLY is not special-cased at all in ICR.  We also
+take care not to convert calls in the top-level component, which would join
+it to normal code.  Calls to functions with rest args and calls with
+non-constant keywords are also not converted.
+
+We also convert MV-Calls that look like MULTIPLE-VALUE-BIND to local calls,
+since we know that they can be open-coded.  We replace the optional
+dispatch with a call to the last optional entry point, letting MV-Call
+magically default the unsupplied values to NIL.
+
+When ICR optimizations discover a possible new local call, they explicitly
+invoke local call analysis on the code that needs to be reanalyzed.
+
+    XXX Let conversion.  What it means to be a let.  Argument type checking done
+    by caller.  Significance of local call is that all callers are known, so
+    special call conventions may be used.]
+    A lambda called in only one place is called a "let" call, since a Let would
+    turn into one.
+
+In addition to enabling various ICR optimizations, the let/non-let
+distinction has important environment significance.  We treat the code in a
+function and all of the lets called by that function as being in the same
+environment.  This allows exits from lets to be treated as local exits, and
+makes life easy for environment analysis.
+
+Since we will let-convert any function with only one call, we must be
+careful about cleanups.  It is possible that a lexical exit from the let
+function may have to clean up dynamic bindings not lexically apparent at
+the exit point.  We handle this by annotating lets with any cleanup in
+effect at the call site.  The cleanup for continuations with no immediately
+enclosing cleanup is the lambda that the continuation is in.  In this case,
+we look at the lambda to see if any cleanups need to be done.
+
+Let conversion is disabled for entry-point functions, since otherwise we
+might convert the call from the XEP to the entry point into a let.  Then
+later on, we might want to convert a non-local reference into a local call,
+and not be able to, since once a function has been converted to a let, we
+can't convert it back.
+
+A function's return node may also be deleted if it is unreachable, which
+can happen if the function never returns normally.  Such functions are not
+lets.
+]#
 
 ;;; Propagate-To-Args  --  Interface
 ;;;
-;;;    This function propagates information from the variables in the function
-;;; Fun to the actual arguments in Call.  This is also called by the VALUES IR1
-;;; optimizer when it sleazily converts MV-BINDs to LETs.
+;;; This function propagates information from the variables in the function
+;;; Fun to the actual arguments in Call.  This is also called by the VALUES
+;;; IR1 optimizer when it sleazily converts MV-BINDs to LETs.
 ;;;
-;;;    We flush all arguments to Call that correspond to unreferenced variables
-;;; in Fun.  We leave NILs in the Combination-Args so that the remaining args
-;;; still match up with their vars.
+;;; We flush all arguments to Call that correspond to unreferenced
+;;; variables in Fun.  We leave NILs in the Combination-Args so that the
+;;; remaining args still match up with their vars.
 ;;;
-;;;    We also apply the declared variable type assertion to the argument
+;;; We also apply the declared variable type assertion to the argument
 ;;; continuations.
 ;;;
 (defun propagate-to-args (call fun)
-  (declare (type combination call) (type clambda fun)) 
+  (declare (type combination call) (type clambda fun))
   (do ((args (basic-combination-args call) (cdr args))
        (vars (lambda-vars fun) (cdr vars)))
       ((null args))
@@ -50,23 +123,23 @@
 	    (t
 	     (flush-dest arg)
 	     (setf (car args) nil)))))
-      
-  (undefined-value))
 
+  (undefined-value))
 
 ;;; Merge-Tail-Sets  --  Interface
 ;;;
-;;;    This function handles merging the tail sets if Call is potentially
-;;; tail-recursive, and is a call to a function with a different TAIL-SET than
-;;; Call's Fun.  This must be called whenever we alter IR1 so as to place a
-;;; local call in what might be a TR context.  Note that any call which returns
-;;; its value to a RETURN is considered potentially TR, since any implicit
-;;; MV-PROG1 might be optimized away.
+;;; This function handles merging the tail sets if Call is potentially
+;;; tail-recursive, and is a call to a function with a different TAIL-SET
+;;; than Call's Fun.  This must be called whenever we alter IR1 so as to
+;;; place a local call in what might be a TR context.  Note that any call
+;;; which returns its value to a RETURN is considered potentially TR, since
+;;; any implicit MV-PROG1 might be optimized away.
 ;;;
-;;; We destructively modify the set for the calling function to represent both,
-;;; and then change all the functions in callee's set to reference the first.
-;;; If we do merge, we reoptimize the RETURN-RESULT continuation to cause
-;;; IR1-OPTIMIZE-RETURN to recompute the tail set type.
+;;; We destructively modify the set for the calling function to represent
+;;; both, and then change all the functions in callee's set to reference
+;;; the first.  If we do merge, we reoptimize the RETURN-RESULT
+;;; continuation to cause IR1-OPTIMIZE-RETURN to recompute the tail set
+;;; type.
 ;;;
 (defun merge-tail-sets (call &optional (new-fun (combination-lambda call)))
   (declare (type basic-combination call) (type clambda new-fun))
@@ -83,20 +156,19 @@
 	  (reoptimize-continuation (return-result return))
 	  t)))))
 
-
 ;;; Convert-Call  --  Internal
 ;;;
-;;;    Convert a combination into a local call.  We PROPAGATE-TO-ARGS, set the
-;;; combination kind to :Local, add Fun to the Calls of the function that the
-;;; call is in, call MERGE-TAIL-SETS, then replace the function in the Ref node
-;;; with the new function.
+;;; Convert a combination into a local call.  We PROPAGATE-TO-ARGS, set the
+;;; combination kind to :Local, add Fun to the Calls of the function that
+;;; the call is in, call MERGE-TAIL-SETS, then replace the function in the
+;;; Ref node with the new function.
 ;;;
 ;;; We change the Ref last, since changing the reference can trigger let
-;;; conversion of the new function, but will only do so if the call is local.
-;;; Note that the replacement may trigger let conversion or other changes in
-;;; IR1.  We must call MERGE-TAIL-SETS with NEW-FUN before the substitution,
-;;; since after the substitution (and let conversion), the call may no longer
-;;; be recognizable as tail-recursive.
+;;; conversion of the new function, but will only do so if the call is
+;;; local.  Note that the replacement may trigger let conversion or other
+;;; changes in IR1.  We must call MERGE-TAIL-SETS with NEW-FUN before the
+;;; substitution, since after the substitution (and let conversion), the
+;;; call may no longer be recognizable as tail-recursive.
 ;;;
 (defun convert-call (ref call fun)
   (declare (type ref ref) (type combination call) (type clambda fun))
@@ -108,35 +180,35 @@
   (undefined-value))
 
 
-;;;; External entry point creation:
+;;;; External entry point creation.
 
 ;;; Make-XEP-Lambda  --  Internal
 ;;;
-;;;    Return a Lambda form that can be used as the definition of the XEP for
+;;; Return a Lambda form that can be used as the definition of the XEP for
 ;;; Fun.
 ;;;
-;;;    If Fun is a lambda, then we check the number of arguments (conditional
+;;; If Fun is a lambda, then we check the number of arguments (conditional
 ;;; on policy) and call Fun with all the arguments.
 ;;;
-;;;    If Fun is an Optional-Dispatch, then we dispatch off of the number of
-;;; supplied arguments by doing do an = test for each entry-point, calling the
-;;; entry with the appropriate prefix of the passed arguments.
+;;; If Fun is an Optional-Dispatch, then we dispatch off of the number of
+;;; supplied arguments by doing do an = test for each entry-point, calling
+;;; the entry with the appropriate prefix of the passed arguments.
 ;;;
-;;;    If there is a more arg, then there are a couple of optimizations that we
+;;; If there is a more arg, then there are a couple of optimizations that we
 ;;; make (more for space than anything else):
 ;;; -- If Min-Args is 0, then we make the more entry a T clause, since no
 ;;;    argument count error is possible.
 ;;; -- We can omit the = clause for the last entry-point, allowing the case of
 ;;;    0 more args to fall through to the more entry.
 ;;;
-;;;    We don't bother to policy conditionalize wrong arg errors in optional
+;;; We don't bother to policy conditionalize wrong arg errors in optional
 ;;; dispatches, since the additional overhead is negligible compared to the
 ;;; other hair going down.
 ;;;
-;;;    Note that if policy indicates it, argument type declarations in Fun will
-;;; be verified.  Since nothing is known about the type of the XEP arg vars,
-;;; type checks will be emitted when the XEP's arg vars are passed to the
-;;; actual function.
+;;; Note that if policy indicates it, argument type declarations in Fun
+;;; will be verified.  Since nothing is known about the type of the XEP arg
+;;; vars, type checks will be emitted when the XEP's arg vars are passed to
+;;; the actual function.
 ;;;
 (defun make-xep-lambda (fun)
   (declare (type functional fun))
@@ -184,17 +256,17 @@
 	     (t
 	      (%argument-count-error ,n-supplied)))))))))
 
-
 ;;; Make-External-Entry-Point  --  Internal
 ;;;
-;;;    Make an external entry point (XEP) for Fun and return it.  We convert
-;;; the result of Make-XEP-Lambda in the correct environment, then associate
-;;; this lambda with Fun as its XEP.  After the conversion, we iterate over the
-;;; function's associated lambdas, redoing local call analysis so that the XEP
-;;; calls will get converted.  We also bind *lexical-environment* to change the
-;;; compilation policy over to the interface policy.
+;;; Make an external entry point (XEP) for Fun and return it.  We convert
+;;; the result of Make-XEP-Lambda in the correct environment, then
+;;; associate this lambda with Fun as its XEP.  After the conversion, we
+;;; iterate over the function's associated lambdas, redoing local call
+;;; analysis so that the XEP calls will get converted.  We also bind
+;;; *lexical-environment* to change the compilation policy over to the
+;;; interface policy.
 ;;;
-;;;    We set Reanalyze and Reoptimize in the component, just in case we
+;;; We set Reanalyze and Reoptimize in the component, just in case we
 ;;; discover an XEP after the initial local call analyze pass.
 ;;;
 (defun make-external-entry-point (fun)
@@ -220,15 +292,14 @@
 	   (local-call-analyze-1 (optional-dispatch-more-entry fun)))))
       res)))
 
-
 ;;; Reference-Entry-Point  --  Internal
 ;;;
-;;;    Notice a Ref that is not in a local-call context.  If the Ref is already
-;;; to an XEP, then do nothing, otherwise change it to the XEP, making an XEP
-;;; if necessary.
+;;; Notice a Ref that is not in a local-call context.  If the Ref is
+;;; already to an XEP, then do nothing, otherwise change it to the XEP,
+;;; making an XEP if necessary.
 ;;;
-;;;    If Ref is to a special :Cleanup or :Escape function, then we treat it as
-;;; though it was not an XEP reference (i.e. leave it alone.)
+;;; If Ref is to a special :Cleanup or :Escape function, then we treat it
+;;; as though it was not an XEP reference (i.e. leave it alone.)
 ;;;
 (defun reference-entry-point (ref)
   (declare (type ref ref))
@@ -238,28 +309,28 @@
       (change-ref-leaf ref (or (functional-entry-function fun)
 			       (make-external-entry-point fun))))))
 
-
 
 ;;; Local-Call-Analyze-1  --  Interface
 ;;;
-;;;    Attempt to convert all references to Fun to local calls.  The reference
-;;; must be the function for a call, and the function continuation must be used
-;;; only once, since otherwise we cannot be sure what function is to be called.
-;;; The call continuation would be multiply used if there is hairy stuff such
-;;; as conditionals in the expression that computes the function.
+;;; Attempt to convert all references to Fun to local calls.  The reference
+;;; must be the function for a call, and the function continuation must be
+;;; used only once, since otherwise we cannot be sure what function is to
+;;; be called.  The call continuation would be multiply used if there is
+;;; hairy stuff such as conditionals in the expression that computes the
+;;; function.
 ;;;
-;;;    If we cannot convert a reference, then we mark the referenced function
+;;; If we cannot convert a reference, then we mark the referenced function
 ;;; as an entry-point, creating a new XEP if necessary.  We don't try to
 ;;; convert calls that are in error (:ERROR kind.)
 ;;;
-;;;    This is broken off from Local-Call-Analyze so that people can force
-;;; analysis of newly introduced calls.  Note that we don't do let conversion
-;;; here.
+;;; This is broken off from Local-Call-Analyze so that people can force
+;;; analysis of newly introduced calls.  Note that we don't do let
+;;; conversion here.
 ;;;
 (defun local-call-analyze-1 (fun)
   (declare (type functional fun))
   (let ((refs (leaf-refs fun))
-	(first-time t))
+	(first-time t)) ; FIX what's this for?
     (dolist (ref refs)
       (let* ((cont (node-cont ref))
 	     (dest (continuation-dest cont)))
@@ -268,59 +339,57 @@
 		    (eq (continuation-use cont) ref))
 
 	       (convert-call-if-possible ref dest)
-	       
-	       (unless (eq (basic-combination-kind dest) :local)
-		 (reference-entry-point ref)))
+
+	       (or (eq (basic-combination-kind dest) :local)
+		   (reference-entry-point ref)))
 	      (t
 	       (reference-entry-point ref))))
       (setq first-time nil)))
 
   (undefined-value))
 
-
 ;;; Local-Call-Analyze  --  Interface
 ;;;
-;;;    We examine all New-Functions in component, attempting to convert calls
-;;; into local calls when it is legal.  We also attempt to convert each lambda
-;;; to a let.  Let conversion is also triggered by deletion of a function
-;;; reference, but functions that start out eligible for conversion must be
-;;; noticed sometime.
+;;; We examine all New-Functions in component, attempting to convert calls
+;;; into local calls when it is legal.  We also attempt to convert each
+;;; lambda to a let.  Let conversion is also triggered by deletion of a
+;;; function reference, but functions that start out eligible for
+;;; conversion must be noticed sometime.
 ;;;
-;;;    Note that there is a lot of action going on behind the scenes here,
-;;; triggered by reference deletion.  In particular, the Component-Lambdas are
-;;; being hacked to remove newly deleted and let converted lambdas, so it is
-;;; important that the lambda is added to the Component-Lambdas when it is.
-;;; Also, the COMPONENT-NEW-FUNCTIONS may contain all sorts of drivel, since it
-;;; is not updated when we delete functions, etc.  Only COMPONENT-LAMBDAS is
-;;; updated.
+;;; Note that there is a lot of action going on behind the scenes here,
+;;; triggered by reference deletion.  In particular, the Component-Lambdas
+;;; are being hacked to remove newly deleted and let converted lambdas, so
+;;; it is important that the lambda is added to the Component-Lambdas when
+;;; it is.  Also, the COMPONENT-NEW-FUNCTIONS may contain all sorts of
+;;; drivel, since it is not updated when we delete functions, etc.  Only
+;;; COMPONENT-LAMBDAS is updated.
 ;;;
-;;; COMPONENT-REANALYZE-FUNCTIONS is treated similarly to NEW-FUNCTIONS, but we
-;;; don't add lambdas to the LAMBDAS.
+;;; COMPONENT-REANALYZE-FUNCTIONS is treated similarly to NEW-FUNCTIONS,
+;;; but we don't add lambdas to the LAMBDAS.
 ;;;
 (defun local-call-analyze (component)
   (declare (type component component))
   (loop
     (let* ((new (pop (component-new-functions component)))
 	   (fun (or new (pop (component-reanalyze-functions component)))))
-      (unless fun (return))
+      (or fun (return))
       (let ((kind (functional-kind fun)))
 	(cond ((member kind '(:deleted :let :mv-let :assignment)))
 	      ((and (null (leaf-refs fun)) (eq kind nil)
 		    (not (functional-entry-function fun)))
 	       (delete-functional fun))
 	      (t
-	       (when (and new (lambda-p fun))
-		 (push fun (component-lambdas component)))
+	       (and new (lambda-p fun)
+		    (push fun (component-lambdas component)))
 	       (local-call-analyze-1 fun)
-	       (when (lambda-p fun)
-		 (maybe-let-convert fun)))))))
-  
-  (undefined-value))
+	       (if (lambda-p fun)
+		   (maybe-let-convert fun)))))))
 
+  (undefined-value))
 
 ;;; MAYBE-EXPAND-LOCAL-INLINE  --  Internal
 ;;;
-;;;    If policy is auspicious, Call is not in an XEP, and we don't seem to be
+;;; If policy is auspicious, Call is not in an XEP, and we don't seem to be
 ;;; in an infinite recursive loop, then change the reference to reference a
 ;;; fresh copy.  We return whichever function we decide to reference.
 ;;;
@@ -348,28 +417,26 @@
 		 fun))))
       fun))
 
-
 ;;; Convert-Call-If-Possible  --  Interface
 ;;;
-;;;    Dispatch to the appropriate function to attempt to convert a call.  Ref
-;;; most be a reference to a FUNCTIONAL.  This is called in IR1 optimize as
-;;; well as in local call analysis.  If the call is is already :Local, we do
-;;; nothing.  If the call is already scheduled for deletion, also do nothing
-;;; (in addition to saving time, this also avoids some problems with optimizing
-;;; collections of functions that are partially deleted.)
+;;; Dispatch to the appropriate function to attempt to convert a call.  Ref
+;;; must be a reference to a FUNCTIONAL.  This is called in IR1 optimize as
+;;; well as in local call analysis.  If the call is already :Local, we do
+;;; nothing.  If the call is already scheduled for deletion, also do
+;;; nothing (in addition to saving time, this also avoids some problems
+;;; with optimizing collections of functions that are partially deleted.)
 ;;;
-;;;    This is called both before and after FIND-INITIAL-DFO runs.  When called
-;;; on a :INITIAL component, we don't care whether the caller and callee are in
-;;; the same component.  Afterward, we must stick with whatever component
-;;; division we have chosen.
+;;; This is called both before and after FIND-INITIAL-DFO runs.  When
+;;; called on a :INITIAL component, we don't care whether the caller and
+;;; callee are in the same component.  Afterward, we must stick with
+;;; whatever component division we have chosen.
 ;;;
-;;;    Before attempting to convert a call, we see if the function is supposed
+;;; Before attempting to convert a call, we see if the function is supposed
 ;;; to be inline expanded.  Call conversion proceeds as before after any
 ;;; expansion.
 ;;;
-;;;    We bind *Compiler-Error-Context* to the node for the call so that
+;;; We bind *compiler-error-context* to the node for the call so that
 ;;; warnings will get the right context.
-;;;
 ;;;
 (defun convert-call-if-possible (ref call)
   (declare (type ref ref) (type basic-combination call))
@@ -377,49 +444,49 @@
 	 (component (block-component block))
 	 (original-fun (ref-leaf ref)))
     (assert (functional-p original-fun))
-    (unless (or (member (basic-combination-kind call) '(:local :error))
-		(block-delete-p block)
-		(eq (functional-kind (block-home-lambda block)) :deleted)
-		(member (functional-kind original-fun)
-			'(:top-level-xep :deleted))
-		(not (or (eq (component-kind component) :initial)
-			 (eq (block-component
-			      (node-block
-			       (lambda-bind (main-entry original-fun))))
-			     component))))
-      (let ((fun (if (external-entry-point-p original-fun)
-		     (functional-entry-function original-fun)
-		     original-fun))
-	    (*compiler-error-context* call))
-	
-	(when (and (eq (functional-inlinep fun) :inline)
-		   (rest (leaf-refs original-fun)))
-	  (setq fun (maybe-expand-local-inline fun ref call)))
-	
-	(assert (member (functional-kind fun)
-			'(nil :escape :cleanup :optional)))
-	(cond ((mv-combination-p call)
-	       (convert-mv-call ref call fun))
-	      ((lambda-p fun)
-	       (convert-lambda-call ref call fun))
-	      (t
-	       (convert-hairy-call ref call fun))))))
+    (or (member (basic-combination-kind call) '(:local :error))
+	(block-delete-p block)
+	(eq (functional-kind (block-home-lambda block)) :deleted)
+	(member (functional-kind original-fun)
+		'(:top-level-xep :deleted))
+	(if (or (eq (component-kind component) :initial)
+		(eq (block-component
+		     (node-block
+		      (lambda-bind (main-entry original-fun))))
+		    component))
+	    (let ((fun (if (external-entry-point-p original-fun)
+			   (functional-entry-function original-fun)
+			   original-fun))
+		  (*compiler-error-context* call))
+
+	      (when (and (eq (functional-inlinep fun) :inline)
+			 (rest (leaf-refs original-fun)))
+		(setq fun (maybe-expand-local-inline fun ref call)))
+
+	      (assert (member (functional-kind fun)
+			      '(nil :escape :cleanup :optional)))
+	      (cond ((mv-combination-p call)
+		     (convert-mv-call ref call fun))
+		    ((lambda-p fun)
+		     (convert-lambda-call ref call fun))
+		    (t
+		     (convert-hairy-call ref call fun)))))))
 
   (undefined-value))
 
-
 ;;; Convert-MV-Call  --  Internal
 ;;;
-;;;    Attempt to convert a multiple-value call.  The only interesting case is
-;;; a call to a function that Looks-Like-An-MV-Bind, has exactly one reference
-;;; and no XEP, and is called with one values continuation.
+;;; Attempt to convert a multiple-value call.  The only interesting case is
+;;; a call to a function that Looks-Like-An-MV-Bind, has exactly one
+;;; reference and no XEP, and is called with one values continuation.
 ;;;
-;;;    We change the call to be to the last optional entry point and change the
-;;; call to be local.  Due to our preconditions, the call should eventually be
-;;; converted to a let, but we can't do that now, since there may be stray
-;;; references to the e-p lambda due to optional defaulting code.
+;;; We change the call to be to the last optional entry point and change
+;;; the call to be local.  Due to our preconditions, the call should
+;;; eventually be converted to a let, but we can't do that now, since there
+;;; may be stray references to the e-p lambda due to optional defaulting
+;;; code.
 ;;;
-;;;    We also use variable types for the called function to construct an
+;;; We also use variable types for the called function to construct an
 ;;; assertion for the values continuation.
 ;;;
 ;;; See CONVERT-CALL for additional notes on MERGE-TAIL-SETS, etc.
@@ -435,17 +502,16 @@
       (pushnew ep (lambda-calls (node-home-lambda call)))
       (merge-tail-sets call ep)
       (change-ref-leaf ref ep)
-      
+
       (assert-continuation-type
        (first (basic-combination-args call))
        (make-values-type :optional (mapcar #'leaf-type (lambda-vars ep))
 			 :rest *universal-type*))))
   (undefined-value))
 
-
 ;;; Convert-Lambda-Call  --  Internal
 ;;;
-;;;    Attempt to convert a call to a lambda.  If the number of args is wrong,
+;;; Attempt to convert a call to a lambda.  If the number of args is wrong,
 ;;; we give a warning and mark the call as :ERROR to remove it from future
 ;;; consideration.  If the argcount is O.K. then we just convert it.
 ;;;
@@ -461,16 +527,15 @@
 	    call-args nargs)
 	   (setf (basic-combination-kind call) :error)))))
 
-
 
-;;;; Optional, more and keyword calls:
+;;;; Optional, more and keyword calls.
 
 ;;; Convert-Hairy-Call  --  Internal
 ;;;
-;;;    Similar to Convert-Lambda-Call, but deals with Optional-Dispatches.  If
+;;; Similar to Convert-Lambda-Call, but deals with Optional-Dispatches.  If
 ;;; only fixed args are supplied, then convert a call to the correct entry
-;;; point.  If keyword args are supplied, then dispatch to a subfunction.  We
-;;; don't convert calls to functions that have a more (or rest) arg.
+;;; point.  If keyword args are supplied, then dispatch to a subfunction.
+;;; We don't convert calls to functions that have a more (or rest) arg.
 ;;;
 (defun convert-hairy-call (ref call fun)
   (declare (type ref ref) (type combination call)
@@ -494,20 +559,19 @@
 	   (setf (basic-combination-kind call) :error))))
   (undefined-value))
 
-
 ;;; Convert-Hairy-Fun-Entry  --  Internal
 ;;;
-;;;     This function is used to convert a call to an entry point when complex
-;;; transformations need to be done on the original arguments.  Entry is the
-;;; entry point function that we are calling.  Vars is a list of variable names
-;;; which are bound to the oringinal call arguments.  Ignores is the subset of
-;;; Vars which are ignored.  Args is the list of arguments to the entry point
-;;; function.
+;;; This function is used to convert a call to an entry point when complex
+;;; transformations need to be done on the original arguments.  Entry is
+;;; the entry point function that we are calling.  Vars is a list of
+;;; variable names which are bound to the oringinal call arguments.
+;;; Ignores is the subset of Vars which are ignored.  Args is the list of
+;;; arguments to the entry point function.
 ;;;
-;;;    In order to avoid gruesome graph grovelling, we introduce a new function
-;;; that rearranges the arguments and calls the entry point.  We analyze the
-;;; new function and the entry point immediately so that everything gets
-;;; converted during the single pass.
+;;; In order to avoid gruesome graph grovelling, we introduce a new
+;;; function that rearranges the arguments and calls the entry point.  We
+;;; analyze the new function and the entry point immediately so that
+;;; everything gets converted during the single pass.
 ;;;
 (defun convert-hairy-fun-entry (ref call entry vars ignores args)
   (declare (list vars ignores args) (type ref ref) (type combination call)
@@ -522,23 +586,22 @@
     (dolist (ref (leaf-refs entry))
       (convert-call-if-possible ref (continuation-dest (node-cont ref))))))
 
-
 ;;; Convert-More-Call  --  Internal
 ;;;
-;;;    Use Convert-Hairy-Fun-Entry to convert a more-arg call to a known
+;;; Use Convert-Hairy-Fun-Entry to convert a more-arg call to a known
 ;;; function into a local call to the Main-Entry.
 ;;;
-;;;    First we verify that all keywords are constant and legal.  If there
+;;; First we verify that all keywords are constant and legal.  If there
 ;;; aren't, then we warn the user and don't attempt to convert the call.
 ;;;
-;;;    We massage the supplied keyword arguments into the order expected by the
-;;; main entry.  This is done by binding all the arguments to the keyword call
-;;; to variables in the introduced lambda, then passing these values variables
-;;; in the correct order when calling the main entry.  Unused arguments
-;;; (such as the keywords themselves) are discarded simply by not passing them
-;;; along.
+;;; We massage the supplied keyword arguments into the order expected by
+;;; the main entry.  This is done by binding all the arguments to the
+;;; keyword call to variables in the introduced lambda, then passing these
+;;; values variables in the correct order when calling the main entry.
+;;; Unused arguments (such as the keywords themselves) are discarded simply
+;;; by not passing them along.
 ;;;
-;;;    If there is a rest arg, then we bundle up the args and pass them to
+;;; If there is a rest arg, then we bundle up the args and pass them to
 ;;; LIST.
 ;;;
 (defun convert-more-call (ref call fun)
@@ -590,7 +653,7 @@
 		(compiler-note "Non-constant keyword in keyword call."))
 	      (setf (basic-combination-kind call) :error)
 	      (return-from convert-more-call))
-	    
+
 	    (let ((name (continuation-value cont))
 		  (dummy (first temp))
 		  (val (second temp)))
@@ -603,7 +666,7 @@
 		    (ignores dummy)
 		    (supplied (cons var val))
 		    (return)))))))
-	
+
 	(when (and loser (not (optional-dispatch-allowp fun)))
 	  (compiler-warning "Function called with unknown argument keyword ~S."
 			    loser)
@@ -644,16 +707,16 @@
   (undefined-value))
 
 
-;;;; Let conversion:
+;;;; Let conversion.
 ;;;
-;;;    Converting to a let has differing significance to various parts of the
+;;; Converting to a let has differing significance to various parts of the
 ;;; compiler:
 ;;; -- The body of a Let is spliced in immediately after the corresponding
 ;;;    combination node, making the control transfer explicit and allowing lets
-;;;    to mashed together into a single block.  The value of the let is
+;;;    to be mashed together into a single block.  The value of the let is
 ;;;    delivered directly to the original continuation for the call,
 ;;;    eliminating the need to propagate information from the dummy result
-;;;    continuation. 
+;;;    continuation.
 ;;; -- As far as IR1 optimization is concerned, it is interesting in that there
 ;;;    is only one expression that the variable can be bound to, and this is
 ;;;    easily substitited for.
@@ -665,15 +728,14 @@
 ;;;    cleanup code must be emitted to remove dynamic bindings that are no
 ;;;    longer in effect.
 
-
 ;;; Insert-Let-Body  --  Internal
 ;;;
-;;;    Set up the control transfer to the called lambda.  We split the call
+;;; Set up the control transfer to the called lambda.  We split the call
 ;;; block immediately after the call, and link the head of Fun to the call
 ;;; block.  The successor block after splitting (where we return to) is
 ;;; returned.
 ;;;
-;;;    If the lambda is is a different component than the call, then we call
+;;; If the lambda is is a different component than the call, then we call
 ;;; JOIN-COMPONENTS.  This only happens in block compilation before
 ;;; FIND-INITIAL-DFO.
 ;;;
@@ -695,16 +757,16 @@
       (link-blocks call-block bind-block)
       next-block)))
 
-
 ;;; Merge-Lets  --  Internal
 ;;;
-;;;    Handle the environment semantics of let conversion.  We add the lambda
-;;; and its lets to lets for the Call's home function.  We merge the calls for
-;;; Fun with the calls for the home function, removing Fun in the process.  We
-;;; also merge the Entries.
+;;; Handle the environment semantics of let conversion.  We add the lambda
+;;; and its lets to lets for the Call's home function.  We merge the calls
+;;; for Fun with the calls for the home function, removing Fun in the
+;;; process.  We also merge the Entries.
 ;;;
-;;;   We also unlink the function head from the component head and set
-;;; Component-Reanalyze to true to indicate that the DFO should be recomputed.
+;;; We also unlink the function head from the component head and set
+;;; Component-Reanalyze to true to indicate that the DFO should be
+;;; recomputed.
 ;;;
 (defun merge-lets (fun call)
   (declare (type clambda fun) (type basic-combination call))
@@ -723,7 +785,7 @@
     (push fun (lambda-lets home))
     (setf (lambda-home fun) home)
     (setf (lambda-environment fun) home-env)
-    
+
     (let ((lets (lambda-lets fun)))
       (dolist (let lets)
 	(setf (lambda-home let) home)
@@ -741,19 +803,18 @@
     (setf (lambda-entries fun) ()))
   (undefined-value))
 
-
 ;;; Move-Return-Uses  --  Internal
 ;;;
-;;;    Handle the value semantics of let conversion.  Delete Fun's return node,
-;;; and change the control flow to transfer to Next-Block instead.  Move all
-;;; the uses of the result continuation to Call's Cont.
+;;; Handle the value semantics of let conversion.  Delete Fun's return
+;;; node, and change the control flow to transfer to Next-Block instead.
+;;; Move all the uses of the result continuation to Call's Cont.
 ;;;
-;;;    If the actual continuation is only used by the let call, then we
-;;; intersect the type assertion on the dummy continuation with the assertion
-;;; for the actual continuation; in all other cases assertions on the dummy
-;;; continuation are lost.
+;;; If the actual continuation is only used by the let call, then we
+;;; intersect the type assertion on the dummy continuation with the
+;;; assertion for the actual continuation; in all other cases assertions on
+;;; the dummy continuation are lost.
 ;;;
-;;;    We also intersect the derived type of the call with the derived type of
+;;; We also intersect the derived type of the call with the derived type of
 ;;; all the dummy continuation's uses.  This serves mainly to propagate
 ;;; TRULY-THE through lets.
 ;;;
@@ -778,13 +839,11 @@
       (substitute-continuation-uses cont result)))
   (undefined-value))
 
-
-
 ;;; MOVE-LET-CALL-CONT  --  Internal
 ;;;
-;;;    Change all Cont for all the calls to Fun to be the start continuation
-;;; for the bind node.  This allows the blocks to be joined if the caller count
-;;; ever goes to one.
+;;; Change all Cont for all the calls to Fun to be the start continuation
+;;; for the bind node.  This allows the blocks to be joined if the caller
+;;; count ever goes to one.
 ;;;
 (defun move-let-call-cont (fun)
   (declare (type clambda fun))
@@ -795,16 +854,16 @@
 	(add-continuation-use dest new-cont))))
   (undefined-value))
 
-
 ;;; Unconvert-Tail-Calls  --  Internal
 ;;;
-;;;    We are converting Fun to be a let when the call is in a non-tail
-;;; position.  Any previously tail calls in Fun are no longer tail calls, and
-;;; must be restored to normal calls which transfer to Next-Block (Fun's
-;;; return point.)  We can't do this by DO-USES on the RETURN-RESULT, because
-;;; the return might have been deleted (if all calls were TR.)
+;;; We are converting Fun to be a let when the call is in a non-tail
+;;; position.  Any previously tail calls in Fun are no longer tail calls,
+;;; and must be restored to normal calls which transfer to Next-Block
+;;; (Fun's return point.)  We can't do this by DO-USES on the
+;;; RETURN-RESULT, because the return might have been deleted (if all calls
+;;; were TR.)
 ;;;
-;;;    The called function might be an assignment in the case where we are
+;;; The called function might be an assignment in the case where we are
 ;;; currently converting that function.  In steady-state, assignments never
 ;;; appear in the lambda-calls.
 ;;;
@@ -829,18 +888,18 @@
 	     (assert (eq called fun))))))))
   (undefined-value))
 
-
 ;;; MOVE-RETURN-STUFF  --  Internal
 ;;;
-;;;    Deal with returning from a let or assignment that we are converting.
-;;; FUN is the function we are calling, CALL is a call to FUN, and NEXT-BLOCK
-;;; is the return point for a non-tail call, or NULL if call is a tail call.
+;;; Deal with returning from a let or assignment that we are converting.
+;;; FUN is the function we are calling, CALL is a call to FUN, and
+;;; NEXT-BLOCK is the return point for a non-tail call, or NULL if call is
+;;; a tail call.
 ;;;
-;;; If the call is not a tail call, then we must do UNCONVERT-TAIL-CALLS, since
-;;; a tail call is a call which returns its value out of the enclosing non-let
-;;; function.  When call is non-TR, we must convert it back to an ordinary
-;;; local call, since the value must be delivered to the receiver of CALL's
-;;; value.
+;;; If the call is not a tail call, then we must do UNCONVERT-TAIL-CALLS,
+;;; since a tail call is a call which returns its value out of the
+;;; enclosing non-let function.  When call is non-TR, we must convert it
+;;; back to an ordinary local call, since the value must be delivered to
+;;; the receiver of CALL's value.
 ;;;
 ;;; We do different things depending on whether the caller and callee have
 ;;; returns left:
@@ -873,15 +932,14 @@
   (move-let-call-cont fun)
   (undefined-value))
 
-
 ;;; Let-Convert  --  Internal
 ;;;
-;;;    Actually do let conversion.  We call subfunctions to do most of the
-;;; work.  We change the Call's cont to be the continuation heading the bind
-;;; block, and also do Reoptimize-Continuation on the args and Cont so that
-;;; let-specific IR1 optimizations get a chance.  We blow away any entry for
-;;; the function in *free-functions* so that nobody will create new reference
-;;; to it.
+;;; Actually do let conversion.  We call subfunctions to do most of the
+;;; work.  We change the Call's cont to be the continuation heading the
+;;; bind block, and also do Reoptimize-Continuation on the args and Cont so
+;;; that let-specific IR1 optimizations get a chance.  We blow away any
+;;; entry for the function in *free-functions* so that nobody will create
+;;; new reference to it.
 ;;;
 (defun let-convert (fun call)
   (declare (type clambda fun) (type basic-combination call))
@@ -891,10 +949,9 @@
     (move-return-stuff fun call next-block)
     (merge-lets fun call)))
 
-
 ;;; REOPTIMIZE-CALL  --  Internal
 ;;;
-;;;    Reoptimize all of Call's args and its result.
+;;; Reoptimize all of Call's args and its result.
 ;;;
 (defun reoptimize-call (call)
   (declare (type basic-combination call))
@@ -906,10 +963,10 @@
 
 ;;;  OK-INITIAL-CONVERT-P  --  Internal
 ;;;
-;;; We also don't convert calls to named functions which appear in the initial
-;;; component, delaying this until optimization.  This minimizes the likelyhood
-;;; that we well let-convert a function which may have references added due to
-;;; later local inline expansion
+;;; We also don't convert calls to named functions which appear in the
+;;; initial component, delaying this until optimization.  This minimizes
+;;; the likelyhood that we well let-convert a function which may have
+;;; references added due to later local inline expansion
 ;;;
 (defun ok-initial-convert-p (fun)
   (not (and (leaf-name fun)
@@ -918,27 +975,26 @@
 		  (node-block (lambda-bind fun))))
 		:initial))))
 
-
 ;;; Maybe-Let-Convert  --  Interface
 ;;;
-;;;    This function is called when there is some reason to believe that
-;;; the lambda Fun might be converted into a let.  This is done after local
-;;; call analysis, and also when a reference is deleted.  We only convert to a
-;;; let when the function is a normal local function, has no XEP, and is
-;;; referenced in exactly one local call.  Conversion is also inhibited if the
-;;; only reference is in a block about to be deleted.  We return true if we
-;;; converted.
+;;; This function is called when there is some reason to believe that the
+;;; lambda Fun might be converted into a let.  This is done after local
+;;; call analysis, and also when a reference is deleted.  We only convert
+;;; to a let when the function is a normal local function, has no XEP, and
+;;; is referenced in exactly one local call.  Conversion is also inhibited
+;;; if the only reference is in a block about to be deleted.  We return
+;;; true if we converted.
 ;;;
-;;;    These rules may seem unnecessarily restrictive, since there are some
+;;; These rules may seem unnecessarily restrictive, since there are some
 ;;; cases where we could do the return with a jump that don't satisfy these
-;;; requirements.  The reason for doing things this way is that it makes the
-;;; concept of a let much more useful at the level of IR1 semantics.  The
-;;; :ASSIGNMENT function kind provides another way to optimize calls to
+;;; requirements.  The reason for doing things this way is that it makes
+;;; the concept of a let much more useful at the level of IR1 semantics.
+;;; The :ASSIGNMENT function kind provides another way to optimize calls to
 ;;; single-return/multiple call functions.
 ;;;
-;;;    We don't attempt to convert calls to functions that have an XEP, since
-;;; we might be embarrassed later when we want to convert a newly discovered
-;;; local call.  Also, see OK-INITIAL-CONVERT-P.
+;;; We don't attempt to convert calls to functions that have an XEP, since
+;;; we might be embarrassed later when we want to convert a newly
+;;; discovered local call.  Also, see OK-INITIAL-CONVERT-P.
 ;;;
 (defun maybe-let-convert (fun)
   (declare (type clambda fun))
@@ -965,13 +1021,13 @@
       t)))
 
 
-;;;; Tail local calls and assignments:
+;;;; Tail local calls and assignments.
 
 ;;; ONLY-HARMLESS-CLEANUPS  --  Internal
 ;;;
-;;;    Return T if there are no cleanups between Block1 and Block2, or if they
-;;; definitely won't generate any cleanup code.  Currently we recognize lexical
-;;; entry points that are only used locally (if at all).
+;;; Return T if there are no cleanups between Block1 and Block2, or if they
+;;; definitely won't generate any cleanup code.  Currently we recognize
+;;; lexical entry points that are only used locally (if at all).
 ;;;
 (defun only-harmless-cleanups (block1 block2)
   (declare (type cblock block1 block2))
@@ -986,14 +1042,13 @@
 	       (return nil)))
 	    (t (return nil)))))))
 
-
 ;;; MAYBE-CONVERT-TAIL-LOCAL-CALL  --  Interface
 ;;;
-;;;    If a potentially TR local call really is TR, then convert it to jump
-;;; directly to the called function.  We also call MAYBE-CONVERT-TO-ASSIGNMENT.
-;;; The first value is true if we tail-convert.  The second is the value of
-;;; M-C-T-A.  We can switch the succesor (potentially deleting the RETURN node)
-;;; unless:
+;;; If a potentially TR local call really is TR, then convert it to jump
+;;; directly to the called function.  We also call
+;;; MAYBE-CONVERT-TO-ASSIGNMENT.  The first value is true if we
+;;; tail-convert.  The second is the value of M-C-T-A.  We can switch the
+;;; succesor (potentially deleting the RETURN node) unless:
 ;;; -- The call has already been converted.
 ;;; -- The call isn't TR (random implicit MV PROG1.)
 ;;; -- The call is in an XEP (thus we might decide to make it non-tail so that
@@ -1019,28 +1074,27 @@
 	(link-blocks block (node-block (lambda-bind fun)))
 	(values t (maybe-convert-to-assignment fun))))))
 
-
 ;;; MAYBE-CONVERT-TO-ASSIGNMENT  --  Interface
 ;;;
-;;;    Called when we believe it might make sense to convert Fun to an
+;;; Called when we believe it might make sense to convert Fun to an
 ;;; assignment.  All this function really does is determine when a function
-;;; with more than one call can still be combined with the calling function's
-;;; environment.  We can convert when:
+;;; with more than one call can still be combined with the calling
+;;; function's environment.  We can convert when:
 ;;; -- The function is a normal, non-entry function, and
 ;;; -- Except for one call, all calls must be tail recursive calls in the
 ;;;    called function (i.e. are self-recursive tail calls)
 ;;; -- OK-INITIAL-CONVERT-P is true.
 ;;;
-;;;    There may be one outside call, and it need not be tail-recursive.  Since
-;;; all tail local calls have already been converted to direct transfers, the
-;;; only control semantics needed are to splice in the body at the non-tail
-;;; call.  If there is no non-tail call, then we need only merge the
-;;; environments.  Both cases are handled by LET-CONVERT.
+;;; There may be one outside call, and it need not be tail-recursive.
+;;; Since all tail local calls have already been converted to direct
+;;; transfers, the only control semantics needed are to splice in the body
+;;; at the non-tail call.  If there is no non-tail call, then we need only
+;;; merge the environments.  Both cases are handled by LET-CONVERT.
 ;;;
-;;; ### It would actually be possible to allow any number of outside calls as
-;;; long as they all return to the same place (i.e. have the same conceptual
-;;; continuation.)  A special case of this would be when all of the outside
-;;; calls are tail recursive.
+;;; ### It would actually be possible to allow any number of outside calls
+;;; as long as they all return to the same place (i.e. have the same
+;;; conceptual continuation.)  A special case of this would be when all of
+;;; the outside calls are tail recursive.
 ;;;
 (defun maybe-convert-to-assignment (fun)
   (declare (type clambda fun))

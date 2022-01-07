@@ -1,26 +1,7 @@
-;;; -*- Package: RT; Log: c.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/memory.lisp,v 1.2 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/rt/memory.lisp,v 1.2 1994/10/31 04:45:41 ram Exp $
-;;;
-;;; This file contains the IBM RT definitions of some general purpose memory
-;;; reference VOPs inherited by basic memory reference operations.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Converted by Bill Chiles.
-;;;
+;;; The IBM RT definitions of some general purpose memory reference VOPs
+;;; inherited by basic memory reference operations.
 
 (in-package "RT")
-
 
 ;;; CELL-REF -- VOP.
 ;;; CELL-SET -- VOP.
@@ -90,7 +71,6 @@
 	     ,@(when set-trans
 		 `((:translate ,set-trans))))))))
 
-
 ;;; SLOT-REF -- VOP.
 ;;; SLOT-SET -- VOP.
 ;;;
@@ -114,9 +94,8 @@
   (:generator 4
     (storew value object (+ base offset) lowtag)))
 
-
 
-;;;; Indexed references:
+;;;; Indexed references.
 
 (eval-when (compile eval)
 

@@ -2,6 +2,20 @@
 
 (in-package "ED")
 
+
+#[ Registers
+
+Registers allow you to save a text position or chunk of text associated with a
+key-event.  This is a convenient way to repeatedly access a commonly-used
+location or text fragment.
+
+{command:Save Position}
+{command:Jump to Saved Position}
+{command:Put Register}
+{command:Get Register}
+{command:List Registers}
+{command:Kill Register}
+]#
 
 
 ;;;; Registers implementation.
@@ -34,7 +48,6 @@
       (editor-error "Register ~A is empty." reg-name))
     reg-name))
 
-
 (defmacro do-registers ((name value &optional sorted) &rest body)
   (if sorted
       (let ((sorted-regs (gensym))
@@ -53,7 +66,6 @@
 		    ,@body)
 		*registers*)))
 
-
 ;;; Hook to clean things up if a buffer is deleted while registers point to it.
 ;;;
 (defun flush-reg-references-to-deleted-buffer (buffer)
@@ -64,7 +76,6 @@
       (cons (free-register-value value buffer)))))
 ;;;
 (add-hook delete-buffer-hook 'flush-reg-references-to-deleted-buffer)
-
 
 (defun free-register (name)
   (let ((value (register-value name)))
@@ -80,7 +91,6 @@
      (when (and buffer (eq (cdr value) buffer))
        (setf (cdr value) nil)))))
 
-
 
 ;;;; Commands.
 
@@ -88,18 +98,15 @@
 ;;; buffer, and they assume that the register values have the same property.
 ;;;
 
-(defcommand "Save Position" (p)
-  "Saves the current location in a register.  Prompts for register name."
-  "Saves the current location in a register.  Prompts for register name."
-  (declare (ignore p))
+(defcommand "Save Position" ()
+  "Save the current textual position in a register."
   (let ((reg-name (prompt-for-register)))
     (setf (register-value reg-name)
 	  (copy-mark (current-point) :left-inserting))))
 
-(defcommand "Jump to Saved Position" (p)
-  "Moves the point to a location previously saved in a register."
-  "Moves the point to a location previously saved in a register."
-  (declare (ignore p))
+(defcommand "Jump to Saved Position" ()
+  "Move the point to a location previously saved in a register, including
+   changing to the buffer in which the location was defined."
   (let* ((reg-name (prompt-for-register "Jump to Register: " t))
 	 (val (register-value reg-name)))
     (unless (markp val)
@@ -107,16 +114,13 @@
     (change-to-buffer (line-buffer (mark-line val)))
     (move-mark (current-point) val)))
 
-(defcommand "Kill Register" (p)
-  "Kill a regist er.  Prompts for the name."
-  "Kill a register.  Prompts for the name."
-  (declare (ignore p))
+(defcommand "Kill Register" ()
+  "Kill a register."
   (free-register (prompt-for-register "Register to kill: ")))
 
-(defcommand "List Registers" (p)
-  "Lists all registers in a pop-up window."
-  "Lists all registers in a pop-up window."
-  (declare (ignore p))
+(defcommand "List Registers" ()
+  "Pop up a list of all registers along with a description of the contents
+   of each."
   (with-pop-up-display (f :height (* 2 (register-count)))
     (do-registers (name val :sorted)
       (write-string "Reg " f)
@@ -144,23 +148,19 @@
 		   (subseq str 0 (if nl (min 61 len nl) (min 61 len)))
 		   (> len 60))))))))
 
-(defcommand "Put Register" (p)
-  "Copies a region into a register.  Prompts for register name."
-  "Copies a region into a register.  Prompts for register name."
-  (declare (ignore p))
+(defcommand "Put Register" ()
+  "Copy the current region into a register."
   (let ((region (current-region)))
     ;; Bind the region before prompting in case the region isn't active.
     (setf (register-value (prompt-for-register))
 	  (cons (copy-region region) (current-buffer)))))
 
-(defcommand "Get Register" (p)
-  "Copies a region from a register to the current point."
-  "Copies a region from a register to the current point."
-  (declare (ignore p))
+(defcommand "Get Register" ()
+  "Insert at point the region from a register."
   (let* ((reg-name (prompt-for-register "Register from which to get text: " t))
 	 (val (register-value reg-name)))
-    (unless (and (consp val) (regionp (car val)))
-      (editor-error "Register ~A does not hold a region." reg-name))
+    (or (and (consp val) (regionp (car val)))
+	(editor-error "Register ~A does not hold a region." reg-name))
     (let ((point (current-point)))
       (push-buffer-mark (copy-mark point))
       (insert-region (current-point) (car val))))

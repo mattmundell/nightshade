@@ -11,7 +11,7 @@
 (export '(elt subseq safe-subseq copy-seq coerce
 	  length longest-length
 	  reverse nreverse make-sequence concatenate map some every
-	  notany notevery reduce fill replace remove remove-if remove-if-not
+	  notany notevery reduce fill replace remove remove-if keep-if
 	  delete delete-if delete-if-not remove-duplicates delete-duplicates
 	  substitute substitute-if substitute-if-not nsubstitute nsubstitute-if
 	  nsubstitute-if-not find find-if find-if-not position position-if
@@ -48,8 +48,8 @@
 
 ;;; RESULT-TYPE-OR-LOSE  --  Internal
 ;;;
-;;;    Given an arbitrary type specifier, return a sane sequence type specifier
-;;; that we can directly match.
+;;; Given an arbitrary type specifier, return a sane sequence type
+;;; specifier that we can directly match.
 ;;;
 (defun result-type-or-lose (type &optional nil-ok)
   (let ((type (specifier-type type)))
@@ -326,7 +326,8 @@
 ;;; in the body of the function, and this is actually done in the support
 ;;; routines for other reasons (see above).
 (defun fill (sequence item &key (start 0) end)
-  "Replace the specified elements of SEQUENCE with ITEM."
+  "Replace the elements of $sequence indexed from $start to $end with
+   $item.  If $end is () replace to the end of $sequence."
   (seq-dispatch sequence
 		(list-fill* sequence item start end)
 		(vector-fill* sequence item start end)))
@@ -731,9 +732,16 @@ FIX
       result)))
 
 (defun map (output-type-spec function first-sequence &rest more-sequences)
-  "FUNCTION must take as many arguments as there are sequences provided.
-   The result is a sequence such that element i is the result of applying
-   FUNCTION to element i of each of the argument sequences."
+  "Map $function into one or more given sequences.
+
+   Expect $function to take as many arguments as there are sequences
+   provided.  Return a sequence of type $output-type-spec, where each
+   element i of the sequence is the result of applying $function to element
+   i of each of the argument sequences.
+
+       (map 'vector #'1+ #(1 2 3))  =>  #(2 3 4)
+
+   Similar to `map-into'."
   (let ((sequences (cons first-sequence more-sequences)))
     (case (type-specifier-atom output-type-spec)
       ((nil) (map-for-effect function sequences))
@@ -748,6 +756,13 @@ FIX
 (declaim (end-block))
 
 (defun map-into (result-sequence function &rest sequences)
+  "Map $function to $sequences, putting the results into $result-sequences.
+
+   Expect $function to take as many arguments as there are sequences
+   provided.  Retuen $result-sequence with element i the result of applying
+   $function to element i of each of the argument sequences.
+
+   Similar to `map'."
   (let* ((fp-result
 	  (and (arrayp result-sequence)
 	       (array-has-fill-pointer-p result-sequence)))
@@ -1374,9 +1389,9 @@ FIX
 )
 
 (defun remove (item sequence &key from-end (test #'eql) test-not (start 0)
-		end count key)
-  "Returns a copy of SEQUENCE with elements satisfying the test (default is
-   EQL) with ITEM removed."
+	       end count key)
+  "Return a copy of $sequence with elements satisfying the test (default is
+   EQL) with $item removed."
   (declare (fixnum start))
   (let* ((length (length sequence))
 	 (end (or end length))
@@ -1392,8 +1407,8 @@ FIX
 		      (normal-mumble-remove)))))
 
 (defun remove-if (predicate sequence &key from-end (start 0) end count key)
-  "Returns a copy of sequence with elements such that predicate(element) is
-   non-null are removed"
+  "Return a copy of $sequence with elements such that $predicate(element)
+   is true removed"
   (declare (fixnum start))
   (let* ((length (length sequence))
 	 (end (or end length))
@@ -1408,9 +1423,9 @@ FIX
 		      (if-mumble-remove-from-end)
 		      (if-mumble-remove)))))
 
-(defun remove-if-not (predicate sequence &key from-end (start 0) end count key)
-  "Returns a copy of sequence with elements such that predicate(element) is
-   null are removed"
+(defun keep-if (predicate sequence &key from-end (start 0) end count key)
+  "Return a copy of $sequence, keeping only elements such that
+   $predicate(element) is true."
   (declare (fixnum start))
   (let* ((length (length sequence))
 	 (end (or end length))
@@ -1507,11 +1522,11 @@ FIX
 (defun remove-duplicates (sequence &key (test #'eql) test-not (start 0) from-end
 				   end key)
   "The elements of Sequence are compared pairwise, and if any two match,
-   the one occuring earlier is discarded, unless FROM-END is true, in
+   the one occuring earlier is discarded, unless $from-end is true, in
    which case the one later in the sequence is discarded.  The resulting
    sequence is returned.
 
-   The :TEST-NOT argument is depreciated."
+   FIX The $test-not argument is depreciated."
   (declare (fixnum start))
   (seq-dispatch sequence
 		(if sequence
@@ -1684,9 +1699,9 @@ FIX
 ;;;
 (defun substitute (new old sequence &key from-end (test #'eql) test-not
 		   (start 0) count end key)
-  "Returns a sequence of the same kind as Sequence with the same elements
-   except that all elements equal to Old are replaced with New.  FIX See manual
-   for details."
+  "Return a sequence of the same kind as $sequence with the same elements
+   except that all elements equal to $old are replaced with $new.  FIX See
+   manual for details."
   (declare (fixnum start))
   (let* ((length (length sequence))
 	 (end (or end length))
@@ -1717,7 +1732,7 @@ FIX
 			   end count key)
   "Returns a sequence of the same kind as Sequence with the same elements
    except that all elements not satisfying the Test are replaced with New.
-   See manual for details."
+   FIX See manual for details."
   (declare (fixnum start))
   (let* ((length (length sequence))
 	 (end (or end length))
@@ -1732,9 +1747,9 @@ FIX
 ;;;
 (defun nsubstitute (new old sequence &key from-end (test #'eql) test-not
 		     end count key (start 0))
-  "Returns a sequence of the same kind as Sequence with the same elements
+  "Return a sequence of the same kind as Sequence with the same elements
    except that all elements equal to Old are replaced with New.  The
-   Sequence may be destroyed.  See manual for details."
+   Sequence may be destroyed.  FIX See manual for details."
   (declare (fixnum start))
   (let ((end (or end (length sequence)))
 	(count (or count most-positive-fixnum)))
@@ -1988,8 +2003,8 @@ FIX
 ;;;
 (defun position (item sequence &key from-end (test #'eql) test-not (start 0)
 		 end key)
-  "Returns the zero-origin index of the first element in SEQUENCE
-   satisfying the test (default is EQL) with the given ITEM, else `nil'."
+  "Return the zero-origin index of the first element in $sequence
+   satisfying the $test with the given $item, else ()."
   (seq-dispatch sequence
     (list-position* item sequence from-end test test-not start end key)
     (vector-position* item sequence from-end test test-not start end key)))
@@ -2023,7 +2038,7 @@ FIX
 ;;; Public.
 ;;;
 (defun position-if (test sequence &key from-end (start 0) key end)
-  "Returns the zero-origin index of the first element satisfying test(el)"
+  "Returns the zero-origin index of the first element satisfying test(el)"  ; FIX (el)?
   (declare (fixnum start))
   (let ((end (or end (length sequence))))
     (declare (type index end))
@@ -2044,7 +2059,7 @@ FIX
 ;;; Public.
 ;;;
 (defun position-if-not (test sequence &key from-end (start 0) key end)
-  "Returns the zero-origin index of the first element not satisfying test(el)"
+  "Returns the zero-origin index of the first element not satisfying test(el)"  ; FIX (el)?
   (declare (fixnum start))
   (let ((end (or end (length sequence))))
     (declare (type index end))
@@ -2072,9 +2087,9 @@ FIX
 ;;; in the body of the function, and this is actually done in the support
 ;;; routines for other reasons (see above).
 (defun find (item sequence &key from-end (test #'eql) test-not (start 0)
-	       end key)
-  "Returns the first element in SEQUENCE satisfying the test (default
-   is EQL) with the given ITEM"
+		  end key)
+  "Return the first element in SEQUENCE satisfying the test (default is
+   EQL) with the given ITEM."
   (declare (fixnum start))
   (seq-dispatch sequence
     (list-find* item sequence from-end test test-not start end key)
@@ -2168,7 +2183,7 @@ FIX
 ;;; Public.
 ;;;
 (defun count (item sequence &key from-end (test #'eql) test-not (start 0)
-		end key)
+		   end key)
   "Returns the number of elements in SEQUENCE satisfying a test with ITEM,
    which defaults to EQL."
   (declare (ignore from-end) (fixnum start))
@@ -2322,13 +2337,13 @@ FIX
 (defun mismatch (sequence1 sequence2 &key from-end (test #'eql) test-not
 			   (start1 0) end1 (start2 0) end2 key)
   "The specified subsequences of Sequence1 and Sequence2 are compared
-   element-wise.  If they are of equal length and match in every element, the
-   result is Nil.  Otherwise, the result is a non-negative integer, the index
-   within Sequence1 of the leftmost position at which they fail to match; or,
-   if one is shorter than and a matching prefix of the other, the index within
-   Sequence1 beyond the last position tested is returned.  If a non-Nil
-   :From-End keyword argument is given, then one plus the index of the
-   rightmost position in which the sequences differ is returned."
+   element-wise.  If they are of equal length and match in every element,
+   the result is Nil.  Otherwise, the result is a non-negative integer, the
+   index within Sequence1 of the leftmost position at which they fail to
+   match; or, if one is shorter than and a matching prefix of the other,
+   the index within Sequence1 beyond the last position tested is returned.
+   If a true :From-End keyword argument is given, then one plus the index
+   of the rightmost position in which the sequences differ is returned."
   (declare (fixnum start1 start2))
   (let* ((length1 (length sequence1))
 	 (end1 (or end1 length1))
@@ -2436,7 +2451,7 @@ FIX
 )
 
 (defun search (sequence1 sequence2 &key from-end (test #'eql) test-not
-		(start1 0) end1 (start2 0) end2 key)
+	       (start1 0) end1 (start2 0) end2 key)
   "A search is conducted using EQL for the first subsequence of sequence2
    which element-wise matches sequence1.  If there is such a subsequence in
    sequence2, the index of the its leftmost element is returned;
@@ -2481,17 +2496,18 @@ FIX in resulting build, on c-x r
   "Split the portion of Sequence from Start to End according to Separators.
    Return a list of the resulting subsequences.  If Separators is a list
    split at every item in the list, otherwise split at Separators."
-  (collect ((result))
-    (if (listp separators)
-	(loop for pos = (position separators sequence :start start :end end
-				  ;; FIX are position,member arg orders consistent?
-				  :test (lambda (one two) (member two one)))
-	  do
-	  (result (subseq sequence start pos))
-	  (or pos (return))
-	  (setq start (1+ pos)))
-	(loop for pos = (position separators sequence :start start :end end) do
-	  (result (subseq sequence start pos))
-	  (or pos (return))
-	  (setq start (1+ pos))))
-    (result)))
+  (when sequence
+    (collect ((result))
+      (if (listp separators)
+	  (loop for pos = (position separators sequence :start start :end end
+				    ;; FIX are position,member arg orders consistent?
+				    :test (lambda (one two) (member two one)))
+	    do
+	    (result (subseq sequence start pos))
+	    (or pos (return))
+	    (setq start (1+ pos)))
+	  (loop for pos = (position separators sequence :start start :end end) do
+	    (result (subseq sequence start pos))
+	    (or pos (return))
+	    (setq start (1+ pos))))
+      (result))))

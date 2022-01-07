@@ -25,7 +25,7 @@
 	  lambda &optional &rest &key &aux &body &whole
 	  &allow-other-keys &environment))
 
-#| Not implemented:
+#| FIX Not implemented:
 *evalhook* *applyhook* evalhook applyhook
 |#
 
@@ -48,7 +48,46 @@
 
 (in-package "LISP")
 
+#[ Evaluate
 
+evaluation of args  this is how conditionals are redefined
+
+ centers around the evaluation of functions.  In Lisp a program is
+described by a set of lists.  Each list describes the evaluation of a
+function, optionally on a number of arguments.  Evaluation of a function
+produces a return value and can have side-effects, such as creating or
+modifying functions, macros, data and types.  For example, the list
+
+    (+ 1 2)
+
+describes the evaluation of the + function on two arguments.  The return
+value is 3.
+
+== FIX ==
+
+FIX evaluate, call, execute, run, invoke,  call on
+FIX context, environment, <~bindings,closure>
+
+Once a list has been read into the system it can be evaluated as a
+function.
+
+The arguments to a function are evaluated before being passed to the
+function, so for example when the expression
+
+    (+ 1 (- 5 2))
+
+is evaluated the argument (- 5 2) is first evaluated to 3 which is passed
+to + and the entire expression evaluates to 4.
+
+1 evaluates to 1...
+
+{function:eval}
+{command: Editor Evaluate Expression}
+
+FIX apply, funcall?
+]#
+
+
 (defconstant lambda-list-keywords
   '(&optional &rest &key &aux &body &whole &allow-other-keys &environment)
   "Keywords that you can put in a lambda-list, supposing you should want to
@@ -71,6 +110,9 @@
 ;;;;
 
 (in-package "EVAL")
+
+(defvar *interp-source-hack* ())
+(defvar *interp-position-hack* ())
 
 ;;; This is defined here so that the printer &c can call
 ;;; interpreted-function-p before the full interpreter is loaded.
@@ -103,7 +145,7 @@
   ;; being removed.)
   (definition nil :type (or c::clambda null))
   ;;
-  ;; The number of consequtive GCs that this function has been unused.  This is
+  ;; The number of consecutive GCs that this function has been unused.  This is
   ;; used to control cache replacement.
   (gcs 0 :type c::index)
   ;;
@@ -112,7 +154,13 @@
   (converted-once nil)
   ;;
   ;; For a closure, the closure date vector.
-  (closure nil :type (or null simple-vector)))
+  (closure nil :type (or null simple-vector))
+  ;;
+  ;; Pathname of source file.
+  (source nil :type (or null pathname))
+  ;;
+  ;; Location of form in source file.
+  (position nil :type (or null c::index)))
 
 
 ;;;; EVAL and friends.
@@ -139,17 +187,23 @@
       T     -- Quietly declare the variable special.
       NIL   -- Never declare the variable, giving warnings on each use.")
 
+;(declaim (special eval::*interp-source-hack* eval::*interp-position-hack* ))
+
 ;;; EVAL  --  Public
 ;;;
-;;;    Pick off a few easy cases, and call INTERNAL-EVAL for the rest.  If
-;;; *ALREADY-EVALED-THIS* is true, then we bind it to NIL before doing a call
-;;; so that the effect is confined to the lexical scope of the EVAL-WHEN.
+;;; Pick off a few easy cases, and call INTERNAL-EVAL for the rest.  If
+;;; *ALREADY-EVALED-THIS* is true, then we bind it to NIL before doing a
+;;; call so that the effect is confined to the lexical scope of the
+;;; EVAL-WHEN.
 ;;;
-(defun eval (original-exp)
-  "Evaluates its single arg in a null lexical environment, returns the
-   result or results."
+(defun eval (original-exp &optional pathname position)
+  "Evaluate $original-exp in a null lexical environment, and return the
+   result or results." ; FIX pathname position
   (declare (optimize (safety 1)))
   (let ((exp (macroexpand original-exp)))
+; FIX bind error
+;    	(eval::*interp-source-hack* pathname)
+;    	(eval::*interp-position-hack* position))
     (typecase exp
       (symbol
        (ecase (info variable kind exp)
@@ -164,15 +218,15 @@
 	     (args (1- (length exp))))
 	 (case name
 	   (function
-	    (unless (= args 1)
-	      (error 'simple-program-error
-		     :format-control "Wrong number of args to FUNCTION:~% ~S."
-		     :format-arguments (list exp)))
+	    (or (= args 1)
+		(error 'simple-program-error
+		       :format-control "Wrong number of args to FUNCTION:~% ~S."
+		       :format-arguments (list exp)))
 	    (let ((name (second exp)))
 	      (cond ((consp name)
 		     (if (eq (car name) 'setf)
 			 (fdefinition name)
-			 (eval:make-interpreted-function name)))
+ 			 (eval:make-interpreted-function name)))
 		    ((macro-function name)
 		     (error 'simple-type-error
 			    :datum name
@@ -189,38 +243,38 @@
 		    (t
 		     (fdefinition name)))))
 	   (quote
-	    (unless (= args 1)
-	      (error 'simple-program-error
-		     :format-control "Wrong number of args to QUOTE:~% ~S."
-		     :format-arguments (list exp)))
+	    (or (= args 1)
+		(error 'simple-program-error
+		       :format-control "Wrong number of args to QUOTE:~% ~S."
+		       :format-arguments (list exp)))
 	    (second exp))
 	   (setq
-	    (unless (evenp args)
-	      (error 'simple-program-error
-		     :format-control "Odd number of args to SETQ:~% ~S."
-		     :format-arguments (list exp)))
-	    (unless (zerop args)
-	      (do ((name (cdr exp) (cddr name)))
-		  ((null name)
-		   (do ((args (cdr exp) (cddr args)))
-		       ((null (cddr args))
-			;; We duplicate the call to SET so that the correct
-			;; value gets returned.
-			(set (first args) (eval (second args))))
-		     (set (first args) (eval (second args)))))
-		(let ((symbol (first name)))
-		  (case (info variable kind symbol)
-		    (:special)
-		    (:global
-		     (case *top-level-auto-declare*
-		       (:warn
-			(warn "Declaring ~S special." symbol))
-		       ((t))
-		       ((nil)
-			(return (eval:internal-eval original-exp))))
-		     (proclaim `(special ,symbol)))
-		    (t
-		     (return (eval:internal-eval original-exp))))))))
+	    (or (evenp args)
+		(error 'simple-program-error
+		       :format-control "Odd number of args to SETQ:~% ~S."
+		       :format-arguments (list exp)))
+	    (or (zerop args)
+		(do ((name (cdr exp) (cddr name)))
+		    ((null name)
+		     (do ((args (cdr exp) (cddr args)))
+			 ((null (cddr args))
+			  ;; We duplicate the call to SET so that the correct
+			  ;; value gets returned.
+			  (set (first args) (eval (second args))))
+		       (set (first args) (eval (second args)))))
+		  (let ((symbol (first name)))
+		    (case (info variable kind symbol)
+		      (:special)
+		      (:global
+		       (case *top-level-auto-declare*
+			 (:warn
+			  (warn "Declaring ~S special." symbol))
+			 ((t))
+			 ((nil)
+			  (return (eval:internal-eval original-exp))))
+		       (proclaim `(special ,symbol)))
+		      (t
+		       (return (eval:internal-eval original-exp))))))))
 	   ((progn)
 	    (when (> args 0)
 	      (dolist (x (butlast (rest exp)) (eval (car (last exp))))
@@ -262,8 +316,9 @@
 
 ;;; FUNCTION-LAMBDA-EXPRESSION  --  Public
 ;;;
-;;;    If interpreted, use the interpreter interface.  Otherwise, see if it was
-;;; compiled with COMPILE.  If that fails, check for an inline expansion.
+;;; If interpreted, use the interpreter interface.  Otherwise, see if it
+;;; was compiled with COMPILE.  If that fails, check for an inline
+;;; expansion.
 ;;;
 (defun function-lambda-expression (fun)
   "Given a function, return three values:
@@ -271,8 +326,7 @@
       the definition isn't available.
    2] NIL if the function was definitely defined in a null lexical environment,
       and T otherwise.
-   3] Some object that \"names\" the function.  Although this is allowed to be
-      any object, CMU CL always returns a valid function name or a string."
+   3] A valid function name or a string, that \"names\" the function."
   (declare (type function fun))
   (if (eval:interpreted-function-p fun)
       (eval:interpreted-function-lambda-expression fun)
@@ -320,6 +374,7 @@
    expanded form.  This function is called by MACROEXPAND-1 whenever a
    runtime expansion is needed.  Initially this is set to FUNCALL.")
 
+; FIX
 ;;; INVOKE-MACROEXPAND-HOOK -- public.
 ;;;
 ;;; The X3J13 cleanup FUNCTION-TYPE:X3J13-MARCH-88 specifies that:
@@ -335,9 +390,9 @@
 (defun invoke-macroexpand-hook (fun form env)
   "Invoke *MACROEXPAND-HOOK* on FUN, FORM, and ENV after coercing it to
    a function."
-  (unless (functionp *macroexpand-hook*)
-    (setf *macroexpand-hook*
-	  (coerce *macroexpand-hook* 'function)))
+  (or (functionp *macroexpand-hook*)
+      (setf *macroexpand-hook*
+	    (coerce *macroexpand-hook* 'function)))
   (funcall *macroexpand-hook* fun form env))
 
 (defun macro-function (symbol &optional env)
@@ -373,7 +428,7 @@
 
 ;;; Macroexpand-1  --  Public
 ;;;
-;;;    The Env is a LEXENV or NIL (the null environment.)
+;;; The Env is a LEXENV or NIL (the null environment.)
 ;;;
 (defun macroexpand-1 (form &optional env)
   "If form is a macro (or symbol macro), expands it once.  Returns two values,
@@ -420,13 +475,13 @@
   (let ((found (and env
 		    (cdr (assoc name (c::lexenv-functions env)
 				:test #'equal)))))
-    (unless (eq (cond ((c::defined-function-p found)
+    (fi (eq (cond ((c::defined-function-p found)
 		       (c::defined-function-inlinep found))
 		      (found :notinline)
 		      (t
 		       (info function inlinep name)))
-		:notinline)
-      (values (info function compiler-macro-function name)))))
+	    :notinline)
+	(values (info function compiler-macro-function name)))))
 
 (defun (setf compiler-macro-function) (function name)
   (declare (type (or symbol list) name)
@@ -465,7 +520,8 @@ internally...
 
 (defun constantp (object &optional environment)
   "True of any Lisp object that has a constant value: types that eval to
-   themselves, keywords, constants, and list whose car is QUOTE."
+   themselves, keywords, constants, and any list whose car is QUOTE."
+  ;; FIX True of any value that is constant: values of type number, ... ?
   (declare (ignore environment))
   (typecase object
     (number t)

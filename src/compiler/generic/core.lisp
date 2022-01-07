@@ -1,20 +1,7 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/generic/core.lisp,v 1.34.2.2 2000/05/23 16:37:30 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;
-;;;    This file contains stuff that knows how to load compiled code directly
-;;; into core, e.g. incremental compilation.
-;;;
-(in-package "C")
+;;; Stuff that knows how to load compiled code directly into core, e.g.
+;;; incremental compilation.
 
+(in-package "C")
 
 ;;; The CORE-OBJECT structure holds the state needed to resolve cross-component
 ;;; references during in-core compilation.
@@ -39,11 +26,10 @@
   ;; backpatch with the source info.
   (debug-info () :type list))
 
-
 ;;; NOTE-FUNCTION -- Internal.
 ;;;
 ;;; Note the existance of FUNCTION.
-;;; 
+;;;
 (defun note-function (info function object)
   (declare (type function function)
 	   (type core-object object))
@@ -54,10 +40,9 @@
   (setf (gethash info (core-object-entry-table object)) function)
   (undefined-value))
 
-
 ;;; MAKE-FUNCTION-ENTRY  --  Internal
 ;;;
-;;;    Make a function entry, filling in slots from the ENTRY-INFO.
+;;; Make a function entry, filling in slots from the ENTRY-INFO.
 ;;;
 (defun make-function-entry (entry code-obj object)
   (declare (type entry-info entry) (type core-object object))
@@ -77,7 +62,7 @@
 
 ;;; DO-CORE-FIXUPS  --  Internal
 ;;;
-;;;    Do "load-time" fixups on the code vector.
+;;; Do "load-time" fixups on the code vector.
 ;;;
 (defun do-core-fixups (code fixups)
   (declare (list fixups))
@@ -96,8 +81,8 @@
 	    (:foreign
 	     (assert (stringp name))
 	     (let ((val (lisp::foreign-symbol-address-aux name)))
-	       ;; Foreign-symbol-address-aux always signals exactly
-	       ;; the same error we would if the symbol isn't found
+	       ;; `foreign-symbol-address-aux' always signals exactly the
+	       ;; same error we would if the symbol isn't found.
 	       (values val t)))
 	    #+x86
 	    (:code-object
@@ -109,13 +94,10 @@
 		 name))
 	(vm:fixup-code-object code offset value kind)))))
 
-
-
-
 ;;; REFERENCE-CORE-FUNCTION  --  Internal
 ;;;
-;;;    Stick a reference to the function Fun in Code-Object at index I.  If the
-;;; function hasn't been compiled yet, make a note in the Patch-Table.
+;;; Stick a reference to the function Fun in Code-Object at index I.  If
+;;; the function hasn't been compiled yet, make a note in the Patch-Table.
 ;;;
 (defun reference-core-function (code-obj i fun object)
   (declare (type core-object object) (type functional fun)
@@ -128,10 +110,9 @@
 	      (gethash info (core-object-patch-table object)))))
   (undefined-value))
 
-
 ;;; MAKE-CORE-COMPONENT  --  Interface
 ;;;
-;;;    Dump a component to core.  We pass in the assembler fixups, code vector
+;;; Dump a component to core.  We pass in the assembler fixups, code vector
 ;;; and node info.
 ;;;
 (defun make-core-component (component segment length trace-table fixups object)
@@ -169,16 +150,16 @@
 			     (* amount vm:byte-bits))
 	   (setf fill-ptr (sap+ fill-ptr amount))))
       (do-core-fixups code-obj fixups)
-      
+
       (dolist (entry (ir2-component-entries 2comp))
 	(make-function-entry entry code-obj object))
-      
+
       (vm:sanctify-for-execution code-obj)
 
       (let ((info (debug-info-for-component component)))
 	(push info (core-object-debug-info object))
 	(setf (%code-debug-info code-obj) info))
-      
+
       (setf (code-header-ref code-obj vm:code-trace-table-offset-slot) length)
       (copy-to-system-area trace-table (* vm:vector-data-offset vm:word-bits)
 			   fill-ptr 0 trace-table-bits)
@@ -200,7 +181,6 @@
 		(setf (code-header-ref code-obj index)
 		      (lisp::fdefinition-object (cdr const) t))))))))))
   (undefined-value))
-
 
 ;;; MAKE-CORE-BYTE-COMPONENT -- Interface.
 ;;;
@@ -263,10 +243,9 @@
 
   (undefined-value))
 
-
 ;;; CORE-CALL-TOP-LEVEL-LAMBDA  --  Interface
 ;;;
-;;;    Call the top-level lambda function dumped for Entry, returning the
+;;; Call the top-level lambda function dumped for Entry, returning the
 ;;; values.  Entry may be a :TOP-LEVEL-XEP functional.
 ;;;
 (defun core-call-top-level-lambda (entry object)
@@ -275,10 +254,9 @@
 			(core-object-entry-table object))
 	       (error "Unresolved forward reference."))))
 
-
 ;;; FIX-CORE-SOURCE-INFO  --  Interface
 ;;;
-;;;    Backpatch all the DEBUG-INFOs dumped so far with the specified
+;;; Backpatch all the DEBUG-INFOs dumped so far with the specified
 ;;; SOURCE-INFO list.  We also check that there are no outstanding forward
 ;;; references to functions.
 ;;;

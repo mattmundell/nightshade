@@ -1,24 +1,9 @@
-;;; -*- Package: MIPS; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/parms.lisp,v 1.111.2.2 2000/10/16 17:32:23 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains some parameterizations of various VM
-;;; attributes for the MIPS.  This file is separate from other stuff so 
-;;; that it can be compiled and loaded earlier. 
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Converted to MIPS by William Lott.
-;;;
+;;; Some parameterizations of various VM attributes for the MIPS.  This
+;;; file is separate from other stuff so that it can be compiled and loaded
+;;; earlier.
 
 (in-package "MIPS")
+
 (use-package "C")
 
 
@@ -66,7 +51,6 @@
 	  float-imprecise-trap-bit float-invalid-trap-bit
 	  float-divide-by-zero-trap-bit))
 
-
 (eval-when (compile load eval)
 
 (defconstant word-bits 32
@@ -80,7 +64,6 @@
 
 (defconstant word-bytes (/ word-bits byte-bits)
   "Number of bytes in a word.")
-
 
 (defconstant float-sign-shift 31)
 
@@ -134,7 +117,7 @@
 	  target-dynamic-space-start))
 
 ;;; Where to put the different spaces.
-;;; 
+;;;
 (defparameter target-read-only-space-start #x01000000)
 (defparameter target-static-space-start    #x05000000)
 (defparameter target-dynamic-space-start   #x07000000)
@@ -146,7 +129,6 @@
 (export 'large-object-cutoff)
 #+gengc
 (defparameter large-object-cutoff 1024)
-
 
 
 ;;;; Other non-type constants.
@@ -174,7 +156,6 @@
   call-site
   function-prologue
   function-epilogue)
-
 
 
 ;;;; Static symbols.
@@ -220,8 +201,7 @@
     ;; Interrupt Handling
     lisp::*free-interrupt-context-index*
     unix::*interrupts-enabled*
-    unix::*interrupt-pending*
-    ))
+    unix::*interrupt-pending*))
 
 #+gengc
 (defparameter static-symbols
@@ -243,8 +223,7 @@
     apply
 
     ;; Holds a pointer to the sigcontext chain.
-    kernel::*saved-state-chain*
-    ))
+    kernel::*saved-state-chain*))
 
 (defparameter static-functions
   '(two-arg-+ two-arg-- two-arg-* two-arg-/ two-arg-< two-arg-> two-arg-=

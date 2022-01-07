@@ -1,0 +1,301 @@
+(defun collect-messages (folder &optional recurse)
+  "Return a list of the message numbers in FOLDER."
+  (let ((dir (folder-pathname folder))
+	(msgs))
+    (in-directory dir
+      (do-files (file dir
+		      :recurse recurse
+		      :follow-links t
+		      :backups ())
+	(let ((name (file-namestring file)))
+	  (case (char name 0)
+	    ((#\. #\, #\+ #\_ #\#)) ;; FIX some COMPAT,UCI
+	    (t (let ((msg (parse-integer name :errorp ())))
+		 (if msg (push msg msgs))))))))
+    msgs))
+
+---
+
+    ;; Ensure sequences on disk match $folder-info.
+    ;; TODO: Maybe "cur" too.
+    (let ((high (sequences-highest "highest"
+				   (folder-info-sequences folder-info))))
+      (when high
+	(mess "releasing ~A" high)
+	(mark-message (pathname-folder (folder-info-pathname folder-info))
+		      high
+		      "highest"
+		      :delete)))
+    (when (folder-info-highest folder-info)
+      (mess "adding ~A" (folder-info-highest folder-info))
+      (mark-message (pathname-folder (folder-info-pathname folder-info))
+		    (string (folder-info-highest folder-info))
+		    "highest"
+		    :add))
+
+--
+
+		     ;; Search for lowest in the folder info.
+		     (let ((lowest))
+		       ;; FIX are folder-info-messages always sorted?
+		       (dolist (entry (folder-info-messages folder-info))
+			 (if lowest
+			     (if (< (car entry) lowest)
+				 (setq lowest (car entry)))
+			     (setq lowest (car entry))))
+		       (mess "  folder lowest ~A" lowest)
+		       (or lowest 0))
+
+--
+
+			 ;; Search for the lowest in the dir.
+			 (let ((dir (folder-info-pathname folder))
+			       (lowest))
+			   (in-directory dir
+			     (do-files (file dir
+					     :recurse recurse
+					     :follow-links t
+					     :backups ())
+			       (let ((id (parse-integer file
+							:errorp ())))
+				 (if id
+				     (if lowest
+					 (if (< lowest id)
+					     (setq lowest id))
+					 (setq lowest id))))))
+			   (mess "  dir lowest ~A" lowest)
+			   (or lowest 0))
+			 ;; Lowest as specified in $messages.
+
+--
+
+#|
+(defun parse-content-type (entry)
+  (let ((field (cdr (get-field entry "Content-Type")))
+	type subtype start params)
+    (when field
+      (string-trim '(#\space) field)
+      (setq field (nsubstitute #\newline #\space field))
+      (let ((pos 0) (len (length field)))
+	(flet ((next (&optional (end-ok t))
+		 (incf pos)
+		 (if (eq pos len)
+		     (return-from parse-content-type
+				  (if end-ok
+				      (values type subtype))))))
+	  ;; Type.
+	  (setq type
+		(loop while (and (< pos len)
+				 (alphanumericp (char field pos)))
+		  finally return (string-downcase (subseq field 0 pos))
+		  do (incf pos)))
+	  (if (eq pos len)
+	      (return-from parse-content-type
+			   (values type subtype)))
+	  ;; Subtype.
+	  (when (char= (char field pos) #\/)
+	    (next)
+	    (loop while (char= (char field pos) #\space) do (next))
+	    (if (char= (char field pos) #\()
+		(error "FIX comment after /"))
+	    (setq start pos)
+	    (setq subtype
+		  (loop while (and (< pos len)
+				   (alphanumericp (char field pos)))
+		    finally return (string-downcase (subseq field start pos))
+		    do (incf pos)))
+	    (if (eq pos len)
+		(return-from parse-content-type
+			     (values type subtype))))
+	  (loop while (char= (char field pos) #\space) do (next))
+	  (if (char= (char field pos) #\()
+	      (error "FIX comment after subtype"))
+	  ;; Parameters.
+	  (loop while (char= (char field pos) #\;) do
+	    (next) ;; FIX if end str before param then err
+	    (loop while (char= (char field pos) #\space) do (next))
+	    (if (char= (char field pos) #\()
+		(error "FIX comment after ;"))
+
+	    )))
+      (values type subtype))))
+|#
+
+
+
+
+
+
+ ; FIX
+;;; MERGE-RELATIVE-PATHNAMES takes a pathname that is either absolute or
+;;; relative to default-dir, merging it as appropriate and returning a
+;;; definite directory pathname.
+;;;
+;;; This function isn't really needed anymore now that merge-pathnames does
+;;; this, but the semantics are slightly different.  So it's easier to just
+;;; keep this around instead of changing all the uses of it.
+;;;
+(defun merge-relative-pathnames (pathname default-directory)
+  "Merges pathname with default-directory.  If pathname is not absolute, it
+   is assumed to be relative to default-directory.  The result is always a
+   directory."
+  (let ((pathname (merge-pathnames pathname default-directory)))
+    (if (directory-name-p pathname)
+	pathname
+	(pathname (concatenate 'simple-string
+			       (namestring pathname)
+			       "/")))))
+
+
+
+(defun old-sequence-list (folder name)
+  "Return a list representing the messages and ranges of id's for the
+   sequence NAME in FOLDER from the \".mh_sequences\" file.  Return a
+   second value indicating whether the sequence was found."
+  (declare (simple-string folder))
+  (let* ((folder (strip-folder-name folder))
+	 (seq-string (profile-component
+		      name
+		      (merge-pathnames ".mh_sequences"
+				       (folder-pathname folder))
+		      nil)))
+    (if (not seq-string)
+	(values nil nil)
+	(let ((length (length (the simple-string seq-string)))
+	      (result ())
+	      (intervalp nil)
+	      (start 0))
+	  (declare (fixnum length start))
+	  (loop
+	    (multiple-value-bind (msg index)
+				 (parse-integer seq-string
+						:start start :end length
+						:junk-allowed t)
+	      (or msg (return))
+	      (cond ((or (= index length)
+			 (char/= (schar seq-string index) #\-))
+		     (if intervalp
+			 (setf (cdar result) msg)
+			 (push (cons msg msg) result))
+		     (setf intervalp nil)
+		     (setf start index))
+		    (t
+		     (push (cons msg nil) result)
+		     (setf intervalp t)
+		     (setf start (1+ index)))))
+	    (when (>= start length) (return)))
+	  (values (nreverse result) t)))))
+
+
+
+#|
+(progn
+  (ed::delete-region (ed::buffer-region (ed::find-file-buffer ":out")))
+  (ed::with-output-to-mark (output (ed::buffer-point (ed::find-file-buffer ":out")))
+    (summarize-messages "+root" '("1" "10" "100" "101" "102") output 80))
+  )
+
+(progn
+  (ed::delete-region (ed::buffer-region (ed::find-file-buffer ":out")))
+  (ed::with-output-to-mark (output (ed::buffer-point (ed::find-file-buffer ":out")))
+    (summarize-folder "+inbox" output 80))
+  )
+
+(progn
+  (ed::delete-region (ed::buffer-region (ed::find-file-buffer ":out")))
+  (ed::with-output-to-mark (output (ed::buffer-point (ed::find-file-buffer ":out")))
+    (summarize-folder "misc" output 75))
+  )
+
+(ed::with-output-to-mark (output (ed::current-point))
+   (summarize-folder "+root" output 75)
+)
+
+(ed::with-output-to-mark (output (ed::current-point))
+;   (summarize-message ":Mail/root/293" output 75 t)
+;   (summarize-message ":Mail/inbox/4" output 75 t)
+;   (summarize-message ":Mail/misc/254" output 75 t)
+   (summarize-message ":Mail/archive/misc/2011" output 75 t)
+)
+
+(with-open-file (stream ":Mail/archive/misc/2011" :direction :input)
+  (read-fields stream))
+
+(with-open-file (stream ":Mail/root/293" :direction :input)
+  (read-field stream)
+  (read-field stream)
+  (read-field stream)
+  (nth-value 1 (read-field stream))
+  (nth-value 1 (read-field stream))
+  (nth-value 1 (read-field stream))
+  (nth-value 1 (read-field stream))
+  (nth-value 1 (read-field stream))
+  (nth-value 1 (read-field stream))
+  (nth-value 1 (read-field stream))
+  (nth-value 1 (read-field stream)))
+|#
+
+
+
+
+#|
+(defmacro do-messages ((message messages folder folder-info) &body body)
+  "For each message in MESSAGES run BODY with MESSAGE bound to the message.
+   A message can be a (\"<start>\" . \"<end>\") range, name of a sequence
+   or a message id string.  MESSAGES can be a single message or a list or
+   messages."
+  (let ((entry (gensym))
+	(mlist (gensym))
+	(seqlist (gensym)))
+    `(let ((,mlist (folder-info-messages ,folder-info))
+	   (,seqlist (folder-info-sequences ,folder-info)))
+       (dolist (,message (if (listp ,messages) ,messages (list ,messages)))
+	 (if (listp ,message)
+	     (loop
+	       for ,entry from (car ,message) to (cdr ,message)
+	       do
+	       (let ((,message (number-string ,entry)))
+		 ,@body))
+	     (let ((,entry (assoc ,message ,mlist :test #'string=)))
+	       (if ,entry
+		   (progn
+		     ,@body)
+		   (let ((,entry (cdr (assoc ,message ,seqlist
+					     :test #'string=))))
+		     (if ,entry
+			 (do-sequence (,message ,entry)
+			   ,@body)
+			 (error "Failed to find ~A in ~A."
+				,message ,folder))))))))))
+|#
+
+
+
+;; FIX getdefs gets context
+
+(defun get-path ()
+  (truename *directory*))
+
+	     #|
+	                 (loop for folders = *folders*
+			   then (cdr folders)
+			   do
+			   (or (cdr folders)
+			       (progn
+				 ;; Append to folders.
+				 (rplacd folders
+					 (list name))
+				 (return)))
+			   (cond
+			    ((string= name (car folders))
+			     (return))
+			    ((string< name (car folders))
+			     (rplacd folders
+				     (cons (car folders)
+					   (cdr folders)))
+			     (rplaca folders
+				     name)
+			     (return))))
+			 (setq *folders* (list name))))))
+|#
+

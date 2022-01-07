@@ -2,7 +2,10 @@
 
 (in-package "LISP")
 
-(export '(pathname pathnamep logical-pathname logical-pathname-p
+;; FIX pathname-p?
+(export '(pathname pathnamep relativep absolutep circular-p
+	  logical-pathname logical-pathname-p
+	  remote-pathname-p remote-pathname-host remote-pathname-local
 	  parse-namestring merge-pathnames make-pathname
 	  pathname-host pathname-device pathname-directory pathname-name
 	  pathname-type pathname-version namestring file-namestring
@@ -18,11 +21,178 @@
 (in-package "LISP")
 
 
+#[ Pathnames
+
+[ Unix Pathnames          ]
+[ Wildcard Pathnames      ]
+[ Logical Pathnames       ]
+[ Search Lists            ]
+[ Predefined Search-Lists ]
+[ Search-List Operations  ]
+[ Search List Example     ]
+]#
+
+#[ Unix Pathnames
+
+Unix pathnames are always parsed with a unix-host object as the host and
+() as the device.  The last two dots (.) in the namestring mark
+the type and version, however if the first character is a dot, it is considered
+part of the name.  If the last character is a dot, then the pathname has the
+empty-string as its type.  The type defaults to () and the version
+defaults to :newest.
+
+    (defun parse (x)
+      (values (pathname-name x) (pathname-type x) (pathname-version x)))
+
+    (parse "foo")         => "foo", NIL, :NEWEST
+    (parse "foo.bar")     => "foo", "bar", :NEWEST
+    (parse ".foo")        => ".foo", NIL, :NEWEST
+    (parse ".foo.bar")    => ".foo", "bar", :NEWEST
+    (parse "..")          => ".", "", :NEWEST
+    (parse "foo.")        => "foo", "", :NEWEST
+    (parse "foo.bar.1")   => "foo", "bar", 1
+    (parse "foo.bar.baz") => "foo.bar", "baz", :NEWEST
+
+The directory of pathnames beginning with a slash (or a search-list,
+[Search Lists]) starts with :absolute, others start with :relative.  The ..
+directory is parsed as :up; there is no namestring for :back.
+
+    (pathname-directory "/usr/foo/bar.baz") => (:ABSOLUTE "usr" "foo")
+    (pathname-directory "../foo/bar.baz")   => (:RELATIVE :UP "foo")
+]#
+
+#[ Wildcard Pathnames
+
+Wildcards are supported in Unix pathnames.  If '*' is specified for a part
+of a pathname, that is parsed as :wild.  "**" can be used as a directory
+name to indicate :wild-inferiors.  Filesystem operations treat
+:wild-inferiors the same as :wild, but pathname pattern matching (e.g. for
+translation of [logical pathnames]) matches any number of directory parts
+with "**" (as in [Wildcard Matching].)
+
+'*' embedded in a pathname part matches any number of characters.
+Similarly, '?' matches exactly one character, and `[a,b]' matches the
+characters 'a' or 'b'.  These pathname parts are parsed as pattern objects.
+
+Backslash can be used as an escape character in namestring parsing to
+prevent the next character from being treated as a wildcard.  Note that if
+typed in a string constant, the backslash must be doubled, since the string
+reader also uses backslash as a quote:
+
+    (pathname-name "foo\\*bar") => "foo*bar"
+]#
+
+#[ Logical Pathnames
+
+If a namestring begins with the name of a defined logical pathname host
+followed by a colon, then it will be parsed as a logical pathname.  Both
+'*' and "**" wildcards are implemented.
+\findexed{load-logical-pathname-defaults} on \var{name} looks for a logical
+host definition file in library:name.translations (Note that library:
+designates the search list initialized to the Nightshade "lib/" directory,
+not a logical pathname.)  The format of the file is a single list of
+two-lists of the from and to patterns:
+
+    (("foo;*.text" "/usr/ram/foo/*.txt")
+     ("foo;*.lisp" "/usr/ram/foo/*.l"))
+]#
+
+#[ Search Lists
+
+Search lists are an extension to Common Lisp pathnames.  They serve a function
+somewhat similar to Common Lisp logical pathnames, but work more like Unix PATH
+variables.  Search lists are used for two purposes:
+
+  * They provide a convenient shorthand for commonly used directory names,
+    and
+
+  * They allow the abstract (directory structure independent) specification
+    of file locations in program pathname constants (similar to logical
+    pathnames.)
+
+Each search list has an associated list of directories (represented as
+pathnames with no name or type component.)  The namestring for any relative
+pathname may be prefixed with slist:, indicating that the pathname is
+relative to the search list slist (instead of to the current working
+directory.)  Once qualified with a search list, the pathname is no longer
+considered to be relative.
+
+When a search list qualified pathname is passed to a file-system operation
+such as `open', `load' or `truename', each directory in the search list is
+successively used as the root of the pathname until the file is located.
+When a file is written to a search list directory, the file is always
+written to the first directory in the list.
+]#
+
+#[ Predefined Search-Lists
+
+These search-lists are initialized from the Unix environment or when Lisp was
+built:
+
+  % home: and :
+
+    The user's home directory.
+
+  % library:
+
+    The lib/ directory (NIGHTSHADELIB environment variable.)
+
+  % path:
+
+    The Unix command path (PATH environment variable.)
+
+  % target:
+
+    The root of the tree where the system was compiled.
+
+It can be useful to redefine these search-lists, for example, library: can
+be augmented to allow logical pathname translations to be located, and
+target: can be redefined to point to the local location of the system
+sources.
+]#
+
+#[ Search-List Operations
+
+These operations define and access search-list definitions.  A search-list name
+may be parsed into a pathname before the search-list is actually defined, but
+the search-list must be defined before it can actually be used in a filesystem
+operation.
+
+{function:ext:search-list}
+{function:ext:search-list-defined-p}
+{function:ext:clear-search-list}
+{function:ext:enumerate-search-list}
+]#
+
+#[ Search List Example
+
+The search list code: could be defined as follows:
+
+    (setf (ext:search-list "code:") '("/usr/lisp/code/"))
+
+It is now possible to use code: as an abbreviation for the directory
+"/usr/lisp/code/" in all file operations.  For example, code:eval.lisp
+refers to the file /usr/lisp/code/eval.lisp.
+
+The function search-list produces the value of a search-list name, as
+follows:
+
+    (ext:search-list NAME)
+
+Where NAME is the name of a search list as described above.  For example,
+calling ext:search-list on code: as follows:
+
+    (ext:search-list "code:")
+
+returns the list ("/usr/lisp/code/").
+]#
+
+
 ;;;; HOST structures
 
-;;;   The host structure holds the functions that both parse the pathname
-;;; information into sturcture slot entries, and after translation the inverse
-;;; (unparse) functions.
+;;; The host structure holds the functions that both parse the pathname
+;;; information into sturcture slot entries, and after translation the
+;;; inverse (unparse) functions.
 ;;;
 (defstruct (host
 	    (:print-function %print-host))
@@ -69,7 +239,7 @@
 	     %make-pathname (host device directory name type version))
 	    (:predicate pathnamep)
 	    (:make-load-form-fun :just-dump-it-normally))
-  ;; Slot holds the host, at present either a UNIX or logical host.
+  ;; Slot holds the host, at present either a Unix or logical host.
   (host nil :type (or host null))
   ;; Device is the name of a logical or physical device holding files.
   (device nil :type (or simple-string component-tokens))
@@ -80,12 +250,12 @@
   ;; The type extension of the file.
   (type nil :type (or simple-string pattern component-tokens))
   ;; The version number of the file, a positive integer, but not supported
-  ;; on standard UNIX filesystems.
+  ;; on standard Unix filesystems.
   (version nil :type (or integer component-tokens (member :newest))))
 
 ;;; %PRINT-PATHNAME -- Internal
 ;;;
-;;;   The printed representation of the pathname structure.
+;;; The printed representation of the pathname structure.
 ;;;
 (defun %print-pathname (pathname stream depth)
   (declare (ignore depth))
@@ -193,8 +363,8 @@
 
 
 ;;;; Patterns
-
-;;;   Patterns are a list of entries and wildcards used for pattern matches
+;;;
+;;; A pattern is a list of entries and wildcards used for pattern matches
 ;;; of translations.
 
 (defstruct (pattern
@@ -236,7 +406,7 @@
 
 ;;; PATTERN-MATCHES -- Internal
 ;;;
-;;;   If the string matches the pattern returns the multiple values T and a
+;;; If the string matches the pattern returns the multiple values T and a
 ;;; list of the matched strings.
 ;;;
 (defun pattern-matches (pattern string)
@@ -296,8 +466,8 @@
 
 ;;; DIRECTORY-COMPONENTS-MATCH  --  Internal
 ;;;
-;;;    Pathname-match-p for directory components. If thing is empty
-;;; then it matches :wild, (:absolute :wild-inferiors), or (:relative
+;;; Pathname-match-p for directory components. If thing is empty then it
+;;; matches :wild, (:absolute :wild-inferiors), or (:relative
 ;;; :wild-inferiors).
 ;;;
 (defun directory-components-match (thing wild)
@@ -323,7 +493,7 @@
 
 ;;; COMPONENTS-MATCH -- Internal
 ;;;
-;;;   Return true if pathname component Thing is matched by Wild.  Not
+;;; Return true if pathname component Thing is matched by Wild.  Not
 ;;; commutative.
 ;;;
 (defun components-match (thing wild)
@@ -368,7 +538,77 @@
 
 ;;;; Pathname functions.
 
-;;;   Implementation determined defaults to pathname slots.
+(defun relativep (pathname)
+  "Return #t if $pathname is a relative pathname."
+  (or pathname (error "$pathname ()"))
+  (let ((dir (pathname-directory (pathname pathname))))
+    (if dir
+	(eq (car dir) :relative)
+	t)))
+
+(defun absolutep (pathname)
+  "Return #t if $pathname is an absolute pathname."
+  (or pathname (error "$pathname ()"))
+  (let ((dir (pathname-directory (pathname pathname))))
+    (if dir (eq (car dir) :absolute))))
+
+(defun circular-p (pathname)
+  "Return true if the end of $pathname makes it circular.
+
+   A pathname if circular if a component of the pathname is a link to an
+   earlier component of the pathname, for example
+
+      /a/b/c/
+
+   when c is a symlink to /a/."
+  (and (symlinkp pathname)
+       (let ((truename (truename pathname)))
+	 (iterate check ((dirs (pathname-directory
+				(merge-pathnames
+				 (namify pathname)
+				 (current-directory)))))
+	   (if (equal (truename (make-pathname
+				 :directory dirs
+				 :defaults truename))
+		      truename)
+	       (return t))
+	   (if (cdr dirs)
+	       (check (butlast dirs)))))))
+
+(defun remote-pathname-p (pathname)
+  "Return true if $pathname names a remote file, that is, if $pathname
+   contains a search list outside the set of defined search lists."
+  (let ((name (namestring (if (if (pathname-directory pathname)
+				  (eq (car (pathname-directory pathname))
+				      :relative)
+				  t)
+			      (current-directory)
+			      pathname))))
+    (and (extract-search-list name ())
+	 (fi (search-list-defined-p name)))))
+
+(defun remote-pathname-host (pathname)
+  "Return the host name of remote $pathname."
+  (search-list-name
+   (or (extract-search-list
+	(if (if (pathname-directory pathname)
+		(eq (car (pathname-directory pathname)) :relative)
+		t)
+	    (current-directory)
+	    pathname)
+	())
+       (return-from remote-pathname-host ()))))
+
+(defun remote-pathname-local (pathname)
+  "Return the local part of remote $pathname."
+  (let* ((namestring (namestring (merge-pathnames pathname (current-directory))))
+	 (search-list (extract-search-list namestring ())))
+    (if search-list
+	(subseq namestring (1+ (length (search-list-name search-list))))
+	namestring)))
+
+;;; Implementation determined defaults to pathname slots.  Set in
+;;; `filesys-init'.
 
 (defvar *default-pathname-defaults*)
 
@@ -391,7 +631,8 @@
 			  (%pathname-version pathname2))))
 
 ;;; WITH-PATHNAME -- Internal
-;;;   Converts the expr, a pathname designator (a pathname, or string, or
+;;;
+;;; Converts the expr, a pathname designator (a pathname, or string, or
 ;;; stream), into a pathname.
 ;;;
 (defmacro with-pathname ((var expr) &body body)
@@ -407,7 +648,7 @@
 ;;; Converts the var, a host or string name for a host, into a logical-host
 ;;; structure or nil if not defined.
 ;;;
-;;; pw notes 1/12/97 this potentially useful macro is not used anywhere
+;;; FIX pw notes 1/12/97 this potentially useful macro is not used anywhere
 ;;; and 'find-host' is not defined. 'find-logical-host' seems to be needed.
 ;;;
 (defmacro with-host ((var expr) &body body)
@@ -428,7 +669,7 @@
 
 ;;; MAYBE-DIDDLE-CASE  -- Internal
 ;;;
-;;;   Change the case of thing if diddle-p T.
+;;; Change the case of thing if diddle-p T.
 ;;;
 (defun maybe-diddle-case (thing diddle-p)
   (if (and diddle-p (not (or (symbolp thing) (integerp thing))))
@@ -701,7 +942,7 @@
 ;;; PATHNAME-DIRECTORY -- Interface
 ;;;
 (defun pathname-directory (pathname &key (case :local))
-  "Accessor for the pathname's directory list."
+  "Accessor for $pathname's directory list."
   (declare (type path-designator pathname)
 	   (type (member :local :common) case))
   (with-pathname (pathname pathname)
@@ -767,9 +1008,9 @@
 
 ;;; %PARSE-NAMESTRING -- Internal
 ;;;
-;;;    Handle the case where parse-namestring is actually parsing a namestring.
-;;; We pick off the :JUNK-ALLOWED case then find a host to use for parsing,
-;;; call the parser, then check if the host matches.
+;;; Handle the case where parse-namestring is actually parsing a
+;;; namestring.  We pick off the :JUNK-ALLOWED case then find a host to use
+;;; for parsing, call the parser, then check if the host matches.
 ;;;
 (defun %parse-namestring (namestr host defaults start end junk-allowed)
   (declare (type string namestr)
@@ -785,17 +1026,19 @@
 	     (parse-host (or host
 			     (extract-logical-host-prefix namestr start end)
 			     (pathname-host defaults))))
-	(unless parse-host
-	  (error "When Host arg is not supplied, Defaults arg must ~
-		  have a non-null PATHNAME-HOST."))
+	(or parse-host
+	    (error "Either $host must be supplied or $defaults must ~
+		    have a true PATHNAME-HOST."))
 
 	(multiple-value-bind
 	    (new-host device directory file type version)
 	    (funcall (host-parse parse-host) namestr start end)
-	  (when (and host new-host (not (eq new-host host)))
-	    (error "Host in namestring: ~S~@
-		    does not match explicit host argument: ~S"
-		   host))
+	  (and host
+	       new-host
+	       (or (eq new-host host)
+		   (error "Host in namestring: ~S~@
+			   must match explicit host argument: ~S"
+			  host)))
 	  (let ((pn-host (or new-host parse-host)))
 	    (values (%make-pathname-object
 		     pn-host device directory file type version)
@@ -803,7 +1046,7 @@
 
 ;;; EXTRACT-LOGICAL-HOST-PREFIX -- Internal
 ;;;
-;;;   If namestr begins with a colon-terminated, defined, logical host, then
+;;; If namestr begins with a colon-terminated, defined, logical host, then
 ;;; return that host, otherwise return NIL.
 ;;;
 (defun extract-logical-host-prefix (namestr start end)
@@ -821,8 +1064,8 @@
 (defun parse-namestring (pathname
 			 &optional host (defaults *default-pathname-defaults*)
 			 &key (start 0) end junk-allowed)
-  "Converts Pathname, a pathname designator, into a pathname structure, for a
-   physical pathname, returns the printed representation. Host may be a
+  "Convert $pathname, a pathname designator, into a pathname structure, for
+   a physical pathname, return the printed representation.  $host may be a
    physical host structure or host namestring."
   (declare (type path-designator pathname)
 	   (type (or null host) host)
@@ -838,7 +1081,7 @@
       (pathname
        (let ((host (if host host (%pathname-host defaults))))
 	 (or (eq host (%pathname-host pathname))
-	     (error "Hosts do not match: ~S and ~S."
+	     (error "Hosts must match: ~S and ~S."
 		    host (%pathname-host pathname))))
        (values pathname start))
       (stream
@@ -857,9 +1100,9 @@
   (with-pathname (pathname pathname)
     (when pathname
       (let ((host (%pathname-host pathname)))
-	(unless host
-	  (error "Cannot determine the namestring for pathnames with no ~
-		  host:~%  ~S" pathname))
+	(or host
+	    (error "Cannot determine the namestring for pathnames with no ~
+		    host:~%  ~S" pathname))
 	(funcall (host-unparse host) pathname)))))
 
 ;;; HOST-NAMESTRING -- Interface
@@ -879,7 +1122,7 @@
 ;;; DIRECTORY-NAMESTRING -- Interface
 ;;;
 (defun directory-namestring (pathname)
-  "Returns a string representation of the directories used in the pathname."
+  "Return a string representation of the directories used in the pathname."
   (declare (type path-designator pathname)
 	   (values (or null simple-base-string)))
   (with-pathname (pathname pathname)
@@ -893,7 +1136,7 @@
 ;;; FILE-NAMESTRING -- Interface
 ;;;
 (defun file-namestring (pathname)
-  "Returns a string representation of the name used in the pathname."
+  "Return a string representation of the name used in $pathname."
   (declare (type path-designator pathname)
 	   (values (or null simple-base-string)))
   (with-pathname (pathname pathname)
@@ -948,36 +1191,43 @@
 	(:type (frob (%pathname-type pathname)))
 	(:version (frob (%pathname-version pathname)))))))
 
-;;; COMMON-PREFIX
+;;; COMMON-PREFIX  FIX unique-prefix?
 ;;;
 (defun common-prefix (pathname)
-  "Return a pathname representing all of Pathname that comes before the
-   first wild entry."
+  "Return two values: a pathname representing all of $pathname that comes
+   before the first wild directory entry, and the portion of $pathname from
+   the first wild directory entry."
   (declare (type path-designator pathname))
   (with-pathname (pathname pathname)
     (collect ((prefix-dir))
-      (let ((wild))
-	(loop for node in (pathname-directory pathname)
+      (let (suffix)
+	(loop for node = (pathname-directory pathname) then (cdr node)
 	  while node
 	  do
-	  (when (eq node :WILD)
-	    (setq wild t)
+	  (when (member (car node) '(:wild :wild-inferiors))
+	    (setq suffix node)
 	    (return))
-	  (prefix-dir node))
-	(flet ((or-wild (x) (fi (eq x :wild) x)))
-	  (let* ((name (fi wild (or-wild (pathname-name pathname))))
+	  (prefix-dir (car node)))
+	(flet ((or-wild (x) (fi (or (eq x :wild)
+				    (pattern-p x))
+				x)))
+	  (let* ((name (fi suffix (or-wild (pathname-name pathname))))
 		 (type (if name (or-wild (pathname-type pathname)))))
-	    (make-pathname :host (pathname-host pathname)
-			   :device (pathname-device pathname) ; FIX can be wild?
-			   :directory (prefix-dir)
-			   :name name
-			   :type type
-			   :version (fi type (or-wild (pathname-version pathname))))))))))
+	    (values (make-pathname :host (pathname-host pathname)
+				   :device (pathname-device pathname) ; FIX can be wild?
+				   :directory (prefix-dir)
+				   :name name
+				   :type type
+				   :version (fi type (or-wild (pathname-version pathname))))
+		    (make-pathname :directory (cons :relative suffix)
+				   :name (pathname-name pathname)
+				   :type (pathname-type pathname)
+				   :version (pathname-version pathname)))))))))
 
 ;;; PATHNAME-MATCH-P -- Interface
 ;;;
 (defun pathname-match-p (in-pathname in-wildname)
-  "Pathname matches the wildname template?"
+  "Return true if $in-pathname matches template $in-wildname."
   (declare (type path-designator in-pathname))
   (with-pathname (pathname in-pathname)
     (with-pathname (wildname in-wildname)
@@ -994,12 +1244,13 @@
 
 ;;; SUBSTITUTE-INTO -- Internal
 ;;;
-;;;   Place the substitutions into the pattern and return the string or pattern
-;;; that results.  If DIDDLE-CASE is true, we diddle the result case as well,
-;;; in case we are translating between hosts with difference conventional case.
-;;; The second value is the tail of subs with all of the values that we used up
-;;; stripped off.  Note that PATTERN-MATCHES matches all consecutive wildcards
-;;; as a single string, so we ignore subsequent contiguous wildcards.
+;;; Place the substitutions into the pattern and return the string or
+;;; pattern that results.  If DIDDLE-CASE is true, we diddle the result
+;;; case as well, in case we are translating between hosts with difference
+;;; conventional case.  The second value is the tail of subs with all of
+;;; the values that we used up stripped off.  Note that PATTERN-MATCHES
+;;; matches all consecutive wildcards as a single string, so we ignore
+;;; subsequent contiguous wildcards.
 ;;;
 (defun substitute-into (pattern subs diddle-case)
   (declare (type pattern pattern)
@@ -1295,11 +1546,11 @@
 ;;;
 ;;; Clear the definition.  Note: we can't remove it from the hash-table
 ;;; because there may be pathnames still refering to it.  So we just clear
-;;; out the expansions and ste defined to NIL.
+;;; out the expansions and set defined to NIL.
 ;;;
 (defun clear-search-list (name)
-  "Clear the current definition for the search-list NAME.  Returns T if such
-   a definition existed, and NIL if not."
+  "Clear the current definition for the search-list $name.  Return t if
+   such a definition existed, and () otherwise."
   (let* ((name (string-downcase name))
 	 (search-list (gethash name *search-lists*)))
     (when (and search-list (search-list-defined search-list))
@@ -1345,10 +1596,15 @@
 ;;; bunch of pathnames.
 ;;;
 (defun search-list (pathname)
-  "Return the expansions for the search-list starting PATHNAME.  If PATHNAME
-   does not start with a search-list, then an error is signaled.  If
-   the search-list has not been defined yet, then an error is signaled.
-   The expansion for a search-list can be set with SETF."
+  "Return the list of directories associated with the search list
+   $pathname.
+
+   If $pathname is something other than a defined search list or starts
+   with something other than a search list, then signal an error.
+
+   When set with `setf', the list of directories is changed to the new
+   value.  If the new value is just a namestring or pathname, then it is
+   interpreted as a one-element list.  Search list names are case-folded."
   (with-pathname (pathname pathname)
     (let ((search-list (extract-search-list pathname t))
 	  (host (pathname-host pathname)))
@@ -1361,10 +1617,12 @@
 
 ;;; SEARCH-LIST-DEFINED-P -- public.
 ;;;
-(defun search-list-defined-p (pathname)
-  "Returns T if the search-list starting PATHNAME is currently defined, and
-   NIL otherwise.  An error is signaled if PATHNAME does not start with a
-   search-list."
+(defun search-list-defined-p (pathname &optional (must-exist t))
+  "Return t if the search-list starting $pathname is currently defined,
+   else ().
+
+   $pathname should start with a search-list, otherwise signal an error."
+  (declare (ignore must-exist)) ; FIX
   (with-pathname (pathname pathname)
     (search-list-defined (extract-search-list pathname t))))
 
@@ -1378,49 +1636,56 @@
   (let ((search-list (extract-search-list pathname t)))
     (labels
 	((check (target-list path)
-	   (when (eq search-list target-list)
-	     (error "That would result in a circularity:~%  ~
-		     ~A~{ -> ~A~} -> ~A"
-		    (search-list-name search-list)
-		    (reverse path)
-		    (search-list-name target-list)))
+	   (if (eq search-list target-list)
+	       (error "That would result in a circularity:~%  ~
+		       ~A~{ -> ~A~} -> ~A"
+		      (search-list-name search-list)
+		      (reverse path)
+		      (search-list-name target-list)))
 	   (when (search-list-p target-list)
 	     (push (search-list-name target-list) path)
 	     (dolist (expansion (search-list-expansions target-list))
 	       (check (car expansion) path))))
 	 (convert (pathname)
 	   (with-pathname (pathname pathname)
-	     (when (or (pathname-name pathname)
-		       (pathname-type pathname)
-		       (pathname-version pathname))
-	       (error "Search-lists cannot expand into pathnames that have ~
-		       a name, type, or ~%version specified:~%  ~S"
-		      pathname))
+	     (if (or (pathname-name pathname)
+		     (pathname-type pathname)
+		     (pathname-version pathname))
+		 (error "Search-lists cannot expand into pathnames that have ~
+			 a name, type, or ~%version specified:~%  ~S"
+			pathname))
 	     (let ((directory (pathname-directory pathname)))
 	       (let ((expansion
 		      (if directory
 			  (ecase (car directory)
 			    (:absolute (cdr directory))
-			    (:relative (cons (intern-search-list "default")
-					     (cdr directory))))
-			  (list (intern-search-list "default")))))
+			    (:relative ;(intern-search-list "default")
+			     (list "")))
+			  ;(list (intern-search-list "default"))
+			  (list ""))))
 		 (check (car expansion) nil)
 		 expansion)))))
       (setf (search-list-expansions search-list)
 	    (if (listp values)
-	      (mapcar #'convert values)
-	      (list (convert values)))))
+		(mapcar #'convert values)
+		(list (convert values)))))
     (setf (search-list-defined search-list) t))
   values)
 
 ;;; ENUMERATE-SEARCH-LIST -- public.
 ;;;
 (defmacro enumerate-search-list ((var pathname &optional result) &body body)
-  "Execute BODY with VAR bound to each successive possible expansion for
-   PATHNAME and then return RESULT.  Note: if PATHNAME does not contain a
-   search-list, then BODY is executed exactly once.  Everything is wrapped
-   in a block named NIL, so RETURN can be used to terminate early.  Note:
-   VAR is *not* bound inside of RESULT."
+  "enumerate-search-list (var pathname [result]) body
+
+   An interface to search list resolution.  Execute $body with $var bound
+   to each successive possible expansion for $pathname and then return
+   $result.
+
+   If $pathname contains something other than a search-list, then execute
+   $body exactly once.
+
+   Wrap everything in a () block, so $return can be used to terminate
+   early.  Only bind $var inside $body."
   (let ((body-name (gensym)))
     `(block nil
        (flet ((,body-name (,var)
@@ -1434,11 +1699,15 @@
 		       pathname))
 	 (search-list (extract-search-list pathname nil)))
     (cond
-     ((not search-list)
+     ((fi search-list)
       (funcall function pathname))
-     ((not (search-list-defined search-list))
-      (error "Undefined search list: ~A"
-	     (search-list-name search-list)))
+     ((fi (search-list-defined search-list))
+      (if (probe-file (concatenate 'string
+				   (search-list-name (extract-search-list pathname ()))
+				   ":"))
+	  (funcall function pathname)
+	  (error "Undefined search list: ~A"
+		 (search-list-name search-list))))
      (t
       (let ((tail (cddr (pathname-directory pathname))))
 	(dolist (expansion
@@ -1459,7 +1728,7 @@
 
 ;;; LOGICAL-WORD-OR-LOSE  --  Internal
 ;;;
-;;;    Canonicalize a logical pathanme word by uppercasing it checking that it
+;;; Canonicalize a logical pathanme word by uppercasing it checking that it
 ;;; contains only legal characters.
 ;;;
 (defun logical-word-or-lose (word)
@@ -1477,7 +1746,7 @@
 
 ;;; FIND-LOGICAL-HOST  --  Internal
 ;;;
-;;;    Given a logical host or string, return a logical host.  If Error-p is
+;;; Given a logical host or string, return a logical host.  If Error-p is
 ;;; NIL, then return NIL when no such host exists.
 ;;;
 (defun find-logical-host (thing &optional (errorp t))
@@ -1495,8 +1764,8 @@
 
 ;;; INTERN-LOGICAL-HOST -- Internal
 ;;;
-;;;   Given a logical host name or host, return a logical host, creating a new
-;;; one if necessary.
+;;; Given a logical host name or host, return a logical host, creating a
+;;; new one if necessary.
 ;;;
 (defun intern-logical-host (thing)
   (declare (values logical-host))
@@ -1511,7 +1780,7 @@
 
 ;;; MAYBE-MAKE-LOGICAL-PATTERN -- Internal
 ;;;
-;;;    Deal with multi-char wildcards in a logical pathname token.
+;;; Deal with multi-char wildcards in a logical pathname token.
 ;;;
 (defun maybe-make-logical-pattern (namestring chunks)
   (let ((chunk (caar chunks)))
@@ -1545,7 +1814,7 @@
 
 ;;; LOGICAL-CHUNKIFY  --  Internal
 ;;;
-;;;    Return a list of conses where the cdr is the start position and the car
+;;; Return a list of conses where the cdr is the start position and the car
 ;;; is a string (token) or character (punctuation.)
 ;;;
 (defun logical-chunkify (namestr start end)
@@ -1572,7 +1841,7 @@
 
 ;;; PARSE-LOGICAL-NAMESTRING  -- Internal
 ;;;
-;;;   Break up a logical-namestring, always a string, into its constituent
+;;; Break up a logical-namestring, always a string, into its constituent
 ;;; parts.
 ;;;
 (defun parse-logical-namestring (namestr start end)
@@ -1668,6 +1937,7 @@
 	      name type version))))
 
 ;;; Can't defvar here because not all host methods are loaded yet.
+;;;
 (declaim (special *logical-pathname-defaults*))
 
 ;;; LOGICAL-PATHNAME -- Public
@@ -1773,7 +2043,7 @@
 
 ;;; CANONICALIZE-LOGICAL-PATHNAME-TRANSLATIONS -- Internal
 ;;;
-;;;   Verify that the list of translations consists of lists and prepare
+;;; Verify that the list of translations consists of lists and prepare
 ;;; canonical translations (parse pathnames and expand out wildcards into
 ;;; patterns).
 ;;;
@@ -1862,4 +2132,4 @@
 
 (defvar *logical-pathname-defaults*
   (%make-logical-pathname (make-logical-host :name "BOGUS") :unspecific
-			  nil nil nil nil))
+			  () () () ()))

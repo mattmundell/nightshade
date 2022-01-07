@@ -60,21 +60,21 @@
 ;;; FDEFINITION-OBJECT -- internal interface.
 ;;;
 (defun fdefinition-object (name create)
-  "Return the fdefn object for NAME.  If it doesn't already exist and
-   CREATE it non-NIL, create a new (unbound) one."
+  "Return the fdefn object for $name.  If it doesn't already exist and
+   $create it true, create a new (unbound) one."
   (declare (values (or fdefn null)))
-  (unless (or (symbolp name)
-	      (and (consp name)
-		   (eq (car name) 'setf)
-		   (let ((cdr (cdr name)))
-		     (and (consp cdr)
-			  (symbolp (car cdr))
-			  (null (cdr cdr))))))
-    (error 'simple-type-error
-	   :datum name
-	   :expected-type '(or symbol list)
-	   :format-control "Invalid function name: ~S"
-	   :format-arguments (list name)))
+  (or (symbolp name)
+      (and (consp name)
+	   (eq (car name) 'setf)
+	   (let ((cdr (cdr name)))
+	     (and (consp cdr)
+		  (symbolp (car cdr))
+		  (null (cdr cdr)))))
+      (error 'simple-type-error
+	     :datum name
+	     :expected-type '(or symbol list)
+	     :format-control "Invalid function name: ~S"
+	     :format-arguments (list name)))
   (let ((fdefn (info function definition name)))
     (if (and (null fdefn) create)
 	(setf (info function definition name) (make-fdefn name))
@@ -85,8 +85,8 @@
 ;;; The compiler emits calls to this when someone tries to funcall a symbol.
 ;;;
 (defun %coerce-to-function (name)
-  "Returns the definition for name, including any encapsulations.  Settable
-   with SETF."
+  "Return the definition for name, including any encapsulations.  Settable
+   with `setf'."
   (let ((fdefn (fdefinition-object name nil)))
     (or (and fdefn (fdefn-function fdefn))
 	(error 'undefined-function :name name))))
@@ -139,14 +139,27 @@
 ;;; exists.
 ;;;
 (defun encapsulate (name type body)
-  "Replaces the definition of NAME with a function that binds name's arguments
-   a variable named argument-list, binds name's definition to a variable named
-   basic-definition, and evaluates BODY in that context.  TYPE is
-   whatever you would like to associate with this encapsulation for
-   identification in case you need multiple encapsuations of the same name."
+  "Save the current definition of $name, replacing it with a function
+   which returns the result of evaluating the form, $body.  $type is an
+   arbitrary lisp value which is the type of encapsulation.
+
+   When the new function is called, the following variables are bound for
+   the evaluation of $body:
+
+    ** extensions:argument-list:  A list of the arguments to the function.
+
+    ** extensions:basic-definition: The unencapsulated definition of the
+       function.
+
+   The unencapsulated definition may be called with the original arguments
+   by including the form
+
+       (apply extensions:basic-definition extensions:argument-list)
+
+   Always return $name."
   (let ((fdefn (fdefinition-object name nil)))
-    (unless (and fdefn (fdefn-function fdefn))
-      (error 'undefined-function :name name))
+    (or (and fdefn (fdefn-function fdefn))
+	(error 'undefined-function :name name))
     (let ((info (make-encapsulation-info type (fdefn-function fdefn))))
       (setf (fdefn-function fdefn)
 	    #'(lambda (&rest argument-list)
@@ -177,7 +190,8 @@
 ;;; something conceptually equal, but mechanically it is different.
 ;;;
 (defun unencapsulate (name type)
-  "Removes name's most recent encapsulation of the specified type."
+  "Remove $name's most recent encapsulation of the $type.  Compare $type
+   with `eq'.  Leave encapsulations of other types in place."
   (let* ((fdefn (fdefinition-object name nil))
 	 (encap-info (encapsulation-info (fdefn-function fdefn))))
     (declare (type (or encapsulation-info null) encap-info))
@@ -193,9 +207,9 @@
 	   (loop
 	     (let ((next-info (encapsulation-info
 			       (encapsulation-info-definition encap-info))))
-	       (unless next-info
-		 ;; Not there, so don't worry about it.
-		 (return))
+	       (or next-info
+		   ;; Not there, so don't worry about it.
+		   (return))
 	       (when (eq (encapsulation-info-type next-info) type)
 		 ;; This is it, so unlink us.
 		 (setf (encapsulation-info-definition encap-info)
@@ -207,8 +221,8 @@
 ;;; ENCAPSULATED-P -- Public.
 ;;;
 (defun encapsulated-p (name type)
-  "Returns t if name has an encapsulation of the given type, otherwise
-   nil."
+  "Return #t if $name has an encapsulation of $type, otherwise ().  Compare
+   type with `eq'."
   (let ((fdefn (fdefinition-object name nil)))
     (do ((encap-info (encapsulation-info (fdefn-function fdefn))
 		     (encapsulation-info

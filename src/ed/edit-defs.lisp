@@ -1,9 +1,42 @@
-;;; Editing DEFMACRO and DEFUN definitions.  Also, has directory translation
-;;; code for moved and/or different sources.
+;;; Editing DEFMACRO and DEFUN definitions.  Also, has directory
+;;; translation code for moved and/or different sources.
 
 (in-package "ED")
 
 (export '(add-definition-dir-translation delete-definition-dir-translation))
+
+#[ Editing Definitions
+
+The Lisp compiler annotates each compiled function object with the source
+file from which the function was originally defined.  The definition
+editing commands use this information to locate and edit the source for
+functions defined in the environment.  The defining file is recorded as an
+absolute pathname.
+
+{command:Edit Definition}
+{command:Goto Definition}
+{command:Edit Command Definition}
+The definition editing commands have a directory translation mechanism that
+allow the sources to be found when they are not in the location where
+compilation was originally done.
+{command:Add Definition Directory Translation}
+{command:Delete Definition Directory Translation}
+{evariable:Editor Definition Info}
+]#
+
+#[ Definition Editing
+
+The editor provides commands for finding the definition of a function,
+macro, or command and placing the user at the definition in a buffer.  If
+the editor cannot get at the information, then these commands do not work.
+If the Lisp system does not store an absolute pathname, independent of the
+machine on which the maintainer built the system, then users need a way of
+translating a source pathname to one that will be able to locate the
+source.
+
+{function:ed:add-definition-dir-translation}
+{function:ed:delete-definition-dir-translation}
+]#
 
 ;;; Directory translation for definition editing commands.
 
@@ -14,30 +47,35 @@
    in /whatever/.../file.ext.")
 
 (defun add-definition-dir-translation (dir1 dir2)
-  "Takes two directory namestrings and causes the first to be mapped to
-   the second.  This is used in commands like \"Edit Definition\".
-   Successive uses of this push into a list of translations that will
-   be tried in order of traversing the list."
+  "Map directory pathname $dir1 to $dir2.
+
+   This is used in commands like `Edit Definition'.
+
+   On a successive invocation using the same $dir1 push into a translation
+   list.
+
+   When [FIX] the editor seeks a definition source file, and it has a
+   translation, then it tries the translations in order.  This is useful
+   for sources that are on various machines, some of which may be down.
+   When the editor tries to find a translation, it first looks for
+   translations of longer directory pathnames, finding more specific
+   translations before shorter, more general ones."
   (push (pathname dir2)
 	(getstring (directory-namestring dir1)
 		   *definition-directory-translation-table*)))
 
 (defun delete-definition-dir-translation (directory)
-  "Deletes the mapping of directory to all other directories for definition
+  "Delete the mapping of $directory to all other directories for definition
    editing commands."
   (delete-string (directory-namestring directory)
 		 *definition-directory-translation-table*))
 
-
-(defcommand "Add Definition Directory Translation" (p)
-  "Prompts for two directory namestrings and causes the first to be mapped to
-   the second for definition editing commands.  Longer (more specific) directory
-   specifications are match before shorter (more general) ones.  Successive
-   uses of this push into a list of translations that will be tried in order
-   of traversing the list."
-  "Prompts for two directory namestrings and causes the first to be mapped to
-   the second for definition editing commands."
-  (declare (ignore p))
+(defcommand "Add Definition Directory Translation" ()
+  "Map a prompted directory namestring to a second prompted namestring for
+   definition editing commands.  Longer (more specific) directory
+   specifications are matched before shorter (more general) ones.
+   Successive uses of this push into a list of translations that will be
+   tried in order of traversing the list."
   (let* ((dir1 (prompt-for-file :prompt "Preimage dir1: "
 				:help "directory namestring."
 				:must-exist nil))
@@ -46,20 +84,16 @@
 				:must-exist nil)))
     (add-definition-dir-translation dir1 dir2)))
 
-(defcommand "Delete Definition Directory Translation" (p)
-  "Prompts for a directory namestring and deletes it from the directory
-   translation table for the definition editing commands."
-  "Prompts for a directory namestring and deletes it from the directory
-   translation table for the definition editing commands."
-  (declare (ignore p))
+(defcommand "Delete Definition Directory Translation" ()
+  "Delete a prompted directory namestring from the directory translation
+   table for the definition editing commands."
   (delete-definition-dir-translation
    (prompt-for-file :prompt "Directory: "
 		    :help "directory namestring."
 		    :must-exist nil)))
 
-
-
-;;; Definition Editing Commands.
+
+;;;; Definition Editing Commands.
 
 ;;; These commands use a slave Lisp to determine the file the function is
 ;;; defined in.  They do a synchronous evaluation of DEFIITION-EDITING-INFO.
@@ -84,6 +118,8 @@
 ;;; in the file with the function's name as a prefix.  This is not necessary
 ;;; with type :command since the name is terminated with a ".
 ;;;
+;;; FIX (defun kernel:current-sp () (kernel:current-sp))
+;;;
 (defun get-definition-pattern (type name)
   (declare (simple-string name))
   (let ((string (ecase type
@@ -97,7 +133,9 @@
 				(nsubstitute #\space #\-
 					     (subseq name 0 (- (length name) 8))
 					     :test #'char=)
-				"\"")))))
+				"\""))
+		  (:editor-variable
+		   (concatenate 'simple-string "(defevar \"" name "\"")))))
     (declare (simple-string string))
     (cond ((string= string *last-go-to-def-string*)
 	   *go-to-def-pattern*)
@@ -105,17 +143,18 @@
 	     (new-search-pattern :string-insensitive :forward
 				 string *go-to-def-pattern*)))))
 
-(defhvar "Editor Definition Info"
-  "When this is non-nil, the editor Lisp is used to determine definition
-   editing information; otherwise, the slave Lisp is used."
-  :value nil)
+(defevar "Editor Definition Info"
+  "When true, the editor Lisp is used to determine definition editing
+   information; otherwise, the current eval server is used.  This variable
+   is true in `Eval' and `Editor' modes."
+  :value ())
 
-(defcommand "Goto Definition" (p)
-  "Go to the current function/macro's definition.  If it isn't defined by a
-   DEFUN or DEFMACRO form, then the defining file is simply found.  If the
-   function is not compiled, then it is looked for in the current buffer."
-  "Go to the current function/macro's definition."
-  (declare (ignore p))
+(defcommand "Goto Definition" ()
+  "Edit the definition of the symbol at the beginning of the current list.
+
+   If the symbol is defined as a `defun' or `defmacro' form then go to the
+   definition, otherwise simply find the defining file.  If the function is
+   interpreted, then look for it in the current buffer."
   (let ((point (current-point)))
     (pre-command-parse-check point)
     (with-mark ((mark1 point)
@@ -126,10 +165,15 @@
       (let ((fun-name (region-to-string (region mark1 mark2))))
 	(get-def-info-and-go-to-it fun-name)))))
 
-(defcommand "Edit Definition" (p)
-  "Prompts for function/macro's definition name and goes to it for editing."
-  "Prompts for function/macro's definition name and goes to it for editing."
-  (declare (ignore p))
+(defcommand "Edit Definition" ()
+  "Prompt for a function/macro and go to it for editing.
+
+   Use the current eval server to find out in which file the function is
+   defined.  If something other than defun or defmacro defined the
+   function, then simply read in the file, otherwise try to find its
+   definition point within the file.  If the function is uncompiled, then
+   look for it in the current buffer.  Use a valid eval server if there is
+   one, otherwise use the editor Lisp's environment."
   (let ((fun-name (prompt-for-string
 		   :prompt "Name: "
 		   :help "Symbol name of function."
@@ -139,7 +183,7 @@
 (defun get-def-info-and-go-to-it (fun-name)
   (let ((in-editor-p (value editor-definition-info))
 	(info (value current-eval-server)))
-    (if (or in-editor-p (not info))
+    (if (fi info t in-editor-p)
 	(multiple-value-bind (pathname type name)
 			     (in-lisp
 			      (definition-editing-info fun-name))
@@ -148,11 +192,39 @@
 	  (go-to-definition pathname type name))
 	(let ((results (eval-form-in-server
 			info
-			(format nil "(ed::definition-editing-info ~S)"
+			(format () "(ed::definition-editing-info ~S)"
 				fun-name))))
 	  (go-to-definition (read-from-string (first results)) ; file
 			    (read-from-string (second results)) ; type
 			    (read-from-string (third results))))))) ; name
+
+(defun find-variable-source (name)
+  "Find the file in ed: that defines editor variable $name."
+  ; FIX exit search at first match
+  (car (search-files "ed:" (concat "(defevar \"" name "\""))))
+
+(defcommand "Edit Editor Variable Definition" (p &optional name)
+  "Prompt for an editor variable and go to it for editing.
+
+   Use the current eval server to find out in which file the variable is
+   defined.  Use a valid eval server if there is one, otherwise use the
+   editor Lisp's environment."
+  (declare (ignore p))
+  (multiple-value-bind (name var)
+		       (if name
+			   (values name ())
+			   (prompt-for-variable
+			    :help "Name of variable to edit."
+			    :prompt "Editor Variable: "))
+    (declare (ignore var))
+    ;; FIX
+    (message "Searching for variable definition...")
+    (let ((source (find-variable-source name)))
+      (if source ; (variable-source var)
+	(go-to-definition (merge-pathnames source "ed:") ; (variable-source var) ; file
+			  :editor-variable ; type
+			  name)
+	(editor-error "Variable source is love.")))))
 
 ;;; "Edit Command Definition" is a hack due to creeping evolution in
 ;;; GO-TO-DEFINITION.  We specify :function type and a name with "-COMMAND"
@@ -163,8 +235,9 @@
 ;;; or we can hack this command so everything works.
 ;;;
 (defcommand "Edit Command Definition" (p)
-  "Prompts for command definition name and goes to it for editing."
-  "Prompts for command definition name and goes to it for editing."
+  "Edit the definition of a prompted editor command.  If a prefix argument
+   is specified, then prompt for a key and edit the definition of the
+   command bound to that key."
   (multiple-value-bind
       (name command)
       (if p
@@ -173,7 +246,10 @@
 	    (declare (ignore key))
 	    (values (command-name cmd) cmd))
 	  (prompt-for-keyword (list *command-names*)
-			      :prompt "Command to edit: "))
+			      :prompt "Command to edit: "
+			      :history *extended-command-history*
+			      :history-pointer
+			      '*extended-command-history-pointer*))
     (go-to-definition (fun-defined-from-pathname (command-function command))
 		      :function
 		      (concatenate 'simple-string name "-COMMAND"))))
@@ -214,10 +290,10 @@
      (t
       (when (or (eq type :unknown-function) (eq type :unknown-macro))
 	(with-mark ((m (buffer-start-mark (current-buffer))))
-	  (unless (find-pattern m pattern)
-	    (editor-error
-	     "~A is not compiled and not defined in current buffer with ~S"
-	     (string-upcase name) *last-go-to-def-string*))
+	  (or (find-pattern m pattern)
+	      (editor-error
+	       "~A is not compiled and not defined in current buffer with ~S"
+	       (string-upcase name) *last-go-to-def-string*))
 	  (let ((point (current-point)))
 	    (push-buffer-mark (copy-mark point))
 	    (move-mark point m))))))))
@@ -277,12 +353,9 @@
 				    unmatched-dir)
 		 :name file-name))
 
-
-;;; DEFINITION-EDITING-INFO runs in a slave Lisp and returns the pathname
-;;; that the global definition of the symbol whose name is string is defined
-;;; in.
-;;;
 (defun definition-editing-info (string)
+ "Return the pathname from which the global definition of the symbol named
+  $string was defined."
   (let ((symbol (read-from-string string)))
     (check-type symbol symbol)
     (let ((macro (macro-function symbol))

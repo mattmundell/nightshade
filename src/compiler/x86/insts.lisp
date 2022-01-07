@@ -1,25 +1,6 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/x86/insts.lisp,v 1.6.2.3 2000/05/23 16:38:00 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Description of the x86 instruction set, for 80386 and above.
-;;;
-;;; Written by William Lott
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; Debugging and enhancements by Douglas Crosher 1996, 1997, 1998.
-;;;
 
-(in-package :x86)
+(in-package "X86")
 
 (use-package :new-assem)
 
@@ -27,7 +8,6 @@
   :scheduler-p nil)
 
 (disassem:set-disassem-params :instruction-alignment 8)
-
 
 
 ;;;; Primitive emitters.
@@ -46,7 +26,6 @@
 
 (define-emitter emit-sib-byte 8
   (byte 2 6) (byte 3 3) (byte 3 0))
-
 
 
 ;;;; Fixup emitters.
@@ -67,7 +46,6 @@
 (defun emit-relative-fixup (segment fixup)
   (note-fixup segment :relative fixup)
   (emit-dword segment (or (fixup-offset fixup) 0)))
-
 
 
 ;;;; The effective-address (ea) structure.
@@ -186,8 +164,7 @@
   (and (tn-p thing)
        (eq (sb-name (sc-sb (tn-sc thing))) 'float-registers)))
 
-;;;
-;;; like the above, but for fp-instructions--jrd
+;;; Like the above, but for fp-instructions.
 ;;;
 (defun emit-fp-op (segment thing op)
   (if (fp-reg-tn-p thing)
@@ -264,7 +241,6 @@
 (defun conditional-opcode (condition)
   (cdr (assoc condition conditions :test #'eq))))
 
-
 
 ;;;; Utilities.
 
@@ -327,11 +303,10 @@
     (:dword
      (emit-dword segment value))))
 
-
 
 ;;;; Disassembler support stuff.
 
-(deftype reg () '(unsigned-byte 3))  
+(deftype reg () '(unsigned-byte 3))
 #+cross-compiler
 (lisp:deftype reg () '(unsigned-byte 3))
 
@@ -503,10 +478,8 @@
 	  (t				; (= mod #b10)
 	   (list r/m (disassem:read-signed-suffix 32 dstate))))))
 
-
-;;; This is a sort of bogus prefilter that just
-;;; stores the info globally for other people to use; it
-;;; probably never gets printed.
+;;; This is a sort of bogus prefilter that just stores the info globally
+;;; for other people to use; it probably never gets printed.
 (defun prefilter-width (value dstate)
   (setf (disassem:dstate-get-prop dstate 'width)
 	(if (zerop value)
@@ -548,16 +521,14 @@
 	       (declare (ignore value)
 			(type stream stream)
 			(type disassem:disassem-state dstate))
-	       (print-reg 0 stream dstate))
-  )
+	       (print-reg 0 stream dstate)))
 
 (disassem:define-argument-type word-accum
   :printer #'(lambda (value stream dstate)
 	       (declare (ignore value)
 			(type stream stream)
 			(type disassem:disassem-state dstate))
-	       (print-word-reg 0 stream dstate))
-  )
+	       (print-word-reg 0 stream dstate)))
 
 (disassem:define-argument-type reg
   :printer #'print-reg)
@@ -577,15 +548,13 @@
 		 (declare (ignore value)) ; always nil anyway
 		 (disassem:read-suffix
 		  (width-bits (disassem:dstate-get-prop dstate 'width))
-		  dstate))
-  )
+		  dstate)))
 
 (disassem:define-argument-type signed-imm-data
   :prefilter #'(lambda (value dstate)
 		 (declare (ignore value)) ; always nil anyway
 		 (let ((width (disassem:dstate-get-prop dstate 'width)))
-		   (disassem:read-signed-suffix (width-bits width) dstate)))
-  )
+		   (disassem:read-signed-suffix (width-bits width) dstate))))
 
 (disassem:define-argument-type signed-imm-byte
   :prefilter #'(lambda (value dstate)
@@ -623,9 +592,6 @@
   :prefilter #'prefilter-reg/mem
   :printer #'print-byte-reg/mem)
 
-;;;
-;;; added by jrd
-;;;
 (eval-when (compile load eval)
 (defun print-fp-reg (value stream dstate)
   (declare (ignore dstate))
@@ -643,8 +609,7 @@
 (disassem:define-argument-type width
   :prefilter #'prefilter-width
   :printer #'(lambda (value stream dstate)
-	       (if ;; (zerop value)
-		   (or (null value) (and (numberp value) (zerop value)))	; zzz jrd
+	       (if (or (null value) (and (numberp value) (zerop value)))
 		   (princ 'b stream)
 		   (let ((word-width
 			  ;; set by a prefix instruction
@@ -702,8 +667,7 @@
   (reg   :field (byte 3 0) :type 'reg)
   ;; optional fields
   (accum :type 'accum)
-  (imm)
-  )
+  (imm))
 
 ;;; Same as reg, but with direction bit
 (disassem:define-instruction-format (reg-dir 8 :include 'reg)
@@ -785,33 +749,30 @@
   ;; optional fields
   (imm))
 
-;;; ----------------------------------------------------------------
-;;; this section added by jrd, for fp instructions.  
+
+;;;; FP instruction assemblering.
 
-;;; 
 ;;; regular fp inst to/from registers/memory
 ;;;
-(disassem:define-instruction-format (floating-point 16 
+(disassem:define-instruction-format (floating-point 16
 				      :default-printer `(:name :tab reg/mem))
   (prefix :field (byte 5 3) :value #b11011)
   (op     :fields (list (byte 3 0) (byte 3 11)))
   (reg/mem :fields (list (byte 2 14) (byte 3 8)) :type 'reg/mem))
 
-;;;
 ;;; fp insn to/from fp reg
 ;;;
-(disassem:define-instruction-format (floating-point-fp 16 
+(disassem:define-instruction-format (floating-point-fp 16
 				      :default-printer `(:name :tab fp-reg))
   (prefix :field (byte 5 3) :value #b11011)
   (suffix :field (byte 2 14) :value #b11)
   (op     :fields (list (byte 3 0) (byte 3 11)))
   (fp-reg :field (byte 3 8) :type 'fp-reg))
 
-;;;
 ;;; fp insn to/from fp reg, with the reversed source/destination flag.
 ;;;
 (disassem:define-instruction-format
- (floating-point-fp-d 16 
+ (floating-point-fp-d 16
    :default-printer `(:name :tab ,(swap-if 'd "ST0" ", " 'fp-reg)))
   (prefix :field (byte 5 3) :value #b11011)
   (suffix :field (byte 2 14) :value #b11)
@@ -819,8 +780,6 @@
   (d      :field (byte 1 2))
   (fp-reg :field (byte 3 8) :type 'fp-reg))
 
-
-;;; pfw
 ;;; fp no operand isns
 ;;;
 (disassem:define-instruction-format (floating-point-no 16
@@ -847,9 +806,6 @@
   (suffix :field (byte 3 13) :value #b111)
   (op     :field (byte 5  8)))
 
-
-;;; ----------------------------------------------------------------
-
 
 ;;;; General Data Transfer
 
@@ -869,7 +825,6 @@
   (:printer byte ((op operand-size-prefix-byte))
 	    nil				; don't actually print it
 	    :control #'toggle-word-width))
-
 
 (define-instruction mov (segment dst src)
   ;; immediate to register
@@ -946,7 +901,7 @@
 	  (emit-byte segment #b00001111)
 	  (emit-byte segment (logior opcode 1))
 	  (emit-ea segment src (reg-tn-encoding dst))))))))
-	  
+
 (define-instruction movsx (segment dst src)
   (:printer ext-reg-reg/mem ((op #b1011111) (reg nil :type 'word-reg)))
   (:emitter
@@ -1140,9 +1095,8 @@
   (:emitter
    (emit-byte segment #b11111011)))
 
-
 
-;;;; Arithmetic
+;;;; Arithmetic.
 
 (defun emit-random-arith-inst (name segment dst src opcode
 				    &optional allow-constants)
@@ -1187,8 +1141,7 @@
       (reg/mem-imm ((op (#b1000000 ,subop))))
       (reg/mem-imm ((op (#b1000001 ,subop))
 		    (imm nil :type signed-imm-byte)))
-      (reg-reg/mem-dir ((op ,(dpb subop (byte 3 1) #b000000))))))
-  )
+      (reg-reg/mem-dir ((op ,(dpb subop (byte 3 1) #b000000)))))))
 
 (define-instruction add (segment dst src)
   (:printer-list
@@ -1371,7 +1324,7 @@
    (emit-byte segment #b10011001)))
 
 ;;; CDQ -- Convert Double Word to Quad Word. EDX:EAX <- sign_xtnd(EAX)
-;;; 
+;;;
 (define-instruction cdq (segment)
   (:printer byte ((op #b10011001)))
   (:emitter
@@ -1628,7 +1581,7 @@
    (emit-byte segment #b11110010)))
 
 
-;;;; Bit Manipulation
+;;;; Bit Manipulation.
 
 (define-instruction bsf (segment dst src)
   (:emitter
@@ -1728,7 +1681,6 @@
 	 :prefilter #'(lambda (value dstate)
 			(declare (ignore value))   ; always nil anyway
 			(disassem:read-signed-suffix 32 dstate))))
-
 
 (define-instruction call (segment where)
   (:printer near-jump ((op #b11101000)))
@@ -1894,7 +1846,7 @@
    (emit-ea segment dst #b000)))
 
 
-;;;; Enter/Leave
+;;;; Enter/Leave.
 
 (disassem:define-instruction-format (enter-format 32
 				     :default-printer '(:name
@@ -1983,8 +1935,7 @@
       (#.vm:halt-trap
        (nt "Halt trap"))
       (#.vm:function-end-breakpoint-trap
-       (nt "Function end breakpoint trap"))
-    )))
+       (nt "Function end breakpoint trap")))))
 
 (define-instruction break (segment code)
   (:declare (type (unsigned-byte 8) code))
@@ -2025,7 +1976,7 @@
    (emit-byte segment #b11001111)))
 
 
-;;;; Processor control
+;;;; Processor control.
 
 (define-instruction hlt (segment)
   (:printer byte ((op #b11110100)))
@@ -2047,9 +1998,8 @@
   (:emitter
    (emit-byte segment #b11110000)))
 
-
 
-;;;; Random hackery
+;;;; Random hackery.
 
 (define-instruction byte (segment byte)
   (:emitter
@@ -2080,16 +2030,9 @@
   (:emitter
    (emit-header-data segment return-pc-header-type)))
 
-;;; ----------------------------------------------------------------
-;;; added by jrd.  fp instructions
-;;;
+;;; This treats the single-precision and double-precision variants as
+;;; separate instructions.
 
-;;;
-;;; we treat the single-precision and double-precision variants
-;;; as separate instructions
-;;;
-
-;;;
 ;;; load single to st(0)
 ;;;
 (define-instruction fld (segment source)
@@ -2098,7 +2041,6 @@
     (emit-byte segment #b11011001)
     (emit-fp-op segment source #b000)))
 
-;;;
 ;;; load double to st(0)
 ;;;
 (define-instruction fldd (segment source)
@@ -2110,7 +2052,6 @@
      (emit-byte segment #b11011101))
     (emit-fp-op segment source #b000)))
 
-;;;
 ;;; load long to st(0)
 ;;;
 (define-instruction fldl (segment source)
@@ -2119,12 +2060,11 @@
     (emit-byte segment #b11011011)
     (emit-fp-op segment source #b101)))
 
-;;;
 ;;; store single from st(0)
 ;;;
 (define-instruction fst (segment dest)
   (:printer floating-point ((op '(#b001 #b010))))
-  (:emitter 
+  (:emitter
     (cond ((fp-reg-tn-p dest)
 	   (emit-byte segment #b11011101)
 	   (emit-fp-op segment dest #b010))
@@ -2132,13 +2072,12 @@
 	   (emit-byte segment #b11011001)
 	   (emit-fp-op segment dest #b010)))))
 
-;;;
 ;;; store double from st(0)
 ;;;
 (define-instruction fstd (segment dest)
   (:printer floating-point ((op '(#b101 #b010))))
   (:printer floating-point-fp ((op '(#b101 #b010))))
-  (:emitter 
+  (:emitter
    (cond ((fp-reg-tn-p dest)
 	  (emit-byte segment #b11011101)
 	  (emit-fp-op segment dest #b010))
@@ -2146,6 +2085,7 @@
 	  (emit-byte segment #b11011101)
 	  (emit-fp-op segment dest #b010)))))
 
+
 ;;; Arithmetic ops are all done with at least one operand at top of
 ;;; stack. The other operand is is another register or a 32/64 bit
 ;;; memory loc.
@@ -2170,11 +2110,10 @@
 ;;;     destination = source op destination
 ;;;
 ;;; The instructions below only accept one operand at present which is
-;;; usually the source. I've hack in extra instructions to implement
-;;; the fops with a ST(i) destination, these have a -sti suffix and
-;;; the operand is the destination with the source being ST(0).
+;;; usually the source. I've hacked in extra instructions to implement the
+;;; fops with a ST(i) destination, these have a -sti suffix and the operand
+;;; is the destination with the source being ST(0).
 
-;;;
 ;;; Add single
 ;;; st(0) = st(0) + memory or st(i)
 ;;;
@@ -2184,7 +2123,6 @@
     (emit-byte segment #b11011000)
     (emit-fp-op segment source #b000)))
 
-;;;
 ;;; Add double
 ;;; st(0) = st(0) + memory or st(i)
 ;;;
@@ -2197,7 +2135,6 @@
      (emit-byte segment #b11011100))
    (emit-fp-op segment source #b000)))
 
-;;;
 ;;; Add double destination st(i)
 ;;; st(i) = st(0) + st(i)
 ;;;
@@ -2215,53 +2152,48 @@
    (emit-byte segment #b11011110)
    (emit-fp-op segment destination #b000)))
 
-;;;
 ;;; Subtract single
 ;;; st(0) = st(0) - memory or st(i)
 ;;;
 (define-instruction fsub (segment source)
   (:printer floating-point ((op '(#b000 #b100))))
-  (:emitter 
+  (:emitter
     (emit-byte segment #b11011000)
     (emit-fp-op segment source #b100)))
 
-;;;
 ;;; Subtract single, reverse
 ;;; st(0) = memory or st(i) - st(0)
 ;;;
 (define-instruction fsubr (segment source)
   (:printer floating-point ((op '(#b000 #b101))))
-  (:emitter 
+  (:emitter
     (emit-byte segment #b11011000)
     (emit-fp-op segment source #b101)))
 
-;;;
 ;;; Subtract double
 ;;; st(0) = st(0) - memory or st(i)
 ;;;
 (define-instruction fsubd (segment source)
   (:printer floating-point ((op '(#b100 #b100))))
   (:printer floating-point-fp ((op '(#b000 #b100))))
-  (:emitter 
+  (:emitter
    (if (fp-reg-tn-p source)
        (emit-byte segment #b11011000)
      (emit-byte segment #b11011100))
    (emit-fp-op segment source #b100)))
 
-;;;
 ;;; Subtract double, reverse
 ;;; st(0) = memory or st(i) - st(0)
 ;;;
 (define-instruction fsubrd (segment source)
   (:printer floating-point ((op '(#b100 #b101))))
   (:printer floating-point-fp ((op '(#b000 #b101))))
-  (:emitter 
+  (:emitter
    (if (fp-reg-tn-p source)
        (emit-byte segment #b11011000)
      (emit-byte segment #b11011100))
    (emit-fp-op segment source #b101)))
 
-;;;
 ;;; Subtract double, destination st(i)
 ;;; st(i) = st(i) - st(0)
 ;;;
@@ -2270,19 +2202,18 @@
 ;;;
 (define-instruction fsub-sti (segment destination)
   (:printer floating-point-fp ((op '(#b100 #b101))))
-  (:emitter 
+  (:emitter
    (assert (fp-reg-tn-p destination))
    (emit-byte segment #b11011100)
    (emit-fp-op segment destination #b101)))
 ;;; With a pop
 (define-instruction fsubp-sti (segment destination)
   (:printer floating-point-fp ((op '(#b110 #b101))))
-  (:emitter 
+  (:emitter
    (assert (fp-reg-tn-p destination))
    (emit-byte segment #b11011110)
    (emit-fp-op segment destination #b101)))
 
-;;;
 ;;; Subtract double, reverse, destination st(i)
 ;;; st(i) = st(0) - st(i)
 ;;;
@@ -2291,102 +2222,91 @@
 ;;;
 (define-instruction fsubr-sti (segment destination)
   (:printer floating-point-fp ((op '(#b100 #b100))))
-  (:emitter 
+  (:emitter
    (assert (fp-reg-tn-p destination))
    (emit-byte segment #b11011100)
    (emit-fp-op segment destination #b100)))
 ;;; With a pop
 (define-instruction fsubrp-sti (segment destination)
   (:printer floating-point-fp ((op '(#b110 #b100))))
-  (:emitter 
+  (:emitter
    (assert (fp-reg-tn-p destination))
    (emit-byte segment #b11011110)
    (emit-fp-op segment destination #b100)))
 
-
-;;;
 ;;; Multiply single
 ;;; st(0) = st(0) * memory or st(i)
 ;;;
 (define-instruction fmul (segment source)
   (:printer floating-point ((op '(#b000 #b001))))
-  (:emitter 
+  (:emitter
     (emit-byte segment #b11011000)
     (emit-fp-op segment source #b001)))
 
-;;;
 ;;; Multiply double
 ;;; st(0) = st(0) * memory or st(i)
 ;;;
 (define-instruction fmuld (segment source)
   (:printer floating-point ((op '(#b100 #b001))))
   (:printer floating-point-fp ((op '(#b000 #b001))))
-  (:emitter 
+  (:emitter
    (if (fp-reg-tn-p source)
        (emit-byte segment #b11011000)
      (emit-byte segment #b11011100))
    (emit-fp-op segment source #b001)))
 
-;;;
 ;;; Multiply double, destination st(i)
 ;;; st(i) = st(i) * st(0)
 ;;;
 (define-instruction fmul-sti (segment destination)
   (:printer floating-point-fp ((op '(#b100 #b001))))
-  (:emitter 
+  (:emitter
    (assert (fp-reg-tn-p destination))
    (emit-byte segment #b11011100)
    (emit-fp-op segment destination #b001)))
 
-
-
-;;;
 ;;; Divide single
 ;;; st(0) = st(0) / memory or st(i)
 ;;;
 (define-instruction fdiv (segment source)
   (:printer floating-point ((op '(#b000 #b110))))
-  (:emitter 
+  (:emitter
     (emit-byte segment #b11011000)
     (emit-fp-op segment source #b110)))
 
-;;;
 ;;; Divide single, reverse
 ;;; st(0) = memory or st(i) / st(0)
 ;;;
 (define-instruction fdivr (segment source)
   (:printer floating-point ((op '(#b000 #b111))))
-  (:emitter 
+  (:emitter
     (emit-byte segment #b11011000)
     (emit-fp-op segment source #b111)))
 
-;;;
 ;;; Divide double
 ;;; st(0) = st(0) / memory or st(i)
 ;;;
 (define-instruction fdivd (segment source)
   (:printer floating-point ((op '(#b100 #b110))))
   (:printer floating-point-fp ((op '(#b000 #b110))))
-  (:emitter 
+  (:emitter
    (if (fp-reg-tn-p source)
        (emit-byte segment #b11011000)
      (emit-byte segment #b11011100))
    (emit-fp-op segment source #b110)))
 
-;;;
 ;;; Divide double, reverse
 ;;; st(0) = memory or st(i) / st(0)
 ;;;
 (define-instruction fdivrd (segment source)
   (:printer floating-point ((op '(#b100 #b111))))
   (:printer floating-point-fp ((op '(#b000 #b111))))
-  (:emitter 
+  (:emitter
    (if (fp-reg-tn-p source)
        (emit-byte segment #b11011000)
      (emit-byte segment #b11011100))
    (emit-fp-op segment source #b111)))
 
-;;;
 ;;; Divide double, destination st(i)
 ;;; st(i) = st(i) / st(0)
 ;;;
@@ -2395,12 +2315,11 @@
 ;;;
 (define-instruction fdiv-sti (segment destination)
   (:printer floating-point-fp ((op '(#b100 #b111))))
-  (:emitter 
+  (:emitter
    (assert (fp-reg-tn-p destination))
    (emit-byte segment #b11011100)
    (emit-fp-op segment destination #b111)))
 
-;;;
 ;;; Divide double, reverse, destination st(i)
 ;;; st(i) = st(0) / st(i)
 ;;;
@@ -2409,24 +2328,22 @@
 ;;;
 (define-instruction fdivr-sti (segment destination)
   (:printer floating-point-fp ((op '(#b100 #b110))))
-  (:emitter 
+  (:emitter
    (assert (fp-reg-tn-p destination))
    (emit-byte segment #b11011100)
    (emit-fp-op segment destination #b110)))
 
-;;;
 ;;; exchange fr0 with fr(n).  no double variant
 ;;;
 (define-instruction fxch (segment source)
   (:printer floating-point-fp ((op '(#b001 #b001))))
-  (:emitter 
+  (:emitter
     (unless (and (tn-p source)
 		 (eq (sb-name (sc-sb (tn-sc source))) 'float-registers))
       (lisp:break))
     (emit-byte segment #b11011001)
     (emit-fp-op segment source #b001)))
-;;;
-;;;
+
 ;;; push 32-bit integer to st0
 ;;;
 (define-instruction fild (segment source)
@@ -2434,7 +2351,7 @@
   (:emitter
    (emit-byte segment #b11011011)
    (emit-fp-op segment source #b000)))
-;;;
+
 ;;; push 64-bit integer to st0
 ;;;
 (define-instruction fildl (segment source)
@@ -2442,7 +2359,7 @@
   (:emitter
    (emit-byte segment #b11011111)
    (emit-fp-op segment source #b101)))
-;;;
+
 ;;; store 32-bit integer
 ;;;
 (define-instruction fist (segment dest)
@@ -2450,7 +2367,7 @@
   (:emitter
    (emit-byte segment #b11011011)
    (emit-fp-op segment dest #b010)))
-;;;
+
 ;;; Store and pop 32-bit integer
 ;;;
 (define-instruction fistp (segment dest)
@@ -2458,7 +2375,7 @@
   (:emitter
    (emit-byte segment #b11011011)
    (emit-fp-op segment dest #b011)))
-;;;
+
 ;;; Store and pop 64-bit integer
 ;;;
 (define-instruction fistpl (segment dest)
@@ -2466,32 +2383,32 @@
   (:emitter
    (emit-byte segment #b11011111)
    (emit-fp-op segment dest #b111)))
-;;;
+
 ;;; store single from st(0) and pop
 ;;;
 (define-instruction fstp (segment dest)
   (:printer floating-point ((op '(#b001 #b011))))
-  (:emitter 
+  (:emitter
    (cond ((fp-reg-tn-p dest)
 	  (emit-byte segment #b11011101)
 	  (emit-fp-op segment dest #b011))
 	 (t
 	  (emit-byte segment #b11011001)
 	  (emit-fp-op segment dest #b011)))))
-;;;
+
 ;;; store double from st(0) and pop
 ;;;
 (define-instruction fstpd (segment dest)
   (:printer floating-point ((op '(#b101 #b011))))
   (:printer floating-point-fp ((op '(#b101 #b011))))
-  (:emitter 
+  (:emitter
    (cond ((fp-reg-tn-p dest)
 	  (emit-byte segment #b11011101)
 	  (emit-fp-op segment dest #b011))
 	 (t
 	  (emit-byte segment #b11011101)
 	  (emit-fp-op segment dest #b011)))))
-;;;
+
 ;;; store long from st(0) and pop
 ;;;
 (define-instruction fstpl (segment dest)
@@ -2500,7 +2417,6 @@
     (emit-byte segment #b11011011)
     (emit-fp-op segment dest #b111)))
 
-;;;
 ;;; decrement stack-top pointer
 ;;;
 (define-instruction fdecstp (segment)
@@ -2508,7 +2424,7 @@
   (:emitter
    (emit-byte segment #b11011001)
    (emit-byte segment #b11110110)))
-;;;
+
 ;;; increment stack-top pointer
 ;;;
 (define-instruction fincstp (segment)
@@ -2516,7 +2432,7 @@
   (:emitter
    (emit-byte segment #b11011001)
    (emit-byte segment #b11110111)))
-;;;
+
 ;;; free fp register
 ;;;
 (define-instruction ffree (segment dest)
@@ -2524,12 +2440,12 @@
   (:emitter
    (emit-byte segment #b11011101)
    (emit-fp-op segment dest #b000)))
-;;;
+
 ;;; Free fp register and pop the stack.
 ;;;
 (define-instruction ffreep (segment dest)
   (:printer floating-point-fp ((op '(#b111 #b000))))
-  (:emitter 
+  (:emitter
    (emit-byte segment #b11011111)
    (emit-fp-op segment dest #b000)))
 
@@ -2544,14 +2460,13 @@
   (:emitter
    (emit-byte segment #b11011001)
    (emit-byte segment #b11100000)))
-  
+
 (define-instruction frndint(segment)
   (:printer floating-point-no ((op #b11100)))
   (:emitter
    (emit-byte segment #b11011001)
    (emit-byte segment #b11111100)))
 
-;;;
 ;;; Initialize NPX
 ;;;
 (define-instruction fninit(segment)
@@ -2560,7 +2475,6 @@
    (emit-byte segment #b11011011)
    (emit-byte segment #b11100011)))
 
-;;;
 ;;; Store Status Word to AX
 ;;;
 (define-instruction fnstsw(segment)
@@ -2569,7 +2483,6 @@
    (emit-byte segment #b11011111)
    (emit-byte segment #b11100000)))
 
-;;;
 ;;; Load Control Word
 ;;;
 ;;; src must be a memory location
@@ -2579,7 +2492,6 @@
    (emit-byte segment #b11011001)
    (emit-fp-op segment src #b101)))
 
-;;;
 ;;; Store Control Word
 ;;;
 (define-instruction fnstcw(segment dst)
@@ -2587,7 +2499,7 @@
   (:emitter
    (emit-byte segment #b11011001)
    (emit-fp-op segment dst #b111)))
-;;;
+
 ;;; Store FP Environment
 ;;;
 (define-instruction fstenv(segment dst)
@@ -2595,7 +2507,7 @@
   (:emitter
    (emit-byte segment #b11011001)
    (emit-fp-op segment dst #b110)))
-;;;
+
 ;;; Retore FP Environment
 ;;;
 (define-instruction fldenv(segment src)
@@ -2603,7 +2515,7 @@
   (:emitter
    (emit-byte segment #b11011001)
    (emit-fp-op segment src #b100)))
-;;;
+
 ;;; Save FP State
 ;;;
 (define-instruction fsave(segment dst)
@@ -2611,7 +2523,7 @@
   (:emitter
    (emit-byte segment #b11011101)
    (emit-fp-op segment dst #b110)))
-;;;
+
 ;;; Restore FP State
 ;;;
 (define-instruction frstor(segment src)
@@ -2619,7 +2531,7 @@
   (:emitter
    (emit-byte segment #b11011101)
    (emit-fp-op segment src #b100)))
-;;;
+
 ;;; Clear exceptions
 ;;;
 (define-instruction fnclex(segment)
@@ -2628,7 +2540,6 @@
    (emit-byte segment #b11011011)
    (emit-byte segment #b11100010)))
 
-;;;
 ;;; Comparison
 ;;;
 (define-instruction fcom (segment src)
@@ -2653,7 +2564,6 @@
    (emit-byte segment #b11011110)
    (emit-byte segment #b11011001)))
 
-;;;
 ;;; Compare ST(i) to ST0 and update the flags.
 ;;;
 ;;; Intel syntal: FCOMI ST, ST(i)
@@ -2665,7 +2575,6 @@
    (emit-byte segment #b11011011)
    (emit-fp-op segment src #b110)))
 
-;;;
 ;;; Unordered comparison
 ;;;
 (define-instruction fucom (segment src)
@@ -2675,7 +2584,7 @@
    (assert (fp-reg-tn-p src))
    (emit-byte segment #b11011101)
    (emit-fp-op segment src #b100)))
-;;;
+
 ;;; Unordered compare ST(i) to ST0 and update the flags.
 ;;;
 ;;; Intel syntal: FUCOMI ST, ST(i)
@@ -2711,10 +2620,9 @@
 			     ((:be :nbe) #b000)
 			     ((:u nu) #b000)))))
 
-;;;
-;;; 80387 Specials
-;;;
-;;;
+
+;;;; 80387 Specials
+
 (define-instruction fsqrt(segment)
   (:printer floating-point-no ((op #b11010)))
   (:emitter

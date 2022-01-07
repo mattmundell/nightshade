@@ -1,21 +1,4 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/pred.lisp,v 1.1.2.1 1998/06/23 11:24:11 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the VM definition of predicate VOPs for the x86.
-;;;
-;;; Written by William Lott.
-;;; Enhancements/debugging by Douglas T. Crosher 1996,1997.
-;;; 
+;;; The VM definition of predicate VOPs for the x86.
 
 (in-package :x86)
 
@@ -31,7 +14,7 @@
     (inst jmp dest)))
 
 
-;;;; Conditional VOPs:
+;;;; Conditional VOPs.
 
 ;;; Note: a constant-tn is allowed in CMP; it uses an EA displacement,
 ;;; not immediate data.
@@ -48,7 +31,7 @@
   (:policy :fast-safe)
   (:translate eq)
   (:generator 3
-    (cond 
+    (cond
      ((sc-is y immediate)
       (let ((val (tn-value y)))
 	(etypecase val
@@ -76,5 +59,5 @@
 			       base-char-type))))))
       (t
        (inst cmp x y)))
-    
+
     (inst jmp (if not-p :ne :e) target)))

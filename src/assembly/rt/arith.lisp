@@ -1,23 +1,6 @@
-;;; -*- Package: RT -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/rt/arith.lisp,v 1.7 1994/10/31 04:57:00 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/assembly/rt/arith.lisp,v 1.7 1994/10/31 04:57:00 ram Exp $
-;;;
 ;;; Stuff to handle simple cases for generic arithmetic.
-;;;
-;;; Written by William Lott.
-;;; Converted to IBM RT by Bill Chiles.
 
 (in-package "RT")
-
 
 (define-assembly-routine (generic-+
 			  (:cost 25)
@@ -343,7 +326,6 @@
 
   DONE)
 
-
 
 ;;;; Conditionals
 
@@ -432,7 +414,6 @@
   (move cfp-tn csp-tn)
 
   DONE)
-
 
 (define-assembly-routine (generic-=
 			  (:cost 25)

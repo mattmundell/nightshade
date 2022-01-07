@@ -1,21 +1,6 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/move.lisp,v 1.2 1994/10/31 04:42:45 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the HPPA VM definition of operand loading/saving and
-;;; the Move VOP.
-;;;
-;;; Written by William Lott.
-;;;
-(in-package "HPPA")
+;;; The HPPA VM definition of operand loading/saving and the Move VOP.
 
+(in-package "HPPA")
 
 (define-move-function (load-immediate 1) (vop x y)
   ((null zero immediate)
@@ -76,7 +61,7 @@
     (storew x nfp (tn-offset y))))
 
 
-;;;; The Move VOP:
+;;;; The Move VOP.
 ;;;
 (define-vop (move)
   (:args (x :target y
@@ -119,7 +104,6 @@
   (any-reg descriptor-reg)
   (any-reg descriptor-reg))
 
-
 
 ;;;; ILLEGAL-MOVE
 
@@ -137,9 +121,8 @@
   (:generator 666
     (error-call vop object-not-type-error x type)))
 
-
 
-;;;; Moves and coercions:
+;;;; Moves and coercions.
 
 ;;; These MOVE-TO-WORD VOPs move a tagged integer to a raw full-word
 ;;; representation.  Similarly, the MOVE-FROM-WORD VOPs converts a raw integer
@@ -222,7 +205,6 @@
 (define-move-vop move-from-signed :move
   (signed-reg) (descriptor-reg))
 
-
 ;;; Check for fixnum, and possibly allocate one or two word bignum result.  Use
 ;;; a worst-case cost to make sure people know they may be number consing.
 ;;;
@@ -261,7 +243,6 @@
 (define-move-vop move-from-unsigned :move
   (unsigned-reg) (descriptor-reg))
 
-
 ;;; Move untagged numbers.
 ;;;
 (define-vop (word-move)
@@ -278,7 +259,6 @@
 ;;;
 (define-move-vop word-move :move
   (signed-reg unsigned-reg) (signed-reg unsigned-reg))
-
 
 ;;; Move untagged number arguments/return-values.
 ;;;
@@ -298,7 +278,6 @@
 ;;;
 (define-move-vop move-word-argument :move-argument
   (descriptor-reg any-reg signed-reg unsigned-reg) (signed-reg unsigned-reg))
-
 
 ;;; Use standard MOVE-ARGUMENT + coercion to move an untagged number to a
 ;;; descriptor passing location.

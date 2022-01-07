@@ -1,46 +1,32 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/meta-vmdef.lisp,v 1.7 1994/10/31 04:27:28 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the implementation-independent facilities used for
-;;; defining the compiler's interface to the VM in a given implementation
-;;; that are needed at meta-compile time.  They are seperated out from
-;;; vmdef.lisp so that they can be compiled and loaded without trashing the
-;;; running compiler.
-;;;
-;;; Written by Rob MacLachlan
-;;; Seperated from vmdef.lisp by William Lott
-;;;
+;;; Implementation-independent facilities used for defining the compiler's
+;;; interface to the VM in a given implementation that are needed at
+;;; meta-compile time.  They are seperated out from vmdef.lisp so that they
+;;; can be compiled and loaded without trashing the running compiler.
+
 (in-package :c)
 
 (export '(define-storage-base define-storage-class define-move-function
-	  define-move-function define-move-vop 
+	  define-move-function define-move-vop
 	  meta-primitive-type-or-lose
 	  def-primitive-type def-primitive-type-alias
 	  primitive-type-vop define-vop sc-case sc-is
 	  note-this-location note-next-instruction))
 
 
-;;;; Storage class and storage base definition:
+;;;; Storage class and storage base definition.
 
 ;;; Define-Storage-Base  --  Public
 ;;;
-;;;    Enter the basic structure at meta-compile time, and then fill in the
+;;; Enter the basic structure at meta-compile time, and then fill in the
 ;;; missing slots at load time.
 ;;;
 (defmacro define-storage-base (name kind &key size)
   "Define-Storage-Base Name Kind {Key Value}*
-  Define a storage base having the specified Name.  Kind may be :Finite,
-  :Unbounded or :Non-Packed.  The following keywords are legal:
 
-  :Size <Size>
+   Define a storage base having the specified Name.  Kind may be :Finite,
+   :Unbounded or :Non-Packed.  The following keywords are legal:
+
+   :Size <Size>
       Specify the number of locations in a :Finite SB or the initial size of a
       :Unbounded SB."
   (check-type name symbol)
@@ -52,7 +38,7 @@
     ((:finite :unbounded)
      (unless size (error "Size not specified in a ~S SB." kind))
      (check-type size unsigned-byte)))
-    
+
   (let ((res (if (eq kind :non-packed)
 		 (make-sb :name name :kind kind)
 		 (make-finite-sb :name name :kind kind :size size))))
@@ -79,49 +65,47 @@
 			   :key #'sb-name)))
        ',name)))
 
-
 ;;; Define-Storage-Class  --  Public
-;;;
 ;;;
 (defmacro define-storage-class (name number sb-name &key (element-size '1)
 				     (alignment '1) locations reserve-locations
 				     save-p alternate-scs constant-scs)
   "Define-Storage-Class Name Number Storage-Base {Key Value}*
-  Define a storage class Name that uses the named Storage-Base.  Number is a
-  small, non-negative integer that is used as an alias.  The following
-  keywords are defined:
+   Define a storage class Name that uses the named Storage-Base.  Number is a
+   small, non-negative integer that is used as an alias.  The following
+   keywords are defined:
 
-  :Element-Size Size
-      The size of objects in this SC in whatever units the SB uses.  This
-      defaults to 1.
+   :Element-Size Size
+       The size of objects in this SC in whatever units the SB uses.  This
+       defaults to 1.
 
-  :Alignment Size
-      The alignment restrictions for this SC.  TNs will only be allocated at
-      offsets that are an even multiple of this number.  Defaults to 1.
+   :Alignment Size
+       The alignment restrictions for this SC.  TNs will only be allocated at
+       offsets that are an even multiple of this number.  Defaults to 1.
 
-  :Locations (Location*)
-      If the SB is :Finite, then this is a list of the offsets within the SB
-      that are in this SC.
+   :Locations (Location*)
+       If the SB is :Finite, then this is a list of the offsets within the SB
+       that are in this SC.
 
-  :Reserve-Locations (Location*)
-      A subset of the Locations that the register allocator should try to
-      reserve for operand loading (instead of to hold variable values.)
+   :Reserve-Locations (Location*)
+       A subset of the Locations that the register allocator should try to
+       reserve for operand loading (instead of to hold variable values.)
 
-  :Save-P {T | NIL}
-      If T, then values stored in this SC must be saved in one of the
-      non-save-p :Alternate-SCs across calls.
+   :Save-P {T | NIL}
+       If T, then values stored in this SC must be saved in one of the
+       non-save-p :Alternate-SCs across calls.
 
-  :Alternate-SCs (SC*)
-      Indicates other SCs that can be used to hold values from this SC across
-      calls or when storage in this SC is exhausted.  The SCs should be
-      specified in order of decreasing \"goodness\".  There must be at least
-      one SC in an unbounded SB, unless this SC is only used for restricted or
-      wired TNs.
+   :Alternate-SCs (SC*)
+       Indicates other SCs that can be used to hold values from this SC across
+       calls or when storage in this SC is exhausted.  The SCs should be
+       specified in order of decreasing \"goodness\".  There must be at least
+       one SC in an unbounded SB, unless this SC is only used for restricted or
+       wired TNs.
 
-  :Constant-SCs (SC*)
-      A list of the names of all the constant SCs that can be loaded into this
-      SC by a move function."
-  
+   :Constant-SCs (SC*)
+       A list of the names of all the constant SCs that can be loaded into this
+       SC by a move function."
+
   (check-type name symbol)
   (check-type number sc-number)
   (check-type sb-name symbol)
@@ -183,7 +167,7 @@
 	 (when (and old (not (eq (sc-name old) ',name)))
 	   (warn "Redefining SC number ~D from ~S to ~S." ',number
 		 (sc-name old) ',name)))
-       
+
        (setf (svref (backend-sc-numbers *target-backend*) ',number)
 	     (meta-sc-or-lose ',name))
        (setf (gethash ',name (backend-sc-names *target-backend*))
@@ -192,11 +176,11 @@
        ',name)))
 
 
-;;;; Move/coerce definition:
+;;;; Move/coerce definition.
 
 ;;; DO-SC-PAIRS  --  Internal
 ;;;
-;;;    Given a list of paris of lists of SCs (as given to DEFINE-MOVE-VOP,
+;;; Given a list of paris of lists of SCs (as given to DEFINE-MOVE-VOP,
 ;;; etc.), bind TO-SC and FROM-SC to all the combinations.
 ;;;
 (defmacro do-sc-pairs ((from-sc-var to-sc-var scs) &body body)
@@ -209,17 +193,16 @@
 	   (let ((,to-sc-var (meta-sc-or-lose to)))
 	     ,@body))))))
 
-
 ;;; DEFINE-MOVE-FUNCTION  --  Public
 ;;;
 (defmacro define-move-function ((name cost) lambda-list scs &body body)
   "Define-Move-Function (Name Cost) lambda-list ({(From-SC*) (To-SC*)}*) form*
-  Define the function Name and note it as the function used for moving operands
-  from the From-SCs to the To-SCs.  Cost is the cost of this move operation.
-  The function is called with three arguments: the VOP (for context), and the
-  source and destination TNs.  An ASSEMBLE form is wrapped around the body.
-  All uses of DEFINE-MOVE-FUNCTION should be compiled before any uses of
-  DEFINE-VOP."
+   Define the function Name and note it as the function used for moving operands
+   from the From-SCs to the To-SCs.  Cost is the cost of this move operation.
+   The function is called with three arguments: the VOP (for context), and the
+   source and destination TNs.  An ASSEMBLE form is wrapped around the body.
+   All uses of DEFINE-MOVE-FUNCTION should be compiled before any uses of
+   DEFINE-VOP."
   (when (or (oddp (length scs)) (null scs))
     (error "Malformed SCs spec: ~S." scs))
   (check-type cost index)
@@ -235,20 +218,19 @@
        (new-assem:assemble (*code-segment* ,(first lambda-list))
 	 ,@body))))
 
-
 (defconstant sc-vop-slots '((:move . sc-move-vops)
 			    (:move-argument . sc-move-arg-vops)))
 
 ;;; DEFINE-MOVE-VOP  --  Public
 ;;;
-;;;    We record the VOP and costs for all SCs that we can move between
+;;; We record the VOP and costs for all SCs that we can move between
 ;;; (including implicit loading).
 ;;;
 (defmacro define-move-vop (name kind &rest scs)
   "Define-Move-VOP Name {:Move | :Move-Argument} {(From-SC*) (To-SC*)}*
-  Make Name be the VOP used to move values in the specified From-SCs to the
-  representation of the To-SCs.  If kind is :Move-Argument, then the VOP takes
-  an extra argument, which is the frame pointer of the frame to move into." 
+   Make Name be the VOP used to move values in the specified From-SCs to the
+   representation of the To-SCs.  If kind is :Move-Argument, then the VOP takes
+   an extra argument, which is the frame pointer of the frame to move into."
   (when (or (oddp (length scs)) (null scs))
     (error "Malformed SCs spec: ~S." scs))
   (let ((accessor (or (cdr (assoc kind sc-vop-slots))
@@ -260,7 +242,7 @@
 		 (compute-move-costs from-sc to-sc
 				     ,(vop-parse-cost
 				       (vop-parse-or-lose name)))))))
-       
+
        (let ((vop (template-or-lose ',name)))
 	 (do-sc-pairs (from-sc to-sc ',scs)
 	   (dolist (dest-sc (cons to-sc (sc-alternate-scs to-sc)))
@@ -275,7 +257,7 @@
 			 (adjoin-template vop (svref vec scn))))))))))))
 
 
-;;;; Primitive type definition:
+;;;; Primitive type definition.
 
 ;;; META-PRIMITIVE-TYPE-OR-LOSE  --  Interface
 ;;;
@@ -286,17 +268,17 @@
 
 ;;; Def-Primitive-Type  --  Public
 ;;;
-;;;    If the primitive-type structure already exists, we destructively modify
+;;; If the primitive-type structure already exists, we destructively modify
 ;;; it so that existing references in templates won't be invalidated.
-;;; Primitive-type definition isn't done at meta-compile time, so this doesn't
-;;; break the running compiler.
+;;; Primitive-type definition isn't done at meta-compile time, so this
+;;; doesn't break the running compiler.
 ;;;
 (defmacro def-primitive-type (name scs &key (type name))
   "Def-Primitive-Type Name (SC*) {Key Value}*
    Define a primitive type Name.  Each SC specifies a Storage Class that values
    of this type may be allocated in.  The following keyword options are
    defined:
-  
+
   :Type
       The type descriptor for the Lisp type that is equivalent to this type
       (defaults to Name.)"
@@ -329,7 +311,7 @@
 ;;; Def-Primitive-Type-Alias  --  Public
 ;;;
 ;;; Just record the translation.
-;;; 
+;;;
 (defmacro def-primitive-type-alias (name result)
   "DEF-PRIMITIVE-TYPE-ALIAS Name Result
   Define name to be an alias for Result in VOP operand type restrictions."
@@ -369,7 +351,7 @@
 
 ;;; SC-ALLOWED-BY-PRIMITIVE-TYPE  --  Interface
 ;;;
-;;;    Return true if SC is either one of Ptype's SC's, or one of those SC's
+;;; Return true if SC is either one of Ptype's SC's, or one of those SC's
 ;;; alternate or constant SCs.
 ;;;
 (defun meta-sc-allowed-by-primitive-type (sc ptype)
@@ -384,11 +366,10 @@
 		  (member sc (sc-constant-scs allowed-sc)))
 	  (return t))))))
 
-
 
-;;;; VOP definition structures:
+;;;; VOP definition structures.
 ;;;
-;;;    Define-VOP uses some fairly complex data structures at meta-compile
+;;; Define-VOP uses some fairly complex data structures at meta-compile
 ;;; time, both to hold the results of parsing the elaborate syntax and to
 ;;; retain the information so that it can be inherited by other VOPs.
 
@@ -472,7 +453,6 @@
   ;; call/return VOPs.
   (move-args nil :type (member nil :local-call :full-call :known-return)))
 
-
 (defprinter vop-parse
   name
   (inherits :test inherits)
@@ -525,7 +505,7 @@
   (temp-temp nil :type (or symbol null))
   ;;
   ;; The time that this operand is first live and the time at which it becomes
-  ;; dead again.  These are time-specs, as returned by parse-time-spec. 
+  ;; dead again.  These are time-specs, as returned by parse-time-spec.
   born
   dies
   ;;
@@ -547,7 +527,6 @@
   ;; If non-null, we are a temp wired to this offset in SC.
   (offset nil :type (or unsigned-byte null)))
 
-
 (defprinter operand-parse
   name
   kind
@@ -560,14 +539,14 @@
   (offset :test offset))
 
 
-;;;; Random utilities:
+;;;; Random utilities.
 
 ;;; Find-Operand  --  Internal
 ;;;
-;;;    Find the operand or temporary with the specifed Name in the VOP Parse.
-;;; If there is no such operand, signal an error.  Also error if the operand
-;;; kind isn't one of the specified Kinds.  If Error-P is NIL, just return NIL
-;;; if there is no such operand.
+;;; Find the operand or temporary with the specifed Name in the VOP Parse.
+;;; If there is no such operand, signal an error.  Also error if the
+;;; operand kind isn't one of the specified Kinds.  If Error-P is NIL, just
+;;; return NIL if there is no such operand.
 ;;;
 (defun find-operand (name parse &optional
 			  (kinds '(:argument :result :temporary))
@@ -582,10 +561,9 @@
 	  (error "~S is not an operand to ~S." name (vop-parse-name parse))))
     found))
 
-
 ;;; VOP-Parse-Or-Lose  --  Internal
 ;;;
-;;;    Get the VOP-Parse structure for Name or die trying.  For all
+;;; Get the VOP-Parse structure for Name or die trying.  For all
 ;;; meta-compile time uses, the VOP-Parse should be used instead of the
 ;;; VOP-Info
 ;;;
@@ -594,10 +572,9 @@
        (or (gethash name (backend-parsed-vops backend))
 	   (error "~S is not the name of a defined VOP." name))))
 
-
 ;;; Access-Operands  --  Internal
 ;;;
-;;;    Return a list of let-forms to parse a tn-ref list into a the temps
+;;; Return a list of let-forms to parse a tn-ref list into a the temps
 ;;; specified by the operand-parse structures.  More-Operand is the
 ;;; Operand-Parse describing any more operand, or NIL if none.  Refs is an
 ;;; expression that evaluates into the first tn-ref.
@@ -615,21 +592,19 @@
 	(res `(,(operand-parse-name more-operand) ,prev))))
     (res)))
 
-
 ;;; Ignore-Unreferenced-Temps --  Internal
 ;;;
-;;;    Used with Access-Operands to prevent warnings for TN-Ref temps not used
-;;; by some particular function.  It returns the name of the last operand, or
-;;; NIL if Operands is NIL.
+;;; Used with Access-Operands to prevent warnings for TN-Ref temps not used
+;;; by some particular function.  It returns the name of the last operand,
+;;; or NIL if Operands is NIL.
 ;;;
 (defun ignore-unreferenced-temps (operands)
   (when operands
     (operand-parse-temp (car (last operands)))))
 
-
 ;;; VOP-Spec-Arg  --  Internal
 ;;;
-;;;    Grab an arg out of a VOP spec, checking the type and syntax and stuff.
+;;; Grab an arg out of a VOP spec, checking the type and syntax and stuff.
 ;;;
 (defun vop-spec-arg (spec type &optional (n 1) (last t))
   (let ((len (length spec)))
@@ -643,14 +618,14 @@
       thing)))
 
 
-;;;; Time specs:
+;;;; Time specs.
 
 ;;; Parse-Time-Spec  --  Internal
 ;;;
-;;;    Return a time spec describing a time during the evaluation of a VOP,
-;;; used to delimit operand and temporary lifetimes.  The representation is a
-;;; cons whose CAR is the number of the evaluation phase and the CDR is the
-;;; sub-phase.  The sub-phase is 0 in the :Load and :Save phases. 
+;;; Return a time spec describing a time during the evaluation of a VOP,
+;;; used to delimit operand and temporary lifetimes.  The representation is
+;;; a cons whose CAR is the number of the evaluation phase and the CDR is
+;;; the sub-phase.  The sub-phase is 0 in the :Load and :Save phases.
 ;;;
 (defun parse-time-spec (spec)
   (let ((dspec (if (atom spec) (list spec 0) spec)))
@@ -668,18 +643,17 @@
 	     (error "Unknown phase in time specifier: ~S." spec)))
 	  (second dspec))))
 
-
 ;;; Time-Spec-Order  --  Internal
 ;;;
-;;;    Return true if the time spec X is the same or later time than Y.
+;;; Return true if the time spec X is the same or later time than Y.
 ;;;
 (defun time-spec-order (x y)
   (or (> (car x) (car y))
       (and (= (car x) (car y))
 	   (>= (cdr x) (cdr y)))))
- 
+
 
-;;;; Emit function generation:
+;;;; Emit function generation.
 
 (defun compute-temporaries-description (parse)
   (let ((temps (vop-parse-temps parse)))
@@ -770,14 +744,14 @@
     ,@(compute-ref-ordering parse)))
 
 
-;;;; Generator functions:
+;;;; Generator functions.
 
 ;;; FIND-MOVE-FUNCTIONS  --  Internal
 ;;;
-;;;    Return an alist that translates from lists of SCs we can load OP from to
-;;; the move function used for loading those SCs.  We quietly ignore
-;;; restrictions to :non-packed (constant) and :unbounded SCs, since we don't
-;;; load into those SCs.
+;;; Return an alist that translates from lists of SCs we can load OP from
+;;; to the move function used for loading those SCs.  We quietly ignore
+;;; restrictions to :non-packed (constant) and :unbounded SCs, since we
+;;; don't load into those SCs.
 ;;;
 (defun find-move-functions (op load-p)
   (collect ((funs))
@@ -801,7 +775,7 @@
 		  (error "No move function defined to ~:[save~;load~] SC ~S~
 			  ~:[to~;from~] from SC ~S."
 			 load-p sc-name load-p (sc-name alt)))
-		
+
 		(cond (found
 		       (unless (eq (cdr found) name)
 			 (error "Can't tell whether to ~:[save~;load~] with ~S~@
@@ -819,12 +793,12 @@
 
 ;;; CALL-MOVE-FUNCTION  --  Internal
 ;;;
-;;;    Return a form to load/save the specified operand when it has a load TN.
+;;; Return a form to load/save the specified operand when it has a load TN.
 ;;; For any given SC that we can load from, there must be a unique load
-;;; function.  If all SCs we can load from have the same move function, then we
-;;; just call that when there is a load TN.  If there are multiple possible
-;;; move functions, then we dispatch off of the operand TN's type to see which
-;;; move function to use.
+;;; function.  If all SCs we can load from have the same move function,
+;;; then we just call that when there is a load TN.  If there are multiple
+;;; possible move functions, then we dispatch off of the operand TN's type
+;;; to see which move function to use.
 ;;;
 (defun call-move-function (parse op load-p)
   (let ((funs (find-move-functions op load-p))
@@ -856,8 +830,9 @@
 
 ;;; DECIDE-TO-LOAD  --  Internal
 ;;;
-;;;    Return the TN that we should bind to the operand's var in the generator
-;;; body.  In general, this involves evaluating the :LOAD-IF test expression.
+;;; Return the TN that we should bind to the operand's var in the generator
+;;; body.  In general, this involves evaluating the :LOAD-IF test
+;;; expression.
 ;;;
 (defun decide-to-load (parse op)
   (let ((load (operand-parse-load op))
@@ -884,7 +859,7 @@
 
 ;;; Make-Generator-Function  --  Internal
 ;;;
-;;;    Make a lambda that parses the VOP TN-Refs, does automatic operand
+;;; Make a lambda that parses the VOP TN-Refs, does automatic operand
 ;;; loading, and runs the appropriate code generator.
 ;;;
 (defun make-generator-function (parse)
@@ -943,10 +918,10 @@
 
 ;;; Parse-Operands  --  Internal
 ;;;
-;;;    Given a list of operand specifications as given to Define-VOP, return a
+;;; Given a list of operand specifications as given to Define-VOP, return a
 ;;; list of Operand-Parse structures describing the fixed operands, and a
-;;; single Operand-Parse describing any more operand.  If we are inheriting a
-;;; VOP, we default attributes to the inherited operand of the same name.
+;;; single Operand-Parse describing any more operand.  If we are inheriting
+;;; a VOP, we default attributes to the inherited operand of the same name.
 ;;;
 (defun parse-operands (parse specs kind)
   (declare (list specs)
@@ -958,7 +933,7 @@
 	(unless (and (consp spec) (symbolp (first spec)) (oddp (length spec)))
 	  (error "Malformed operand specifier: ~S." spec))
 	(when more
-	  (error "More operand isn't last: ~S." specs)) 
+	  (error "More operand isn't last: ~S." specs))
 	(let* ((name (first spec))
 	       (old (if (vop-parse-inherits parse)
 			(find-operand name
@@ -1031,7 +1006,7 @@
 
 ;;; Parse-Temporary  --  Internal
 ;;;
-;;;    Parse a temporary specification, entering the Operand-Parse structures
+;;; Parse a temporary specification, entering the Operand-Parse structures
 ;;; in the Parse structure.
 ;;;
 (defun parse-temporary (spec parse)
@@ -1099,7 +1074,7 @@
 
 ;;; Parse-Define-VOP  --  Internal
 ;;;
-;;;    Top-level parse function.  Clobber Parse to represent the specified
+;;; Top-level parse function.  Clobber Parse to represent the specified
 ;;; options.
 ;;;
 (defun parse-define-vop (parse specs)
@@ -1180,7 +1155,7 @@
   (undefined-value))
 
 
-;;;; Make costs and restrictions:
+;;;; Make costs and restrictions.
 
 ;;; Compute-Loading-Costs  --  Internal
 ;;;
@@ -1214,7 +1189,7 @@
 	      (error "No move function defined to move ~:[from~;to~] SC ~
 	              ~S~%~:[to~;from~] alternate or constant SC ~S."
 		     load-p sc-name load-p (sc-name op-sc)))
-	    
+
 	    (let ((op-cost (svref costs op-scn)))
 	      (when (or (not op-cost) (< load op-cost))
 		(setf (svref costs op-scn) load)))
@@ -1241,10 +1216,9 @@
 (defparameter no-loads
   (make-array sc-number-limit :initial-element 't))
 
-
 ;;; COMPUTE-LOADING-COSTS-IF-ANY  --  Internal
 ;;;
-;;;    Pick off the case of operands with no restrictions.
+;;; Pick off the case of operands with no restrictions.
 ;;;
 (defun compute-loading-costs-if-any (op load-p)
   (declare (type operand-parse op))
@@ -1276,28 +1250,28 @@
 	(compute-costs-and-restrictions-list (vop-parse-results parse) nil)
       `(
 	:cost ,(vop-parse-cost parse)
-	
+
 	:arg-costs ',arg-costs
 	:arg-load-scs ',arg-scs
 	:result-costs ',result-costs
 	:result-load-scs ',result-scs
-	
+
 	:more-arg-costs
 	',(if (vop-parse-more-args parse)
 	      (compute-loading-costs-if-any (vop-parse-more-args parse) t)
 	      nil)
-	
+
 	:more-result-costs
 	',(if (vop-parse-more-results parse)
 	      (compute-loading-costs-if-any (vop-parse-more-results parse) nil)
 	      nil)))))
 
 
-;;;; Operand checking and stuff:
+;;;; Operand checking and stuff.
 
 ;;; PARSE-OPERAND-TYPES  --  Internal
 ;;;
-;;;    Given a list of arg/result restrictions, check for valid syntax and
+;;; Given a list of arg/result restrictions, check for valid syntax and
 ;;; convert to canonical form.
 ;;;
 (defun parse-operand-types (specs args-p)
@@ -1348,17 +1322,16 @@
 		       (error "Bad thing to be a operand type: ~S." spec)))))))
     (mapcar #'parse-operand-type specs)))
 
-
 ;;; CHECK-OPERAND-TYPE-SCS  --  Internal
 ;;;
-;;;    Check the consistency of Op's Sc restrictions with the specified
-;;; primitive-type restriction.  :CONSTANT operands have already been filtered
-;;; out, so only :OR and * restrictions are left.
+;;; Check the consistency of Op's Sc restrictions with the specified
+;;; primitive-type restriction.  :CONSTANT operands have already been
+;;; filtered out, so only :OR and * restrictions are left.
 ;;;
-;;;    We check that every representation allowed by the type can be directly
-;;; loaded into some SC in the restriction, and that the type allows every SC
-;;; in the restriction.  With *, we require that T satisfy the first test, and
-;;; omit the second.
+;;; We check that every representation allowed by the type can be directly
+;;; loaded into some SC in the restriction, and that the type allows every
+;;; SC in the restriction.  With *, we require that T satisfy the first
+;;; test, and omit the second.
 ;;;
 (defun check-operand-type-scs (parse op type load-p)
   (declare (type vop-parse parse) (type operand-parse op))
@@ -1381,7 +1354,7 @@
 		   (operand-parse-name op) load-p (vop-parse-name parse)
 		   ptype
 		   scs (eq type '*)))))
-	  
+
       (dolist (sc scs)
 	(unless (or (eq type '*)
 		    (dolist (ptype ptypes nil)
@@ -1399,7 +1372,7 @@
 
 ;;; Check-Operand-Types  --  Internal
 ;;;
-;;;    If the operand types are specified, then check the number specified
+;;; If the operand types are specified, then check the number specified
 ;;; against the number of defined operands.
 ;;;
 (defun check-operand-types (parse ops more-op types load-p)
@@ -1415,12 +1388,12 @@
 		 num)
 	(error "Expected ~D ~:[result~;argument~] type~P: ~S."
 	       num load-p types num)))
-    
+
     (when more-op
       (let ((mtype (car (last types))))
 	(when (and (consp mtype) (eq (first mtype) :constant))
 	  (error "Can't use :CONSTANT on VOP more args.")))))
-  
+
   (when (vop-parse-translate parse)
     (let ((types (specify-operand-types types ops more-op)))
       (mapc #'(lambda (x y)
@@ -1430,12 +1403,12 @@
 			   (and (consp x)
 				(eq (car x) ':constant)))
 		       (if more-op (butlast types) types)))))
-  
+
   (undefined-value))
 
 ;;; Grovel-Operands  --  Internal
 ;;;
-;;;    Compute stuff that can only be computed after we are done parsing
+;;; Compute stuff that can only be computed after we are done parsing
 ;;; everying.  We set the VOP-Parse-Operands, and do various error checks.
 ;;;
 (defun grovel-operands (parse)
@@ -1456,7 +1429,7 @@
 		       (vop-parse-arg-types parse)
 		       t)
 
-  
+
   (check-operand-types parse
 		       (vop-parse-results parse)
 		       (vop-parse-more-results parse)
@@ -1470,11 +1443,11 @@
 
 ;;; Set-Up-Function-Translation  --  Internal
 ;;;
-;;;    Return forms to establish this VOP as a IR2 translation template for the
-;;; :Translate functions specified in the VOP-Parse.  We also set the
+;;; Return forms to establish this VOP as a IR2 translation template for
+;;; the :Translate functions specified in the VOP-Parse.  We also set the
 ;;; Predicate attribute for each translated function when the VOP is
-;;; conditional, causing IR1 conversion to ensure that a call to the translated
-;;; is always used in a predicate position.
+;;; conditional, causing IR1 conversion to ensure that a call to the
+;;; translated is always used in a predicate position.
 ;;;
 (defun set-up-function-translation (parse n-template)
   (declare (type vop-parse parse))
@@ -1490,10 +1463,9 @@
 			      (function-info-attributes info)))))))
 	  (vop-parse-translate parse)))
 
-
 ;;; Make-Operand-Type  --  Internal
 ;;;
-;;;    Return a form that can be evaluated to get the TEMPLATE operand type
+;;; Return a form that can be evaluated to get the TEMPLATE operand type
 ;;; restriction from the given specification.
 ;;;
 (defun make-operand-type (type)
@@ -1511,7 +1483,6 @@
 			      (typep x ',(second type)))
 			 ,',(second type)))))))
 
-
 ;;; Specify-Operand-Types  --  Internal
 ;;;
 (defun specify-operand-types (types ops more-ops)
@@ -1521,10 +1492,10 @@
 
 ;;; Make-VOP-Info-Types  --  Internal
 ;;;
-;;;    Return a list of forms to use as keyword args to Make-VOP-Info for
-;;; setting up the template argument and result types.  Here we make an initial
-;;; dummy Template-Type, since it is awkward to compute the type until the
-;;; template has been made.
+;;; Return a list of forms to use as keyword args to Make-VOP-Info for
+;;; setting up the template argument and result types.  Here we make an
+;;; initial dummy Template-Type, since it is awkward to compute the type
+;;; until the template has been made.
 ;;;
 (defun make-vop-info-types (parse)
   (let* ((more-args (vop-parse-more-args parse))
@@ -1540,7 +1511,7 @@
 	 (results (if more-results (butlast all-results) all-results))
 	 (more-result (when more-results (car (last all-results))))
 	 (conditional (vop-parse-conditional-p parse)))
-    
+
     `(
       :type (specifier-type '(function () nil))
       :arg-types (list ,@(mapcar #'make-operand-type args))
@@ -1552,20 +1523,21 @@
 			    (make-operand-type more-result)))))
 
 
-;;;; Set up VOP-Info:
+;;;; Set up VOP-Info.
 
 (defconstant slot-inherit-alist
   '((:generator-function . vop-info-generator-function)))
 
 ;;; Inherit-VOP-Info  --  Internal
 ;;;
-;;;    Something to help with inheriting VOP-Info slots.  We return a
+;;; Something to help with inheriting VOP-Info slots.  We return a
 ;;; keyword/value pair that can be passed to the constructor.  Slot is the
-;;; keyword name of the slot, Parse is a form that evaluates to the VOP-Parse
-;;; structure for the VOP inherited.  If Parse is NIL, then we do nothing.  If
-;;; the Test form evaluates to true, then we return a form that selects the
-;;; named slot from the VOP-Info structure corresponding to Parse.  Otherwise,
-;;; we return the Form so that the slot is recomputed.
+;;; keyword name of the slot, Parse is a form that evaluates to the
+;;; VOP-Parse structure for the VOP inherited.  If Parse is NIL, then we do
+;;; nothing.  If the Test form evaluates to true, then we return a form
+;;; that selects the named slot from the VOP-Info structure corresponding
+;;; to Parse.  Otherwise, we return the Form so that the slot is
+;;; recomputed.
 ;;;
 (defmacro inherit-vop-info (slot parse test form)
   `(if (and ,parse ,test)
@@ -1576,7 +1548,7 @@
 
 ;;; Set-Up-VOP-Info  --  Internal
 ;;;
-;;;    Return a form that creates a VOP-Info structure which describes VOP.
+;;; Return a form that creates a VOP-Info structure which describes VOP.
 ;;;
 (defun set-up-vop-info (iparse parse)
   (declare (type vop-parse parse) (type (or vop-parse null) iparse))
@@ -1613,27 +1585,28 @@
 	    (make-generator-function parse)))
       :variant (list ,@variant))))
 
-
 
 ;;; Define-VOP  --  Public
 ;;;
-;;;    Parse the syntax into a VOP-Parse structure, and then expand into code
-;;; that creates the appropriate VOP-Info structure at load time.  We implement
-;;; inheritance by copying the VOP-Parse structure for the inherited structure.
+;;; Parse the syntax into a VOP-Parse structure, and then expand into code
+;;; that creates the appropriate VOP-Info structure at load time.  We
+;;; implement inheritance by copying the VOP-Parse structure for the
+;;; inherited structure.
 ;;;
 (defmacro define-vop ((name &optional inherits) &rest specs)
-  "Define-VOP (Name [Inherits]) Spec*
-  Define the symbol Name to be a Virtual OPeration in the compiler.  If
-  specified, Inherits is the name of a VOP that we default unspecified
-  information from.  Each Spec is a list beginning with a keyword indicating
-  the interpretation of the other forms in the Spec:
-  
-  :Args {(Name {Key Value}*)}*
-  :Results {(Name {Key Value}*)}*
+  "define-vop (name [inherits]) spec*
+
+   Define the symbol Name to be a Virtual OPeration in the compiler.  If
+   specified, Inherits is the name of a VOP that we default unspecified
+   information from.  Each Spec is a list beginning with a keyword indicating
+   the interpretation of the other forms in the Spec:
+
+   :Args {(Name {Key Value}*)}*
+   :Results {(Name {Key Value}*)}*
       The Args and Results are specifications of the operand TNs passed to the
       VOP.  If there is an inherited VOP, any unspecified options are defaulted
       from the inherited argument (or result) of the same name.  The following
-      operand options are defined: 
+      operand options are defined:
 
       :SCs (SC*)
 	  :SCs specifies good SCs for this operand.  Other SCs will be
@@ -1668,17 +1641,17 @@
 	  for the N'th argument/result is (:ARGUMENT N)/(:RESULT N).  These
 	  options are necessary primarily when operands are read or written out
 	  of order.
-   
+
   :Conditional
       This is used in place of :RESULTS with conditional branch VOPs.  There
       are no result values: the result is a transfer of control.  The target
       label is passed as the first :INFO arg.  The second :INFO arg is true if
       the sense of the test should be negated.  A side-effect is to set the
       PREDICATE attribute for functions in the :TRANSLATE option.
-  
+
   :Temporary ({Key Value}*) Name*
       Allocate a temporary TN for each Name, binding that variable to the TN
-      within the body of the generators.  In addition to :Target (which is 
+      within the body of the generators.  In addition to :Target (which is
       is the same as for operands), the following options are
       defined:
 
@@ -1697,20 +1670,20 @@
 	  the duration of the VOP.  The other intervening phases are :Argument,
 	  :Eval and :Result.  Non-zero sub-phases can be specified by a list,
 	  e.g. by default the second argument's life ends at (:Argument 1).
- 
+
   :Generator Cost Form*
-      Specifies the translation into assembly code. Cost is the estimated cost
-      of the code emitted by this generator. The body is arbitrary Lisp code
+      Specifies the translation into assembly code.  Cost is the estimated cost
+      of the code emitted by this generator.  The body is arbitrary Lisp code
       that emits the assembly language translation of the VOP.  An Assemble
       form is wrapped around the body, so code may be emitted by using the
       local Inst macro.  During the evaluation of the body, the names of the
       operands and temporaries are bound to the actual TNs.
-  
+
   :Effects Effect*
   :Affected Effect*
       Specifies the side effects that this VOP has and the side effects that
       effect its execution.  If unspecified, these default to the worst case.
-  
+
   :Info Name*
       Define some magic arguments that are passed directly to the code
       generator.  The corresponding trailing arguments to VOP or %Primitive are
@@ -1747,7 +1720,7 @@
       specifies that the argument must be a compile-time constant of the
       specified Lisp type.  The constant values of :CONSTANT arguments are
       passed as additional :INFO arguments rather than as :ARGS.
-  
+
   :Translate Name*
       This option causes the VOP template to be entered as an IR2 translation
       for the named functions.
@@ -1772,7 +1745,7 @@
       Indicates if and how the more args should be moved into a different
       frame."
   (check-type name symbol)
-  
+
   (let* ((iparse (when inherits
 		   (vop-parse-or-lose inherits)))
 	 (parse (if inherits
@@ -1784,7 +1757,7 @@
 
     (parse-define-vop parse specs)
     (grovel-operands parse)
-      
+
     `(progn
        (eval-when (compile load eval)
 	 (setf (gethash ',name (backend-parsed-vops *target-backend*))
@@ -1799,18 +1772,19 @@
        ',name)))
 
 
-;;;; Emission macros:
+;;;; Emission macros.
 
 ;;; Make-Operand-List  --  Internal
 ;;;
-;;;    Return code to make a list of VOP arguments or results, linked by
-;;; TN-Ref-Across.  The first value is code, the second value is LET* forms,
-;;; and the third value is a variable that evaluates to the head of the list,
-;;; or NIL if there are no operands.  Fixed is a list of forms that evaluate to
-;;; TNs for the fixed operands.  TN-Refs will be made for these operands
-;;; according using the specified value of Write-P.  More is an expression that
-;;; evaluates to a list of TN-Refs that will be made the tail of the list.  If
-;;; it is constant NIL, then we don't bother to set the tail.
+;;; Return code to make a list of VOP arguments or results, linked by
+;;; TN-Ref-Across.  The first value is code, the second value is LET*
+;;; forms, and the third value is a variable that evaluates to the head of
+;;; the list, or NIL if there are no operands.  Fixed is a list of forms
+;;; that evaluate to TNs for the fixed operands.  TN-Refs will be made for
+;;; these operands according using the specified value of Write-P.  More is
+;;; an expression that evaluates to a list of TN-Refs that will be made the
+;;; tail of the list.  If it is constant NIL, then we don't bother to set
+;;; the tail.
 ;;;
 (defun make-operand-list (fixed more write-p)
   (collect ((forms)
@@ -1834,13 +1808,13 @@
 
       (values (forms) (binds) n-head))))
 
-
 ;;; Emit-Template  -- Interface
 ;;;
 (defmacro emit-template (node block template args results &optional info)
   "Emit-Template Node Block Template Args Results [Info]
-  Call the emit function for Template, linking the result in at the end of
-  Block."
+
+   Call the emit function for Template, linking the result in at the end of
+   Block."
   (let ((n-first (gensym))
 	(n-last (gensym)))
     (once-only ((n-node node)
@@ -1853,22 +1827,22 @@
 		    ,@(when info `(,info)))
 	 (insert-vop-sequence ,n-first ,n-last ,n-block nil)))))
 
-  
 ;;; VOP  --  Interface
 ;;;
 (defmacro vop (name node block &rest operands)
   "VOP Name Node Block Arg* Info* Result*
-  Emit the VOP (or other template) Name at the end of the IR2-Block Block,
-  using Node for the source context.  The interpretation of the remaining
-  arguments depends on the number of operands of various kinds that are
-  declared in the template definition.  VOP cannot be used for templates that
-  have more-args or more-results, since the number of arguments and results is
-  indeterminate for these templates.  Use VOP* instead.
-  
-  Args and Results are the TNs that are to be referenced by the template
-  as arguments and results.  If the template has codegen-info arguments, then
-  the appropriate number of Info forms following the Arguments are used for
-  codegen info."
+
+   Emit the VOP (or other template) Name at the end of the IR2-Block Block,
+   using Node for the source context.  The interpretation of the remaining
+   arguments depends on the number of operands of various kinds that are
+   declared in the template definition.  VOP cannot be used for templates that
+   have more-args or more-results, since the number of arguments and results is
+   indeterminate for these templates.  Use VOP* instead.
+
+   Args and Results are the TNs that are to be referenced by the template
+   as arguments and results.  If the template has codegen-info arguments, then
+   the appropriate number of Info forms following the Arguments are used for
+   codegen info."
   (let* ((parse (vop-parse-or-lose name))
 	 (arg-count (length (vop-parse-args parse)))
 	 (result-count (length (vop-parse-results parse)))
@@ -1877,27 +1851,27 @@
 	 (n-node (gensym))
 	 (n-block (gensym))
 	 (n-template (gensym)))
-    
+
     (when (or (vop-parse-more-args parse) (vop-parse-more-results parse))
       (error "Cannot use VOP with variable operand count templates."))
     (unless (= noperands (length operands))
       (error "Called with ~D operands, but was expecting ~D."
 	     (length operands) noperands))
-    
+
     (multiple-value-bind
 	(acode abinds n-args)
 	(make-operand-list (subseq operands 0 arg-count) nil nil)
       (multiple-value-bind
 	  (rcode rbinds n-results)
 	  (make-operand-list (subseq operands (+ arg-count info-count)) nil t)
-	
+
 	(collect ((ibinds)
 		  (ivars))
 	  (dolist (info (subseq operands arg-count (+ arg-count info-count)))
 	    (let ((temp (gensym)))
 	      (ibinds `(,temp ,info))
 	      (ivars temp)))
-	  
+
 	  `(let* ((,n-node ,node)
 		  (,n-block ,block)
 		  (,n-template (template-or-lose ',name *backend*))
@@ -1907,27 +1881,26 @@
 	     ,@acode
 	     ,@rcode
 	     (emit-template ,n-node ,n-block ,n-template ,n-args
-			    ,n-results 
+			    ,n-results
 			    ,@(when (ivars)
 				`((list ,@(ivars)))))
 	     (undefined-value)))))))
-
 
 ;;; VOP*  --  Interface
 ;;;
 (defmacro vop* (name node block args results &rest info)
   "VOP* Name Node Block (Arg* More-Args) (Result* More-Results) Info*
-  Like VOP, but allows for emission of templates with arbitrary numbers of
-  arguments, and for emission of templates using already-created TN-Ref lists.
+   Like VOP, but allows for emission of templates with arbitrary numbers of
+   arguments, and for emission of templates using already-created TN-Ref lists.
 
-  The Arguments and Results are TNs to be referenced as the first arguments
-  and results to the template.  More-Args and More-Results are heads of TN-Ref
-  lists that are added onto the end of the TN-Refs for the explicitly supplied
-  operand TNs.  The TN-Refs for the more operands must have the TN and Write-P
-  slots correctly initialized.
+   The Arguments and Results are TNs to be referenced as the first arguments
+   and results to the template.  More-Args and More-Results are heads of TN-Ref
+   lists that are added onto the end of the TN-Refs for the explicitly supplied
+   operand TNs.  The TN-Refs for the more operands must have the TN and Write-P
+   slots correctly initialized.
 
-  As with VOP, the Info forms are evaluated and passed as codegen info
-  arguments."
+   As with VOP, the Info forms are evaluated and passed as codegen info
+   arguments."
   (check-type args cons)
   (check-type results cons)
   (let* ((parse (vop-parse-or-lose name))
@@ -1939,7 +1912,7 @@
 	 (n-node (gensym))
 	 (n-block (gensym))
 	 (n-template (gensym)))
-    
+
     (unless (or (vop-parse-more-args parse)
 		(<= (length fixed-args) arg-count))
       (error "Too many fixed arguments."))
@@ -1948,14 +1921,14 @@
       (error "Too many fixed results."))
     (unless (= (length info) info-count)
       (error "Expected ~D info args." info-count))
-    
+
     (multiple-value-bind
 	(acode abinds n-args)
 	(make-operand-list fixed-args (car (last args)) nil)
       (multiple-value-bind
 	  (rcode rbinds n-results)
 	  (make-operand-list fixed-results (car (last results)) t)
-	
+
 	`(let* ((,n-node ,node)
 		(,n-block ,block)
 		(,n-template (template-or-lose ',name *backend*))
@@ -1969,16 +1942,16 @@
 	   (undefined-value))))))
 
 
-;;;; Random macros:
+;;;; Random macros.
 
 ;;; SC-Case  --  Public
 ;;;
 (defmacro sc-case (tn &rest forms)
   "SC-Case TN {({(SC-Name*) | SC-Name | T} Form*)}*
-  Case off of TN's SC.  The first clause containing TN's SC is evaulated,
-  returning the values of the last form.  A clause beginning with T specifies a
-  default.  If it appears, it must be last.  If no default is specified, and no
-  clause matches, then an error is signalled."
+   Case off of TN's SC.  The first clause containing TN's SC is evaulated,
+   returning the values of the last form.  A clause beginning with T specifies a
+   default.  If it appears, it must be last.  If no default is specified, and no
+   clause matches, then an error is signalled."
   (let ((n-sc (gensym))
 	(n-tn (gensym)))
     (collect ((clauses))
@@ -1987,7 +1960,7 @@
 	   (clauses `(t (error "Unknown SC to SC-Case for ~S:~%  ~S" ,n-tn
 			       (sc-name (tn-sc ,n-tn))))))
 	(let ((case (first cases)))
-	  (when (atom case) 
+	  (when (atom case)
 	    (error "Illegal SC-Case clause: ~S." case))
 	  (let ((head (first case)))
 	    (when (eq head t)
@@ -2005,12 +1978,11 @@
 	      (,n-sc (sc-number (tn-sc ,n-tn))))
 	 (cond ,@(clauses))))))
 
-
 ;;; SC-Is  --  Interface
 ;;;
 (defmacro sc-is (tn &rest scs)
   "SC-Is TN SC*
-  Returns true if TNs SC is any of the named SCs, false otherwise."
+   Returns true if TNs SC is any of the named SCs, false otherwise."
   (once-only ((n-sc `(sc-number (tn-sc ,tn))))
     `(or ,@(mapcar #'(lambda (x)
 		       `(eql ,n-sc ,(meta-sc-number-or-lose x)))
@@ -2021,19 +1993,18 @@
 (defmacro do-ir2-blocks ((block-var component &optional result)
 			 &body forms)
   "Do-IR2-Blocks (Block-Var Component [Result]) Form*
-  Iterate over the IR2 blocks in component, in emission order."
+   Iterate over the IR2 blocks in component, in emission order."
   `(do ((,block-var (block-info (component-head ,component))
 		    (ir2-block-next ,block-var)))
        ((null ,block-var) ,result)
      ,@forms))
 
-
 ;;; DO-LIVE-TNS  --  Interface
 ;;;
 (defmacro do-live-tns ((tn-var live block &optional result) &body body)
   "DO-LIVE-TNS (TN-Var Live Block [Result]) Form*
-  Iterate over all the TNs live at some point, with the live set represented by
-  a local conflicts bit-vector and the IR2-Block containing the location."
+   Iterate over all the TNs live at some point, with the live set represented by
+   a local conflicts bit-vector and the IR2-Block containing the location."
   (let ((n-conf (gensym))
 	(n-bod (gensym))
 	(i (gensym))
@@ -2049,7 +2020,7 @@
 			      (block-component
 			       (ir2-block-block ,n-block)))))
 	     (,n-bod ,tn-var))
-	   
+
 	   (let ((,ltns (ir2-block-local-tns ,n-block)))
 	     ;;
 	     ;; Do TNs always-live in this block and live :More TNs.
@@ -2069,13 +2040,12 @@
 		   (when (and ,tn-var (not (eq ,tn-var :more)))
 		     (,n-bod ,tn-var)))))))))))
 
-
 ;;; DO-ENVIRONMENT-IR2-BLOCKS  --  Interface
 ;;;
 (defmacro do-environment-ir2-blocks ((block-var env &optional result)
 				     &body body)
   "DO-ENVIRONMENT-IR2-BLOCKS (Block-Var Env [Result]) Form*
-  Iterate over all the IR2 blocks in the environment Env, in emit order."
+   Iterate over all the IR2 blocks in the environment Env, in emit order."
   (once-only ((n-env env))
     (once-only ((n-first `(node-block
 			   (lambda-bind
@@ -2089,5 +2059,3 @@
 		  (not (eq (ir2-block-environment ,block-var) ,n-env)))
 	      ,result)
 	   ,@body)))))
-
-

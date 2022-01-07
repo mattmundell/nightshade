@@ -1,31 +1,227 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/life.lisp,v 1.23 1994/10/31 04:27:28 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the lifetime analysis phase in the compiler.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; The lifetime analysis phase in the compiler.
+
 (in-package "C")
 
+#[ Lifetime Analysis
+
+    Do flow analysis to find the set of TNs whose lifetimes overlap with
+    the lifetimes of each TN being packed.  Annotate call VOPs with the TNs
+    that need to be saved.
+
+Phase position: 18/23 (back)
+
+Presence: required
+
+Files: life
+
+Entry functions: `lifetime-analyze'
+
+Call sequences:
+
+    native-compile-component
+      lifetime-analyze
+        lifetime-pre-pass
+          find-local-references
+            add-global-conflict
+          init-global-conflict-kind
+            convert-to-global
+              add-global-conflict
+          clear-lifetime-info
+          split-ir2-blocks
+          coalesce-more-ltn-numbers
+        setup-environment-live-conflicts
+          setup-environment-tn-conflicts
+        lifetime-flow-analysis
+          reset-current-conflict
+          propagate-live-tns
+        lifetime-post-pass
+          conflict-analyze-1-block
+            compute-initial-conflicts
+            do-save-p-stuff
+              compute-save-set
+              convert-to-environment-tn
+            ensure-results-live
+            scan-vop-refs
+              frob-more-tns
+        merge-alias-conflicts
+          ensure-global-tn
+          change-global-conflicts-tn
+          merge-alias-block-conflicts
+          change-tn-ref-tn
+
+
+This phase is a preliminary to Pack.  It involves three passes:
+ * A pre-pass that computes the DEF and USE sets for live TN analysis, while
+   also assigning local TN numbers, splitting blocks if necessary.
+       FIX But not really...
+ * A flow analysis pass that does backward flow analysis on the
+   component to find the live TNs at each block boundary.
+ * A post-pass that finds the conflict set for each TN.
+
+    Exploit the fact that a single VOP can only exhaust LTN numbers when there are
+    large more operands.  Since more operand reference cannot be interleaved with
+    temporary reference, the references all effectively occur at the same time.
+    This means that we can assign all the more args and all the more results the
+    same LTN number and the same lifetime info.
+
 
-;;;; Utilities:
+== Flow analysis ==
+
+It seems we could use the global-conflicts structures during compute the
+inter-block lifetime information.  The pre-pass creates all the
+global-conflicts for blocks that global TNs are referenced in.  The flow
+analysis pass just adds always-live global-conflicts for the other blocks the
+TNs are live in.  In addition to possibly being more efficient than SSets, this
+would directly result in the desired global-conflicts information, rather that
+having to create it from another representation.
+
+The DFO sorted per-TN global-conflicts thread suggests some kind of algorithm
+based on the manipulation of the sets of blocks each TN is live in (which is
+what we really want), rather than the set of TNs live in each block.
+
+If we sorted the per-TN global-conflicts in reverse DFO (which is just as good
+for determining conflicts between TNs), then it seems we could scan though the
+conflicts simultaneously with our flow-analysis scan through the blocks.
+
+The flow analysis step is the following:
+    If a TN is always-live or read-before-written in a successor block, then we
+    make it always-live in the current block unless there are already
+    global-conflicts recorded for that TN in this block.
+
+The iteration terminates when we don't add any new global-conflicts during a
+pass.
+
+We may also want to promote TNs only read within a block to always-live when
+the TN is live in a successor.  This should be easy enough as long as the
+global-conflicts structure contains this kind of info.
+
+The critical operation here is determining whether a given global TN has global
+conflicts in a given block.  Note that since we scan the blocks in DFO, and the
+global-conflicts are sorted in DFO, if we give each global TN a pointer to the
+global-conflicts for the last block we checked the TN was in, then we can
+guarantee that the global-conflicts we are looking for are always at or after
+that pointer.  If we need to insert a new structure, then the pointer will help
+us rapidly find the place to do the insertion.]
+
+
+== Conflict detection ==
+
+    XXX Environment, :more TNs.
+
+    FIX "phase"s in life conflict with compiler "phase"s
+
+This phase makes use of the results of lifetime analysis to find the set of TNs
+that have lifetimes overlapping with those of each TN.  We also annotate call
+VOPs with information about the live TNs so that code generation knows which
+registers need to be saved.
+
+The basic action is a backward scan of each block, looking at each TN-Ref and
+maintaining a set of the currently live TNs.  When we see a read, we check if
+the TN is in the live set.  If not, we:
+ * Add the TN to the conflict set for every currently live TN,
+ * Union the set of currently live TNs with the conflict set for the TN, and
+ * Add the TN to the set of live TNs.
+
+When we see a write for a live TN, we just remove it from the live set.  If we
+see a write to a dead TN, then we update the conflicts sets as for a read, but
+don't add the TN to the live set.  We have to do this so that the bogus write
+doesn't clobber anything.
+
+    We don't consider always-live TNs at all in this process, since the conflict
+    of always-live TNs with other TNs in the block is implicit in the
+    global-conflicts structures.
+
+    Before we do the scan on a block, we go through the global-conflicts structures
+    of TNs that change liveness in the block, assigning the recorded LTN number to
+    the TN's LTN number for the duration of processing of that block.
+
+
+Efficiently computing and representing this information calls for some
+cleverness.  It would be prohibitively expensive to represent the full conflict
+set for every TN with sparse sets, as is done at the block-level.  Although it
+wouldn't cause non-linear behavior, it would require a complex linked structure
+containing tens of elements to be created for every TN.  Fortunately we can
+improve on this if we take into account the fact that most TNs are "local" TNs:
+TNs which have all their uses in one block.
+
+First, many global TNs will be either live or dead for the entire duration of a
+given block.  We can represent the conflict between global TNs live throughout
+the block and TNs local to the block by storing the set of always-live global
+TNs in the block.  This reduces the number of global TNs that must be
+represented in the conflicts for local TNs.
+
+Second, we can represent conflicts within a block using bit-vectors.  Each TN
+that changes liveness within a block is assigned a local TN number.  Local
+conflicts are represented using a fixed-size bit-vector of 64 elements or so
+which has a 1 for the local TN number of every TN live at that time.  The block
+has a simple-vector which maps from local TN numbers to TNs.  Fixed-size
+vectors reduce the hassle of doing allocations and allow operations to be
+open-coded in a maximally tense fashion.
+
+We can represent the conflicts for a local TN by a single bit-vector indexed by
+the local TN numbers for that block, but in the global TN case, we need to be
+able to represent conflicts with arbitrary TNs.  We could use a list-like
+sparse set representation, but then we would have to either special-case global
+TNs by using the sparse representation within the block, or convert the local
+conflicts bit-vector to the sparse representation at the block end.  Instead,
+we give each global TN a list of the local conflicts bit-vectors for each block
+that the TN is live in.  If the TN is always-live in a block, then we record
+that fact instead.  This gives us a major reduction in the amount of work we
+have to do in lifetime analysis at the cost of some increase in the time to
+iterate over the set during Pack.
+
+Since we build the lists of local conflict vectors a block at a time, the
+blocks in the lists for each TN will be sorted by the block number.  The
+structure also contains the local TN number for the TN in that block.  These
+features allow pack to efficiently determine whether two arbitrary TNs
+conflict.  You just scan the lists in order, skipping blocks that are in only
+one list by using the block numbers.  When we find a block that both TNs are
+live in, we just check the local TN number of one TN in the local conflicts
+vector of the other.
+
+In order to do these optimizations, we must do a pre-pass that finds the
+always-live TNs and breaks blocks up into small enough pieces so that we don't
+run out of local TN numbers.  If we can make a block arbitrarily small, then we
+can guarantee that an arbitrarily small number of TNs change liveness within
+the block.  We must be prepared to make the arguments to unbounded arg count
+VOPs (such as function call) always-live even when they really aren't.  This is
+enabled by a panic mode in the block splitter: if we discover that the block
+only contains one VOP and there are still too many TNs that aren't always-live,
+then we promote the arguments (which we'd better be able to do...).
+
+This is done during the pre-scan in lifetime analysis.  We can do this because
+all TNs that change liveness within a block can be found by examining that
+block: the flow analysis only adds always-live TNs.
+
+
+When we are doing the conflict detection pass, we set the LTN number of global
+TNs.  We can easily detect global TNs that have not been locally mapped because
+this slot is initially null for global TNs and we null it out after processing
+each block.  We assign all Always-Live TNs to the same local number so that we
+don't need to treat references to them specially when making the scan.
+
+We also annotate call VOPs that do register saving with the TNs that are live
+during the call, and thus would need to be saved if they are packed in
+registers.
+
+We adjust the costs for TNs that need to be saved so that TNs costing more to
+save and restore than to reference get packed on the stack.  We would also like
+more often saved TNs to get higher costs so that they are packed in more
+savable locations.
+]#
+
+
+;;;; Utilities.
 
 ;;; Add-Global-Conflict  --  Internal
 ;;;
-;;;    Link in a global-conflicts structure for TN in Block with Number as the
-;;; LTN number.  The conflict is inserted in the per-TN Global-Conflicts thread
-;;; after the TN's Current-Conflict.  We change the Current-Conflict to point
-;;; to the new conflict.  Since we scan the blocks in reverse DFO, this list is
-;;; automatically built in order.  We have to actually scan the current
-;;; Global-TNs for the block in order to keep that thread sorted.
+;;; Link in a global-conflicts structure for TN in Block with Number as the
+;;; LTN number.  The conflict is inserted in the per-TN Global-Conflicts
+;;; thread after the TN's Current-Conflict.  We change the Current-Conflict
+;;; to point to the new conflict.  Since we scan the blocks in reverse DFO,
+;;; this list is automatically built in order.  We have to actually scan
+;;; the current Global-TNs for the block in order to keep that thread
+;;; sorted.
 ;;;
 (defun add-global-conflict (kind tn block number)
   (declare (type (member :read :write :read-only :live) kind)
@@ -45,12 +241,11 @@
     (insert-block-global-conflict new block))
   (undefined-value))
 
-
 ;;; INSERT-BLOCK-GLOBAL-CONFLICT  --  Internal
 ;;;
-;;;    Do the actual insertion of the conflict New into Block's global
+;;; Do the actual insertion of the conflict New into Block's global
 ;;; conflicts.
-;;; 
+;;;
 (defun insert-block-global-conflict (new block)
   (let ((global-num (tn-number (global-conflicts-tn new))))
     (do ((prev nil conf)
@@ -64,10 +259,9 @@
 	 (setf (global-conflicts-next new) conf))))
   (undefined-value))
 
-
 ;;; Reset-Current-Conflict  --  Internal
 ;;;
-;;;    Reset the Current-Conflict slot in all packed TNs to point to the head
+;;; Reset the Current-Conflict slot in all packed TNs to point to the head
 ;;; of the Global-Conflicts thread.
 ;;;
 (defun reset-current-conflict (component)
@@ -75,13 +269,14 @@
     (setf (tn-current-conflict tn) (tn-global-conflicts tn))))
 
 
-;;;; Pre-pass:
+;;;; Pre-pass.
 
 ;;; Convert-To-Global  --  Internal
 ;;;
-;;;    Convert TN (currently local) to be a global TN, since we discovered that
-;;; it is referenced in more than one block.  We just add a global-conflicts
-;;; structure with a kind derived from the Kill and Live sets.
+;;; Convert TN (currently local) to be a global TN, since we discovered
+;;; that it is referenced in more than one block.  We just add a
+;;; global-conflicts structure with a kind derived from the Kill and Live
+;;; sets.
 ;;;
 (defun convert-to-global (tn)
   (declare (type tn tn))
@@ -96,30 +291,29 @@
      tn block num))
   (undefined-value))
 
-
 ;;; Find-Local-References  --  Internal
 ;;;
-;;;    Scan all references to packed TNs in block.  We assign LTN numbers to
-;;; each referenced TN, and also build the Kill and Live sets that summarize
-;;; the references to each TN for purposes of lifetime analysis.
+;;; Scan all references to packed TNs in block.  We assign LTN numbers to
+;;; each referenced TN, and also build the Kill and Live sets that
+;;; summarize the references to each TN for purposes of lifetime analysis.
 ;;;
-;;;    It is possible that we will run out of LTN numbers.  If this happens,
+;;; It is possible that we will run out of LTN numbers.  If this happens,
 ;;; then we return the VOP that we were processing at the time we ran out,
 ;;; otherwise we return NIL.
 ;;;
-;;;    If a TN is referenced in more than one block, then we must represent
-;;; references using Global-Conflicts structures.  When we first see a TN, we
-;;; assume it will be local.  If we see a reference later on in a different
-;;; block, then we go back and fix the TN to global.
+;;; If a TN is referenced in more than one block, then we must represent
+;;; references using Global-Conflicts structures.  When we first see a TN,
+;;; we assume it will be local.  If we see a reference later on in a
+;;; different block, then we go back and fix the TN to global.
 ;;;
-;;;    We must globalize TNs that have a block other than the current one in
+;;; We must globalize TNs that have a block other than the current one in
 ;;; their Local slot and have no Global-Conflicts.  The latter condition is
-;;; necessary because we always set Local and Local-Number when we process a
-;;; reference to a TN, even when the TN is already known to be global.
+;;; necessary because we always set Local and Local-Number when we process
+;;; a reference to a TN, even when the TN is already known to be global.
 ;;;
-;;;    When we see reference to global TNs during the scan, we add the
-;;; global-conflict as :Read-Only, since we don't know the corrent kind until
-;;; we are done scanning the block.
+;;; When we see reference to global TNs during the scan, we add the
+;;; global-conflict as :Read-Only, since we don't know the corrent kind
+;;; until we are done scanning the block.
 ;;;
 (defun find-local-references (block)
   (declare (type ir2-block block))
@@ -143,37 +337,37 @@
 		  (unless (tn-global-conflicts tn)
 		    (convert-to-global tn))
 		  (add-global-conflict :read-only tn block ltn-num))
-		
+
 		(setf (tn-local tn) block)
 		(setf (tn-local-number tn) ltn-num)
 		(setf (svref tns ltn-num) tn)
 		(incf ltn-num))
-	      
+
 	      (let ((num (tn-local-number tn)))
 		(if (tn-ref-write-p ref)
 		    (setf (sbit kill num) 1  (sbit live num) 0)
 		    (setf (sbit live num) 1)))))))
-      
+
       (setf (ir2-block-local-tn-count block) ltn-num)))
   nil)
 
-
 ;;; Init-Global-Conflict-Kind   --  Internal
 ;;;
-;;;    Finish up the global conflicts for TNs referenced in Block according to
+;;; Finish up the global conflicts for TNs referenced in Block according to
 ;;; the local Kill and Live sets.
 ;;;
-;;;    We set the kind for TNs already in the global-TNs.  If not written at
-;;; all, then is :Read-Only, the default.  Must have been referenced somehow,
-;;; or we wouldn't have conflicts for it.
+;;; We set the kind for TNs already in the global-TNs.  If not written at
+;;; all, then is :Read-Only, the default.  Must have been referenced
+;;; somehow, or we wouldn't have conflicts for it.
 ;;;
-;;;    We also iterate over all the local TNs, looking for TNs local to this
-;;; block that are still live at the block beginning, and thus must be global.
-;;; This case is only important when a TN is read in a block but not written in
-;;; any other, since otherwise the write would promote the TN to global.  But
-;;; this does happen with various passing-location TNs that are magically
-;;; written.  This also serves to propagate the lives of erroneously
-;;; uninitialized TNs so that consistency checks can detect them.
+;;; We also iterate over all the local TNs, looking for TNs local to this
+;;; block that are still live at the block beginning, and thus must be
+;;; global.  This case is only important when a TN is read in a block but
+;;; not written in any other, since otherwise the write would promote the
+;;; TN to global.  But this does happen with various passing-location TNs
+;;; that are magically written.  This also serves to propagate the lives of
+;;; erroneously uninitialized TNs so that consistency checks can detect
+;;; them.
 ;;;
 (defun init-global-conflict-kind (block)
   (declare (type ir2-block block))
@@ -188,7 +382,7 @@
 		  (if (zerop (sbit live num))
 		      :write
 		      :read))))))
-    
+
     (let ((ltns (ir2-block-local-tns block)))
       (dotimes (i (ir2-block-local-tn-count block))
 	(let ((tn (svref ltns i)))
@@ -196,17 +390,16 @@
 		      (tn-global-conflicts tn)
 		      (zerop (sbit live i)))
 	    (convert-to-global tn))))))
-  
-  (undefined-value))
 
+  (undefined-value))
 
 (defevent split-ir2-block "Split an IR2 block to meet Local-TN-Limit.")
 
 ;;; Split-IR2-Blocks  --  Internal
 ;;;
-;;;    Move the code after the VOP Lose in 2block into its own block.  The
-;;; block is linked into the emit order following 2block.  Number is the block
-;;; number assigned to the new block.  We return the new block.
+;;; Move the code after the VOP Lose in 2block into its own block.  The
+;;; block is linked into the emit order following 2block.  Number is the
+;;; block number assigned to the new block.  We return the new block.
 ;;;
 (defun split-ir2-blocks (2block lose number)
   (declare (type ir2-block 2block) (type vop lose)
@@ -220,7 +413,7 @@
     (do ((vop new-start (vop-next vop)))
 	((null vop))
       (setf (vop-block vop) new))
-    
+
     (setf (ir2-block-start-vop new) new-start)
     (shiftf (ir2-block-last-vop new) (ir2-block-last-vop 2block) lose)
 
@@ -229,32 +422,31 @@
 
     new))
 
-
 ;;; Clear-Lifetime-Info  --  Internal
 ;;;
-;;;    Clear the global and local conflict info in Block so that we can
-;;; recompute it without any old cruft being retained.  It is assumed that all
-;;; LTN numbers are in use.
+;;; Clear the global and local conflict info in Block so that we can
+;;; recompute it without any old cruft being retained.  It is assumed that
+;;; all LTN numbers are in use.
 ;;;
-;;;    First we delete all the global conflicts.  The conflict we are deleting
-;;; must be the last in the TN's global-conflicts, but we must scan for it in
-;;; order to find the previous conflict.
+;;; First we delete all the global conflicts.  The conflict we are deleting
+;;; must be the last in the TN's global-conflicts, but we must scan for it
+;;; in order to find the previous conflict.
 ;;;
-;;;    Next, we scan the local TNs, nulling out the Local slot in all TNs with
-;;; no global conflicts.  This allows these TNs to be treated as local when we
-;;; scan the block again.
+;;; Next, we scan the local TNs, nulling out the Local slot in all TNs with
+;;; no global conflicts.  This allows these TNs to be treated as local when
+;;; we scan the block again.
 ;;;
-;;;    If there are conflicts, then we set Local to one of the conflicting
+;;; If there are conflicts, then we set Local to one of the conflicting
 ;;; blocks.  This ensures that Local doesn't hold over Block as its value,
 ;;; causing the subsequent reanalysis to think that the TN has already been
 ;;; seen in that block.
 ;;;
-;;;    This function must not be called on blocks that have :More TNs.
+;;; This function must not be called on blocks that have :More TNs.
 ;;;
 (defun clear-lifetime-info (block)
   (declare (type ir2-block block))
   (setf (ir2-block-local-tn-count block) 0)
-  
+
   (do ((conf (ir2-block-global-tns block)
 	     (global-conflicts-next conf)))
       ((null conf)
@@ -270,7 +462,7 @@
 	       (setf (global-conflicts-tn-next prev) nil)
 	       (setf (tn-global-conflicts tn) nil))
 	   (setf (tn-current-conflict tn) prev)))))
-  
+
   (fill (ir2-block-written block) 0)
   (let ((ltns (ir2-block-local-tns block)))
     (dotimes (i local-tn-limit)
@@ -281,37 +473,36 @@
 		(if conf
 		    (global-conflicts-block conf)
 		    nil))))))
-  
-  (undefined-value))
 
+  (undefined-value))
 
 ;;; Coalesce-More-LTN-Numbers  --  Internal
 ;;;
-;;;    This provides a panic mode for assigning LTN numbers when there is a VOP
-;;; with so many more operands that they can't all be assigned distinct
-;;; numbers.  When this happens, we recover by assigning all the more operands
-;;; the same LTN number.  We can get away with this, since all more args (and
-;;; results) are referenced simultaneously as far as conflict analysis is
-;;; concerned.
+;;; This provides a panic mode for assigning LTN numbers when there is a
+;;; VOP with so many more operands that they can't all be assigned distinct
+;;; numbers.  When this happens, we recover by assigning all the more
+;;; operands the same LTN number.  We can get away with this, since all
+;;; more args (and results) are referenced simultaneously as far as
+;;; conflict analysis is concerned.
 ;;;
-;;;     Block is the IR2-Block that the more VOP is at the end of.  Ops is the
+;;; Block is the IR2-Block that the more VOP is at the end of.  Ops is the
 ;;; full argument or result TN-Ref list.  Fixed is the types of the fixed
 ;;; operands (used only to skip those operands.)
 ;;;
-;;;     What we do is grab a LTN number, then make a :Read-Only global conflict
+;;; What we do is grab a LTN number, then make a :Read-Only global conflict
 ;;; for each more operand TN.  We require that there be no existing global
-;;; conflict in Block for any of the operands.  Since conflicts must be cleared
-;;; before the first call, this only prohibits the same TN being used both as a
-;;; more operand and as any other operand to the same VOP.
+;;; conflict in Block for any of the operands.  Since conflicts must be
+;;; cleared before the first call, this only prohibits the same TN being
+;;; used both as a more operand and as any other operand to the same VOP.
 ;;;
-;;;     We don't have to worry about getting the correct conflict kind, since
+;;; We don't have to worry about getting the correct conflict kind, since
 ;;; Init-Global-Conflict-Kind will fix things up.  Similarly,
-;;; FIND-LOCAL-REFERENCES will set the local conflict bit corresponding to this
-;;; call.
+;;; FIND-LOCAL-REFERENCES will set the local conflict bit corresponding to
+;;; this call.
 ;;;
-;;;     We also set the Local and Local-Number slots in each TN.  It is
-;;; possible that there are no operands in any given call to this function, but
-;;; there had better be either some more args or more results.
+;;; We also set the Local and Local-Number slots in each TN.  It is
+;;; possible that there are no operands in any given call to this function,
+;;; but there had better be either some more args or more results.
 ;;;
 (defun coalesce-more-ltn-numbers (block ops fixed)
   (declare (type ir2-block block) (type (or tn-ref null) ops) (list fixed))
@@ -345,32 +536,31 @@
 	(setf (tn-local-number tn) num))))
   (undefined-value))
 
-
 (defevent coalesce-more-ltn-numbers
   "Coalesced LTN numbers for a more operand to meet Local-TN-Limit.")
 
 ;;; Lifetime-Pre-Pass  --  Internal
 ;;;
-;;;    Loop over the blocks in Component, assigning LTN numbers and recording
+;;; Loop over the blocks in Component, assigning LTN numbers and recording
 ;;; TN birth and death.  The only interesting action is when we run out of
 ;;; local TN numbers while finding local references.
 ;;;
-;;;    If we run out of LTN numbers while processing a VOP within the block,
-;;; then we just split off the VOPs we have successfully processed into their
-;;; own block.
+;;; If we run out of LTN numbers while processing a VOP within the block,
+;;; then we just split off the VOPs we have successfully processed into
+;;; their own block.
 ;;;
-;;;    If we run out of LTN numbers while processing the our first VOP (the
-;;; last in the block), then it must be the case that this VOP has large more
+;;; If we run out of LTN numbers while processing the first VOP (the last
+;;; in the block), then it must be the case that this VOP has large more
 ;;; operands.  We split the VOP into its own block, and then call
-;;; Coalesce-More-Ltn-Numbers to assign all the more args/results the same LTN
-;;; number(s).
+;;; `coalesce-more-ltn-numbers' to assign all the more args/results the
+;;; same LTN number(s).
 ;;;
-;;;    In either case, we clear the lifetime information that we computed so
+;;; In either case, we clear the lifetime information that we computed so
 ;;; far, recomputing it after taking corrective action.
 ;;;
-;;;    Whenever we split a block, we finish the pre-pass on the split-off block
-;;; by doing Find-Local-References and Init-Global-Conflict-Kind.  This can't
-;;; run out of LTN numbers.
+;;; Whenever we split a block, we finish the pre-pass on the split-off
+;;; block by doing `find-local-references' and `init-global-conflict-kind'.
+;;; This can't run out of LTN numbers.
 ;;;
 (defun lifetime-pre-pass (component)
   (declare (type component component))
@@ -385,9 +575,9 @@
 	    ((not lose)
 	     (init-global-conflict-kind 2block)
 	     (setf (ir2-block-number 2block) (incf counter)))
-	  
+
 	  (clear-lifetime-info 2block)
-	  
+
 	  (cond
 	   ((vop-next lose)
 	    (assert (not (eq last-lose lose)))
@@ -410,18 +600,17 @@
 	      (let ((lose (find-local-references new)))
 		(assert (not lose)))
 	      (init-global-conflict-kind new))))))))
-		     
+
   (undefined-value))
 
 
-;;;; Environment TN stuff:
-
+;;;; Environment TN stuff.
 
 ;;; SETUP-ENVIRONMENT-TN-CONFLICT  --  Internal
 ;;;
-;;;    Add a :LIVE global conflict for TN in 2block if there is none present.
-;;; If Debug-P is false (a :ENVIRONMENT TN), then modify any existing conflict
-;;; to be :LIVE.
+;;; Add a :LIVE global conflict for TN in 2block if there is none present.
+;;; If Debug-P is false (a :ENVIRONMENT TN), then modify any existing
+;;; conflict to be :LIVE.
 ;;;
 (defun setup-environment-tn-conflict (tn 2block debug-p)
   (declare (type tn tn) (type ir2-block 2block))
@@ -444,12 +633,11 @@
 	(return))))
   (undefined-value))
 
-
 ;;; SETUP-ENVIRONMENT-TN-CONFLICTS  --  Internal
 ;;;
-;;;    Iterate over all the blocks in Env, setting up :LIVE conflicts for TN.
-;;; We make the TN global if it isn't already.  The TN must have at least one
-;;; reference.
+;;; Iterate over all the blocks in Env, setting up :LIVE conflicts for TN.
+;;; We make the TN global if it isn't already.  The TN must have at least
+;;; one reference.
 ;;;
 (defun setup-environment-tn-conflicts (component tn env debug-p)
   (declare (type component component) (type tn tn) (type environment env))
@@ -470,10 +658,9 @@
 	  (setup-environment-tn-conflict tn b debug-p)))))
   (undefined-value))
 
-  
 ;;; SETUP-ENVIRONMENT-LIVE-CONFLICTS  --  Internal
 ;;;
-;;;    Iterate over all the environment TNs, adding always-live conflicts as
+;;; Iterate over all the environment TNs, adding always-live conflicts as
 ;;; appropriate.
 ;;;
 (defun setup-environment-live-conflicts (component)
@@ -487,10 +674,9 @@
 	(setup-environment-tn-conflicts component tn env t))))
   (undefined-value))
 
-
 ;;; Convert-To-Environment-TN  --  Internal
 ;;;
-;;;    Convert a :NORMAL or :DEBUG-ENVIRONMENT TN to an :ENVIRONMENT TN.  This
+;;; Convert a :NORMAL or :DEBUG-ENVIRONMENT TN to an :ENVIRONMENT TN.  This
 ;;; requires adding :LIVE conflicts to all blocks in TN-ENV.
 ;;;
 (defun convert-to-environment-tn (tn tn-env)
@@ -510,32 +696,32 @@
   (undefined-value))
 
 
-;;;; Flow analysis:
+;;;; Flow analysis.
 
 ;;; Propagate-Live-TNs  --  Internal
 ;;;
-;;;    For each Global-TN in Block2 that is :Live, :Read or :Read-Only, ensure
-;;; that there is a corresponding Global-Conflict in Block1.  If there is none,
-;;; make a :Live Global-Conflict.  If there is a :Read-Only conflict, promote
-;;; it to :Live.
+;;; For each Global-TN in Block2 that is :Live, :Read or :Read-Only, ensure
+;;; that there is a corresponding Global-Conflict in Block1.  If there is
+;;; none, make a :Live Global-Conflict.  If there is a :Read-Only conflict,
+;;; promote it to :Live.
 ;;;
-;;;    If we did added a new conflict, return true, otherwise false.  We don't
-;;; need to return true when we promote a :Read-Only conflict, since it doesn't
-;;; reveal any new information to predecessors of Block1.
+;;; If we added a new conflict, return true, otherwise return false.  We
+;;; don't need to return true when we promote a :Read-Only conflict, since
+;;; it doesn't reveal any new information to predecessors of Block1.
 ;;;
-;;;    We use the Tn-Current-Conflict to walk through the global
-;;; conflicts.  Since the global conflicts for a TN are ordered by block, we
-;;; can be sure that the Current-Conflict always points at or before the block
-;;; that we are looking at.  This allows us to quickly determine if there is a
-;;; global conflict for a given TN in Block1.
+;;; We use the Tn-Current-Conflict to walk through the global conflicts.
+;;; Since the global conflicts for a TN are ordered by block, we can be
+;;; sure that the Current-Conflict always points at or before the block
+;;; that we are looking at.  This allows us to quickly determine if there
+;;; is a global conflict for a given TN in Block1.
 ;;;
-;;;    When we scan down the conflicts, we know that there must be at least one
-;;; conflict for TN, since we got our hands on TN by picking it out of a
-;;; conflict in Block2.
+;;; When we scan down the conflicts, we know that there must be at least
+;;; one conflict for TN, since we got our hands on TN by picking it out of
+;;; a conflict in Block2.
 ;;;
-;;;    We leave the Current-Conflict pointing to the conflict for Block1.  The
-;;; Current-Conflict must be initialized to the head of the Global-Conflicts
-;;; for the TN between each flow analysis iteration.
+;;; We leave the Current-Conflict pointing to the conflict for Block1.  The
+;;; Current-Conflict must be initialized to the head of the
+;;; Global-Conflicts for the TN between each flow analysis iteration.
 ;;;
 (defun propagate-live-tns (block1 block2)
   (declare (type ir2-block block1 block2))
@@ -574,10 +760,9 @@
 	(:write)))
     did-something))
 
-		    
 ;;; Lifetime-Flow-Analysis  --  Internal
 ;;;
-;;;    Do backward global flow analysis to find all TNs live at each block
+;;; Do backward global flow analysis to find all TNs live at each block
 ;;; boundary.
 ;;;
 (defun lifetime-flow-analysis (component)
@@ -607,11 +792,11 @@
   (undefined-value))
 
 
-;;;; Post-pass:
+;;;; Post-pass.
 
 ;;; Note-Conflicts  --  Internal
 ;;;
-;;;    Note that TN conflicts with all current live TNs.  Num is TN's LTN
+;;; Note that TN conflicts with all current live TNs.  Num is TN's LTN
 ;;; number.  We bit-ior Live-Bits with TN's Local-Conflicts, and set TN's
 ;;; number in the conflicts of all TNs in Live-List.
 ;;;
@@ -626,10 +811,9 @@
     (setf (sbit (tn-local-conflicts live) num) 1))
   (undefined-value))
 
-
 ;;; Compute-Save-Set  --  Internal
 ;;;
-;;;    Compute a bit vector of the TNs live after VOP that aren't results.
+;;; Compute a bit vector of the TNs live after VOP that aren't results.
 ;;;
 (defun compute-save-set (vop live-bits)
   (declare (type vop vop) (type local-tn-bit-vector live-bits))
@@ -643,13 +827,13 @@
 	  (:environment :component))))
     live))
 
-
 ;;; SAVED-AFTER-READ  --  Internal
 ;;;
-;;;    Used to determine whether a :DEBUG-ENVIRONMENT TN should be considered
-;;; live at block end.  We return true if a VOP with non-null SAVE-P appears
-;;; before the first read of TN (hence is seen first in our backward scan.)
-;;; 
+;;; Used to determine whether a :DEBUG-ENVIRONMENT TN should be considered
+;;; live at block end.  We return true if a VOP with non-null SAVE-P
+;;; appears before the first read of TN (hence is seen first in our
+;;; backward scan.)
+;;;
 (defun saved-after-read (tn block)
   (do ((vop (ir2-block-last-vop block) (vop-prev vop)))
       ((null vop) t)
@@ -661,10 +845,10 @@
 ;;;
 ;;; If the block has no successors, or its successor is the component tail,
 ;;; then all :DEBUG-ENVIRONMENT TNs are always added, regardless of whether
-;;; they appeared to be live.  This ensures that these TNs are considered to be
-;;; live throughout blocks that read them, but don't have any interesting
-;;; successors (such as a return or tail call.)  In this case, we set the
-;;; corresponding bit in LIVE-IN as well.
+;;; they appeared to be live.  This ensures that these TNs are considered
+;;; to be live throughout blocks that read them, but don't have any
+;;; interesting successors (such as a return or tail call.)  In this case,
+;;; we set the corresponding bit in LIVE-IN as well.
 ;;;
 (defun make-debug-environment-tns-live (block live-bits live-list)
   (let* ((1block (ir2-block-block block))
@@ -689,21 +873,20 @@
 	    (setf (sbit live-bits num) 1)
 	    (push-in tn-next* tn live-list)
 	    (setf (sbit live-in num) 1))))))
-  
-  (values live-bits live-list))
 
+  (values live-bits live-list))
 
 ;;; Compute-Initial-Conflicts  --  Internal
 ;;;
-;;;    Return as values, a LTN bit-vector and a list (threaded by TN-Next*)
+;;; Return as values, a LTN bit-vector and a list (threaded by TN-Next*)
 ;;; representing the TNs live at the end of Block (exclusive of :Live TNs).
 ;;;
-;;; We iterate over the TNs in the global conflicts that are live at the block
-;;; end, setting up the TN-Local-Conflicts and TN-Local-Number, and adding the
-;;; TN to the live list.
+;;; We iterate over the TNs in the global conflicts that are live at the
+;;; block end, setting up the TN-Local-Conflicts and TN-Local-Number, and
+;;; adding the TN to the live list.
 ;;;
-;;; If a :MORE result is not live, we effectively fake a read to it.  This is
-;;; part of the action described in ENSURE-RESULTS-LIVE.
+;;; If a :MORE result is not live, we effectively fake a read to it.  This
+;;; is part of the action described in ENSURE-RESULTS-LIVE.
 ;;;
 ;;; At the end, we call MAKE-DEBUG-ENVIRONEMNT-TNS-LIVE to make debug
 ;;; environment TNs appear live when appropriate, even when they aren't.
@@ -742,12 +925,11 @@
 
     (make-debug-environment-tns-live block live-bits live-list)))
 
-
 ;;; DO-SAVE-P-STUFF  --  Internal
 ;;;
-;;;    A function called in Conflict-Analyze-1-Block when we have a VOP with
-;;; SAVE-P true.  We compute the save-set, and if :FORCE-TO-STACK, force all
-;;; the live TNs to be stack environment TNs.
+;;; A function called in Conflict-Analyze-1-Block when we have a VOP with
+;;; SAVE-P true.  We compute the save-set, and if :FORCE-TO-STACK, force
+;;; all the live TNs to be stack environment TNs.
 ;;;
 (defun do-save-p-stuff (vop block live-bits)
   (declare (type vop vop) (type ir2-block block)
@@ -764,18 +946,17 @@
 	     (block-environment (ir2-block-block block))))))))
   (undefined-value))
 
-
 (eval-when (compile eval)
 
 ;;; Frob-More-TNs  --  Internal
 ;;;
-;;;    Used in SCAN-VOP-REFS to simultaneously do something to all of the TNs
-;;; referenced by a big more arg.  We have to treat these TNs specially, since
-;;; when we set or clear the bit in the live TNs, the represents a change in
-;;; the liveness of all the more TNs.  If we iterated as normal, the next more
-;;; ref would be thought to be not live when it was, etc.  We update Ref to be
-;;; the last :more ref we scanned, so that the main loop will step to the next
-;;; non-more ref.
+;;; Used in SCAN-VOP-REFS to simultaneously do something to all of the TNs
+;;; referenced by a big more arg.  We have to treat these TNs specially,
+;;; since when we set or clear the bit in the live TNs, the represents a
+;;; change in the liveness of all the more TNs.  If we iterated as normal,
+;;; the next more ref would be thought to be not live when it was, etc.  We
+;;; update Ref to be the last :more ref we scanned, so that the main loop
+;;; will step to the next non-more ref.
 ;;;
 (defmacro frob-more-tns (action)
   `(when (eq (svref ltns num) :more)
@@ -789,11 +970,11 @@
 	 (setq prev mref))
        (setq ref prev))))
 
-
 ;;; SCAN-VOP-REFS  --  Internal
 ;;;
-;;;    	Handle the part of CONFLICT-ANALYZE-1-BLOCK that scans the REFs for the
-;;; current VOP.  This macro shamelessly references free variables in C-A-1-B.
+;;; Handle the part of CONFLICT-ANALYZE-1-BLOCK that scans the REFs for the
+;;; current VOP.  This macro references free variables in
+;;; CONFLICT-ANALYZE-1-BLOCK.
 ;;;
 (defmacro scan-vop-refs ()
   '(do ((ref (vop-refs vop) (tn-ref-next-ref ref)))
@@ -815,15 +996,15 @@
 	 (push-in tn-next* tn live-list)
 	 (frob-more-tns (push-in tn-next* mtn live-list)))))))
 
-
 ;;; ENSURE-RESULTS-LIVE  --  Internal
 ;;;
-;;;    This macro is called by CONFLICT-ANALYZE-1-BLOCK to scan the current
-;;; VOP's results, and make any dead ones live.  This is necessary, since even
-;;; though a result is dead after the VOP, it may be in use for an extended
-;;; period within the VOP (especially if it has :FROM specified.)  During this
-;;; interval, temporaries must be noted to conflict with the result.  More
-;;; results are finessed in COMPUTE-INITIAL-CONFLICTS, so we ignore them here.
+;;; This macro is called by CONFLICT-ANALYZE-1-BLOCK to scan the current
+;;; VOP's results, and make any dead ones live.  This is necessary, since
+;;; even though a result is dead after the VOP, it may be in use for an
+;;; extended period within the VOP (especially if it has :FROM specified.)
+;;; During this interval, temporaries must be noted to conflict with the
+;;; result.  More results are finessed in COMPUTE-INITIAL-CONFLICTS, so we
+;;; ignore them here.
 ;;;
 (defmacro ensure-results-live ()
   '(do ((res (vop-results vop) (tn-ref-across res)))
@@ -838,12 +1019,11 @@
 
 ); Eval-When (Compile Eval)
 
-
 ;;; Conflict-Analyze-1-Block  --  Internal
 ;;;
-;;;    Compute the block-local conflict information for Block.  We iterate over
-;;; all the TN-Refs in a block in reference order, maintaining the set of live
-;;; TNs in both a list and a bit-vector representation.
+;;; Compute the block-local conflict information for Block.  We iterate
+;;; over all the TN-Refs in a block in reference order, maintaining the set
+;;; of live TNs in both a list and a bit-vector representation.
 ;;;
 (defun conflict-analyze-1-block (block)
   (declare (type ir2-block block))
@@ -859,22 +1039,22 @@
 	(ensure-results-live)
 	(scan-vop-refs)))))
 
-
 ;;; Lifetime-Post-Pass  --  Internal
 ;;;
-;;;    Conflict analyze each block, and also add it 
+;;; Conflict analyze each block, and also add it.
+;;;
 (defun lifetime-post-pass (component)
   (declare (type component component))
   (do-ir2-blocks (block component)
     (conflict-analyze-1-block block)))
 
 
-;;;; Alias TN stuff:
+;;;; Alias TN stuff.
 
 ;;; MERGE-ALIAS-BLOCK-CONFLICTS  --  Internal
 ;;;
-;;;    Destructively modify Oconf to include the conflict information in Conf.
-;;; 
+;;; Destructively modify Oconf to include the conflict information in Conf.
+;;;
 (defun merge-alias-block-conflicts (conf oconf)
   (declare (type global-conflicts conf oconf))
   (let* ((kind (global-conflicts-kind conf))
@@ -934,10 +1114,9 @@
 
   (undefined-value))
 
-
 ;;; CHANGE-GLOBAL-CONFLICTS-TN  --  Internal
 ;;;
-;;;    Co-opt Conf to be a conflict for TN.
+;;; Co-opt Conf to be a conflict for TN.
 ;;;
 (defun change-global-conflicts-tn (conf new)
   (declare (type global-conflicts conf) (type tn new))
@@ -951,10 +1130,9 @@
       (setf (svref (ir2-block-local-tns block) ltn-num) new)))
   (undefined-value))
 
-
 ;;; ENSURE-GLOBAL-TN  --  Internal
 ;;;
-;;;    Do CONVERT-TO-GLOBAL on TN if it has no global conflicts.  Copy the
+;;; Do CONVERT-TO-GLOBAL on TN if it has no global conflicts.  Copy the
 ;;; local conflicts into the global bit vector.
 ;;;
 (defun ensure-global-tn (tn)
@@ -969,22 +1147,21 @@
 	 (assert (and (null (tn-reads tn)) (null (tn-writes tn))))))
   (undefined-value))
 
-  
 ;;; MERGE-ALIAS-CONFLICTS  --  Internal
 ;;;
-;;;    For each :ALIAS TN, destructively merge the conflict info into the
+;;; For each :ALIAS TN, destructively merge the conflict info into the
 ;;; original TN and replace the uses of the alias.
 ;;;
-;;; For any block that uses only the alias TN, just insert that conflict into
-;;; the conflicts for the original TN, changing the LTN map to refer to the
-;;; original TN.  This gives a result indistinguishable from the what there
-;;; would have been if the original TN had always been referenced.  This leaves
-;;; no sign that an alias TN was ever involved.
+;;; For any block that uses only the alias TN, just insert that conflict
+;;; into the conflicts for the original TN, changing the LTN map to refer
+;;; to the original TN.  This gives a result indistinguishable from the
+;;; what there would have been if the original TN had always been
+;;; referenced.  This leaves no sign that an alias TN was ever involved.
 ;;;
-;;; If a block has references to both the alias and the original TN, then we
-;;; call MERGE-ALIAS-BLOCK-CONFLICTS to combine the conflicts into the original
-;;; conflict.
-;;; 
+;;; If a block has references to both the alias and the original TN, then
+;;; we call MERGE-ALIAS-BLOCK-CONFLICTS to combine the conflicts into the
+;;; original conflict.
+;;;
 (defun merge-alias-conflicts (component)
   (declare (type component component))
   (do ((tn (ir2-component-alias-tns (component-info component))
@@ -1049,15 +1226,15 @@
   (merge-alias-conflicts component))
 
 
-;;;; Conflict testing:
+;;;; Conflict testing.
 
 ;;; TNs-Conflict-Local-Global  --  Internal
 ;;;
-;;;    Test for a conflict between the local TN X and the global TN Y.  We just
-;;; look for a global conflict of Y in X's block, and then test for conflict in
-;;; that block.
-;;; [### Might be more efficient to scan Y's global conflicts.  This depends on
-;;; whether there are more global TNs than blocks.]
+;;; Test for a conflict between the local TN X and the global TN Y.  We
+;;; just look for a global conflict of Y in X's block, and then test for
+;;; conflict in that block.
+;;; [### Might be more efficient to scan Y's global conflicts.  This
+;;; depends on whether there are more global TNs than blocks.]
 ;;;
 (defun tns-conflict-local-global (x y)
   (let ((block (tn-local x)))
@@ -1070,10 +1247,9 @@
 		      (not (zerop (sbit (tn-local-conflicts x)
 					num))))))))))
 
-
 ;;; TNs-Conflict-Global-Global  --  Internal
 ;;;
-;;;    Test for conflict between two global TNs X and Y.
+;;; Test for conflict between two global TNs X and Y.
 ;;;
 (defun tns-conflict-global-global (x y)
   (declare (type tn x y))
@@ -1106,11 +1282,10 @@
 	    (advance x-num x-conf)
 	    (advance y-num y-conf)))))))
 
-
 ;;; TNs-Conflict  --  Interface
 ;;;
-;;;    Return true if X and Y are distinct and the lifetimes of X and Y overlap
-;;; at any point.
+;;; Return true if X and Y are distinct and the lifetimes of X and Y
+;;; overlap at any point.
 ;;;
 (defun tns-conflict (x y)
   (declare (type tn x y))

@@ -19,8 +19,10 @@
 ;;;; Stuff for the Syntax table functions (syntax)
 
 (defconstant syntax-char-code-limit char-code-limit
-  "The highest char-code which a character argument to the syntax
-  table functions may have.")
+  "The exclusive upper bound on character codes which are significant in
+   the character attribute functions.  That is, the highest char-code which
+   a character argument to the syntax table functions may have.  Font and
+   bits are always ignored.")
 
 (defmacro syntax-char-code (char)
   `(char-code ,char))
@@ -28,7 +30,10 @@
 ;;;; Stuff used by the searching primitives (search)
 ;;;
 (defconstant search-char-code-limit 128
-  "The exclusive upper bound on significant char-codes for searching.")
+  "An exclusive upper limit for the char-code of characters given to the
+   searching functions.  The result of searches for characters with a
+   char-code greater than or equal to this limit is ill-defined, but it is
+   not an error to do such searches.")
 (defmacro search-char-code (ch)
   `(logand (char-code ,ch) #x+7F))
 ;;;
@@ -46,14 +51,20 @@
 (defmacro search-char-upcase (ch)
   `(char-upcase (the base-char ,ch)))
 
+#[ Miscellaneous Editor Environment
+
+{function:edi:in-lisp}
+{function:edi:do-alpha-chars}
+]#
+
 
 ;;;; DO-ALPHA-CHARS.
 
-;;; ALPHA-CHARS-LOOP loops from start-char through end-char binding var
-;;; to the alphabetic characters and executing body.  Note that the manual
-;;; guarantees lower and upper case char codes to be separately in order,
-;;; but other characters may be interspersed within that ordering.
 (defmacro alpha-chars-loop (var start-char end-char result body)
+  "Loop from $start-char through $end-char binding $var to the alphabetic
+   characters and executing $body.  Lower and upper case char codes are
+   guaranteed to be ordered separately, and other characters may be
+   interspersed within this ordering."
   (let ((n (gensym))
 	(end-char-code (gensym)))
     `(do ((,n (char-code ,start-char) (1+ ,n))
@@ -64,10 +75,10 @@
 	   ,@body)))))
 
 (defmacro do-alpha-chars ((var kind &optional result) &rest forms)
-  "(do-alpha-chars (var kind [result]) . body).  Kind is one of
-   :lower, :upper, or :both, and var is bound to each character in
-   order as specified under character relations in the manual.  When
-   :both is specified, lowercase letters are processed first."
+  "Iterate over Lisp alphabetic characters, binding $var to each character
+   in order as specified under character relations in section [FIX] in the
+   Lisp manual.  $kind is one of :lower, :upper, or :both.  When $kind is
+   :both, process lowercase characters first."
   (case kind
     (:both
      `(progn (alpha-chars-loop ,var #\a #\z nil ,forms)

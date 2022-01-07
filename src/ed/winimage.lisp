@@ -3,11 +3,10 @@
 
 (in-package "EDI")
 
-
 (defvar the-sentinel
   (list (make-window-dis-line ""))
   "This dis-line, which has several interesting properties, is used to end
-  lists of dis-lines.")
+   lists of dis-lines.")
 (setf (dis-line-line (car the-sentinel))
       (make-line :number most-positive-fixnum :chars ""))
 (setf (dis-line-position (car the-sentinel)) most-positive-fixnum)
@@ -17,18 +16,21 @@
 (defconstant unaltered-bits #b000
   "This is the value of the dis-line-flags when a line is neither moved nor
   changed nor new.")
+
 (defconstant changed-bit #b001
   "This bit is set in the dis-line-flags when a line is found to be changed.")
+
 (defconstant moved-bit #b010
   "This bit is set in the dis-line-flags when a line is found to be moved.")
+
 (defconstant new-bit #b100
   "This bit is set in the dis-line-flags when a line is found to be new.")
 
 
 ;;; move-lines  --  Internal
 ;;;
-;;;    This function is called by Maybe-Change-Window when it believes that
-;;; a line needs to be inserted or deleted.  When called it finishes the
+;;; This function is called by Maybe-Change-Window when it believes that a
+;;; line needs to be inserted or deleted.  When called it finishes the
 ;;; image-update for the entire rest of the window.  Here and many other
 ;;; places the phrase "dis-line" is often used to mean a pointer into the
 ;;; window's list of dis-lines.
@@ -98,7 +100,7 @@
     ;; If a line has been deleted, it's line-%buffer is smashed; we unlink
     ;; any dis-line which displayed such a line.
     (cond
-     ((neq (line-%buffer old-line) buffer)
+     ((fi (eq (line-%buffer old-line) buffer))
       ;; FIX skip over any dis-lines to one which has a line in the buffer
       (do ((ptr (cdr current) (cdr ptr))
 	   (prev current ptr))
@@ -140,7 +142,7 @@
       (setq cc (car current)  old-line (dis-line-line cc)))
      ;; New line comes before old line, insert it, punting when (FIX ie if)
      ;; we hit the bottom of the screen.
-     ((neq line old-line)
+     ((fi (eq line old-line))
       (do ((chars (unless is-wrapped (line-%chars line)) nil) new)
 	  (())
 	(setq new (car spare-lines))
@@ -283,10 +285,10 @@
 
 ;;; update-window-image  --  Internal
 ;;;
-;;;    This is the function which redisplay calls when it wants to ensure that
-;;; a window-image is up-to-date.  The main loop here is just to zoom through
-;;; the lines and dis-lines, bugging out to Maybe-Change-Window whenever
-;;; something interesting happens.
+;;; This is the function which redisplay calls when it wants to ensure that
+;;; a window-image is up-to-date.  The main loop here is just to zoom
+;;; through the lines and dis-lines, bugging out to Maybe-Change-Window
+;;; whenever something interesting happens.
 ;;;
 (defun update-window-image (window)
   (let* ((trail (window-first-line window))
@@ -419,7 +421,7 @@
     ;; If a line has been deleted, its line-%buffer is smashed; we unlink
     ;; any dis-line which displayed such a line.
     (cond
-     ((neq (line-%buffer old-line) buffer)
+     ((fi (eq (line-%buffer old-line) buffer))
       (trc "skip~%pos: ~A~%" pos)
       ;; FIX skip over any dis-lines to a dis-line with a line which is in buffer
 
@@ -475,7 +477,7 @@
       (setq cc (car current)  old-line (dis-line-line cc)))
      ;; New line comes before old line, insert it, punting when (FIX ie if)
      ;; we hit the bottom of the screen.
-     ((neq line old-line)
+     ((fi (eq line old-line))
       (trc "before~%")
       (trc "line: ~A~%" line)
       (trc "old-line: ~A~%" old-line)

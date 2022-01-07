@@ -1,7 +1,4 @@
 
-;;; $Header: /home/CVS-cmucl/src/compiler/mips/notes.txt,v 1.2 1990/02/07 14:05:49 ram Exp $
-
-
 
 Call:
 

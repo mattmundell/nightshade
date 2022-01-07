@@ -36,8 +36,7 @@
 	       #+nil
 	       (format t "Ignoring undoing: ~s ~s~%" symbol value)))))))
 
-;;; Re-apply the bindings in a binding stack after an
-;;; unbind-binding-stack.
+;;; Re-apply the bindings in a binding stack after an unbind-binding-stack.
 (defun rebind-binding-stack ()
   (declare (optimize (speed 3) (safety 0)))
   (let* ((binding-stack-pointer (kernel:binding-stack-pointer-sap))
@@ -851,9 +850,9 @@
 ;;;
 (defun make-process (function &key (name "Anonymous"))
   "Make a process which will run function when it starts up. The process
-  may be given an optional name which defaults to Anonymous. The new
-  process has a fresh set of special bindings with a default binding
-  of *package* setup to the CL-USER package."
+   may be given an optional name which defaults to Anonymous. The new
+   process has a fresh set of special bindings with a default binding
+   of *package* setup to the CL-USER package."
   (declare (type (or null function) function))
   (cond (*quitting-lisp*
 	 ;; No more processes if about to quit lisp.
@@ -938,7 +937,7 @@
 
 (defun restart-process (process)
   "Restart process by unwinding it to its initial state and calling its
-  initial function."
+   initial function."
   (destroy-process process)
   (process-wait "Waiting for process to die"
 		#'(lambda ()
@@ -993,7 +992,7 @@
 
 (defun process-preset (process function &rest args)
   "Restart process, unwinding it to its initial state and calls
-  function with args."
+   function with args."
   (setf (process-initial-function process) function)
   (setf (process-initial-args process) args)
   (restart-process process))
@@ -1017,11 +1016,11 @@
 ;;; Process-Wait  --  Public.
 ;;;
 (defun process-wait (whostate predicate)
-  "Causes the process to wait until predicate returns True. Processes
-  can only call process-wait when scheduling is enabled, and the predicate
-  can not call process-wait. Since the predicate may be evaluated many
-  times by the scheduler it should be relative fast native compiled code.
-  The single True predicate value is returned."
+  "Causes the process to wait until predicate returns True. Processes can
+   only call process-wait when scheduling is enabled, and the predicate can
+   not call process-wait. Since the predicate may be evaluated many times
+   by the scheduler it should be relative fast native compiled code.  The
+   single True predicate value is returned."
   (assert (not *inhibit-scheduling*))
   (assert (not (process-wait-function *current-process*)))
   ;; Don't need the disable scheduling here because the scheduler
@@ -1039,9 +1038,9 @@
 (defun process-wait-with-timeout (whostate timeout predicate)
   (declare (type (or fixnum float) timeout))
   "Causes the process to wait until predicate returns True, or the
-  number of seconds specified by timeout has elapsed. The timeout may
-  be a fixnum or a float in seconds.  The single True predicate value is
-  returned, or NIL if the timeout was reached."
+   number of seconds specified by timeout has elapsed. The timeout may
+   be a fixnum or a float in seconds.  The single True predicate value is
+   returned, or NIL if the timeout was reached."
   (assert (not *inhibit-scheduling*))
   (assert (not (process-wait-function *current-process*)))
   ;; Don't need the disable scheduling here because the scheduler
@@ -1087,10 +1086,10 @@
 ;;; Shutdown-multi-processing  --  Internal.
 ;;;
 (defun shutdown-multi-processing ()
-  "Try to gracefully destroy all the processes giving them some
-  chance to unwinding, before shutting down multi-processing. This is
-  currently necessary before a purify and is performed before a save-lisp.
-  Multi-processing can be restarted by calling init-multi-processing."
+  "Try to gracefully destroy all the processes giving them some chance to
+   unwinding, before shutting down multi-processing. This is currently
+   necessary before a purify and is performed before a save-lisp.
+   Multi-processing can be restarted by calling init-multi-processing."
   (when *initial-process*
     (assert (eq *current-process* *initial-process*) ()
 	    "Only the *initial-process* can shutdown multi-processing")
@@ -1138,14 +1137,14 @@
 ;;;
 (defun idle-process-loop ()
   "An idle loop to be run by the initial process. The select based event
-  server is called with a timeout calculated from the minimum of the
-  *idle-loop-timeout* and the time to the next process wait timeout.
-  To avoid this delay when there are runnable processes the *idle-process*
-  should be setup to the *initial-process*. If one of the processes quits
-  by throwing to %end-of-the-world then *quitting-lisp* will have been
-  set to the exit value which is noted by the idle loop which tries to
-  exit gracefully destroying all the processes and giving them a chance
-  to unwind."
+   server is called with a timeout calculated from the minimum of the
+   *idle-loop-timeout* and the time to the next process wait timeout.  To
+   avoid this delay when there are runnable processes the *idle-process*
+   should be setup to the *initial-process*. If one of the processes quits
+   by throwing to %end-of-the-world then *quitting-lisp* will have been set
+   to the exit value which is noted by the idle loop which tries to exit
+   gracefully destroying all the processes and giving them a chance to
+   unwind."
   (declare (optimize (speed 3)))
   (assert (eq *current-process* *initial-process*) ()
 	  "Only the *initial-process* is intended to run the idle loop")
@@ -1323,7 +1322,7 @@
 ;;;
 (defun process-real-time (process)
   "Return the accrued real time elapsed while the given process was
-  scheduled. The returned time is a double-float in seconds."
+   scheduled. The returned time is a double-float in seconds."
   (declare (type process process))
   (if (eq process *current-process*)
       (without-scheduling
@@ -1338,7 +1337,7 @@
 ;;;
 (defun process-run-time (process)
   "Return the accrued run time elapsed for the given process. The returned
-  time is a double-float in seconds."
+   time is a double-float in seconds."
   (declare (type process process))
   (if (eq process *current-process*)
       (without-scheduling
@@ -1354,7 +1353,7 @@
 ;;;
 (defun process-idle-time (process)
   "Return the real time elapsed since the given process was last
-  descheduled. The returned time is a double-float in seconds."
+   descheduled. The returned time is a double-float in seconds."
   (declare (type process process))
   (if (eq process *current-process*)
       0
@@ -1369,8 +1368,8 @@
 ;;;
 (defun start-sigalrm-yield (&optional (sec 0) (usec 500000))
   "Start a regular SIGALRM interrupt which calls process-yield. An optional
-  time in seconds and micro seconds may be provided. Note that CMUCL code
-  base is not too interrupt safe so this may cause problems."
+   time in seconds and micro seconds may be provided. Note that CMUCL code
+   base is not too interrupt safe so this may cause problems."
   (declare (fixnum sec usec))
   ;; Disable the gencgc pointer filter to improve interrupt safety.
   #+(and gencgc nil)
@@ -1413,7 +1412,7 @@
 ;;; Scrub the stored stacks of all the processes.
 ;;;
 (defun scrub-all-processes-stacks ()
-  (sys:without-interrupts
+  (sys:block-interrupts
    (dolist (process *all-processes*)
      (let ((stack-group (process-stack-group process)))
        (when stack-group
@@ -1500,19 +1499,18 @@
 (defun sleep (n)
   "This function causes execution to be suspended for N seconds.  N may
    be any non-negative, non-complex number."
-  (when (or (not (realp n))
-	    (minusp n))
-    (error "Invalid argument to SLEEP: ~S.~%~
-            Must be a non-negative, non-complex number."
-	   n))
+  (if (if (realp n) (minusp n) t)
+      (error "Invalid argument to SLEEP: ~S.~%~
+	      Must be a non-negative, non-complex number."
+	     n))
   (cond ((or (eq *current-process* *initial-process*)
-	     ;; Can't call process-wait if the scheduling is inhibited.
+	     ;; Can only call process-wait with scheduling.
 	     *inhibit-scheduling*)
 	 ;; The initial-process may block.
 	 (multiple-value-bind (sec usec)
 	     (if (integerp n)
 		 (values n 0)
-		 (multiple-value-bind (sec frac)(truncate n)
+		 (multiple-value-bind (sec frac) (truncate n)
 		   (values sec (truncate frac 1e-6))))
 	   (unix:unix-select 0 0 0 0 sec usec))
 	 nil)
@@ -1785,7 +1783,7 @@
 (defun seize-lock (lock)
   (declare (type lock lock)
 	   (optimize (speed 3)))
-  (sys:without-interrupts
+  (sys:block-interrupts
    (unless (lock-process lock)
      (setf (lock-process lock) *current-process*))))
 

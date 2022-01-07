@@ -1,25 +1,9 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/sparc/system.lisp,v 1.12 1994/10/31 04:46:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    MIPS VM definitions of various system hacking operations.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Mips conversion by William Lott and Christopher Hoover.
-;;;
+;;; MIPS VM definitions of various system hacking operations.
+
 (in-package "SPARC")
 
-
 
-;;;; Type frobbing VOPs
+;;;; Type frobbing VOPs.
 
 (define-vop (get-lowtag)
   (:translate get-lowtag)
@@ -56,7 +40,7 @@
     ;; It wasn't a fixnum, so get the low 8 bits.
     (inst b done)
     (inst and result object type-mask)
-    
+
     FUNCTION-POINTER
     (inst b done)
     (load-type result object (- function-pointer-type))
@@ -65,7 +49,6 @@
     (load-type result object (- other-pointer-type))
 
     DONE))
-
 
 (define-vop (function-subtype)
   (:translate function-subtype)
@@ -128,7 +111,6 @@
       (zero))
     (storew t1 x 0 vm:other-pointer-type)
     (move res x)))
-
 
 (define-vop (make-fixnum)
   (:args (ptr :scs (any-reg descriptor-reg)))
@@ -214,10 +196,8 @@
     (inst add ndescr (- vm:function-pointer-type vm:other-pointer-type))
     (inst add func code ndescr)))
 
-
 
 ;;;; Other random VOPs.
-
 
 (defknown unix::do-pending-interrupt () (values))
 (define-vop (unix::do-pending-interrupt)
@@ -226,11 +206,9 @@
   (:generator 1
     (inst unimp pending-interrupt-trap)))
 
-
 (define-vop (halt)
   (:generator 1
     (inst unimp halt-trap)))
-
 
 
 ;;;; Dynamic vop count collection support

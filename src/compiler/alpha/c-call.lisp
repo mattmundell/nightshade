@@ -1,21 +1,8 @@
-;;; -*- Package: ALPHA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/c-call.lisp,v 1.2 1994/10/31 04:39:51 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the VOPs and other necessary machine specific support
-;;; routines for call-out to C.
-;;;
-;;; Written by William Lott.
-;;; Converted by Sean Hallgren.
-;;;
+;;; The VOPs and other necessary machine specific support routines for
+;;; call-out to C.
+
 (in-package "ALPHA")
+
 (use-package "ALIEN")
 (use-package "ALIEN-INTERNALS")
 
@@ -75,8 +62,6 @@
 			  'single-stack
 			  (* 2 (- stack-frame-size 6))))))
 
-
-
 (def-alien-type-method (integer :result-tn) (type state)
   (declare (ignore state))
   (multiple-value-bind
@@ -89,7 +74,7 @@
 (def-alien-type-method (system-area-pointer :result-tn) (type state)
   (declare (ignore type state))
   (my-make-wired-tn 'system-area-pointer 'sap-reg lip-offset))
-    
+
 (def-alien-type-method (double-float :result-tn) (type state)
   (declare (ignore type state))
   (my-make-wired-tn 'double-float 'double-reg lip-offset))
@@ -116,7 +101,6 @@
 	      (invoke-alien-type-method :result-tn
 					(alien-function-type-result-type type)
 					nil)))))
-
 
 (define-vop (foreign-symbol-address)
   (:translate foreign-symbol-address)

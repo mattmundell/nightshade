@@ -1,24 +1,6 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/debug.lisp,v 1.1.2.1 1998/06/23 11:24:00 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Compiler support for the new whizzy debugger.
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; Enhancements/debugging by Douglas T. Crosher 1996,1997.
-;;; 
-(in-package :x86)
+;;; Compiler support for the debugger.
+
+(in-package "X86")
 
 (define-vop (debug-cur-sp)
   (:translate current-sp)
@@ -150,7 +132,6 @@
   (:result-types unsigned-num)
   (:generator 1
     (move result thing)))
-
 
 (define-vop (function-word-offset)
   (:policy :fast-safe)

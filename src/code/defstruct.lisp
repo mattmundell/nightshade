@@ -1,8 +1,11 @@
 ;;; Defstruct structure definition package (Mark III).
 
 (in-package "LISP")
+
 (export '(defstruct copy-structure structure-object))
+
 (in-package "KERNEL")
+
 (export '(default-structure-print make-structure-load-form
 	  %compiler-defstruct %%compiler-defstruct
 	  %compiler-only-defstruct
@@ -132,10 +135,10 @@
 ;;; dispatch functions are byte-compiled.
 ;;;
 ;;; The only loss is that if someone accesses the
-;;; funcallable-instance-function, then won't get a FIN back.  This probably
-;;; doesn't matter, since PCL only sets the FIN function.  And the only reason
-;;; that interpreted functions are FINs instead of bare closures is for
-;;; debuggability.
+;;; funcallable-instance-function, then won't get a FIN back.  This
+;;; probably doesn't matter, since PCL only sets the FIN function.  And the
+;;; only reason that interpreted functions are FINs instead of bare
+;;; closures is for debuggability.
 ;;;
 (defun (setf funcallable-instance-function) (new-value fin)
   (setf (%funcallable-instance-function fin)
@@ -270,7 +273,12 @@
 			    complex-single-float complex-double-float
 			    #+long-float complex-long-float
 			    unsigned-byte))
-  (read-only nil :type (member t nil)))
+  (read-only nil :type (member t nil))
+#|
+  FIX adding this psbly requires ~cross compile
+  (doc nil :type (member string nil))
+|#
+)
 
 (defun print-defstruct-description (structure stream depth)
   (declare (ignore depth))
@@ -279,7 +287,7 @@
 
 ;;; CLASS-STRUCTURE-P  --  Internal
 ;;;
-;;;    Return true if Defstruct is a structure with a class.
+;;; Return true if Defstruct is a structure with a class.
 ;;;
 (defun class-structure-p (defstruct)
   (member (dd-type defstruct) '(structure funcallable-structure)))
@@ -287,7 +295,7 @@
 
 ;;; COMPILER-LAYOUT-OR-LOSE  --  Internal
 ;;;
-;;;    Return the compiler layout for Name.  Must be a structure-like class.
+;;; Return the compiler layout for Name.  Must be a structure-like class.
 ;;;
 (defun compiler-layout-or-lose (name)
   (let ((res (info type compiler-layout name)))
@@ -300,8 +308,8 @@
 
 ;;; DSD-Name  --  External
 ;;;
-;;;    Return the name of a defstruct slot as a symbol.  We store it
-;;; as a string to avoid creating lots of worthless symbols at load time.
+;;; Return the name of a defstruct slot as a symbol.  We store it as a
+;;; string to avoid creating lots of worthless symbols at load time.
 ;;;
 (defun dsd-name (dsd)
   (intern (string (dsd-%name dsd))
@@ -316,8 +324,8 @@
 
 ;;; DEFINE-CLASS-METHODS  --  Internal
 ;;;
-;;; Return a list of forms to install print and make-load-form funs, mentioning
-;;; them in the expansion so that they can be compiled.
+;;; Return a list of forms to install print and make-load-form funs,
+;;; mentioning them in the expansion so that they can be compiled.
 ;;;
 (defun define-class-methods (defstruct)
   (let ((name (dd-name defstruct)))
@@ -336,15 +344,14 @@
       ,@(let ((pure (dd-pure defstruct)))
 	  (cond ((eq pure 't)
 		 `((setf (layout-pure (class-layout (find-class ',name)))
-		    t)))
+			 t)))
 		((eq pure :substructure)
 		 `((setf (layout-pure (class-layout (find-class ',name)))
-		    0)))))
+			 0)))))
       ,@(let ((def-con (dd-default-constructor defstruct)))
 	  (when (and def-con (not (dd-alternate-metaclass defstruct)))
 	    `((setf (structure-class-constructor (find-class ',name))
 		    #',def-con)))))))
-
 
 ;;; DEFSTRUCT  --  Public
 ;;;
@@ -407,11 +414,11 @@
 	   ',name))))
 
 
-;;;; Parsing:
+;;;; Parsing.
 
 ;;; PARSE-1-OPTION  --  Internal
 ;;;
-;;;    Parse a single defstruct option and store the results in Defstruct.
+;;; Parse a single defstruct option and store the results in Defstruct.
 ;;;
 (defun parse-1-option (option defstruct)
   (let ((args (rest option))
@@ -438,7 +445,7 @@
 	 (setf (dd-predicate defstruct) pred)))
       (:include
        (when (dd-include defstruct)
-	 (error "Can't have more than one :INCLUDE option."))
+	 (error "More than one :INCLUDE option."))
        (setf (dd-include defstruct) args))
       (:alternate-metaclass
        (setf (dd-alternate-metaclass defstruct) args))
@@ -472,12 +479,10 @@
 	 (setf (dd-pure defstruct) fun)))
       (t (error "Unknown DEFSTRUCT option~%  ~S" option)))))
 
-
 ;;; PARSE-NAME-AND-OPTIONS  --  Internal
 ;;;
-;;;    Given name and options, return a DD holding that info.
-;;;
 (defun parse-name-and-options (name-and-options)
+  "Given name and options, return a DD holding that info."
   (destructuring-bind (name &rest options) name-and-options
     (let ((defstruct (make-defstruct-description name)))
       (dolist (option options)
@@ -494,8 +499,8 @@
 	(structure
 	 (when (dd-offset defstruct)
 	   (error "Can't specify :OFFSET unless :TYPE is specified."))
-	 (unless (dd-include defstruct)
-	   (incf (dd-length defstruct))))
+	 (or (dd-include defstruct)
+	     (incf (dd-length defstruct))))
 	(funcallable-structure)
 	(t
 	 (when (dd-print-function defstruct)
@@ -516,21 +521,22 @@
 
 ;;; PARSE-1-DSD  --  Internal
 ;;;
-;;;    Parse a slot description for DEFSTRUCT, add it to the description and
-;;; return it.  If supplied, ISLOT is a pre-initialized DSD that we modify to
-;;; get the new slot.  This is supplied when handling included slots.
-;;;
 (defun parse-1-dsd (defstruct spec &optional
 		     (islot (make-defstruct-slot-description
 			     :%name "" :index 0 :type t)))
+  "Parse a slot description for DEFSTRUCT, add it to the description and
+   return it.  If supplied, ISLOT is a pre-initialized DSD that we modify
+   to get the new slot.  This is supplied when handling included slots."
   (multiple-value-bind
       (name default default-p type type-p read-only ro-p)
       (cond
        ((listp spec)
 	(destructuring-bind (name &optional (default nil default-p)
-				  &key (type nil type-p) (read-only nil ro-p))
+				  &key (type nil type-p)
+				  (read-only nil ro-p)
+				  (doc nil doc-p))
 			    spec
-	  (values name default default-p type type-p read-only ro-p)))
+	  (values name default default-p type type-p read-only ro-p #| doc doc-p |#)))
        (t
 	(when (keywordp spec)
 	  (warn "Keyword slot name indicates probable syntax ~
@@ -559,17 +565,19 @@
 	  (when (dsd-read-only islot)
 	    (error "Slot ~S must be read-only in subtype ~S." name
 		   (dsd-name islot)))))
+#|
+    (when doc-p
+      (setf (dsd-doc islot) doc))
+|#
     islot))
-
 
 ;;; ALLOCATE-1-SLOT  --  Internal
 ;;;
-;;;    Allocate storage for a DSD in Defstruct.  This is where we decide if a
-;;; slot is raw or not.  If raw, and we haven't allocated a raw-index yet for
-;;; the raw data vector, then do it.  Raw objects are aligned on the unit of
-;;; their size.
-;;;
 (defun allocate-1-slot (defstruct dsd)
+  "Allocate storage for a DSD in Defstruct.  This is where we decide if a
+   slot is raw or not.  If raw, and we haven't allocated a raw-index yet
+   for the raw data vector, then do it.  Raw objects are aligned on the
+   unit of their size."
   (let ((type (dsd-type dsd)))
     (multiple-value-bind
 	(raw-type words)
@@ -610,10 +618,9 @@
 
   (undefined-value))
 
-
 ;;; DO-INCLUSION-STUFF  --  Internal
 ;;;
-;;;    Process any included slots pretty much like they were specified.  Also
+;;; Process any included slots pretty much like they were specified.  Also
 ;;; inherit various other attributes (print function, etc.)
 ;;;
 (defun do-inclusion-stuff (defstruct)
@@ -657,7 +664,7 @@
 		       (copy-defstruct-slot-description islot)))))))
 
 
-;;;; Constructors:
+;;;; Constructors.
 
 (defun typed-structure-info-or-lose (name)
   (or (info typed-structure info name)
@@ -673,9 +680,9 @@
 
 ;;; FIND-NAME-INDICES  --  Internal
 ;;;
-;;;      Returns a list of pairs (name . index).  Used for :TYPE'd constructors
-;;; to find all the names that we have to splice in & where.  Note that these
-;;; types don't have a layout, so we can't look at LAYOUT-INHERITS.
+;;; Returns a list of pairs (name . index).  Used for :TYPE'd constructors
+;;; to find all the names that we have to splice in & where.  Note that
+;;; these types don't have a layout, so we can't look at LAYOUT-INHERITS.
 ;;;
 (defun find-name-indices (defstruct)
   (collect ((res))
@@ -695,14 +702,13 @@
 
     (res)))
 
-
 ;;; CREATE-{STRUCTURE,VECTOR,LIST}-CONSTRUCTOR  --  Internal
 ;;;
-;;;    These functions are called to actually make a constructor after we have
+;;; These functions are called to actually make a constructor after we have
 ;;; processed the arglist.  The correct variant (according to the DD-TYPE)
 ;;; should be called.  The function is defined with the specified name and
-;;; arglist.  Vars and Types are used for argument type declarations.  Values
-;;; are the values for the slots (in order.)
+;;; arglist.  Vars and Types are used for argument type declarations.
+;;; Values are the values for the slots (in order.)
 ;;;
 ;;; This is split four ways because:
 ;;; 1] list & vector structures need "name" symbols stuck in at various weird
@@ -789,10 +795,9 @@
 		   (dd-slots defstruct) values)
 	 ,temp))))
 
-
 ;;; CREATE-KEYWORD-CONSTRUCTOR   --  Internal
 ;;;
-;;;    Create a default (non-BOA) keyword constructor.
+;;; Create a default (non-BOA) keyword constructor.
 ;;;
 (defun create-keyword-constructor (defstruct creator)
   (collect ((arglist (list '&key))
@@ -809,10 +814,9 @@
 	     defstruct (dd-default-constructor defstruct)
 	     (arglist) (vals) (types) (vals))))
 
-
 ;;; CREATE-BOA-CONSTRUCTOR  --  Internal
 ;;;
-;;;    Given a structure and a BOA constructor spec, call Creator with the
+;;; Given a structure and a BOA constructor spec, call Creator with the
 ;;; appropriate args to make a constructor.
 ;;;
 (defun create-boa-constructor (defstruct boa creator)
@@ -890,11 +894,10 @@
 			       (dsd-default slot)))
 		       (dd-slots defstruct))))))
 
-
 ;;; DEFINE-CONSTRUCTORS  --  Internal
 ;;;
-;;;    Grovel the constructor options, and decide what constructors (if any) to
-;;; create.
+;;; Grovel the constructor options, and decide what constructors (if any)
+;;; to create.
 ;;;
 (defun define-constructors (defstruct)
   (let ((no-constructors nil)
@@ -934,15 +937,16 @@
 	(res (create-boa-constructor defstruct boa creator)))
 
       (res))))
+
 
-;;;; Slot accessors for raw slots:
+;;;; Slot accessors for raw slots.
 
 ;;; SLOT-ACCESSOR-FORM  --  Internal
 ;;;
-;;;     Return info about how to read/write a slot in the value stored in
+;;; Return info about how to read/write a slot in the value stored in
 ;;; Object.  This is also used by constructors (we can't use the accessor
-;;; function, since some slots are read-only.)  If supplied, Data is a variable
-;;; holding the raw-data vector.
+;;; function, since some slots are read-only.)  If supplied, Data is a
+;;; variable holding the raw-data vector.
 ;;;
 ;;; Values:
 ;;; 1] Accessor function name (setfable)
@@ -988,7 +992,6 @@
        `(truly-the (simple-array (unsigned-byte 32) (*))
 		   (%instance-ref object ,(dd-raw-index defstruct))))))))
 
-
 ;;; dsd-inherited-p  --  Internal
 ;;;
 ;;; True when the defstruct slot has been inherited from an included
@@ -1005,12 +1008,11 @@
 				   :key #'dsd-accessor))
 		  (dsd-%name slot)))))
 
-
 ;;; DEFINE-RAW-ACCESSORS  --  Internal
 ;;;
-;;;    Define readers and writers for raw slots as inline functions.  We use
-;;; the special RAW-REF operations to store floats in the raw data vector.  We
-;;; also define FIN accessors here.
+;;; Define readers and writers for raw slots as inline functions.  We use
+;;; the special RAW-REF operations to store floats in the raw data vector.
+;;; We also define FIN accessors here.
 ;;;
 (defun define-raw-accessors (defstruct)
   (let ((name (dd-name defstruct)))
@@ -1044,11 +1046,11 @@
       (res))))
 
 
-;;;; Typed (non-class) structures:
+;;;; Typed (non-class) structures.
 
 ;;; DD-LISP-TYPE  --  Internal
 ;;;
-;;;    Return a type specifier we can use for testing :TYPE'd structures.
+;;; Return a type specifier we can use for testing :TYPE'd structures.
 ;;;
 (defun dd-lisp-type (defstruct)
   (ecase (dd-type defstruct)
@@ -1058,8 +1060,8 @@
 
 ;;; DEFINE-ACCESSORS  --  Internal
 ;;;
-;;;    Returns a list of function definitions for accessing and setting the
-;;; slots of the a typed Defstruct.  The functions are proclaimed to be inline,
+;;; Returns a list of function definitions for accessing and setting the
+;;; slots of a typed Defstruct.  The functions are proclaimed to be inline,
 ;;; and the types of their arguments and results are declared as well.  We
 ;;; count on the compiler to do clever things with Elt.
 ;;;
@@ -1082,14 +1084,12 @@
 		(setf (elt structure ,index) new-value)))))))
     (stuff)))
 
-
 ;;; Define-Copier returns the definition for a copier function of a typed
 ;;; Defstruct if one is desired.
 (defun define-copier (defstruct)
   (when (dd-copier defstruct)
     `((setf (fdefinition ',(dd-copier defstruct)) #'copy-seq)
       (declaim (ftype function ,(dd-copier defstruct))))))
-
 
 ;;; Define-Predicate returns a definition for a predicate function if one is
 ;;; desired.  Rather vaguely specified w.r.t. inclusion.
@@ -1110,21 +1110,22 @@
 
 ;;;; Load time support for default structures (%DEFSTRUCT)
 ;;;
-;;;    In the normal case of structures that have a real type (i.e. no :Type
+;;; In the normal case of structures that have a real type (i.e. no :Type
 ;;; option was specified), we want to optimize things for space as well as
 ;;; speed, since there can be thousands of defined slot accessors.
 ;;;
-;;;    What we do is defined the accessors and copier as closures over
-;;; general-case code.  Since the compiler will normally open-code accessors,
-;;; the (minor) efficiency penalty is not a concern.
+;;; What we do is defined the accessors and copier as closures over
+;;; general-case code.  Since the compiler will normally open-code
+;;; accessors, the (minor) efficiency penalty is not a concern.
+
+(proclaim '(inline typep-to-layout))
 
 ;;; Typep-To-Layout  --  Internal
 ;;;
-;;;    Return true if Obj is an object of the structure type corresponding to
-;;; Layout.  This is called by the accessor closures, which have a handle on
-;;; the type's layout.
+;;; Return true if Obj is an object of the structure type corresponding to
+;;; Layout.  This is called by the accessor closures, which have a handle
+;;; on the type's layout.
 ;;;
-(proclaim '(inline typep-to-layout))
 (defun typep-to-layout (obj layout)
   (declare (type layout layout) (optimize (speed 3) (safety 0)))
   (when (layout-invalid layout)
@@ -1141,10 +1142,9 @@
 		     (eq (svref (layout-inherits obj-layout) depth)
 			 layout)))))))
 
-
 ;;; STRUCTURE-SLOT-SETTER, STRUCTURE-SLOT-ACCESSOR  --  Internal
 ;;;
-;;;    Return closures to do slot access (set), according to Layout and DSD.
+;;; Return closures to do slot access (set), according to Layout and DSD.
 ;;; We check types, then do the access.  This is only used for normal slots
 ;;; (not raw.)
 ;;;
@@ -1215,13 +1215,13 @@
 					     new-value)))
 	    (setf (%instance-ref structure (dsd-index dsd)) new-value)))))
 
-
 ;;; %Defstruct  --  Internal
 ;;;
-;;;    Do miscellaneous (LOAD EVAL) time actions for the structure described by
-;;; Info.  Create the class & layout, checking for incompatible redefinition.
-;;; Define setters, accessors, copier, predicate, documentation, instantiate
-;;; definition in load-time env.  This is only called for default structures.
+;;; Do miscellaneous (LOAD EVAL) time actions for the structure described
+;;; by Info.  Create the class & layout, checking for incompatible
+;;; redefinition.  Define setters, accessors, copier, predicate,
+;;; documentation, instantiate definition in load-time env.  This is only
+;;; called for default structures.
 ;;;
 (defun %defstruct (info inherits)
   (declare (type defstruct-description info))
@@ -1280,15 +1280,16 @@
   (undefined-value))
 
 
-;;;; Redefinition stuff:
+;;;; Redefinition stuff.
 
 ;;; ENSURE-STRUCTURE-CLASS  --  Internal
 ;;;
-;;;    Called when we are about to define a structure class.  Returns a
-;;; (possibly new) class object and the layout which should be used for the new
-;;; definition (may be the current layout, and also might be an uninstalled
-;;; forward referenced layout.)  The third value is true if this is an
-;;; incompatible redefinition, in which case it is the old layout.
+;;; Called when we are about to define a structure class.  Returns a
+;;; (possibly new) class object and the layout which should be used for the
+;;; new definition (may be the current layout, and also might be an
+;;; uninstalled forward referenced layout.)  The third value is true if
+;;; this is an incompatible redefinition, in which case it is the old
+;;; layout.
 ;;;
 (defun ensure-structure-class (info inherits old-context new-context
 				    &optional compiler-layout)
@@ -1342,10 +1343,9 @@
 		   old-layout)
 	     (values class new-layout old-layout)))))))))
 
-
 ;;; COMPARE-SLOTS  --  Internal
 ;;;
-;;;    Compares the slots of Old and New, returning 3 lists of slot names:
+;;; Compares the slots of Old and New, returning 3 lists of slot names:
 ;;; 1] Slots which have moved,
 ;;; 2] Slots whose type has changed,
 ;;; 3] Deleted slots.
@@ -1369,10 +1369,9 @@
 	      (retyped)
 	      (set-difference onames nnames)))))
 
-
 ;;; REDEFINE-STRUCTURE-WARNING  --  Internal
 ;;;
-;;;    Give a warning and return true if we are redefining a structure with
+;;; Give a warning and return true if we are redefining a structure with
 ;;; different slots than in the currently loaded version.
 ;;;
 (defun redefine-structure-warning (class old new)
@@ -1391,10 +1390,9 @@
 	 name moved retyped deleted)
 	t))))
 
-
 ;;; %REDEFINE-DEFSTRUCT  --  Internal
 ;;;
-;;;    This function is called when we are incompatibly redefining a structure
+;;; This function is called when we are incompatibly redefining a structure
 ;;; Class to have the specified New-Layout.  We signal an error with some
 ;;; proceed options and return the layout that should be used.
 ;;;
@@ -1418,12 +1416,11 @@
 			 :destruct-layout old-layout))))
   (undefined-value))
 
-
 ;;; UNDEFINE-STRUCTURE  --  Interface
 ;;;
-;;;    Blow away all the compiler info for the structure CLASS.
-;;; Iterate over this type, clearing the compiler structure
-;;; type info, and undefining all the associated functions.
+;;; Blow away all the compiler info for the structure CLASS.  Iterate over
+;;; this type, clearing the compiler structure type info, and undefining
+;;; all the associated functions.
 ;;;
 (defun undefine-structure (class)
   (let ((info (layout-info (class-layout class))))
@@ -1445,11 +1442,11 @@
   (undefined-value))
 
 
-;;;; Compiler stuff:
+;;;; Compiler stuff.
 
 ;;; DEFINE-DEFSTRUCT-NAME  --  Internal
 ;;;
-;;;    Like DEFINE-FUNCTION-NAME, but we also set the kind to :DECLARED and
+;;; Like DEFINE-FUNCTION-NAME, but we also set the kind to :DECLARED and
 ;;; blow away any ASSUMED-TYPE.  Also, if the thing is a slot accessor
 ;;; currently, quietly unaccessorize it.  And if there are any undefined
 ;;; warnings, we nuke them.
@@ -1465,10 +1462,9 @@
       (setf (info function assumed-type name) nil)))
   (undefined-value))
 
-
 ;;; INHERITS-FOR-STRUCTURE  --  Internal
 ;;;
-;;;    This function is called at macroexpand time to compute the INHERITS
+;;; This function is called at macroexpand time to compute the INHERITS
 ;;; vector for a structure type definition.
 ;;;
 (defun inherits-for-structure (info)
@@ -1488,15 +1484,15 @@
 
 ;;; %COMPILER-ONLY-DEFSTRUCT  --  Internal
 ;;;
-;;;    This function is called at compile-time to do the compile-time-only
-;;; actions for defining a structure type.  It installs the class in the type
-;;; system in a similar way to %DEFSTRUCT, but is quieter and safer in the case
-;;; of redefinition.  Eval-when doesn't do the right thing when nested or
-;;; non-top-level, so this is magically called by the compiler.
+;;; This function is called at compile-time to do the compile-time-only
+;;; actions for defining a structure type.  It installs the class in the
+;;; type system in a similar way to %DEFSTRUCT, but is quieter and safer in
+;;; the case of redefinition.  Eval-when doesn't do the right thing when
+;;; nested or non-top-level, so this is magically called by the compiler.
 ;;;
-;;;    Basically, this function avoids trashing the compiler by only actually
-;;; defining the class if there is no current definition.  Instead, we just set
-;;; the INFO TYPE COMPILER-LAYOUT.
+;;; Basically, this function avoids trashing the compiler by only actually
+;;; defining the class if there is no current definition.  Instead, we just
+;;; set the INFO TYPE COMPILER-LAYOUT.
 ;;;
 (defun %compiler-only-defstruct (info inherits)
   (multiple-value-bind
@@ -1530,13 +1526,12 @@
 
   (undefined-value))
 
-
 ;;; %%Compiler-Defstruct  --  External
 ;;;
-;;;    This function does the (compile load eval) time actions for updating the
-;;; compiler's global meta-information to represent the definition of the
-;;; structure described by Info.  This primarily amounts to setting up info
-;;; about the accessor and other implicitly defined functions.  The
+;;; This function does the (compile load eval) time actions for updating
+;;; the compiler's global meta-information to represent the definition of
+;;; the structure described by Info.  This primarily amounts to setting up
+;;; info about the accessor and other implicitly defined functions.  The
 ;;; constructors are explicitly defined by top-level code.
 ;;;
 (defun %%compiler-defstruct (info)
@@ -1572,7 +1567,7 @@
 
 ;;; COPY-STRUCTURE  --  Public
 ;;;
-;;;    Copy any old kind of structure.
+;;; Copy any old kind of structure.
 ;;;
 (defun copy-structure (structure)
   "Return a copy of Structure with the same (EQL) slot values."

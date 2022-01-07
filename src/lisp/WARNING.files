@@ -4,6 +4,6 @@ Look for correct versions of
 
 	internals.h
 	version
-	lisp.nm
+	nightshade.nm
 
 before making distributions.

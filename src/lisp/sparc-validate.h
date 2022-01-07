@@ -17,7 +17,7 @@
  *	0x38000000->0x40000000  128M Control stack growing down.
  *	0x40000000->0x80000000 1024M Dynamic space 1
  *	0x80000000->0xc0000000 1024M Dynamic space 2
- *      0xc0000000->0xffffffff 1024M C stack, dynamic libs, etc.      
+ *      0xc0000000->0xffffffff 1024M C stack, dynamic libs, etc.
  *
  * Almost.  We leave a hole of size 32 KB at the end of each of these
  * spaces.
@@ -43,7 +43,7 @@
  */
 #define READ_ONLY_SPACE_START	(0x10000000)
 #define READ_ONLY_SPACE_SIZE	(0x07ff8000) /* 128 MB - 32 KB, 256 MB max */
-  
+
 #define BINDING_STACK_START 	(0x20000000)
 #define BINDING_STACK_SIZE  	(0x07ff8000) /* 128 MB - 32 KB, 128 MB max */
 

@@ -1,20 +1,4 @@
-;;; -*- Package: ALPHA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/values.lisp,v 1.2 1994/10/31 04:39:51 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the implementation of unknown-values VOPs.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Converted to the Alpha by Sean Hallgren.
-;;; 
+;;; The implementation of unknown-values VOPs.
 
 (in-package "ALPHA")
 
@@ -23,14 +7,13 @@
   (:generator 1
     (move ptr csp-tn)))
 
-
-;;; Push some values onto the stack, returning the start and number of values
-;;; pushed as results.  It is assumed that the Vals are wired to the standard
-;;; argument locations.  Nvals is the number of values to push.
+;;; Push some values onto the stack, returning the start and number of
+;;; values pushed as results.  It is assumed that the Vals are wired to the
+;;; standard argument locations.  Nvals is the number of values to push.
 ;;;
-;;; The generator cost is pseudo-random.  We could get it right by defining a
-;;; bogus SC that reflects the costs of the memory-to-memory moves for each
-;;; operand, but this seems unworthwhile.
+;;; The generator cost is pseudo-random.  We could get it right by defining
+;;; a bogus SC that reflects the costs of the memory-to-memory moves for
+;;; each operand, but this seems unworthwhile.
 ;;;
 (define-vop (push-values)
   (:args
@@ -60,7 +43,6 @@
     (move start-temp start)
     (inst li (fixnum nvals) count)))
 
-
 ;;; Push a list of values on the stack, returning Start and Count as used in
 ;;; unknown values continuations.
 ;;;
@@ -78,7 +60,7 @@
   (:generator 0
     (move arg list)
     (move csp-tn start)
-    
+
     LOOP
     (inst cmpeq list null-tn temp)
     (inst bne temp done)
@@ -90,7 +72,7 @@
     (inst xor ndescr list-pointer-type ndescr)
     (inst beq ndescr loop)
     (error-call vop bogus-argument-to-values-list-error list)
-    
+
     DONE
     (inst subq csp-tn start count)))
 

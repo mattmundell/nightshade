@@ -1,19 +1,4 @@
-;;; -*- Package: Lisp -*-
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/generic/new-genesis.lisp,v 1.23.2.3 2000/10/23 20:21:41 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Core image builder for CMU Common Lisp.
-;;;
-;;; Written by Skef Wholey.  Package hackery courtesy of Rob MacLachlan.
-;;;
-;;; Completely Rewritten by William Lott for MIPS port.
-;;;
+;;; Core image builder.
 
 (in-package "LISP")
 
@@ -35,7 +20,6 @@
     `(let ((,size-var ,size))
        (* ,size-var (ceiling ,num ,size-var)))))
 
-
 (defstruct (space
 	    (:constructor %make-space (name identifier address sap
 					    words-allocated))
@@ -56,24 +40,23 @@
 
 (eval-when (compile eval load)
 
-(defconstant descriptor-low-bits 16
-  "Number of bits in the low half of the descriptor")
+  (defconstant descriptor-low-bits 16
+    "Number of bits in the low half of the descriptor")
 
-(defconstant space-alignment (ash 1 descriptor-low-bits)
-  "Alignment requirement for spaces in the target.
-  Must be at least (ash 1 descriptor-low-bits")
+  (defconstant space-alignment (ash 1 descriptor-low-bits)
+    "Alignment requirement for spaces in the target.
+     Must be at least (ash 1 descriptor-low-bits")
 
-); eval-when
+  ); eval-when
 
 (defstruct (descriptor
 	    (:constructor make-descriptor (high low &optional space offset))
 	    (:print-function %print-descriptor))
   space			      ; The space is descriptor is allocated in.
   offset		      ; The offset (in words) from the start of
-			      ;  that space.
+  ;  that space.
   high			      ; The high half of the descriptor.
-  low			      ; The low half of the descriptor.
-  )
+  low)			      ; The low half of the descriptor.
 
 (defun %print-descriptor (des stream depth)
   (declare (ignore depth))
@@ -106,7 +89,6 @@
 			 (space-name space)
 			 "unknown")))))))
 
-
 (defun make-space (name identifier address
 			&optional (initial-size space-alignment))
   (multiple-value-bind
@@ -117,7 +99,7 @@
       (error "The address #x~X is not aligned on a #x~X boundry."
 	     address space-alignment)))
   (let* ((actual-size (round-up initial-size
-			       (c:backend-page-size c:*backend*)))
+				(c:backend-page-size c:*backend*)))
 	 (addr (allocate-system-memory actual-size)))
     (%make-space name identifier
 		 (ash address (- vm:word-shift)) addr
@@ -129,8 +111,8 @@
 
 (defun allocate-descriptor (space length lowtag)
   "Return a descriptor for a block of LENGTH bytes out of SPACE.  The free
-  pointer is boosted as necessary.  If any additional memory is needed, we
-  vm_allocate it.  The descriptor returned is a pointer of type LOWTAG."
+   pointer is boosted as necessary.  If any additional memory is needed, we
+   vm_allocate it.  The descriptor returned is a pointer of type LOWTAG."
   (let* ((bytes (round-up length (ash 1 vm:lowtag-bits)))
 	 (offset (space-free-pointer space))
 	 (new-free-ptr (+ offset (ash bytes (- vm:word-shift)))))
@@ -178,7 +160,7 @@
 
 (defun descriptor-sap (des)
   "Return a SAP pointing to the piece of memory DES refers to.  The lowtag
-  bits of DES are ignored."
+   bits of DES are ignored."
   (let ((space (descriptor-space des)))
     (when (null space)
       (let ((lowtag (descriptor-lowtag des))
@@ -210,7 +192,6 @@
     (int-sap (+ (sap-int (space-sap space))
 		(ash (descriptor-offset des) vm:word-shift)))))
 
-
 (defun make-random-descriptor (value)
   (make-descriptor (logand (ash value (- descriptor-low-bits))
 			   (1- (ash 1 (- vm:word-bits descriptor-low-bits))))
@@ -239,7 +220,6 @@
 	 (high (+ (descriptor-high des)
 		  (ash low (- descriptor-low-bits)))))
     (make-descriptor high (logand low (1- (ash 1 descriptor-low-bits))))))
-
 
 (defun initialize-spaces ()
   (macrolet ((frob (sym name identifier addr)
@@ -270,7 +250,6 @@
 (defvar *in-cold-load* nil
   "Used by normal loader.")
 
-
 
 ;;;; Stuff to read and write the core memory.
 
@@ -295,7 +274,6 @@
       short
       (logior (ash (ldb (byte 8 0) short) 8)
 	      (ldb (byte 8 8) short))))
-  
 
 (defun write-indexed (address index value)
   "Write VALUE (a descriptor) INDEX words from ADDRESS (also a descriptor)."
@@ -314,7 +292,6 @@
 (defun write-memory (address value)
   "Write VALUE (a descriptor) at ADDRESS (also a descriptor)."
   (write-indexed address 0 value))
-
 
 (defun read-indexed (address index)
   "Return the value (as a descriptor) INDEX words from ADDRESS (a descriptor)."
@@ -339,17 +316,16 @@
 ;;;
 ;;;   Vector objects:
 ;;; A header word with the type, a word for the length, plus the data.
-;;;
 
 (defun allocate-boxed-object (space length lowtag)
   "Allocate LENGTH words in SPACE and return a new descriptor of type LOWTAG
-  pointing to them."
+   pointing to them."
   (allocate-descriptor space (ash length vm:word-shift) lowtag))
 
 (defun allocate-unboxed-object (space element-size length type)
   "Allocate LENGTH units of ELEMENT-SIZE bits plus a header word in SPACE and
-  return an ``other-pointer'' descriptor to them.  Initialize the header word
-  with the resultant length and TYPE."
+   return an ``other-pointer'' descriptor to them.  Initialize the header word
+   with the resultant length and TYPE."
   (let* ((bytes (/ (* element-size length) vm:byte-bits))
 	 (des (allocate-descriptor space
 				   (+ bytes vm:word-bytes)
@@ -361,15 +337,14 @@
 
 (defun allocate-vector-object (space element-size length type)
   "Allocate LENGTH units of ELEMENT-SIZE plus a header plus a length slot in
-  SPACE and return an ``other-pointer'' descriptor to them.  Initialize the
-  header word with TYPE and the length slot with LENGTH."
+   SPACE and return an ``other-pointer'' descriptor to them.  Initialize the
+   header word with TYPE and the length slot with LENGTH."
   (let* ((bytes (/ (* element-size length) vm:byte-bits))
 	 (des (allocate-descriptor space (+ bytes (* 2 vm:word-bytes))
 				   vm:other-pointer-type)))
     (write-memory des (make-other-immediate-descriptor 0 type))
     (write-indexed des vm:vector-length-slot (make-fixnum-descriptor length))
     des))
-
 
 
 ;;;; Routines to move simple objects into the core.
@@ -506,12 +481,12 @@
     ((complex double-float) (complex-double-float-to-core number))
     #+long-float
     ((complex long-float)
-     (error "~S isn't a cold-loadable number at all!" number))
+     (error "~S should be a cold-loadable number." number))
     (complex (number-pair-to-core (number-to-core (realpart number))
 				  (number-to-core (imagpart number))
 				  vm:complex-type))
     (float (float-to-core number))
-    (t (error "~S isn't a cold-loadable number at all!" number))))
+    (t (error "~S should be a cold-loadable number." number))))
 
 (defun sap-to-core (sap)
   (let ((des (allocate-unboxed-object *dynamic* vm:word-bits
@@ -533,7 +508,7 @@
 
 ;;; COLD-VECTOR  --  Internal
 ;;;
-;;;    Make a simple-vector that holds the specified Objects and return its
+;;; Make a simple-vector that holds the specified Objects and return its
 ;;; decriptor.
 ;;;
 (defun cold-vector (&rest objects)
@@ -578,15 +553,15 @@
   (write-indexed symbol
 		 vm:symbol-plist-slot
 		 (allocate-cons *dynamic*
-			indicator
-			(allocate-cons *dynamic*
-			       value
-			       (read-indexed symbol
-					     vm:symbol-plist-slot)))))
+				indicator
+				(allocate-cons *dynamic*
+					       value
+					       (read-indexed symbol
+							     vm:symbol-plist-slot)))))
 
 ;;;; Interning.
 
-;;;    In order to avoid having to know about the package format, we
+;;; In order to avoid having to know about the package format, we
 ;;; build a data structure which we stick in *cold-packages* that
 ;;; holds all interned symbols along with info about their packages.
 ;;; The data structure is a list of lists in the following format:
@@ -597,11 +572,10 @@
 ;;;    <imported-external-symbols>
 ;;;    <shadowing-symbols>)
 ;;;
-;;;    Package manipulation forms are dumped magically by the compiler
+;;; Package manipulation forms are dumped magically by the compiler
 ;;; so that we can eval them at Genesis time.  An eval-for-effect fop
 ;;; is used, surrounded by fops that switch the fop table to the hot
 ;;; fop table and back.
-;;;
 
 ;;; An alist from packages to the list of symbols in that package to be
 ;;; dumped.
@@ -610,15 +584,15 @@
 
 ;;; This holds a hash table mapping from descriptors to symbols, so we can
 ;;; back up.  The key is the *address* in the target core.
-;;; 
+;;;
 (defvar *cold-symbols* (make-hash-table :test #'equal))
 
 ;;; Cold-Intern  --  Internal
 ;;;
-;;;    Return a handle on an interned symbol.  If necessary allocate
-;;; the symbol and record which package the symbol was referenced in.
-;;; When we allocate the symbol, make sure we record a reference to
-;;; the symbol in the home package so that the package gets set.
+;;; Return a handle on an interned symbol.  If necessary allocate the
+;;; symbol and record which package the symbol was referenced in.  When we
+;;; allocate the symbol, make sure we record a reference to the symbol in
+;;; the home package so that the package gets set.
 ;;;
 (defun cold-intern (symbol &optional (package (symbol-package symbol)))
   (let ((cold-info (get symbol 'cold-info)))
@@ -642,8 +616,9 @@
 
 ;;; Initialize-Symbols  --  Internal
 ;;;
-;;;    Since the initial symbols must be allocated before we can intern
-;;; anything else, we intern those here.  We also set the values of T and Nil.
+;;; Since the initial symbols must be allocated before we can intern
+;;; anything else, we intern those here.  We also set the values of T and
+;;; Nil.
 ;;;
 (defun initialize-symbols ()
   "Initilizes the cold load symbol-hacking data structures."
@@ -657,7 +632,7 @@
       (setf *nil-descriptor*
 	    (make-descriptor (descriptor-high des)
 			     (+ (descriptor-low des) (* 2 vm:word-bytes)
-			        (- vm:list-pointer-type
+				(- vm:list-pointer-type
 				   vm:other-pointer-type))))
       (write-indexed des 1
 		     (make-other-immediate-descriptor 0 vm:symbol-header-type))
@@ -687,9 +662,9 @@
 
 ;;; Finish-Symbols  --  Internal
 ;;;
-;;;    Establish initial values for magic symbols.
-;;; 
-;;;    Scan over all the symbols referenced in each package in *cold-packages*
+;;; Establish initial values for magic symbols.
+;;;
+;;; Scan over all the symbols referenced in each package in *cold-packages*
 ;;; making the apropriate entry in the *initial-symbols* data structure to
 ;;; intern the thing.
 ;;;
@@ -749,7 +724,7 @@
 	      (cold-push internal r)
 	      (cold-push (make-make-package-args pkg) r)
 	      (cold-push r res)))))
-      
+
       (frob *initial-symbols* res))
 
     (frob *initial-fdefn-objects* (list-all-fdefn-objects))
@@ -770,12 +745,12 @@
 	  (frob "*FP-CONSTANT-PI*" "X86" (number-to-core pi))
 	  (frob "*FP-CONSTANT-L2T*" "X86" (number-to-core (log 10l0 2l0)))
 	  (frob "*FP-CONSTANT-L2E*" "X86"
-		(number-to-core
-		 (log 2.718281828459045235360287471352662L0 2l0)))
+	    (number-to-core
+	     (log 2.718281828459045235360287471352662L0 2l0)))
 	  (frob "*FP-CONSTANT-LG2*" "X86" (number-to-core (log 2l0 10l0)))
 	  (frob "*FP-CONSTANT-LN2*" "X86"
-		(number-to-core
-		 (log 2l0 2.718281828459045235360287471352662L0))))
+	    (number-to-core
+	     (log 2l0 2.718281828459045235360287471352662L0))))
 	(when (c:backend-featurep :gencgc)
 	  (frob "*SCAVENGE-READ-ONLY-SPACE*" "X86" (cold-intern nil)))))
 
@@ -790,7 +765,7 @@
 
 ;;; Make-Make-Package-Args  --  Internal
 ;;;
-;;;    Make a cold list that can be used as the arglist to make-package to
+;;; Make a cold list that can be used as the arglist to make-package to
 ;;; make a similar package.
 ;;;
 (defun make-make-package-args (package)
@@ -814,10 +789,9 @@
 
     (cold-push use res)
     (cold-push (cold-intern :use) res)
-    
+
     (cold-push (string-to-core (package-name package)) res)
     res))
-
 
 
 ;;;; Fdefinition objects.
@@ -854,7 +828,7 @@
 			    (lookup-maybe-prefix-foreign-symbol
 			     "undefined_tramp"))))
 	  fdefn))))
-  
+
 (defun cold-fset (name defn)
   (let ((fdefn (cold-fdefinition-object name t))
 	(type (logand (descriptor-low (read-memory defn)) vm:type-mask)))
@@ -894,7 +868,7 @@
     result))
 
 
-;;;; Layouts & type system pre-initialization:
+;;;; Layouts and type system pre-initialization.
 ;;;
 ;;; Since we want to be able to dump structure constants and predicates with
 ;;; reference layouts, we need to create layouts at cold-load time.  We use the
@@ -911,7 +885,7 @@
 ;;; Table mapping DESCRIPTOR-BITS of cold layouts to the name, for inverting
 ;;; mapping.
 ;;;
-(defvar *cold-layout-names* (make-hash-table :test #'eql)) 
+(defvar *cold-layout-names* (make-hash-table :test #'eql))
 
 ;;; The descriptor for layout's layout, which we need when making layouts.
 ;;;
@@ -953,7 +927,7 @@
 	      (res (format nil "Unknown descriptor, bits = ~8,'0X"
 			   (descriptor-bits des))))))
       (res))))
-  
+
 (defun cold-layout-redefined (old inherits depth length)
   (destructuring-bind (descriptor name olength oinherits-l odepth)
 		      old
@@ -974,12 +948,11 @@
 	  (setq result t)))
       result)))
 
-
 ;;; INITIALIZE-LAYOUTS  --  Internal
 ;;;
-;;;    Clear the layout table and set *layout-layout*.  We initially create
-;;; LAYOUT with NIL as the LAYOUT and INHERITS, then back-patch with itself and
-;;; the correct INHERITS vector (which includes T, INSTANCE and
+;;; Clear the layout table and set *layout-layout*.  We initially create
+;;; LAYOUT with NIL as the LAYOUT and INHERITS, then back-patch with itself
+;;; and the correct INHERITS vector (which includes T, INSTANCE and
 ;;; STRUCTURE-OBJECT).
 ;;;
 (defun initialize-layouts ()
@@ -1006,10 +979,9 @@
 		     (+ vm:instance-slots-offset layout-hash-length 1 2)
 		     layout-inh))))
 
-
 ;;; LIST-ALL-LAYOUTS  --  Internal
 ;;;
-;;;    Return a cold alist that we're going to store in *INITIAL-LAYOUTS*.
+;;; Return a cold alist that we're going to store in *INITIAL-LAYOUTS*.
 ;;;
 (defun list-all-layouts ()
   (let ((result *nil-descriptor*))
@@ -1030,8 +1002,8 @@
 
 ;;; Define-Cold-FOP  --  Internal
 ;;;
-;;;    Like Define-FOP in load, but looks up the code, and stores into
-;;; the *cold-fop-functions* vector.
+;;; Like Define-FOP in load, but looks up the code, and stores into the
+;;; *cold-fop-functions* vector.
 ;;;
 (defmacro define-cold-fop ((name &optional (pushp t)) &rest forms)
   (let ((fname (concat-pnames 'cold- name))
@@ -1047,105 +1019,105 @@
 
 ;;; Clone-Cold-FOP  --  Internal
 ;;;
-;;;    Clone a couple of cold fops.
+;;; Clone a couple of cold fops.
 ;;;
 (defmacro clone-cold-fop ((name &optional (pushp t)) (small-name) &rest forms)
   `(progn
-    (macrolet ((clone-arg () '(read-arg 4)))
-      (define-cold-fop (,name ,pushp) ,@forms))
-    (macrolet ((clone-arg () '(read-arg 1)))
-      (define-cold-fop (,small-name ,pushp) ,@forms))))
+     (macrolet ((clone-arg () '(read-arg 4)))
+       (define-cold-fop (,name ,pushp) ,@forms))
+     (macrolet ((clone-arg () '(read-arg 1)))
+       (define-cold-fop (,small-name ,pushp) ,@forms))))
 
 ;;; Not-Cold-Fop  --  Internal
 ;;;
-;;;    Define a fop to be undefined in cold load.
+;;; Define a fop to be undefined in cold load.
 ;;;
 (defmacro not-cold-fop (name)
   `(define-cold-fop (,name)
-     (error "~S is not supported in cold load." ',name)))
+		    (error "~S is not supported in cold load." ',name)))
 
 ;;;; Random cold fops...
 
 (define-cold-fop (fop-misc-trap) unbound-marker)
 
 (define-cold-fop (fop-character)
-  (make-character-descriptor (read-arg 3)))
+		 (make-character-descriptor (read-arg 3)))
 (define-cold-fop (fop-short-character)
-  (make-character-descriptor (read-arg 1)))
+		 (make-character-descriptor (read-arg 1)))
 
 (define-cold-fop (fop-empty-list) *nil-descriptor*)
 (define-cold-fop (fop-truth) (cold-intern t))
 
 (define-cold-fop (fop-normal-load :nope)
-  (setq fop-functions *normal-fop-functions*))
+		 (setq fop-functions *normal-fop-functions*))
 
 (define-fop (fop-maybe-cold-load 82 :nope)
-  (when *in-cold-load*
-    (setq fop-functions *cold-fop-functions*)))
+	    (when *in-cold-load*
+	      (setq fop-functions *cold-fop-functions*)))
 
 (define-cold-fop (fop-maybe-cold-load :nope))
 
 (clone-cold-fop (fop-struct)
 		(fop-small-struct)
-  (let* ((size (clone-arg))
-	 (result (allocate-boxed-object *dynamic* (1+ size)
-					vm:instance-pointer-type)))
-    (write-memory result (make-other-immediate-descriptor
-			  size vm:instance-header-type))
-    (do ((index (1- size) (1- index)))
-	((minusp index))
-      (declare (fixnum index))
-      (write-indexed result (+ index vm:instance-slots-offset) (pop-stack)))
-    result))
+		(let* ((size (clone-arg))
+		       (result (allocate-boxed-object *dynamic* (1+ size)
+						      vm:instance-pointer-type)))
+		  (write-memory result (make-other-immediate-descriptor
+					size vm:instance-header-type))
+		  (do ((index (1- size) (1- index)))
+		      ((minusp index))
+		    (declare (fixnum index))
+		    (write-indexed result (+ index vm:instance-slots-offset) (pop-stack)))
+		  result))
 
-;;; Check for layout redefinition, and possibly clobber old layout w/ new info.
+;;; Check for layout redefinition, and possibly clobber old layout w/ new
+;;; info.
 ;;;
 (define-cold-fop (fop-layout)
-  (let* ((length (pop-stack))
-	 (depth (pop-stack))
-	 (inherits (pop-stack))
-	 (name (pop-stack))
-	 (old (gethash name *cold-layouts*)))
-    (cond
-     (old
-      (when (cold-layout-redefined old inherits depth length)
-	(restart-case
-	    (error "Loading a reference to class ~S when the compile~
-		    ~%  time definition was incompatible with the current ~
-		    one."
-		   name)
-	  (use-current ()
-	    :report "Ignore the incompatibility, leave class alone."
-	    (warn "Assuming the current definition of ~S is correct, and~@
-		   that the loaded code doesn't care about the ~
-		   incompatibility."
-		  name))
-	  (clobber-it ()
-	    :report "Smash current layout, preserving old code."
-	    (warn "Any old ~S instances will be in a bad way.~@
-		   I hope you know what you're doing..."
-		  name)
-	    
-	    (let ((base (+ vm:instance-slots-offset
-			   kernel:layout-hash-length
-			   1))
-		  (desc (first old)))
-	      (write-indexed desc (+ base 2) inherits)
-	      (write-indexed desc (+ base 3) depth)
-	      (write-indexed desc (+ base 4) length)
-	      (setf (gethash name *cold-layouts*)
-		    (list desc name (descriptor-fixnum length)
-			  (listify-cold-inherits inherits)
-			  (descriptor-fixnum depth)))))))
-      (first old))
-     (t
-      (make-cold-layout name length inherits depth)))))
+		 (let* ((length (pop-stack))
+			(depth (pop-stack))
+			(inherits (pop-stack))
+			(name (pop-stack))
+			(old (gethash name *cold-layouts*)))
+		   (cond
+		    (old
+		     (when (cold-layout-redefined old inherits depth length)
+		       (restart-case
+			   (error "Loading a reference to class ~S when the compile~
+				   ~%  time definition was incompatible with the current ~
+				   one."
+				  name)
+			 (use-current ()
+				      :report "Ignore the incompatibility, leave class alone."
+				      (warn "Assuming the current definition of ~S is correct, and~@
+					     that the loaded code doesn't care about the ~
+					     incompatibility."
+					    name))
+			 (clobber-it ()
+				     :report "Smash current layout, preserving old code."
+				     (warn "Any old ~S instances will be in a bad way.~@
+					    I hope you know what you're doing..."
+					   name)
 
+				     (let ((base (+ vm:instance-slots-offset
+						    kernel:layout-hash-length
+						    1))
+					   (desc (first old)))
+				       (write-indexed desc (+ base 2) inherits)
+				       (write-indexed desc (+ base 3) depth)
+				       (write-indexed desc (+ base 4) length)
+				       (setf (gethash name *cold-layouts*)
+					     (list desc name (descriptor-fixnum length)
+						   (listify-cold-inherits inherits)
+						   (descriptor-fixnum depth)))))))
+		     (first old))
+		    (t
+		     (make-cold-layout name length inherits depth)))))
 
 ;;; Loading symbols...
 
-;;; Cold-Load-Symbol loads a symbol N characters long from the File and interns
-;;; that symbol in the given Package.
+;;; Cold-Load-Symbol loads a symbol N characters long from the File and
+;;; interns that symbol in the given Package.
 ;;;
 (defun cold-load-symbol (size package)
   (let ((string (make-string size)))
@@ -1154,14 +1126,14 @@
 
 (clone-cold-fop (fop-symbol-save)
 		(fop-small-symbol-save)
-  (push-table (cold-load-symbol (clone-arg) *package*)))
+		(push-table (cold-load-symbol (clone-arg) *package*)))
 
 (macrolet ((frob (name pname-len package-len)
 	     `(define-cold-fop (,name)
-		(let ((index (read-arg ,package-len)))
-		  (push-table
-		   (cold-load-symbol (read-arg ,pname-len)
-				     (svref *current-fop-table* index)))))))
+			       (let ((index (read-arg ,package-len)))
+				 (push-table
+				  (cold-load-symbol (read-arg ,pname-len)
+						    (svref *current-fop-table* index)))))))
   (frob fop-symbol-in-package-save 4 4)
   (frob fop-small-symbol-in-package-save 1 4)
   (frob fop-symbol-in-byte-package-save 4 1)
@@ -1169,19 +1141,19 @@
 
 (clone-cold-fop (fop-lisp-symbol-save)
 		(fop-lisp-small-symbol-save)
-  (push-table (cold-load-symbol (clone-arg) *lisp-package*)))
+		(push-table (cold-load-symbol (clone-arg) *lisp-package*)))
 
 (clone-cold-fop (fop-keyword-symbol-save)
 		(fop-keyword-small-symbol-save)
-  (push-table (cold-load-symbol (clone-arg) *keyword-package*)))
+		(push-table (cold-load-symbol (clone-arg) *keyword-package*)))
 
 (clone-cold-fop (fop-uninterned-symbol-save)
 		(fop-uninterned-small-symbol-save)
-  (let* ((size (clone-arg))
-	 (name (make-string size)))
-    (read-n-bytes *fasl-file* name 0 size)
-    (let ((symbol (allocate-symbol name)))
-      (push-table symbol))))
+		(let* ((size (clone-arg))
+		       (name (make-string size)))
+		  (read-n-bytes *fasl-file* name 0 size)
+		  (let ((symbol (allocate-symbol name)))
+		    (push-table symbol))))
 
 ;;; Loading lists...
 
@@ -1195,141 +1167,141 @@
      (declare (fixnum index))))
 
 (define-cold-fop (fop-list)
-  (cold-stack-list (read-arg 1) *nil-descriptor*))
+		 (cold-stack-list (read-arg 1) *nil-descriptor*))
 (define-cold-fop (fop-list*)
-  (cold-stack-list (read-arg 1) (pop-stack)))
+		 (cold-stack-list (read-arg 1) (pop-stack)))
 (define-cold-fop (fop-list-1)
-  (cold-stack-list 1 *nil-descriptor*))
+		 (cold-stack-list 1 *nil-descriptor*))
 (define-cold-fop (fop-list-2)
-  (cold-stack-list 2 *nil-descriptor*))
+		 (cold-stack-list 2 *nil-descriptor*))
 (define-cold-fop (fop-list-3)
-  (cold-stack-list 3 *nil-descriptor*))
+		 (cold-stack-list 3 *nil-descriptor*))
 (define-cold-fop (fop-list-4)
-  (cold-stack-list 4 *nil-descriptor*))
+		 (cold-stack-list 4 *nil-descriptor*))
 (define-cold-fop (fop-list-5)
-  (cold-stack-list 5 *nil-descriptor*))
+		 (cold-stack-list 5 *nil-descriptor*))
 (define-cold-fop (fop-list-6)
-  (cold-stack-list 6 *nil-descriptor*))
+		 (cold-stack-list 6 *nil-descriptor*))
 (define-cold-fop (fop-list-7)
-  (cold-stack-list 7 *nil-descriptor*))
+		 (cold-stack-list 7 *nil-descriptor*))
 (define-cold-fop (fop-list-8)
-  (cold-stack-list 8 *nil-descriptor*))
+		 (cold-stack-list 8 *nil-descriptor*))
 (define-cold-fop (fop-list*-1)
-  (cold-stack-list 1 (pop-stack)))
+		 (cold-stack-list 1 (pop-stack)))
 (define-cold-fop (fop-list*-2)
-  (cold-stack-list 2 (pop-stack)))
+		 (cold-stack-list 2 (pop-stack)))
 (define-cold-fop (fop-list*-3)
-  (cold-stack-list 3 (pop-stack)))
+		 (cold-stack-list 3 (pop-stack)))
 (define-cold-fop (fop-list*-4)
-  (cold-stack-list 4 (pop-stack)))
+		 (cold-stack-list 4 (pop-stack)))
 (define-cold-fop (fop-list*-5)
-  (cold-stack-list 5 (pop-stack)))
+		 (cold-stack-list 5 (pop-stack)))
 (define-cold-fop (fop-list*-6)
-  (cold-stack-list 6 (pop-stack)))
+		 (cold-stack-list 6 (pop-stack)))
 (define-cold-fop (fop-list*-7)
-  (cold-stack-list 7 (pop-stack)))
+		 (cold-stack-list 7 (pop-stack)))
 (define-cold-fop (fop-list*-8)
-  (cold-stack-list 8 (pop-stack)))
+		 (cold-stack-list 8 (pop-stack)))
 
 ;;; Loading vectors...
 
 (clone-cold-fop (fop-string)
 		(fop-small-string)
-  (let* ((len (clone-arg))
-	 (string (make-string len)))
-    (read-n-bytes *fasl-file* string 0 len)
-    (string-to-core string)))
+		(let* ((len (clone-arg))
+		       (string (make-string len)))
+		  (read-n-bytes *fasl-file* string 0 len)
+		  (string-to-core string)))
 
 (clone-cold-fop (fop-vector)
 		(fop-small-vector)
-  (let* ((size (clone-arg))
-	 (result (allocate-vector-object *dynamic* vm:word-bits size
-					 vm:simple-vector-type)))
-    (do ((index (1- size) (1- index)))
-	((minusp index))
-      (declare (fixnum index))
-      (write-indexed result (+ index vm:vector-data-offset) (pop-stack)))
-    result))
+		(let* ((size (clone-arg))
+		       (result (allocate-vector-object *dynamic* vm:word-bits size
+						       vm:simple-vector-type)))
+		  (do ((index (1- size) (1- index)))
+		      ((minusp index))
+		    (declare (fixnum index))
+		    (write-indexed result (+ index vm:vector-data-offset) (pop-stack)))
+		  result))
 
 (clone-cold-fop (fop-uniform-vector)
 		(fop-small-uniform-vector)
-  (let* ((size (clone-arg))
-	 (datum (pop-stack))
-	 (result (allocate-vector-object *dynamic* vm:word-bits size
-					 vm:simple-vector-type)))
-    (do ((index (1- size) (1- index)))
-	((minusp index))
-      (declare (fixnum index))
-      (write-indexed result (+ index vm:vector-data-offset) datum))
-    result))
+		(let* ((size (clone-arg))
+		       (datum (pop-stack))
+		       (result (allocate-vector-object *dynamic* vm:word-bits size
+						       vm:simple-vector-type)))
+		  (do ((index (1- size) (1- index)))
+		      ((minusp index))
+		    (declare (fixnum index))
+		    (write-indexed result (+ index vm:vector-data-offset) datum))
+		  result))
 
 (define-cold-fop (fop-uniform-int-vector)
-  (let* ((len (read-arg 4))
-	 (size (read-arg 1))
-	 (type (case size
-		 (1 vm:simple-bit-vector-type)
-		 (2 vm:simple-array-unsigned-byte-2-type)
-		 (4 vm:simple-array-unsigned-byte-4-type)
-		 (8 vm:simple-array-unsigned-byte-8-type)
-		 (16 vm:simple-array-unsigned-byte-16-type)
-		 (32 vm:simple-array-unsigned-byte-32-type)
-		 (t (error "Losing element size: ~D." size))))
-	 (value (case size
-		  ((1 2 4 8)
-		   (read-arg 1))
-		  (16
-		   (read-arg 2))
-		  (32
-		   (read-arg 4))))
-	 (result (allocate-vector-object *dynamic* size len type)))
-    (do ((bits size (* bits 2))
-	 (word value (logior word (ash word bits))))
-	((= size vm:word-bits)
-	 (let ((datum (make-random-descriptor word)))
-	   (dotimes (index (ceiling (* len size) vm:word-bits))
-	     (write-indexed result (+ index vm:vector-data-offset) datum)))))
-    result))
+		 (let* ((len (read-arg 4))
+			(size (read-arg 1))
+			(type (case size
+				(1 vm:simple-bit-vector-type)
+				(2 vm:simple-array-unsigned-byte-2-type)
+				(4 vm:simple-array-unsigned-byte-4-type)
+				(8 vm:simple-array-unsigned-byte-8-type)
+				(16 vm:simple-array-unsigned-byte-16-type)
+				(32 vm:simple-array-unsigned-byte-32-type)
+				(t (error "Losing element size: ~D." size))))
+			(value (case size
+				 ((1 2 4 8)
+				  (read-arg 1))
+				 (16
+				  (read-arg 2))
+				 (32
+				  (read-arg 4))))
+			(result (allocate-vector-object *dynamic* size len type)))
+		   (do ((bits size (* bits 2))
+			(word value (logior word (ash word bits))))
+		       ((= size vm:word-bits)
+			(let ((datum (make-random-descriptor word)))
+			  (dotimes (index (ceiling (* len size) vm:word-bits))
+			    (write-indexed result (+ index vm:vector-data-offset) datum)))))
+		   result))
 
 (define-cold-fop (fop-int-vector)
-  (let* ((len (read-arg 4))
-	 (size (read-arg 1))
-	 (type (case size
-		 (1 vm:simple-bit-vector-type)
-		 (2 vm:simple-array-unsigned-byte-2-type)
-		 (4 vm:simple-array-unsigned-byte-4-type)
-		 (8 vm:simple-array-unsigned-byte-8-type)
-		 (16 vm:simple-array-unsigned-byte-16-type)
-		 (32 vm:simple-array-unsigned-byte-32-type)
-		 (t (error "Losing element size: ~D." size))))
-	 (result (allocate-vector-object *dynamic* size len type)))
-    (unless (zerop len)
-      (read-n-bytes *fasl-file*
-		    (descriptor-sap result)
-		    (ash vm:vector-data-offset vm:word-shift)
-		    (ceiling (* len size) vm:byte-bits)))
-    result))
+		 (let* ((len (read-arg 4))
+			(size (read-arg 1))
+			(type (case size
+				(1 vm:simple-bit-vector-type)
+				(2 vm:simple-array-unsigned-byte-2-type)
+				(4 vm:simple-array-unsigned-byte-4-type)
+				(8 vm:simple-array-unsigned-byte-8-type)
+				(16 vm:simple-array-unsigned-byte-16-type)
+				(32 vm:simple-array-unsigned-byte-32-type)
+				(t (error "Losing element size: ~D." size))))
+			(result (allocate-vector-object *dynamic* size len type)))
+		   (unless (zerop len)
+		     (read-n-bytes *fasl-file*
+				   (descriptor-sap result)
+				   (ash vm:vector-data-offset vm:word-shift)
+				   (ceiling (* len size) vm:byte-bits)))
+		   result))
 
 (define-cold-fop (fop-single-float-vector)
-  (let* ((len (read-arg 4))
-	 (result (allocate-vector-object *dynamic* vm:word-bits len
-					 vm:simple-array-single-float-type)))
-    (unless (zerop len)
-      (read-n-bytes *fasl-file*
-		    (descriptor-sap result)
-		    (ash vm:vector-data-offset vm:word-shift)
-		    (* len vm:word-bytes)))
-    result))
+		 (let* ((len (read-arg 4))
+			(result (allocate-vector-object *dynamic* vm:word-bits len
+							vm:simple-array-single-float-type)))
+		   (unless (zerop len)
+		     (read-n-bytes *fasl-file*
+				   (descriptor-sap result)
+				   (ash vm:vector-data-offset vm:word-shift)
+				   (* len vm:word-bytes)))
+		   result))
 
 (define-cold-fop (fop-double-float-vector)
-  (let* ((len (read-arg 4))
-	 (result (allocate-vector-object *dynamic* (* vm:word-bits 2) len
-					 vm:simple-array-double-float-type)))
-    (unless (zerop len)
-      (read-n-bytes *fasl-file*
-		    (descriptor-sap result)
-		    (ash vm:vector-data-offset vm:word-shift)
-		    (* len vm:word-bytes 2)))
-    result))
+		 (let* ((len (read-arg 4))
+			(result (allocate-vector-object *dynamic* (* vm:word-bits 2) len
+							vm:simple-array-double-float-type)))
+		   (unless (zerop len)
+		     (read-n-bytes *fasl-file*
+				   (descriptor-sap result)
+				   (ash vm:vector-data-offset vm:word-shift)
+				   (* len vm:word-bytes 2)))
+		   result))
 
 #+long-float (not-cold-fop fop-long-float-vector)
 (not-cold-fop fop-complex-single-float-vector)
@@ -1337,41 +1309,41 @@
 #+long-float (not-cold-fop fop-complex-long-float-vector)
 
 (define-cold-fop (fop-array)
-  (let* ((rank (read-arg 4))
-	 (data-vector (pop-stack))
-	 (result (allocate-boxed-object *dynamic*
-					(+ vm:array-dimensions-offset rank)
-					vm:other-pointer-type)))
-    (write-memory result
-		  (make-other-immediate-descriptor rank vm:simple-array-type))
-    (write-indexed result vm:array-fill-pointer-slot *nil-descriptor*)
-    (write-indexed result vm:array-data-slot data-vector)
-    (write-indexed result vm:array-displacement-slot *nil-descriptor*)
-    (write-indexed result vm:array-displaced-p-slot *nil-descriptor*)
-    (let ((total-elements 1))
-      (dotimes (axis rank)
-	(let ((dim (pop-stack)))
-	  (unless (or (= (descriptor-lowtag dim) vm:even-fixnum-type)
-		      (= (descriptor-lowtag dim) vm:odd-fixnum-type))
-	    (error "Non-fixnum dimension? (~S)" dim))
-	  (setf total-elements
-		(* total-elements
-		   (logior (ash (descriptor-high dim)
-				(- descriptor-low-bits (1- vm:lowtag-bits)))
-			   (ash (descriptor-low dim)
-				(- 1 vm:lowtag-bits)))))
-	  (write-indexed result (+ vm:array-dimensions-offset axis) dim)))
-      (write-indexed result vm:array-elements-slot
-		     (make-fixnum-descriptor total-elements)))
-    result))
+		 (let* ((rank (read-arg 4))
+			(data-vector (pop-stack))
+			(result (allocate-boxed-object *dynamic*
+						       (+ vm:array-dimensions-offset rank)
+						       vm:other-pointer-type)))
+		   (write-memory result
+				 (make-other-immediate-descriptor rank vm:simple-array-type))
+		   (write-indexed result vm:array-fill-pointer-slot *nil-descriptor*)
+		   (write-indexed result vm:array-data-slot data-vector)
+		   (write-indexed result vm:array-displacement-slot *nil-descriptor*)
+		   (write-indexed result vm:array-displaced-p-slot *nil-descriptor*)
+		   (let ((total-elements 1))
+		     (dotimes (axis rank)
+		       (let ((dim (pop-stack)))
+			 (unless (or (= (descriptor-lowtag dim) vm:even-fixnum-type)
+				     (= (descriptor-lowtag dim) vm:odd-fixnum-type))
+			   (error "Non-fixnum dimension? (~S)" dim))
+			 (setf total-elements
+			       (* total-elements
+				  (logior (ash (descriptor-high dim)
+					       (- descriptor-low-bits (1- vm:lowtag-bits)))
+					  (ash (descriptor-low dim)
+					       (- 1 vm:lowtag-bits)))))
+			 (write-indexed result (+ vm:array-dimensions-offset axis) dim)))
+		     (write-indexed result vm:array-elements-slot
+				    (make-fixnum-descriptor total-elements)))
+		   result))
 
 ;;; Loading numbers.
 
 (defmacro cold-number (fop)
   `(define-cold-fop (,fop :nope)
-     (,fop)
+		    (,fop)
      (with-fop-stack t
-       (number-to-core (pop-stack)))))
+		     (number-to-core (pop-stack)))))
 
 (cold-number fop-single-float)
 (cold-number fop-double-float)
@@ -1471,25 +1443,23 @@
 	 des)))))
 
 (define-cold-fop (fop-ratio)
-  (let ((den (pop-stack)))
-    (number-pair-to-core (pop-stack) den vm:ratio-type)))
+		 (let ((den (pop-stack)))
+		   (number-pair-to-core (pop-stack) den vm:ratio-type)))
 
 (define-cold-fop (fop-complex)
-  (let ((im (pop-stack)))
-    (number-pair-to-core (pop-stack) im vm:complex-type)))
-
+		 (let ((im (pop-stack)))
+		   (number-pair-to-core (pop-stack) im vm:complex-type)))
 
 ;;; Calling (or not calling).
 
 (not-cold-fop fop-eval)
 (not-cold-fop fop-eval-for-effect)
 
-
 (defvar *load-time-value-counter*)
 
 (define-cold-fop (fop-funcall)
-  (unless (= (read-arg 1) 0)
-    (error "Can't FOP-FUNCALL random stuff in cold load."))
+		 (unless (= (read-arg 1) 0)
+		   (error "Can't FOP-FUNCALL random stuff in cold load."))
   (let ((counter *load-time-value-counter*))
     (cold-push (allocate-cons
 		*dynamic*
@@ -1525,40 +1495,39 @@
 				     vm:simple-vector-type)))
 
 (define-cold-fop (fop-funcall-for-effect nil)
-  (if (= (read-arg 1) 0)
-      (cold-push (pop-stack) *current-init-functions-cons*)
-      (error "Can't FOP-FUNCALL random stuff in cold load.")))
-
+		 (if (= (read-arg 1) 0)
+		     (cold-push (pop-stack) *current-init-functions-cons*)
+		     (error "Can't FOP-FUNCALL random stuff in cold load.")))
 
 ;;;; Fixing up circularities.
 
 (define-cold-fop (fop-rplaca nil)
-  (let ((obj (svref *current-fop-table* (read-arg 4)))
-	(idx (read-arg 4)))
-    (write-memory (cold-nthcdr idx obj) (pop-stack))))
+		 (let ((obj (svref *current-fop-table* (read-arg 4)))
+		       (idx (read-arg 4)))
+		   (write-memory (cold-nthcdr idx obj) (pop-stack))))
 
 (define-cold-fop (fop-rplacd nil)
-  (let ((obj (svref *current-fop-table* (read-arg 4)))
-	(idx (read-arg 4)))
-    (write-indexed (cold-nthcdr idx obj) 1 (pop-stack))))
+		 (let ((obj (svref *current-fop-table* (read-arg 4)))
+		       (idx (read-arg 4)))
+		   (write-indexed (cold-nthcdr idx obj) 1 (pop-stack))))
 
 (define-cold-fop (fop-svset nil)
-  (let ((obj (svref *current-fop-table* (read-arg 4)))
-	(idx (read-arg 4)))
-    (write-indexed obj
-		   (+ idx
-		      (ecase (descriptor-lowtag obj)
-			(#.vm:instance-pointer-type 1)
-			(#.vm:other-pointer-type 2)))
-		   (pop-stack))))
+		 (let ((obj (svref *current-fop-table* (read-arg 4)))
+		       (idx (read-arg 4)))
+		   (write-indexed obj
+				  (+ idx
+				     (ecase (descriptor-lowtag obj)
+				       (#.vm:instance-pointer-type 1)
+				       (#.vm:other-pointer-type 2)))
+				  (pop-stack))))
 
 (define-cold-fop (fop-structset nil)
-  (let ((obj (svref *current-fop-table* (read-arg 4)))
-	(idx (read-arg 4)))
-    (write-indexed obj (1+ idx) (pop-stack))))
+		 (let ((obj (svref *current-fop-table* (read-arg 4)))
+		       (idx (read-arg 4)))
+		   (write-indexed obj (1+ idx) (pop-stack))))
 
 (define-cold-fop (fop-nthcdr t)
-  (cold-nthcdr (read-arg 4) (pop-stack)))
+		 (cold-nthcdr (read-arg 4) (pop-stack)))
 
 
 (defun cold-nthcdr (index obj)
@@ -1566,86 +1535,84 @@
     (setq obj (read-indexed obj 1)))
   obj)
 
-
 ;;; Loading code objects and functions.
 
 (define-cold-fop (fop-fset nil)
-  (let ((fn (pop-stack))
-	(name (pop-stack)))
-    (cold-fset name fn)))
+		 (let ((fn (pop-stack))
+		       (name (pop-stack)))
+		   (cold-fset name fn)))
 
 (define-cold-fop (fop-fdefinition)
-  (cold-fdefinition-object (pop-stack)))
+		 (cold-fdefinition-object (pop-stack)))
 
 (define-cold-fop (fop-sanctify-for-execution)
-  (pop-stack))
+		 (pop-stack))
 
 (define-cold-fop (fop-code-format :nope)
-  (let ((implementation (read-arg 1))
-	(version (read-arg 1)))
-    (unless (= implementation (c:backend-fasl-file-implementation c:*backend*))
-      (error
-       "~A was compiled for a ~A, but we are trying to build a core for a ~A"
-       *Fasl-file*
-       (or (elt c:fasl-file-implementations implementation)
-	   "unknown machine")
-       (or (elt c:fasl-file-implementations
-		(c:backend-fasl-file-implementation c:*backend*))
-	   "unknown machine")))
-    (unless (= version (c:backend-fasl-file-version c:*backend*))
-      (error
-       "~A was compiled for a fasl-file version ~A, but we need version ~A"
-       *Fasl-file* version (c:backend-fasl-file-version c:*backend*)))))
+		 (let ((implementation (read-arg 1))
+		       (version (read-arg 1)))
+		   (unless (= implementation (c:backend-fasl-file-implementation c:*backend*))
+		     (error
+		      "~A was compiled for a ~A, but we are trying to build a core for a ~A"
+		      *Fasl-file*
+		      (or (elt c:fasl-file-implementations implementation)
+			  "unknown machine")
+		      (or (elt c:fasl-file-implementations
+			       (c:backend-fasl-file-implementation c:*backend*))
+			  "unknown machine")))
+		   (unless (= version (c:backend-fasl-file-version c:*backend*))
+		     (error
+		      "~A was compiled for a fasl-file version ~A, but we need version ~A"
+		      *Fasl-file* version (c:backend-fasl-file-version c:*backend*)))))
 
 (not-cold-fop fop-make-byte-compiled-function)
 
 (defmacro define-cold-code-fop (name nconst size)
   `(define-cold-fop (,name)
-     (let* ((nconst ,nconst)
-	    (size ,size)
-	    (raw-header-size (+ vm:code-trace-table-offset-slot nconst))
-	    (header-size
-	     ;; Note: we round the number of constants up to assure that
-	     ;; the code vector will be properly aligned.
-	     (round-up raw-header-size 2))
-	    (des (allocate-descriptor
-		  (if (and (c:backend-featurep :x86) (c:backend-featurep :cgc))
-		      *static*
-		      *dynamic*)
-		  (+ (ash header-size vm:word-shift) size)
-		  vm:other-pointer-type)))
-       (write-memory des
-		     (make-other-immediate-descriptor header-size
-						      vm:code-header-type))
-       (write-indexed des vm:code-code-size-slot
-		      (make-fixnum-descriptor
-		       (ash (+ size (1- (ash 1 vm:word-shift)))
-			    (- vm:word-shift))))
-       (write-indexed des vm:code-entry-points-slot *nil-descriptor*)
-       (write-indexed des vm:code-debug-info-slot (pop-stack))
-       (when (oddp raw-header-size)
-	 (write-indexed des raw-header-size
-			(make-random-descriptor 0)))
-       (do ((index (1- raw-header-size) (1- index)))
-	   ((< index vm:code-trace-table-offset-slot))
-	 (write-indexed des index (pop-stack)))
-       (read-n-bytes *fasl-file*
-		     (descriptor-sap des)
-		     (ash header-size vm:word-shift)
-		     size)
-       des)))  
+		    (let* ((nconst ,nconst)
+			   (size ,size)
+			   (raw-header-size (+ vm:code-trace-table-offset-slot nconst))
+			   (header-size
+			    ;; Note: we round the number of constants up to assure that
+			    ;; the code vector will be properly aligned.
+			    (round-up raw-header-size 2))
+			   (des (allocate-descriptor
+				 (if (and (c:backend-featurep :x86) (c:backend-featurep :cgc))
+				     *static*
+				     *dynamic*)
+				 (+ (ash header-size vm:word-shift) size)
+				 vm:other-pointer-type)))
+		      (write-memory des
+				    (make-other-immediate-descriptor header-size
+								     vm:code-header-type))
+		      (write-indexed des vm:code-code-size-slot
+				     (make-fixnum-descriptor
+				      (ash (+ size (1- (ash 1 vm:word-shift)))
+					   (- vm:word-shift))))
+		      (write-indexed des vm:code-entry-points-slot *nil-descriptor*)
+		      (write-indexed des vm:code-debug-info-slot (pop-stack))
+		      (when (oddp raw-header-size)
+			(write-indexed des raw-header-size
+				       (make-random-descriptor 0)))
+		      (do ((index (1- raw-header-size) (1- index)))
+			  ((< index vm:code-trace-table-offset-slot))
+			(write-indexed des index (pop-stack)))
+		      (read-n-bytes *fasl-file*
+				    (descriptor-sap des)
+				    (ash header-size vm:word-shift)
+				    size)
+		      des)))
 
 (define-cold-code-fop fop-code (read-arg 4) (read-arg 4))
 
 (define-cold-code-fop fop-small-code (read-arg 1) (read-arg 2))
 
-
 (clone-cold-fop (fop-alter-code nil)
 		(fop-byte-alter-code)
-  (let ((slot (clone-arg))
-	(value (pop-stack))
-	(code (pop-stack)))
-    (write-indexed code slot value)))
+		(let ((slot (clone-arg))
+		      (value (pop-stack))
+		      (code (pop-stack)))
+		  (write-indexed code slot value)))
 
 (defun calc-offset (code-object after-header)
   (let ((header (read-memory code-object)))
@@ -1657,95 +1624,94 @@
 	    vm:word-shift))))
 
 (define-cold-fop (fop-function-entry)
-  (let* ((type (pop-stack))
-	 (arglist (pop-stack))
-	 (name (pop-stack))
-	 (code-object (pop-stack))
-	 (offset (calc-offset code-object (read-arg 4)))
-	 (fn (descriptor-beyond code-object offset vm:function-pointer-type))
-	 (next (read-indexed code-object vm:code-entry-points-slot)))
-    (unless (zerop (logand offset vm:lowtag-mask))
-      (warn "Unaligned function entry: ~S at #x~X" name offset))
-    (write-indexed code-object vm:code-entry-points-slot fn)
-    (write-memory fn (make-other-immediate-descriptor (ash offset
-							   (- vm:word-shift))
-						      vm:function-header-type))
-    (write-indexed fn vm:function-self-slot
-		   (if (= (c:backend-fasl-file-implementation c:*backend*)
-			  #.c:x86-fasl-file-implementation)
-		       (make-random-descriptor
-			(+ (descriptor-bits fn)
-			   (- (ash vm:function-code-offset
-				   vm:word-shift)
-			      vm:function-pointer-type)))
-		       fn))
-    (write-indexed fn vm:function-next-slot next)
-    (write-indexed fn vm:function-name-slot name)
-    (write-indexed fn vm:function-arglist-slot arglist)
-    (write-indexed fn vm:function-type-slot type)
-    fn))
+		 (let* ((type (pop-stack))
+			(arglist (pop-stack))
+			(name (pop-stack))
+			(code-object (pop-stack))
+			(offset (calc-offset code-object (read-arg 4)))
+			(fn (descriptor-beyond code-object offset vm:function-pointer-type))
+			(next (read-indexed code-object vm:code-entry-points-slot)))
+		   (unless (zerop (logand offset vm:lowtag-mask))
+		     (warn "Unaligned function entry: ~S at #x~X" name offset))
+		   (write-indexed code-object vm:code-entry-points-slot fn)
+		   (write-memory fn (make-other-immediate-descriptor (ash offset
+									  (- vm:word-shift))
+								     vm:function-header-type))
+		   (write-indexed fn vm:function-self-slot
+				  (if (= (c:backend-fasl-file-implementation c:*backend*)
+					 #.c:x86-fasl-file-implementation)
+				      (make-random-descriptor
+				       (+ (descriptor-bits fn)
+					  (- (ash vm:function-code-offset
+						  vm:word-shift)
+					     vm:function-pointer-type)))
+				      fn))
+		   (write-indexed fn vm:function-next-slot next)
+		   (write-indexed fn vm:function-name-slot name)
+		   (write-indexed fn vm:function-arglist-slot arglist)
+		   (write-indexed fn vm:function-type-slot type)
+		   fn))
 
 (define-cold-fop (fop-foreign-fixup)
-  (let* ((kind (pop-stack))
-	 (code-object (pop-stack))
-	 (len (read-arg 1))
-	 (sym (make-string len)))
-    (read-n-bytes *fasl-file* sym 0 len)
-    (let ((offset (read-arg 4))
-	  (value (lookup-foreign-symbol sym)))
-      (do-cold-fixup code-object offset value kind))
-    code-object))
+		 (let* ((kind (pop-stack))
+			(code-object (pop-stack))
+			(len (read-arg 1))
+			(sym (make-string len)))
+		   (read-n-bytes *fasl-file* sym 0 len)
+		   (let ((offset (read-arg 4))
+			 (value (lookup-foreign-symbol sym)))
+		     (do-cold-fixup code-object offset value kind))
+		   code-object))
 
 (define-cold-fop (fop-assembler-code)
-  (let* ((length (read-arg 4))
-	 (header-size
-	  ;; Note: we round the number of constants up to assure that
-	  ;; the code vector will be properly aligned.
-	  (round-up vm:code-constants-offset 2))
-	 (des (allocate-descriptor *read-only*
-				   (+ (ash header-size vm:word-shift) length)
-				   vm:other-pointer-type)))
-    (write-memory des
-		  (make-other-immediate-descriptor header-size
-						   vm:code-header-type))
-    (write-indexed des vm:code-code-size-slot
-		   (make-fixnum-descriptor
-		    (ash (+ length (1- (ash 1 vm:word-shift)))
-			 (- vm:word-shift))))
-    (write-indexed des vm:code-entry-points-slot *nil-descriptor*)
-    (write-indexed des vm:code-debug-info-slot *nil-descriptor*)
+		 (let* ((length (read-arg 4))
+			(header-size
+			 ;; Note: we round the number of constants up to assure that
+			 ;; the code vector will be properly aligned.
+			 (round-up vm:code-constants-offset 2))
+			(des (allocate-descriptor *read-only*
+						  (+ (ash header-size vm:word-shift) length)
+						  vm:other-pointer-type)))
+		   (write-memory des
+				 (make-other-immediate-descriptor header-size
+								  vm:code-header-type))
+		   (write-indexed des vm:code-code-size-slot
+				  (make-fixnum-descriptor
+				   (ash (+ length (1- (ash 1 vm:word-shift)))
+					(- vm:word-shift))))
+		   (write-indexed des vm:code-entry-points-slot *nil-descriptor*)
+		   (write-indexed des vm:code-debug-info-slot *nil-descriptor*)
 
-    (read-n-bytes *fasl-file*
-		  (descriptor-sap des)
-		  (ash header-size vm:word-shift)
-		  length)
-    des))
+		   (read-n-bytes *fasl-file*
+				 (descriptor-sap des)
+				 (ash header-size vm:word-shift)
+				 length)
+		   des))
 
 (define-cold-fop (fop-assembler-routine)
-  (let* ((routine (pop-stack))
-	 (des (pop-stack))
-	 (offset (calc-offset des (read-arg 4))))
-    (record-cold-assembler-routine
-     routine
-     (+ (logandc2 (descriptor-bits des) vm:lowtag-mask) offset))
-    des))
+		 (let* ((routine (pop-stack))
+			(des (pop-stack))
+			(offset (calc-offset des (read-arg 4))))
+		   (record-cold-assembler-routine
+		    routine
+		    (+ (logandc2 (descriptor-bits des) vm:lowtag-mask) offset))
+		   des))
 
 (define-cold-fop (fop-assembler-fixup)
-  (let* ((routine (pop-stack))
-	 (kind (pop-stack))
-	 (code-object (pop-stack))
-	 (offset (read-arg 4)))
-    (record-cold-assembler-fixup routine code-object offset kind)
-    code-object))
+		 (let* ((routine (pop-stack))
+			(kind (pop-stack))
+			(code-object (pop-stack))
+			(offset (read-arg 4)))
+		   (record-cold-assembler-fixup routine code-object offset kind)
+		   code-object))
 
 (define-cold-fop (fop-code-object-fixup)
-  (let* ((kind (pop-stack))
-	 (code-object (pop-stack))
-	 (offset (read-arg 4))
-	 (value (descriptor-bits code-object)))
-    (do-cold-fixup code-object offset value kind)
-    code-object))
-
+		 (let* ((kind (pop-stack))
+			(code-object (pop-stack))
+			(offset (read-arg 4))
+			(value (descriptor-bits code-object)))
+		   (do-cold-fixup code-object offset value kind)
+		   code-object))
 
 ;;; Cold-Load loads stuff into the core image being built by rebinding
 ;;; the Fop-Functions table to a table of cold loading functions.
@@ -1761,7 +1727,6 @@
 			    :type (c:backend-fasl-file-type c:*backend*)))
 			  :element-type '(unsigned-byte 8))
       (load file :verbose nil))))
-
 
 
 ;;;; Fixups and related stuff.
@@ -1811,7 +1776,7 @@
 	(freebsd-p (and (eq (c:backend-fasl-file-implementation c:*backend*)
 			    #.c:x86-fasl-file-implementation)
 			(c:backend-featurep :freebsd))))
-    
+
     (cond
      ((and freebsd-p (gethash (concatenate 'string "_" name)
 			      *cold-foreign-symbol-table* nil)))
@@ -1822,9 +1787,9 @@
       (gethash name *cold-foreign-symbol-table* nil)
       #+irix
       (let ((value (gethash name *cold-foreign-symbol-table* nil)))
-        (when (and (numberp value) (zerop value))
+	(when (and (numberp value) (zerop value))
 	  (warn "Not-really-defined foreign symbol: ~S" name))
-        value))
+	value))
      ((and linux-p (gethash (concatenate 'string "__libc_" name)
 			    *cold-foreign-symbol-table* nil)))
      ((and linux-p (gethash (concatenate 'string "__" name)
@@ -1889,9 +1854,9 @@
       (when value
 	(do-cold-fixup (second fixup) (third fixup) value (fourth fixup))))))
 
-;;; The x86 port needs to store code fixups along with code objects if
-;;; they are to be moved, so fixups for code objects in the dynamic
-;;; heap need to be noted.
+;;; The x86 port needs to store code fixups along with code objects if they
+;;; are to be moved, so fixups for code objects in the dynamic heap need to
+;;; be noted.
 ;;;
 (defvar *load-time-code-fixups* nil)
 
@@ -1961,7 +1926,7 @@
 		       inst))))
 	 (setf (sap-ref-32 sap 0)
 	       (maybe-byte-swap inst))))
-      ((#.c:rt-fasl-file-implementation 
+      ((#.c:rt-fasl-file-implementation
 	#.c:rt-afpa-fasl-file-implementation)
        (ecase kind
 	 (:cal
@@ -2097,7 +2062,6 @@
 		 result))
     (cold-setq (cold-intern '*initial-assembler-routines*) result)))
 
-
 
 ;;;; Emit C Header.
 
@@ -2232,7 +2196,7 @@
 
 (defun emit-c-header (name)
   (let* ((new-name (concatenate 'string (namestring name) ".NEW"))
-	 (unix-newname (unix-namestring new-name nil)))
+	 (unix-newname (os-namestring new-name nil)))
     (with-open-file
 	(*standard-output* new-name
 			   :direction :output
@@ -2267,10 +2231,9 @@
 			  (core-name *genesis-core-name*)
 			  (map-name *genesis-map-name*)
 			  (header-name *genesis-c-header-name*))
-  "Builds a kernel Lisp image from the .FASL files specified in the given
-  File-List and writes it to a file named by Core-Name."
-  (unless symbol-table
-    (error "Can't genesis without a symbol-table."))
+  "Build a kernel Lisp image from the .FASL files specified in the given
+   File-List and write it to a file named by Core-Name."
+  (or symbol-table (error "Need a symbol-table to genesis."))
   (format t "~&Building ~S for the ~A~%"
 	  core-name (c:backend-version c:*backend*))
   (setq *current-init-functions-cons* *nil-descriptor*)
@@ -2336,7 +2299,6 @@
 	(when space
 	  (deallocate-space space))))))
 
-
 (defun write-map-file ()
   (let ((*print-pretty* nil)
 	(*print-case* :upcase))
@@ -2357,7 +2319,7 @@
 	       *fdefn-objects*)
       (format t "~%~|~%Initially defined functions:~2%")
       (dolist (info (sort funs #'< :key #'cdr))
-	(format t "0x~8,'0X: ~S   #x~8,'0X~%" (cdr info) (car info) 
+	(format t "0x~8,'0X: ~S   #x~8,'0X~%" (cdr info) (car info)
 		(- (cdr info) #x17)))
       (format t "~%~|~%Undefined function references:~2%")
       (labels ((key (name)
@@ -2369,7 +2331,7 @@
 	  (if (integerp fun)
 	      (format t "~8,'0X~%" fun)
 	      (format t "~S~%" fun))))))
-  
+
   (format t "~%~|~%Layout names:~2%")
   (collect ((stuff))
     (maphash #'(lambda (name gorp)
@@ -2404,7 +2366,6 @@
      (dotimes (i 4)
        (write-byte (ldb (byte 8 (* (- 3 i) 8)) num) *core-file*)))))
 
-
 (defun advance-to-page ()
   (force-output *core-file*)
   (file-position *core-file*
@@ -2417,7 +2378,7 @@
 	 (bytes (* (space-free-pointer space) vm:word-bytes))
 	 (pages (ceiling bytes (c:backend-page-size c:*backend*)))
 	 (total-bytes (* pages (c:backend-page-size c:*backend*))))
-    ;; 
+    ;;
     (file-position *core-file* (* (c:backend-page-size c:*backend*)
 				  (1+ *data-page*)))
     (format t "Writing ~S byte~:P [~S page~:P] from ~S space~%"
@@ -2429,11 +2390,11 @@
     ;; space between the free pointer and the end of page will be
     ;; zero-filled.  This will always be true under Mach on machines
     ;; where the page size is equal.  (RT is 4K, PMAX is 4K, Sun 3 is 8K).
-    ;; 
+    ;;
     (system:output-raw-bytes *core-file* (space-sap space) 0 total-bytes)
     (force-output *core-file*)
     (file-position *core-file* posn)
-    ;; 
+    ;;
     ;; Write part of a (new) directory entry which looks like this:
     ;;
     ;; SPACE IDENTIFIER
@@ -2441,7 +2402,7 @@
     ;; DATA PAGE
     ;; ADDRESS
     ;; PAGE COUNT
-    ;; 
+    ;;
     (write-long (space-identifier space))
     (write-long (space-free-pointer space))
     (write-long *data-page*)
@@ -2460,33 +2421,33 @@
 				 :element-type '(unsigned-byte 8)
 				 :if-exists :rename-and-delete)
       ;; Write the magic number
-      ;; 
+      ;;
       (write-long (logior (ash (char-code #\C) 24)
 			  (ash (char-code #\O) 16)
 			  (ash (char-code #\R) 8)
 			  (char-code #\E)))
-      
+
       ;; Write the Version entry.
-      ;; 
+      ;;
       (write-long version-entry-type-code)
       (write-long 3)
       (write-long version)
 
       ;; Write the New Directory entry header.
-      ;; 
+      ;;
       (write-long new-directory-entry-type-code)
       (write-long 17) ; length = 5 words / space * 3 spaces + 2 for header.
-      
+
       (output-space *read-only*)
       (output-space *static*)
       (output-space *dynamic*)
-      
+
       (write-long initial-function-entry-type-code)
       (write-long 3)
       (write-long (descriptor-bits initial-function))
 
       ;; Write the End entry.
-      ;; 
+      ;;
       (write-long end-entry-type-code)
       (write-long 2)))
   (format t "done]~%")

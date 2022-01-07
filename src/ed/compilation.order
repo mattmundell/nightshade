@@ -1,9 +1,9 @@
-; Definitions of structures intended for use within the HEMLOCK-INTERNALS
+; Definitions of structures intended for use within the EDI
 ; package.
 Struct
-; Definitions of structures intended for use within the HEMLOCK package.
+; Definitions of structures intended for use within the ED package.
 Struct-ed
-; Code specific to CMU Common Lisp on the IBM RT/PC under Mach.
+; Code originally specific to running on the IBM RT/PC under Mach.
 rompsite
 ; Implementation dependant character hacking macros.
 Charmacs
@@ -123,7 +123,7 @@ MoreComs
 ; Stuff for undoing stuff.
 Undo
 
-; Killing and un-killing commands.  Mark ring primitives and commands.
+; Killing and yanking commands.  Mark ring primitives and commands.
 KillComs
 
 ; Searching and replacing commands.
@@ -230,9 +230,6 @@ diredcoms
 
 ; buffer hacking mode.
 bufed
-
-; lisp library browser mode; implementation dependent.
-lisp-lib
 
 ; completion mode to save key strokes for long Lisp identifiers.
 completion

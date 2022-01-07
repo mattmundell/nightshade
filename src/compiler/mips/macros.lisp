@@ -1,18 +1,4 @@
-;;; -*- Package: MIPS; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/macros.lisp,v 1.51 1994/10/31 04:44:16 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains various useful macros for generating MIPS code.
-;;;
-;;; Written by William Lott and Christopher Hoover.
-;;; 
+;;; Various useful macros for generating MIPS code.
 
 (in-package "MIPS")
 
@@ -44,7 +30,7 @@
      `(progn
 	(inst ,',inst ,object ,base (- (ash ,offset ,,shift) ,lowtag))
 	,,@(when load '('(inst nop))))))
-;;; 
+;;;
 (def-mem-op loadw lw word-shift t)
 (def-mem-op storew sw word-shift nil)
 #+gengc
@@ -82,9 +68,8 @@
       (:big-endian
        `(inst lbu ,n-target ,n-source (+ ,n-offset 3))))))
 
-
 ;;; Macros to handle the fact that we cannot use the machine native call and
-;;; return instructions. 
+;;; return instructions.
 
 #-gengc
 (defmacro lisp-jump (function lip)
@@ -116,13 +101,12 @@
      #-gengc
      (inst lra-header-word)))
 
-
 
-;;;; Stack TN's
+;;;; Stack TN's.
 
 ;;; Load-Stack-TN, Store-Stack-TN  --  Interface
 ;;;
-;;;    Move a stack TN to a register and vice-versa.
+;;; Move a stack TN to a register and vice-versa.
 ;;;
 (defmacro load-stack-tn (reg stack)
   `(let ((reg ,reg)
@@ -140,7 +124,6 @@
 	 ((control-stack)
 	  (storew reg cfp-tn offset))))))
 
-
 ;;; MAYBE-LOAD-STACK-TN  --  Interface
 ;;;
 (defmacro maybe-load-stack-tn (reg reg-or-stack)
@@ -156,7 +139,7 @@
 	   (loadw ,n-reg cfp-tn (tn-offset ,n-stack))))))))
 
 
-;;;; Storage allocation:
+;;;; Storage allocation.
 
 #-gengc
 (defmacro with-fixed-allocation ((result-tn flag-tn temp-tn type-code size)
@@ -190,7 +173,7 @@
      ,@body))
 
 
-;;;; Three Way Comparison
+;;;; Three Way Comparison.
 
 (defun three-way-comparison (x y condition flavor not-p target temp)
   (ecase condition
@@ -218,10 +201,8 @@
 	 (inst bne temp zero-tn target))))
   (inst nop))
 
-
 
-;;;; Error Code
-
+;;;; Error Code.
 
 (defvar *adjustable-vectors* nil)
 
@@ -262,7 +243,6 @@
   "Cause an error.  ERROR-CODE is the error to cause."
   (cons 'progn
 	(emit-error-break vop error-trap error-code values)))
-
 
 (defmacro cerror-call (vop label error-code &rest values)
   "Cause a continuable error.  If the error is continued, execution resumes at
@@ -311,9 +291,8 @@
      (without-scheduling ()
        (inst add alloc-tn ,flag-tn))))
 
-
 
-;;;; Memory accessor vop generators
+;;;; Memory accessor vop generators.
 
 (deftype load/store-index (scale lowtag min-offset
 				 &optional (max-offset min-offset))
@@ -393,7 +372,6 @@
 	 (inst #+gengc ,(if remember 'sw-and-remember-slot 'sw) #-gengc sw
 	       value object (- (* (+ ,offset index) word-bytes) ,lowtag))
 	 (move result value)))))
-
 
 (defmacro define-partial-reffer (name type size signed offset lowtag scs
 				      el-type &optional translate)
@@ -479,4 +457,3 @@
 		 value object
 		 (- (* ,offset word-bytes) (* index ,scale) ,lowtag))
 	   (move result value))))))
-

@@ -1,21 +1,6 @@
-;;; -*- Package: ALPHA; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/macros.lisp,v 1.2.2.1 1998/06/23 11:23:16 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains various useful macros for generating Alpha code.
-;;;
-;;; Written by William Lott and Christopher Hoover.
-;;; Alpha conversion by Sean Hallgren.
-;;; 
+;;; Various useful macros for generating Alpha code.
 
-(in-package :alpha)
+(in-package "ALPHA")
 
 ;;; Handy macro for defining top-level forms that depend on the compile
 ;;; environment.
@@ -72,7 +57,7 @@
 
 (defmacro load-type (target source &optional (offset 0))
   "Loads the type bits of a pointer into target independent of
-  byte-ordering issues."
+   byte-ordering issues."
   (once-only ((n-target target)
 	      (n-source source)
 	      (n-offset offset))
@@ -81,7 +66,7 @@
 	(inst and ,n-target #xff ,n-target))))
 
 ;;; Macros to handle the fact that we cannot use the machine native call and
-;;; return instructions. 
+;;; return instructions.
 
 (defmacro lisp-jump (function lip)
   "Jump to the lisp function FUNCTION.  LIP is an interior-reg temporary."
@@ -95,7 +80,7 @@
 (defmacro lisp-return (return-pc lip &key (offset 0) (frob-code t))
   "Return to RETURN-PC.  LIP is an interior-reg temporary."
   `(progn
-     (inst lda ,lip  
+     (inst lda ,lip
 	   (- (* (1+ ,offset) word-bytes) other-pointer-type)
 	    ,return-pc)
      ,@(when frob-code
@@ -111,13 +96,12 @@
      (emit-label ,label)
      (inst lra-header-word)))
 
-
 
-;;;; Stack TN's
+;;;; Stack TN's.
 
 ;;; Load-Stack-TN, Store-Stack-TN  --  Interface
 ;;;
-;;;    Move a stack TN to a register and vice-versa.
+;;; Move a stack TN to a register and vice-versa.
 ;;;
 (defmacro load-stack-tn (reg stack)
   `(let ((reg ,reg)
@@ -134,7 +118,6 @@
        (sc-case stack
 	 ((control-stack)
 	  (storew reg cfp-tn offset))))))
-
 
 ;;; MAYBE-LOAD-STACK-TN  --  Interface
 ;;;
@@ -167,9 +150,8 @@
 	    (inst mskll nsp-tn 0 ,temp)
 	    (inst bis ,temp ,n-reg ,n-reg))))))))
 
-
 
-;;;; Storage allocation:
+;;;; Storage allocation.
 
 (defmacro with-fixed-allocation ((result-tn temp-tn type-code size)
 				 &body body)
@@ -184,10 +166,8 @@
      (storew ,temp-tn ,result-tn 0 other-pointer-type)
      ,@body))
 
-
 
-;;;; Error Code
-
+;;;; Error Code.
 
 (defvar *adjustable-vectors* nil)
 
@@ -228,7 +208,6 @@
   "Cause an error.  ERROR-CODE is the error to cause."
   (cons 'progn
 	(emit-error-break vop error-trap error-code values)))
-
 
 (defmacro cerror-call (vop label error-code &rest values)
   "Cause a continuable error.  If the error is continued, execution resumes at
@@ -271,9 +250,8 @@
      (inst lda alloc-tn (1- ,extra) alloc-tn)
      (inst stl zero-tn 0 alloc-tn)))
 
-
 
-;;;; Memory accessor vop generators
+;;;; Memory accessor vop generators.
 
 (deftype load/store-index (scale lowtag min-offset
 				 &optional (max-offset min-offset))
@@ -355,7 +333,6 @@
 	 (inst stl value (- (* (+ ,offset index) word-bytes) ,lowtag)
 	       object)
 	 (move value result)))))
-
 
 (defmacro define-partial-reffer (name type size signed offset lowtag scs
 				      el-type &optional translate)
@@ -516,7 +493,7 @@
 		`((inst lda temp (- (* ,offset word-bytes)
 				    (* index ,scale) ,lowtag)
 			object)
-		  (inst ldq_u temp1 (- (* ,offset word-bytes) 
+		  (inst ldq_u temp1 (- (* ,offset word-bytes)
 				       (* index ,scale) ,lowtag)
 			object)
 		  (inst insbl value temp temp2)

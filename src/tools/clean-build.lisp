@@ -1,6 +1,4 @@
-;;; -*- Package: User -*-
-;;;
-;;; Clean the Lisp part (i.e. built from Lisp code) of a build directory.
+;;; Clean the Lisp part of a build (the part built from Lisp source).
 ;;;
 ;;; Intended for a command like
 ;;;
@@ -46,4 +44,3 @@
   t)
 
 (clean-build build)
-;(quit)

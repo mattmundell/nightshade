@@ -1,4 +1,3 @@
-;;; -*- Package: C -*-
 (in-package "C")
 
 (use-package "PROFILE")

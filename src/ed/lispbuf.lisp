@@ -4,8 +4,22 @@
 
 (export '(defun-region))
 
+#[ Manipulating the Editor Process
+
+When customizing the editor, it is useful to be able to manipulate the
+editor Lisp environment from the editor.
+
+{command:Editor Describe}
+{command:Room}
+{command:Editor Load File}
+
+[ Editor Mode    ]
+[ Eval Mode      ]
+[ Error Handling ]
+]#
+
 (define-file-option "Package" (buffer value)
-  (defhvar "Current Package"
+  (defevar "Current Package"
     "The package used for evaluation of Lisp in this buffer."
     :buffer buffer
     :value
@@ -26,6 +40,26 @@
 
 ;;;; Eval Mode Interaction.
 
+#[ Eval Mode
+
+`Eval' mode is a minor mode that simulates a read
+eval print loop running within the editor process.  Since Lisp
+program development is usually done in a separate eval server process (see section
+[Eval Servers]), `Eval' mode is used primarily for debugging code
+that must run in the editor process.  `Eval' mode shares some commands with
+`Typescript' mode: see section [Typescripts].
+
+`Eval' mode doesn't completely support terminal I/O: it binds
+`standard-output' to a stream that inserts into the buffer and
+`standard-input' to a stream that signals an error for all operations.
+the editor cannot correctly support the interactive evaluation of forms that read
+from the `Eval' interactive buffer.
+
+{command:Select Eval Buffer}
+{command:Confirm Eval Input}
+{command:Abort Eval Input}
+]#
+
 (proclaim '(special * ** *** - + ++ +++ / // /// *prompt*))
 
 (defun setup-eval-mode (buffer)
@@ -34,31 +68,30 @@
     (setf (buffer-minor-mode buffer "Editor") t)
     (setf (buffer-major-mode buffer) "Lisp")
     (buffer-end point)
-    (defhvar "Current Package"
+    (defevar "Current Package"
       "This variable holds the name of the package currently used for Lisp
        evaluation and compilation.  If it is Nil, the value of *Package* is used
        instead."
-      :value nil
       :buffer buffer)
     (unless (editor-bound-p 'buffer-input-mark :buffer buffer)
-      (defhvar "Buffer Input Mark"
+      (defevar "Buffer Input Mark"
 	"Mark used for Eval Mode input."
 	:buffer buffer
 	:value (copy-mark point :right-inserting))
-      (defhvar "Eval Output Stream"
+      (defevar "Eval Output Stream"
 	"Output stream used for Eval Mode output in this buffer."
 	:buffer buffer
-	:value (make-hemlock-output-stream point))
-      (defhvar "Interactive History"
+	:value (make-editor-output-stream point))
+      (defevar "Interactive History"
 	"A ring of the regions input to an interactive mode (Eval or Typescript)."
 	:buffer buffer
 	:value (make-ring (value interactive-history-length)))
-      (defhvar "Interactive Pointer"
-	"Pointer into \"Interactive History\"."
+      (defevar "Interactive Pointer"
+	"Pointer into *Interactive History*."
 	:buffer buffer
 	:value 0)
-      (defhvar "Searching Interactive Pointer"
-	"Pointer into \"Interactive History\"."
+      (defevar "Searching Interactive Pointer"
+	"Pointer into *Interactive History*."
 	:buffer buffer
 	:value 0))
     (let ((*standard-output*
@@ -78,22 +111,21 @@
 ;;;
 (add-hook eval-mode-hook 'eval-mode-lisp-mode-hook)
 
-(defhvar "Editor Definition Info"
-  "When this is non-nil, the editor Lisp is used to determine definition
+(defevar "Editor Definition Info"
+  "When this is true, the editor Lisp is used to determine definition
    editing information; otherwise, the slave Lisp is used."
   :value t
   :mode "Eval")
 
-
 (defvar *selected-eval-buffer* nil)
 
-(defcommand "Select Eval Buffer" (p)
-  "Goto buffer in \"Eval\" mode, creating one if necessary."
-  "Goto buffer in \"Eval\" mode, creating one if necessary."
-  (declare (ignore p))
+(defcommand "Select Eval Buffer" ()
+  "Change to the `Eval' buffer if it exists, else create one.  The `Eval'
+   buffer is created with `Lisp' as the major mode and `Eval' and `Editor'
+   as minor modes."
   (unless *selected-eval-buffer*
-    (when (getstring "Eval" *buffer-names*)
-      (editor-error "There is already a buffer named \"Eval\"!"))
+    (if (getstring "Eval" *buffer-names*)
+	(editor-error "There is already a buffer named \"Eval\"."))
     (setf *selected-eval-buffer*
 	  (make-buffer "Eval"
 		       :delete-hook
@@ -103,35 +135,38 @@
     (setf (buffer-minor-mode *selected-eval-buffer* "Eval") t))
   (change-to-buffer *selected-eval-buffer*))
 
-
 (defvar lispbuf-eof '(nil))
 
-(defhvar "Unwedge Interactive Input Confirm"
-  "When set (the default), trying to confirm interactive input when the
-   point is not after the input mark causes the editor to ask the user if
-   he needs to be unwedged.  When not set, an editor error is signaled
-   informing the user that the point is before the input mark."
+(defevar "Unwedge Interactive Input Confirm"
+  "When set, confirmation of interactive input when the point is before the
+   input mark causes the editor to ask the user if the point needs to be
+   unwedged.  When clear, an editor error is signaled, informing the user
+   that the point is before the input mark."
   :value t)
 
 (defun unwedge-eval-buffer ()
-  (abort-eval-input-command nil))
+  (abort-eval-input-command))
 
-(defhvar "Unwedge Interactive Input Fun"
+(defevar "Unwedge Interactive Input Fun"
   "Function to call when input is confirmed, but the point is not past the
    input mark."
   :value #'unwedge-eval-buffer
   :mode "Eval")
 
-(defhvar "Unwedge Interactive Input String"
+(defevar "Unwedge Interactive Input String"
   "String to add to \"Point not past input mark.  \" explaining what will
    happen if the the user chooses to be unwedged."
   :value "Prompt again at the end of the buffer? "
   :mode "Eval")
 
-(defcommand "Confirm Eval Input" (p)
-  "Evaluate Eval Mode input between point and last prompt."
-  "Evaluate Eval Mode input between point and last prompt."
-  (declare (ignore p))
+(defcommand "Confirm Eval Input" ()
+  "Evaluate all the forms between the end of the last output and the end of
+   the buffer, inserting the results of their evaluation in the buffer.
+   Beep if the form is erroneous.  Use Linefeed to insert line breaks in
+   the middle of a form.
+
+   Use `Unwedge Interactive Input Confirm' in the same way `Confirm
+   Interactive Input' does."
   (let ((input-region (get-interactive-input)))
     (when input-region
       (let* ((output (value eval-output-stream))
@@ -160,10 +195,8 @@
 		 (setq /// // // / / this-eval)
 		 (setq *** ** ** * * (car this-eval)))))))))))
 
-(defcommand "Abort Eval Input" (p)
+(defcommand "Abort Eval Input" ()
   "Move to the end of the buffer and prompt."
-  "Move to the end of the buffer and prompt."
-  (declare (ignore p))
   (let ((point (current-point)))
     (buffer-end point)
     (insert-character point #\newline)
@@ -175,16 +208,15 @@
 		       *prompt*))
     (move-mark (value buffer-input-mark) point)))
 
-
 
 ;;;; General interactive commands used in eval and typescript buffers.
 
 (defun get-interactive-input ()
-  "Tries to return a region.  When the point is not past the input mark, and
-   the user has \"Unwedge Interactive Input Confirm\" set, the buffer is
-   optionally fixed up, and nil is returned.  Otherwise, an editor error is
-   signalled.  When a region is returned, the start is the current buffer's
-   input mark, and the end is the current point moved to the end of the buffer."
+  "Tries to return a region.  When the point is not past the input mark,
+   and *Unwedge Interactive Input Confirm* is set, the buffer is optionally
+   fixed up, and () is returned.  Otherwise, an editor error is signalled.
+   When a region is returned, the start is the current buffer's input mark,
+   and the end is the current point moved to the end of the buffer."
   (let ((point (current-point))
 	(mark (value buffer-input-mark)))
     (cond
@@ -193,10 +225,10 @@
       (let* ((input-region (region mark point))
 	     (string (region-to-string input-region))
 	     (ring (value interactive-history)))
-	(when (and (or (zerop (ring-length ring))
-		       (string/= string (region-to-string (ring-ref ring 0))))
-		   (> (length string) (value minimum-interactive-input-length)))
-	  (ring-push (copy-region input-region) ring))
+	(if (and (or (zerop (ring-length ring))
+		     (string/= string (region-to-string (ring-ref ring 0))))
+		 (> (length string) (value minimum-interactive-input-length)))
+	    (ring-push (copy-region input-region) ring))
 	input-region))
      ((value unwedge-interactive-input-confirm)
       (beep)
@@ -204,29 +236,28 @@
 	     :prompt (concatenate 'simple-string
 				  "Point before input mark.  "
 				  (value unwedge-interactive-input-string))
-	     :must-exist t :default t :default-string "yes")
+	     :must-exist t :default t :default-string "Y")
 	(funcall (value unwedge-interactive-input-fun))
 	(message "Point moved to input mark."))
       nil)
      (t
       (editor-error "Point before input mark.")))))
 
-(defhvar "Interactive History Length"
-  "This is the length used for the history ring in interactive buffers.
-   It must be set before turning on the mode."
+(defevar "Interactive History Length"
+  "The length used for the history ring in interactive buffers.  Must be
+   set before turning on the mode."
   :value 350)
 
-(defhvar "Minimum Interactive Input Length"
-  "When the number of characters in an interactive buffer exceeds this value,
-   it is pushed onto the interactive history, otherwise it is lost forever."
+(defevar "Minimum Interactive Input Length"
+  "When the number of characters in an interactive buffer exceeds this
+   value, it is pushed onto the interactive history."
   :value 2)
 
-
-(defvar *previous-input-search-string* "ignore")
+(defvar *previous-input-search-string* "initial")
 
 (defvar *previous-input-search-pattern*
   ;; Give it a bogus string since you can't give it the empty string.
-  (new-search-pattern :string-insensitive :forward "ignore"))
+  (new-search-pattern :string-insensitive :forward "initial"))
 
 (defun get-previous-input-search-pattern (string)
   (if (string= *previous-input-search-string* string)
@@ -235,25 +266,23 @@
 			  (setf *previous-input-search-string* string)
 			  *previous-input-search-pattern*)))
 
-(defcommand "Search Previous Interactive Input" (p)
-  "Search backward through the interactive history using the current input as
-   a search string.  Consecutive invocations repeat the previous search."
-  "Search backward through the interactive history using the current input as
-   a search string.  Consecutive invocations repeat the previous search."
-  (declare (ignore p))
+(defcommand "Search Previous Interactive Input" ()
+  "Search backward through the interactive history using the current input
+   as a search string.  When invoked directly after an invocation, repeat
+   the previous search."
   (let* ((mark (value buffer-input-mark))
 	 (ring (value interactive-history))
 	 (point (current-point))
 	 (just-invoked (eq (last-command-type) :searching-interactive-input)))
-    (when (mark<= point mark)
-      (editor-error "Point not past input mark."))
-    (when (zerop (ring-length ring))
-      (editor-error "No previous input in this buffer."))
-    (unless just-invoked
-      (get-previous-input-search-pattern (region-to-string (region mark point))))
+    (if (mark<= point mark)
+	(editor-error "Point not past input mark."))
+    (if (zerop (ring-length ring))
+	(editor-error "No previous input in this buffer."))
+    (or just-invoked
+	(get-previous-input-search-pattern (region-to-string (region mark point))))
     (let ((found-it (find-previous-input ring just-invoked)))
-      (unless found-it
-	(editor-error "Couldn't find ~a." *previous-input-search-string*))
+      (or found-it
+	  (editor-error "Couldn't find ~a." *previous-input-search-string*))
       (delete-region (region mark point))
       (insert-region point (ring-ref ring found-it))
       (setf (value searching-interactive-pointer) found-it))
@@ -275,16 +304,18 @@
 	(incf base))))
 
 (defcommand "Previous Interactive Input" (p)
-  "Insert the previous input in an interactive mode (Eval or Typescript).
-   If repeated, keep rotating the history.  With prefix argument, rotate
-   that many times."
-  "Pop the *interactive-history* at the point."
+  "Rotate the interactive history forward, inserting the current entry in
+   the buffer.  Leave the region around the inserted text.  With a prefix
+   argument, rotate that many times."
   (let* ((point (current-point))
 	 (mark (value buffer-input-mark))
 	 (ring (value interactive-history))
 	 (length (ring-length ring))
 	 (p (or p 1)))
-    (when (or (mark< point mark) (zerop length)) (editor-error))
+    (if (zerop length) (editor-error "Interactive history empty."))
+    (if (mark< point mark)
+	(editor-error
+	 "Point must be after the buffer input mark (the prompt)."))
     (cond
      ((eq (last-command-type) :interactive-history)
       (let ((base (mod (+ (value interactive-pointer) p) length)))
@@ -295,45 +326,49 @@
       (let ((base (mod (if (minusp p) p (1- p)) length))
 	    (region (delete-and-save-region (region mark point))))
 	(insert-region point (ring-ref ring base))
-	(when (mark/= (region-start region) (region-end region))
-	  (ring-push region ring)
-	  (incf base))
+	(or (mark= (region-start region) (region-end region))
+	    (progn
+	      (ring-push region ring)
+	      (incf base)))
 	(setf (value interactive-pointer) base)))))
   (setf (last-command-type) :interactive-history))
 
 (defcommand "Next Interactive Input" (p)
-  "Rotate the interactive history backwards.  The region is left around the
-   inserted text.  With prefix argument, rotate that many times."
-  "Call previous-interactive-input-command with negated arg."
+  "Rotate the interactive history backwards, inserting the current entry in
+   the buffer.  Leave the region around the inserted text.  With a prefix
+   argument, rotate that many times."
   (previous-interactive-input-command (- (or p 1))))
 
-(defcommand "Kill Interactive Input" (p)
+(defcommand "Kill Interactive Input" ()
   "Kill any input to an interactive mode (Eval or Typescript)."
-  "Kill any input to an interactive mode (Eval or Typescript)."
-  (declare (ignore p))
   (let ((point (buffer-point (current-buffer)))
 	(mark (value buffer-input-mark)))
-    (when (mark< point mark) (editor-error))
+    (if (mark< point mark)
+	(editor-error
+	 "Point must be after the buffer input mark (the prompt)."))
     (kill-region (region mark point) :kill-backward)))
 
 (defcommand "Interactive Beginning of Line" (p)
-  "If on line with current prompt, go to after it, otherwise do what
-  \"Beginning of Line\" always does."
-  "Go to after prompt when on prompt line."
+  "If on line with current prompt, go to the end of the prompt, otherwise
+   move the point to the beginning of the current line.  With prefix
+   argument, move the point to the beginning of the prefix'th next line."
   (let ((mark (value buffer-input-mark))
 	(point (current-point)))
     (if (and (same-line-p point mark) (or (not p) (= p 1)))
 	(move-mark point mark)
 	(beginning-of-line-command p))))
 
-(defcommand "Reenter Interactive Input" (p)
-  "Copies the form to the left of point to be after the interactive buffer's
-   input mark.  When the current region is active, it is copied instead."
-  "Copies the form to the left of point to be after the interactive buffer's
-   input mark.  When the current region is active, it is copied instead."
-  (declare (ignore p))
-  (unless (editor-bound-p 'buffer-input-mark)
-    (editor-error "Not in an interactive buffer."))
+(defcommand "Reenter Interactive Input" ()
+  "Copies the form to the left of point to be after the interactive
+   buffer's input mark.  When the current region is active, copy the
+   current region instead.
+
+   This is sometimes easier to use to get a previous input that is either
+   so far back that it has fallen off the history or is visible and more
+   readily yanked than gotten with successive invocations of the history
+   commands."
+  (or (editor-bound-p 'buffer-input-mark)
+      (editor-error "Must be in an interactive buffer."))
   (let ((point (current-point)))
     (let ((region (if (region-active-p)
 		      ;; Copy this, so moving point doesn't affect the region.
@@ -341,54 +376,82 @@
 		      (with-mark ((start point)
 				  (end point))
 			(pre-command-parse-check start)
-			(unless (form-offset start -1)
-			  (editor-error "Not after complete form."))
+			(or (form-offset start -1)
+			    (editor-error "Not after complete form."))
 			(region (copy-mark start) (copy-mark end))))))
       (buffer-end point)
       (push-buffer-mark (copy-mark point))
       (insert-region point region)
       (setf (last-command-type) :ephemerally-active))))
 
-
 
 ;;; Other stuff.
 
-(defmode "Editor")
+#[ Editor Mode
 
-(defcommand "Editor Mode" (p)
-  "Turn on \"Editor\" mode in the current buffer.  If it is already on, turn it
-  off.  When in editor mode, most lisp compilation and evaluation commands
-  manipulate the editor process instead of the current eval server."
-  "Toggle \"Editor\" mode in the current buffer."
-  (declare (ignore p))
-  (setf (buffer-minor-mode (current-buffer) "Editor")
-	(not (buffer-minor-mode (current-buffer) "Editor"))))
+When `Editor' mode is on, alternate versions of the Lisp interaction
+commands are bound in place of the eval server based commands.  These commands
+manipulate the editor process instead of the current eval server.  Turning on
+editor mode in a buffer allows incremental development of code within the
+running editor.
+
+{mode:Editor}
+
+The following commands are similar to the standard commands, but modify or
+examine the Lisp process that the editor is running in.  Terminal I/O is
+done on the initial window for the editor's Lisp process.  Output is
+directed to a pop-up window or the editor's window instead of to the
+background buffer.
+
+FIX link to standard commands
+
+    Editor Compile Defun
+    Editor Compile Region
+    Editor Evaluate Buffer
+    Editor Evaluate Defun
+    Editor Evaluate Region
+    Editor Macroexpand Expression
+    Editor Evaluate Defvar
+    Editor Describe Function Call
+    Editor Describe Symbol
+
+    Editor Compile Buffer File}
+    Editor Compile File}
+    Editor Compile Group
+
+In addition to compiling in the editor process, these commands differ from
+the eval server versions in that they direct output to the the `Compiler
+Warnings' buffer.
+
+{command:Editor Evaluate Expression}
+]#
+
+(defmode "Editor"
+  :documentation
+  "When in editor mode, most lisp compilation and evaluation commands
+   manipulate the editor process instead of the current eval server.")
 
 (define-file-option "Editor" (buffer value)
   (declare (ignore value))
   (setf (buffer-minor-mode buffer "Editor") t))
 
-(defhvar "Editor Definition Info"
-  "When this is non-nil, the editor Lisp is used to determine definition
+(defevar "Editor Definition Info"
+  "When this is true, the editor Lisp is used to determine definition
    editing information; otherwise, the slave Lisp is used."
   :value t
   :mode "Editor")
 
-(defcommand "Editor Compile Defun" (p)
-  "Compiles the current or next top-level form in the editor Lisp.
-   First the form is evaluated, then the result of this evaluation
-   is passed to compile.  If the current region is active, this
-   compiles the region."
-  "Evaluates the current or next top-level form in the editor Lisp."
-  (declare (ignore p))
+(defcommand "Editor Compile Defun" ()
+  "Compile the current or next top-level form in the editor Lisp.  First
+   the form is evaluated, then the result of this evaluation is passed to
+   compile.  If the current region is active, this compiles the region."
+  "Evaluate the current or next top-level form in the editor Lisp."
   (if (region-active-p)
       (editor-compile-region (current-region))
       (editor-compile-region (defun-region (current-point)) t)))
 
-(defcommand "Editor Compile Region" (p)
+(defcommand "Editor Compile Region" ()
   "Compiles lisp forms between the point and the mark in the editor Lisp."
-  "Compiles lisp forms between the point and the mark in the editor Lisp."
-  (declare (ignore p))
   (editor-compile-region (current-region)))
 
 (defun previous-sexp-region (mark)
@@ -403,9 +466,10 @@
     (region start end)))
 
 (defun defun-region (mark)
-  "This returns a region around the current or next defun with respect to mark.
-   Mark is not used to form the region.  If there is no appropriate top level
-   form, this signals an editor-error.  This calls PRE-COMMAND-PARSE-CHECK."
+  "Return a region around the current or next defun with respect to $mark.
+   Allocate new marks to form the region.  Signal an editor error on
+   failing to find an appropriate top level form.  Call
+   `pre-command-parse-check' first."
   (with-mark ((start mark)
 	      (end mark))
     (pre-command-parse-check start)
@@ -414,7 +478,7 @@
 	  (t (region start end)))))
 
 (defun editor-compile-region (region &optional quiet)
-  (unless quiet (message "Compiling region ..."))
+  (or quiet (message "Compiling region ..."))
   (in-lisp
    (with-input-from-region (stream region)
      (with-pop-up-display (*error-output* :height 19)
@@ -422,26 +486,38 @@
 			       :source-info
 			       (buffer-pathname (current-buffer)))))))
 
-
 (defcommand "Editor Evaluate Defun" (p)
   "Evaluates the current or next top-level form in the editor Lisp.  If the
    current region is active, this evaluates the region.  With a prefix
    argument this inserts the result at point."
   "Evaluates the current or next top-level form in the editor Lisp."
   (if (region-active-p)
-      (editor-evaluate-region-command nil)
+      (editor-evaluate-region-command)
       (with-input-from-region (stream (defun-region (current-point)))
 	(clear-echo-area)
 	(in-lisp
-	 (let ((str (format nil "~S" (eval (read stream)))))
-	   (if p
-	       (insert-string (current-point) str)
-	       (message "Editor Evaluation returned ~S" str)))))))
+	 (let* ((buffer (current-buffer))
+		(eval::*interp-source-hack* (buffer-pathname buffer))
+		(eval::*interp-position-hack*
+		 (count-characters
+		  (region (buffer-start-mark buffer)
+			  (buffer-point buffer))))
+		(form (read stream)))
+	   (when (eq (car form) 'defvar)
+	     ;; FIX check if already bound
+	     (message "Resetting value of variable ~A..." (cadr form))
+	     (makunbound (cadr form)))
+	   (let ((str (format () "~S" (eval form
+					    (buffer-pathname buffer)
+					    (count-characters
+					     (region (buffer-start-mark buffer)
+						     (buffer-point buffer)))))))
+	     (if p
+		 (insert-string (current-point) str)
+		 (message "Editor Evaluation returned ~S" str))))))))
 
-(defcommand "Editor Evaluate Region" (p)
+(defcommand "Editor Evaluate Region" ()
   "Evaluates lisp forms between the point and the mark in the editor Lisp."
-  "Evaluates lisp forms between the point and the mark in the editor Lisp."
-  (declare (ignore p))
   (with-input-from-region (stream (current-region))
     (clear-echo-area)
     (write-string "Evaluating region in the editor ..." *echo-area-stream*)
@@ -453,69 +529,63 @@
        (eval object)))
     (message "Evaluation complete.")))
 
-(defcommand "Editor Re-evaluate Defvar" (p)
+(defcommand "Editor Evaluate Defvar" ()
   "Evaluate the current or next top-level form if it is a DEFVAR.  Treat the
    form as if the variable is not bound.  This occurs in the editor Lisp."
-  "Evaluate the current or next top-level form if it is a DEFVAR.  Treat the
-   form as if the variable is not bound.  This occurs in the editor Lisp."
-  (declare (ignore p))
   (with-input-from-region (stream (defun-region (current-point)))
     (clear-echo-area)
     (in-lisp
      (let ((form (read stream)))
-       (unless (eq (car form) 'defvar) (editor-error "Not a DEFVAR."))
+       (or (eq (car form) 'defvar)
+	   (editor-error "Form must be a defvar."))
        (makunbound (cadr form))
        (message "Evaluation returned ~S" (eval form))))))
 
 (defcommand "Editor Macroexpand Expression" (p)
-  "Show the macroexpansion of the current expression in the null environment.
-   With an argument, use MACROEXPAND instead of MACROEXPAND-1."
-  "Show the macroexpansion of the current expression in the null environment.
-   With an argument, use MACROEXPAND instead of MACROEXPAND-1."
+  "Show the macroexpansion of the current expression in the null
+   environment.  With an argument, use `macroexpand' instead of
+   `macroexpand-1'."
   (let ((point (buffer-point (current-buffer))))
     (with-mark ((start point))
       (pre-command-parse-check start)
       (with-mark ((end start))
-        (unless (form-offset end 1) (editor-error))
-	(in-lisp
-	 (with-pop-up-display (rts)
-	   (write-string (with-input-from-region (s (region start end))
-			   (prin1-to-string (funcall (if p
-							 'macroexpand
-							 'macroexpand-1)
-						     (read s))))
-			 rts)))))))
-
-(defvar *ed-eval-expr-history* (make-ring 350)
-  "This ring-buffer contains expression previously put into Editor Evaluate
-   Expression.")
-
-(defvar *ed-eval-expr-history-pointer* 0
-  "Current position during a historical exploration.")
+        (or (form-offset end 1)
+	    (editor-error "Point must be followed by a form to expand."))
+	(or (in-lisp
+	     (with-input-from-region (s (region start end))
+	       (let ((name (read s ())))
+		 (when name
+		   (with-pop-up-display (rts)
+		     (write-string (prin1-to-string (funcall (if p
+								 'macroexpand
+								 'macroexpand-1)
+							     name))
+				   rts)
+		     t)))))
+	    (editor-error "List must be a function call."))))))
 
 (defcommand "Editor Evaluate Expression" (p)
-  "Prompt for an expression to evaluate in the editor Lisp.
-With a prefix argument insert the result at point."
-  "Prompt for an expression to evaluate in the editor Lisp.
-With a prefix argument insert the result at point."
+  "Evaluate a prompted expression in the editor Lisp, displaying the result
+   in the echo area.  With a prefix argument insert the result at point."
   (in-lisp
-   (let ((str (multiple-value-call #'format nil "~@{~#[~;~S~:;~S, ~]~}"
+   (let ((str (multiple-value-call #'format () "~@{~#[~;~S~:;~S, ~]~}"
 		(eval (prompt-for-expression
 		       :prompt "Editor Eval: "
-		       :help "Expression to evaluate"
-		       :history *ed-eval-expr-history*
-		       :history-pointer
-		       '*ed-eval-expr-history-pointer*)))))
+		       :help "Expression to evaluate")))))
      (if p
 	 (insert-string (current-point) str)
-	 (message "=> ~A" str)))))
+	 (let ((int (parse-integer str :errorp ())))
+	   (if int
+	       (if (and (plusp int) (< int 256)) ; FIX (plusp (< int 256))?
+		   (message "=> ~A (#x~X #o~O #b~B #\\~C)" int int int int (code-char int))
+		   (message "=> ~A (#x~X #o~O #b~B)" int int int int))
+	       (message "=> ~A" str)))))))
 
-(defcommand "Editor Evaluate Buffer" (p)
+(defcommand "Editor Evaluate Buffer" ()
   "Evaluates the text in the current buffer in the editor Lisp."
   "Evaluates the text in the current buffer redirecting *Standard-Output* to
    the echo area.  This occurs in the editor Lisp.  The prefix argument is
    ignored."
-  (declare (ignore p))
   (clear-echo-area)
   (write-string "Evaluating buffer in the editor ..." *echo-area-stream*)
   (finish-output *echo-area-stream*)
@@ -528,13 +598,11 @@ With a prefix argument insert the result at point."
 	 (eval object))))
     (message "Evaluation complete.")))
 
-
-(defcommand "Editor Compile File" (p)
+(defcommand "Editor Compile File" ()
   "Prompts for file to compile in the editor Lisp.  Does not compare source
    and binary write dates.  Does not check any buffer for that file for
    whether the buffer needs to be saved."
   "Prompts for file to compile."
-  (declare (ignore p))
   (let ((pn (prompt-for-file :default
 			     (buffer-default-pathname (current-buffer))
 			     :prompt "File to compile: ")))
@@ -542,17 +610,18 @@ With a prefix argument insert the result at point."
       (in-lisp (compile-file (namestring pn) :error-file nil)))))
 
 (defcommand "Editor Compile Buffer File" (p)
-  "Compile the file in the current buffer in the editor Lisp if its associated
-   binary file (of type .fasl) is older than the source or doesn't exist.  When
-   the binary file is up to date, the user is asked if the source should be
-   compiled anyway.  When the prefix argument is supplied, compile the file
-   without checking the binary file.  When \"Compile Buffer File Confirm\" is
-   set, this command will ask for confirmation when it otherwise would not."
-  "Compile the file in the current buffer in the editor Lisp if the fasl file
-   isn't up to date.  When p, always do it."
+  "Compile the file in the current buffer in the editor Lisp if its
+   associated binary file (of type .fasl) is older than the source or
+   doesn't exist.  When the binary file is up to date, the user is asked if
+   the source should be compiled anyway.  When the prefix argument is
+   supplied, compile the file without checking the binary file.  When
+   *Compile Buffer File Confirm* is set, this command will ask for
+   confirmation when it otherwise would not."
+  "Compile the file in the current buffer in the editor Lisp if the fasl
+   file isn't up to date.  When $p, always do it."
   (let* ((buf (current-buffer))
 	 (pn (buffer-pathname buf)))
-    (unless pn (editor-error "Buffer has no associated pathname."))
+    (or pn (editor-error "Buffer must have an associated pathname."))
     (cond ((buffer-modified buf)
 	   (when (or (not (value compile-buffer-file-confirm))
 		     (prompt-for-y-or-n
@@ -586,7 +655,7 @@ With a prefix argument insert the result at point."
    All modified files are saved beforehand."
   "Do a Compile-File in each file in the current group that seems to need it
    in the editor Lisp."
-  (save-all-files-command ())
+  (save-all-files-command)
   (unless *active-file-group* (editor-error "No active file group."))
   (dolist (file *active-file-group*)
     (when (string-equal (pathname-type file) "lisp")
@@ -597,13 +666,11 @@ With a prefix argument insert the result at point."
 	       (with-output-to-window (*error-output* "Compiler Warnings")
 		 (in-lisp (compile-file (namestring tn) :error-file nil)))))))))
 
-(defcommand "List Compile Group" (p)
-  "List any files that would be compiled by \"Compile Group\".  All Modified
+(defcommand "List Compile Group" ()
+  "List any files that would be compiled by `Compile Group'.  All Modified
    files are saved before checking to generate a consistent list."
-  "Do a Compile-File in each file in the current group that seems to need it."
-  (declare (ignore p))
-  (save-all-files-command ())
-  (unless *active-file-group* (editor-error "No active file group."))
+  (save-all-files-command)
+  (or *active-file-group* (editor-error "No active file group."))
   (with-pop-up-display (s)
     (write-line "\"Compile Group\" would compile the following files:" s)
     (force-output s)
@@ -616,13 +683,11 @@ With a prefix argument insert the result at point."
 		 (write-line (namestring tn) s)))
 	  (force-output s))))))
 
-(defhvar "Load Pathname Defaults"
-  "The default pathname used by the load command.")
+(defevar "Load Pathname Defaults"
+  "The fallback pathname for the `Load File' command.")
 
-(defcommand "Editor Load File" (p)
-  "Prompt for a file to load into Editor Lisp."
-  "Prompt for a file to load into the Editor Lisp."
-  (declare (ignore p))
+(defcommand "Editor Load File" ()
+  "Load a prompted file into the editor Lisp."
   (let ((name (truename (prompt-for-file
 			 :default
 			 (or (value load-pathname-defaults)
@@ -631,7 +696,6 @@ With a prefix argument insert the result at point."
 			 :help "The name of the file to load"))))
     (setv load-pathname-defaults name)
     (in-lisp (load name))))
-
 
 
 ;;;; Lisp documentation stuff.
@@ -650,27 +714,26 @@ With a prefix argument insert the result at point."
 	 (t
 	  (,error-name "~S is not a function." ,var))))
 
-(defcommand "Editor Describe Function Call" (p)
+(defcommand "Editor Describe Function Call" ()
   "Describe the most recently typed function name in the editor Lisp."
-  "Describe the most recently typed function name in the editor Lisp."
-  (declare (ignore p))
   (with-mark ((mark1 (current-point))
 	      (mark2 (current-point)))
     (pre-command-parse-check mark1)
-    (unless (backward-up-list mark1) (editor-error))
+    (or (backward-up-list mark1)
+	(editor-error "Point must be enclosed by a list."))
     (form-offset (move-mark mark2 (mark-after mark1)) 1)
     (with-input-from-region (s (region mark1 mark2))
-      (in-lisp
-       (let* ((sym (read s))
-	      (fun (function-to-describe sym editor-error)))
-	 (with-pop-up-display (*standard-output*)
-	   (editor-describe-function fun sym)))))))
+      (or (in-lisp
+	   (let ((sym (read s ())))
+	     (when sym
+	       (let ((fun (function-to-describe sym editor-error)))
+		 (with-pop-up-display (*standard-output*)
+		   (editor-describe-function fun sym)))
+	       t)))
+	  (editor-error "List must be a function call.")))))
 
-
-(defcommand "Editor Describe Symbol" (p)
+(defcommand "Editor Describe Symbol" ()
   "Describe the previous s-expression if it is a symbol in the editor Lisp."
-  "Describe the previous s-expression if it is a symbol in the editor Lisp."
-  (declare (ignore p))
   (with-mark ((mark1 (current-point))
 	      (mark2 (current-point)))
     (mark-symbol mark1 mark2)
@@ -713,12 +776,9 @@ With a prefix argument insert the result at point."
 			   #'(lambda (x) (not (eq x :prefix))))
 	   (form-offset (move-mark mark2 mark1) 1)))))
 
-
-(defcommand "Editor Describe" (p)
-  "Call Describe on a Lisp object.
-  Prompt for an expression which is evaluated to yield the object."
-  "Describe the result of evaluating a prompted expression."
-  (declare (ignore p))
+(defcommand "Editor Describe" ()
+  "Prompt for an expression, then evaluate the expression and describes the
+   result in the editor process."
   (in-lisp
    (let* ((exp (prompt-for-expression
 		:prompt "Object: "
@@ -727,13 +787,11 @@ With a prefix argument insert the result at point."
      (with-pop-up-display (*standard-output*)
        (describe obj)))))
 
-(defcommand "Editor Describe Function" (p)
+(defcommand "Editor Describe Function" ()
   "Prompt for the name of a function and describe the function."
-  "Prompt for the name of a function and describe the function."
-  (declare (ignore p))
   (let* ((name (prompt-for-string
 		:prompt "Function: "
-		:default (word-at-point)
+		:default (name-at-point)
 		:help "Name of function to describe."))
 	 (function (symbol-function (read-from-string name))))
     (in-lisp
@@ -744,14 +802,53 @@ With a prefix argument insert the result at point."
 				 name))
        (describe function)))))
 
+(defcommand "Editor Describe Variable" ()
+  "Prompt for the name of a variable and describe the variable."
+  (let* ((name (prompt-for-string
+		:prompt "Variable: "
+		:default (word-at-point)
+		:help "Name of variable to describe."))
+	 (variable (read-from-string name)))
+    (in-lisp
+     (with-pop-up-display (*standard-output*
+; FIX
+; 			   :reference
+; 			   (list (fun-defined-from-pathname function)
+; 				 :function
+; 				 name)
+			   )
+       (describe variable)))))
+
 
-(defcommand "Filter Region" (p)
-  "Apply a Lisp function to each line of the region.
-  An expression is prompted for which should evaluate to a Lisp function
-  from a string to a string.  The function must neither modify its argument
-  nor modify the return value after it is returned."
-  "Call prompt for a function, then call Filter-Region with it and the region."
-  (declare (ignore p))
+#[ Filtering
+
+Filtering is a simple way to perform a fairly arbitrary transformation
+on text.  Filtering text replaces the string in each line with the result
+of applying a Lisp function of one argument to that string.  The function must
+neither destructively modify the argument nor the return value.  It is an
+error for the function to return a string containing newline characters.
+
+{command:Filter Region}
+]#
+
+(defcommand "Filter Region" ()
+  "Evaluate a prompted expression to obtain a function and apply the
+   function to each line of text in the current region.  The function must
+   take the line as a constant string and return the new version of the
+   string.  For example, to capitalize all the lines in the region one
+   could respond as follows.
+
+       Function: #'string-capitalize
+
+   Since the function may be called many times, it may need to be compiled.
+   Functions for one-time use can be compiled using the compile function as
+   in the following example which removes all the semicolons on any line
+   which contains the string \"PASCAL\".
+
+	Function: (compile () '(lambda (s)
+				  (if (search \"PASCAL\" s)
+				      (remove #\; s)
+				      s)))"
   (let* ((exp (prompt-for-expression
 	       :prompt "Function: "
 	       :help "Expression to evaluate to get function to use as filter."))

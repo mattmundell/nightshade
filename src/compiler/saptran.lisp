@@ -1,25 +1,10 @@
-;;; -*- Log: C.Log; Package: C -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/saptran.lisp,v 1.7.2.2 2000/05/23 16:37:22 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains some magic hacks for optimizing SAP operations.
-;;;
-;;; Written by William Lott.
-;;;
+;;; Some magic hacks for optimizing SAP operations.
+
 (in-package "C")
 
-
 
-;;;; Defknowns
+;;;; Defknowns.
 
-    
 (defknown foreign-symbol-address (simple-string) system-area-pointer
   (movable flushable))
 
@@ -36,7 +21,6 @@
   (movable flushable))
 (defknown int-sap ((unsigned-byte #-alpha 32 #+alpha 64))
   system-area-pointer (movable))
-
 
 (defknown sap-ref-8 (system-area-pointer fixnum) (unsigned-byte 8)
   (flushable))
@@ -62,7 +46,6 @@
   (unsigned-byte 64)
   ())
 
-
 (defknown signed-sap-ref-8 (system-area-pointer fixnum) (signed-byte 8)
   (flushable))
 (defknown %set-signed-sap-ref-8 (system-area-pointer fixnum (signed-byte 8))
@@ -86,7 +69,6 @@
 (defknown %set-signed-sap-ref-64 (system-area-pointer fixnum (signed-byte 64))
   (signed-byte 64)
   ())
-
 
 (defknown sap-ref-sap (system-area-pointer fixnum) system-area-pointer
   (flushable))
@@ -122,7 +104,7 @@
       `(,int-fun (sap-int x) (sap-int y)))))
 
 
-;;;; Transforms for optimizing sap+
+;;;; Transforms for optimizing sap+.
 
 (deftransform sap+ ((sap offset))
   (cond ((and (constant-continuation-p offset)

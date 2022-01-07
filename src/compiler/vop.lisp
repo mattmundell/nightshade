@@ -1,34 +1,152 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/vop.lisp,v 1.40 1994/10/31 04:27:28 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    Structures for the second (virtual machine) intermediate representation
-;;; in the compiler, IR2.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; Structures for the second intermediate representation in the compiler,
+;;; IR2 (also known as the virtual machine representation, VMR).
+
 (in-package "C")
 
 (export '(tn-ref tn-ref-p make-tn-ref tn-ref-tn tn-ref-write-p
 	  tn-ref-next tn-ref-vop tn-ref-next-ref tn-ref-across
 	  tn-ref-target tn-ref-load-tn
-
+	  ;;
 	  sb sb-p sb-name sc sc-p sc-name sc-number sc-sb
-
+	  ;;
 	  tn tn-p make-random-tn tn-sc tn-offset
-
-	  ;; Call.lisp and core.lisp need to get at these slots.
+	  ;;
+	  ;; FIX Call.lisp and core.lisp need to get at these slots.
 	  ir2-component-constants ir2-environment-number-stack-p
 	  ;; New-assem.lisp needs these.
 	  ir2-component-dyncount-info ir2-block-block vop-block))
 
+
+;;; FIX should be where?
+#[ VOP Definition
+
+Before the operand TN-refs are passed to the emit function, the following
+stuff is done:
+ -- The refs in the operand and result lists are linked together in order using
+    the Across slot.  This list is properly NIL terminated.
+ -- The TN slot in each ref is set, and the ref is linked into that TN's refs
+    using the Next slot.
+ -- The Write-P slot is set depending on whether the ref is an argument or
+    result.
+ -- The other slots have the default values.
+
+The template emit function fills in the Vop, Costs, Cost-Function,
+SC-Restriction and Preference slots, and links together the Next-Ref chain as
+appropriate.
+
+== Lifetime model ==
+
+    Note in doc that the same TN may not be used as both a more operand and as any
+    other operand to the same VOP, to simplify more operand LTN number coalescing.
+
+It seems we need a fairly elaborate model for intra-VOP conflicts in order to
+allocate temporaries without introducing spurious conflicts.  Consider the
+important case of a VOP such as a miscop that must have operands in certain
+registers.  We allocate a wired temporary, create a local preference for the
+corresponding operand, and move to (or from) the temporary.  If all temporaries
+conflict with all arguments, the result will be correct, but arguments could
+never be packed in the actual passing register.  If temporaries didn't conflict
+with any arguments, then the temporary for an earlier argument might get packed
+in the same location as the operand for a later argument; loading would then
+destroy an argument before it was read.
+
+A temporary's intra-VOP lifetime is represented by the times at which its life
+starts and ends.  There are various instants during the evaluation that start
+and end VOP lifetimes.  Two TNs conflict if the live intervals overlap.
+Lifetimes are open intervals: if one TN's lifetime begins at a point where
+another's ends, then the TNs don't conflict.
+
+The times within a VOP are the following:
+
+:Load
+    This is the beginning of the argument's lives, as far as intra-vop
+    conflicts are concerned.  If load-TNs are allocated, then this is the
+    beginning of their lives.
+
+(:Argument <n>)
+    The point at which the N'th argument is read for the last time (by this
+    VOP).  If the argument is dead after this VOP, then the argument becomes
+    dead at this time, and may be reused as a temporary or result load-TN.
+
+(:Eval <n>)
+    The N'th evaluation step.  There may be any number of evaluation steps, but
+    it is unlikely that more than two are needed.
+
+(:Result <n>)
+    The point at which the N'th result is first written into.  This is the
+    point at which that result becomes live.
+
+:Save
+    Similar to :Load, but marks the end of time.  This is point at which result
+    load-TNs are stored back to the actual location.
+
+In any of the list-style time specifications, the keyword by itself stands for
+the first such time, i.e.
+    :argument  <=>  (:argument 0)
+
+
+Note that argument/result read/write times don't actually have to be in the
+order specified, but they must *appear* to happen in that order as far as
+conflict analysis is concerned.  For example, the arguments can be read in any
+order as long no TN is written that has a life beginning at or after
+(:Argument <n>), where N is the number of an argument whose reading was
+postponed.
+
+    XXX (???)
+
+    We probably also want some syntactic sugar in Define-VOP for automatically
+    moving operands to/from explicitly allocated temporaries so that this kind of
+    thing is somewhat easy.  There isn't really any reason to consider the
+    temporary to be a load-TN, but we want to compute costs as though it was and
+    want to use the same operand loading routines.
+
+    We also might consider allowing the lifetime of an argument/result to be
+    extended forward/backward.  This would in many cases eliminate the need for
+    temporaries when operands are read/written out of order.
+
+
+== VOP Cost model ==
+
+Note that in this model, if a operand has no restrictions, it has no cost.
+This makes make sense, since the purpose of the cost is to indicate the
+relative value of packing in different SCs.  If the operand isn't required to
+be in a good SC (i.e. a register), then we might as well leave it in memory.
+The SC restriction mechanism can be used even when doing a move into the SC is
+too complex to be generated automatically (perhaps requiring temporary
+registers), since Define-VOP allows operand loading to be done explicitly.
+
+== Efficiency notes ==
+
+  In addition to
+being used to tell whether a particular unsafe template might get emitted, we
+can also use it to give better efficiency notes:
+ -- We can say what is wrong with the call types, rather than just saying we
+    failed to open-code.
+ -- We can tell whether any of the "better" templates could possibly apply,
+    i.e. is the inapplicability of a template because of inadequate type
+    information or because the type is just plain wrong.  We don't want to
+    flame people when a template that couldn't possibly match doesn't match,
+    e.g. complaining that we can't use fixnum+ when the arguments are known to
+    be floats.
+
+
+This is how we give better efficiency notes:
+
+The Template-Note is a short noun-like string without capitalization or
+punctuation that describes what the template "does", i.e. we say
+"Unable to do ~A, doing ~A instead."
+
+The Cost is moved from the Vop-Info to the Template structure, and is used to
+determine the "goodness" of possibly applicable templates.  [Could flush
+Template/Vop-Info distinction]  The cost is used to choose the best applicable
+template to emit, and also to determine what better templates we might have
+been able to use.
+
+A template is possibly applicable if there is an intersection between all of
+the arg/result types and the corresponding arg/result restrictions, i.e. the
+template is not clearly impossible: more declarations might allow it to be
+emitted.
+]#
 
 (eval-when (compile load eval)
 
@@ -38,7 +156,7 @@
 (defconstant local-tn-limit 64)
 
 (deftype local-tn-number () `(integer 0 (,local-tn-limit)))
-(deftype local-tn-count () `(integer 0 ,local-tn-limit)) 
+(deftype local-tn-count () `(integer 0 ,local-tn-limit))
 (deftype local-tn-vector () `(simple-vector ,local-tn-limit))
 (deftype local-tn-bit-vector () `(simple-bit-vector ,local-tn-limit))
 
@@ -57,12 +175,18 @@
 ); Eval-When (Compile Load Eval)
 
 
-;;;; Primitive types:
+;;;; Primitive types.
 ;;;
-;;;    The primitive type is used to represent the aspects of type interesting
-;;; to the VM.  Selection of IR2 translation templates is done on the basis of
-;;; the primitive types of the operands, and the primitive type of a value
-;;; is used to constrain the possible representations of that value.
+;;; The primitive type is used to represent the aspects of type interesting
+;;; to the VM.  Selection of IR2 translation templates is done on the basis
+;;; of the primitive types of the operands, and the primitive type of a
+;;; value is used to constrain the possible representations of that value.
+;;;
+;;; FIX should be where?
+#[ Standard Primitives
+[FIX]
+]#
+;;;
 ;;;
 (eval-when (compile load eval)
 ;;;
@@ -71,7 +195,7 @@
   ;; The name of this primitive-type.
   (name nil :type symbol)
   ;;
-  ;; A list the SC numbers for all the SCs that a TN of this type can be
+  ;; A list of the SC numbers for all the SCs that a TN of this type can be
   ;; allocated in.
   (scs nil :type list)
   ;;
@@ -95,7 +219,7 @@
 ); eval-when (compile load eval)
 
 
-;;;; IR1 annotations used for IR2 conversion:
+;;;; IR1 annotations used for IR2 conversion.
 ;;;
 ;;; Block-Info
 ;;;    Holds the IR2-Block structure.  If there are overflow blocks, then this
@@ -137,7 +261,7 @@
 ;;; Node-Tail-P
 ;;;    After LTN analysis, this is true only in combination nodes that are
 ;;;    truly tail recursive.
-;;;    
+;;;
 
 ;;; The IR2-Block structure holds information about a block that is used during
 ;;; and after IR2 conversion.  It is stored in the Block-Info slot for the
@@ -153,14 +277,15 @@
   (number nil :type (or index null))
   ;;
   ;; Information about unknown-values continuations that is used by stack
-  ;; analysis to do stack simulation.  A unknown-values continuation is Pushed
-  ;; if it's Dest is in another block.  Similarly, a continuation is Popped if
-  ;; its Dest is in this block but has its uses elsewhere.  The continuations
-  ;; are in the order that are pushed/popped in the block.  Note that the args
-  ;; to a single MV-Combination appear reversed in Popped, since we must
-  ;; effectively pop the last argument first.  All pops must come before all
-  ;; pushes (although internal MV uses may be interleaved.)  Popped is computed
-  ;; by LTN, and Pushed is computed by stack analysis.
+  ;; analysis to do stack simulation.  An unknown-values continuation is
+  ;; Pushed if it's Dest is in another block.  Similarly, a continuation is
+  ;; Popped if its Dest is in this block but has its uses elsewhere.  The
+  ;; continuations are in the order that are pushed/popped in the block.
+  ;; Note that the args to a single MV-Combination appear reversed in
+  ;; Popped, since we must effectively pop the last argument first.  All
+  ;; pops must come before all pushes (although internal MV uses may be
+  ;; interleaved.)  Popped is computed by LTN, and Pushed is computed by
+  ;; stack analysis.
   (pushed () :type list)
   (popped () :type list)
   ;;
@@ -219,7 +344,6 @@
   ;; debugger) locations in this block.
   (locations nil :type list))
 
-
 (defprinter ir2-block
   (pushed :test pushed)
   (popped :test popped)
@@ -227,7 +351,6 @@
   (last-vop :test last-vop)
   (local-tn-count :test (not (zerop local-tn-count)))
   (%label :test %label))
-
 
 ;;; The IR2-Continuation structure is used to annotate continuations that are
 ;;; used as a function result continuation or that receive MVs.
@@ -263,7 +386,7 @@
   ;; Locations used to hold the values of the continuation.  If the number
   ;; of values if fixed, then there is one TN per value.  If the number of
   ;; values is unknown, then this is a two-list of TNs holding the start of the
-  ;; values glob and the number of values.  Note that since type checking is
+  ;; values glob (FIX ?) and the number of values.  Note that since type checking is
   ;; the responsibility of the values receiver, these TNs primitive type is
   ;; only based on the proven type information.
   (locs nil :type list))
@@ -272,7 +395,6 @@
   kind
   primitive-type
   locs)
-
 
 ;;; The IR2-Component serves mostly to accumulate non-code information about
 ;;; the component being compiled.
@@ -313,9 +435,9 @@
   ;; to their location.
   (specified-save-tns () :type list)
   ;;
-  ;; Values-Receivers is a list of all the blocks whose ir2-block has a
-  ;; non-null value for Popped.  This slot is initialized by LTN-Analyze as an
-  ;; input to Stack-Analyze.
+  ;; A list of all the blocks whose ir2-block has a non-null value for
+  ;; Popped.  This slot is initialized by `ltn-analyze' as an input to
+  ;; `stack-analyze'.
   (values-receivers nil :type list)
   ;;
   ;; An adjustable vector that records all the constants in the constant pool.
@@ -324,9 +446,9 @@
   ;; Constant leaf in this vector.  A load-time constant is distinguished by
   ;; being a cons (Kind . What).  Kind is a keyword indicating how the constant
   ;; is computed, and What is some context.
-  ;; 
+  ;;
   ;; These load-time constants are recognized:
-  ;; 
+  ;;
   ;; (:entry . <function>)
   ;;    Is replaced by the code pointer for the specified function.  This is
   ;; 	how compiled code (including DEFUN) gets its hands on a function.
@@ -366,7 +488,6 @@
   ;; collect dynamic statistics.)
   (dyncount-info nil :type (or null dyncount-info)))
 
-
 ;;; The Entry-Info structure condenses all the information that the dumper
 ;;; needs to create each XEP's function entry data structure.  The Entry-Info
 ;;; structures are somtimes created before they are initialized, since ir2
@@ -379,7 +500,7 @@
   (closure-p nil :type boolean)
   ;;
   ;; A label pointing to the entry vector for this function.  Null until
-  ;; ENTRY-ANALYZE runs. 
+  ;; ENTRY-ANALYZE runs.
   (offset nil :type (or label null))
   ;;
   ;; If this function was defined using DEFUN, then this is the name of the
@@ -394,7 +515,6 @@
   ;; A function type specifier representing the arguments and results of this
   ;; function.
   (type 'function :type (or list (member function))))
-
 
 ;;; The IR2-Environment is used to annotate non-let lambdas with their passing
 ;;; locations.  It is stored in the Environment-Info.
@@ -448,7 +568,6 @@
   return-pc
   return-pc-pass)
 
-
 ;;; The Return-Info structure is used by GTN to represent the return strategy
 ;;; and locations for all the functions in a given Tail-Set.  It is stored in
 ;;; the Tail-Set-Info.
@@ -471,16 +590,14 @@
   (types () :type list)
   ;;
   ;; If kind is :Fixed, then this is the list of the TNs that we return the
-  ;; values in. 
+  ;; values in.
   (locations () :type list))
-
 
 (defprinter return-info
   kind
   count
   types
   locations)
-
 
 (defstruct (ir2-nlx-info (:print-function %print-ir2-nlx-info))
   ;;
@@ -501,13 +618,12 @@
   ;; The target label for NLX entry.
   (target (gen-label) :type label))
 
-
 (defprinter ir2-nlx-info
   home
   save-sp
   dynamic-state)
 
-
+;; FIX
 #|
 ;;; The Loop structure holds information about a loop.
 ;;;
@@ -559,10 +675,10 @@
 |#
 
 
-;;;; VOPs and Templates:
+;;;; VOPs and Templates.
 
-;;; A VOP is a Virtual Operation.  It represents an operation and the operands
-;;; to the operation.
+;;; A VOP is a Virtual Operation.  It represents an operation and the
+;;; operands to the operation.
 ;;;
 (defstruct (vop (:print-function %print-vop)
 		(:constructor really-make-vop (block node info args results)))
@@ -579,7 +695,7 @@
   (prev nil :type (or vop null))
   ;;
   ;; Heads of the TN-Ref lists for operand TNs, linked using the Across slot.
-  (args nil :type (or tn-ref null))  
+  (args nil :type (or tn-ref null))
   (results nil :type (or tn-ref null))
   ;;
   ;; Head of the list of write refs for each explicitly allocated temporary,
@@ -609,10 +725,10 @@
   results
   (codegen-info :test codegen-info))
 
-
-;;; The TN-Ref structure contains information about a particular reference to a
-;;; TN.  The information in the TN-Refs largely determines how TNs are packed.
-;;; 
+;;; The TN-Ref structure contains information about a particular reference
+;;; to a TN.  The information in the TN-Refs largely determines how TNs are
+;;; packed.
+;;;
 (defstruct (tn-ref (:print-function %print-tn-ref)
 		   (:constructor really-make-tn-ref (tn write-p)))
   ;;
@@ -643,12 +759,10 @@
   ;; Load TN allocated for this operand, if any.
   (load-tn nil :type (or tn null)))
 
-
 (defprinter tn-ref
   tn
   write-p
   (vop :test vop :prin1 (vop-info-name (vop-info vop))))
-
 
 ;;; The Template represents a particular IR2 coding strategy for a known
 ;;; function.
@@ -677,7 +791,7 @@
   ;;    will be passed as an info argument rather than as a normal argument.
   ;;    <type-spec> is a Lisp type specifier for the type tested by the
   ;;    predicate, used when we want to represent the type constraint as a Lisp
-  ;;    function type. 
+  ;;    function type.
   ;;
   ;; If Result-Types is :Conditional, then this is an IF-xxx style conditional
   ;; that yeilds its result as a control transfer.  The emit function takes two
@@ -739,7 +853,6 @@
   cost
   (note :test note)
   (info-arg-count :test (not (zerop info-arg-count))))
-
 
 ;;; The VOP-Info structure holds the constant information for a given virtual
 ;;; operation.  We include Template so functions with a direct VOP equivalent
@@ -843,14 +956,148 @@
   ;; the source ref (shifted 8) and the dest ref index.
   (targets nil :type (or null (simple-array (unsigned-byte 16) (*)))))
 
+
+#[ Storage Bases and Classes
+
+New interface: instead of CURRENT-FRAME-SIZE, have CURRENT-SB-SIZE <name> which
+returns the current element size of the named SB.
+
+How can we have primitive types that overlap, i.e. (UNSIGNED-BYTE 32),
+(SIGNED-BYTE 32), FIXNUM?
+Primitive types are used for two things:
+    Representation selection: which SCs can be used to represent this value?
+	For this purpose, it isn't necessary that primitive types be disjoint,
+	since any primitive type can choose an arbitrary set of
+	representations.  For moves between the overlapping representations,
+	the move/load operations can just be noops when the locations are the
+	same (vanilla MOVE), since any bad moves should be caught out by type
+	checking.
+    VOP selection:
+	Is this operand legal for this VOP?  When ptypes overlap in interesting
+	ways, there is a problem with allowing just a simple ptype restriction,
+	since we might want to allow multiple ptypes.  This could be handled
+	by allowing "union primitive types", or by allowing multiple primitive
+	types to be specified (only in the operand restriction.)  The latter
+	would be long the lines of other more flexible VOP operand restriction
+	mechanisms, (constant, etc.)
+
+
+
+Ensure that load/save-operand never need to do representation conversion.
+
+The PRIMITIVE-TYPE more/coerce info would be moved into the SC.  This could
+perhaps go along with flushing the TN-COSTS.  We would annotate the TN with
+best SC, which implies the representation (boxed or unboxed).  We would still
+need represent the legal SCs for restricted TNs somehow, and also would have to
+come up with some other way for pack to keep track of which SCs we have already
+tried.
+
+A SC would have a list of "alternate" SCs and a boolean SAVE-P value that
+indicates it needs to be saved across calls in some non-SAVE-P SC.  A TN is
+initially given its "best" SC.  The SC is annotated with VOPs that are used for
+moving between the SC and its alternate SCs (load/save operand, save/restore
+register).  It is also annotated with the "move" VOPs used for moving between
+this SC and all other SCs it is possible to move between.  We flush the idea
+that there is only c-to-t and c-from-t.
+
+But how does this mesh with the idea of putting operand load/save back into the
+generator?  Maybe we should instead specify a load/save function?  The
+load/save functions would also differ from the move VOPs in that they would
+only be called when the TN is in fact in that particular alternate SC, whereas
+the move VOPs will be associated with the primary SC, and will be emitted
+before it is known whether the TN will be packed in the primary SC or an
+alternate.
+
+I guess a packed SC could also have immediate SCs as alternate SCs, and
+constant loading functions could be associated with SCs using this mechanism.
+
+So given a TN packed in SC X and a SC restriction for Y and Z, how do we know
+which load function to call?  There would be ambiguity if X was an alternate
+for both Y and Z and they specified different load functions.  This seems
+unlikely to arise in practice, though, so we could just detect the ambiguity
+and give an error at define-vop time.  If they are doing something totally
+weird, they can always inhibit loading and roll their own.
+
+Note that loading costs can be specified at the same time (same syntax) as
+association of loading functions with SCs.  It seems that maybe we will be
+rolling DEFINE-SAVE-SCS and DEFINE-MOVE-COSTS into DEFINE-STORAGE-CLASS.
+
+Fortunately, these changes will affect most VOP definitions very little.
+
+
+A Storage Base represents a physical storage resource such as a register set or
+stack frame.  Storage bases for non-global resources such as the stack are
+relativized by the environment that the TN is allocated in.  Packing conflict
+information is kept in the storage base, but non-packed storage resources such
+as closure environments also have storage bases.
+Some storage bases:
+    General purpose registers
+    Floating point registers
+    Boxed (control) stack environment
+    Unboxed (number) stack environment
+    Closure environment
+
+A storage class is a potentially arbitrary set of the elements in a storage
+base.  Although conceptually there may be a hierarchy of storage classes such
+as "all registers", "boxed registers", "boxed scratch registers", this doesn't
+exist at the implementation level.  Such things can be done by specifying
+storage classes whose locations overlap.  A TN shouldn't have lots of
+overlapping SC's as legal SC's, since time would be wasted repeatedly
+attempting to pack in the same locations.
+
+There will be some SC's whose locations overlap a great deal, since we get Pack
+to do our representation analysis by having lots of SC's.  A SC is basically a
+way of looking at a storage resource.  Although we could keep a fixnum and an
+unboxed representation of the same number in the same register, they correspond
+to different SC's since they are different representation choices.
+
+TNs are annotated with the primitive type of the object that they hold:
+    T: random boxed object with only one representation.
+    Fixnum, Integer, XXX-Float: Object is always of the specified numeric type.
+    String-Char: Object is always a string-char.
+
+When a TN is packed, it is annotated with the SC it was packed into.  The code
+generator for a VOP must be able to uniquely determine the representation of
+its operands from the SC. (debugger also...)
+
+Some SCs:
+    Reg: any register (immediate objects)
+    Save-Reg: a boxed register near r15 (registers easily saved in a call)
+    Boxed-Reg: any boxed register (any boxed object)
+    Unboxed-Reg: any unboxed register (any unboxed object)
+    Float-Reg, Double-Float-Reg: float in FP register.
+    Stack: boxed object on the stack (on cstack)
+    Word: any 32bit unboxed object on nstack.
+    Double: any 64bit unboxed object on nstack.
+
+We have a number of non-packed storage classes which serve to represent access
+costs associated with values that are not allocated using conflicts
+information.  Non-packed TNs appear to already be packed in the appropriate
+storage base so that Pack doesn't get confused.  Costs for relevant non-packed
+SC's appear in the TN-Ref cost information, but need not ever be summed into
+the TN cost vectors, since TNs cannot be packed into them.
+
+There are SCs for non-immediate constants and for each significant kind of
+immediate operand in the architecture.  On the RT, 4, 8 and 20 bit integer SCs
+are probably worth having.
+
+Non-packed SCs:
+    Constant
+    Immediate constant SCs:
+        Signed-Byte-<N>, Unsigned-Byte-<N>, for various architecture dependent
+	    values of <N>
+	String-Char
+	XXX-Float
+	Magic values: T, NIL, 0.
+]#
 
 
-;;;; SBs and SCs:
+;;;; SBs and SCs.
 
 (eval-when (compile load eval)
 
-;;; The SB structure represents the global information associated with a
-;;; storage base.
+;;; Storage Base.  The SB structure represents the global information
+;;; associated with a storage base.
 ;;;
 (defstruct (sb
 	    (:print-function %print-sb)
@@ -868,7 +1115,6 @@
 
 (defprinter sb
   name)
-
 
 ;;; The Finite-SB structure holds information needed by the packing algorithm
 ;;; for finite SBs.
@@ -907,8 +1153,8 @@
   ;; previously packed component.
   (last-block-count 0 :type index))
 
-;;; the SC structure holds the storage base that storage is allocated in and
-;;; information used to select locations within the SB.
+;;; Storage Class.  The SC structure holds the storage base that storage is
+;;; allocated in and information used to select locations within the SB.
 ;;;
 (defstruct (sc (:print-function %print-sc))
   ;;
@@ -992,9 +1238,9 @@
   name)
 
 ); eval-when (compile load eval)
-  
+
 
-;;;; TNs:
+;;;; TNs.
 
 (defstruct (tn (:include sset-element)
 	       (:constructor make-random-tn)
@@ -1043,7 +1289,7 @@
   ;;        Represents a constant, with TN-Leaf a Constant leaf.  Lifetime
   ;;        information isn't computed, since the value isn't allocated by
   ;;        pack, but is instead generated as a load at each use.  Since
-  ;;        lifetime analysis isn't done on :Constant TNs, they don't have 
+  ;;        lifetime analysis isn't done on :Constant TNs, they don't have
   ;;        Local-Numbers and similar stuff.
   ;;
   ;;   :ALIAS
@@ -1170,7 +1416,7 @@
   ;; A local conflicts vector representing conflicts with TNs live in Block.
   ;; The index for the local TN number of each TN we conflict with in this
   ;; block is 1.  To find the full conflict set, the :Live TNs for Block must
-  ;; also be included.  This slot is not meaningful when Kind is :Live. 
+  ;; also be included.  This slot is not meaningful when Kind is :Live.
   (conflicts (make-array local-tn-limit
 			 :element-type 'bit
 			 :initial-element 0)
@@ -1182,7 +1428,7 @@
   ;; Thread through all the Global-Conflicts for TN.
   (tn-next nil :type (or global-conflicts null))
   ;;
-  ;; TN's local TN number in Block.  :Live TNs don't have local numbers.  
+  ;; TN's local TN number in Block.  :Live TNs don't have local numbers.
   (number nil :type (or local-tn-number null)))
 
 (defprinter global-conflicts

@@ -4,11 +4,113 @@
 
 (in-package "EXT")
 
-(export '(string-table string-table-p make-string-table
+(export '(string-table string-table-length string-table-p
+	  make-string-table
 	  string-table-separator getstring
 	  find-ambiguous complete-string find-containing
 	  delete-string clrstring
-	  do-strings)) ; in macros.lisp
+	  do-strings)) ; in extensions.lisp
+
+#[ String-table Functions
+
+String tables are similar to hash tables in that they associate a value
+with an object.  There are a few useful differences: in a string table the
+key is always a case insensitive string, and primitives are provided to
+facilitate keyword completion and recognition.  Any type of string may be
+added to a string table, but the string table functions always return
+simple-string's.
+
+A string entry in one of these tables may be thought of as being separated
+into fields or keywords.  The interface provides keyword completion and
+recognition which is used, for example, to implement some editor `Echo
+Area' commands.  These routines perform a prefix match on a field-by-field
+basis allowing the ambiguous specification of earlier fields while going on
+to enter later fields.  While string tables may use any string-char as a
+separator, the use of characters other than space may make the `Echo Area'
+commands fail or work unexpectedly.
+
+ - Function: make-string-table &key [separator][initial-contents]
+     This function creates an empty string table that uses separator as the
+     character, which must be a string-char, that distinguishes fields.
+     Initial-contents specifies an initial set of strings and their values in
+     the form of a dotted a-list, for example:
+
+          '(("Global" . t) ("Mode" . t) ("Buffer" . t))
+
+ - Function: string-table-p string-table
+     This function returns true if string-table is a string-table object,
+     otherwise nil.
+
+ - Function: string-table-separator string-table
+     This function returns the separator character given to make-string-table.
+
+ - Function: delete-string string table
+ - Function: clrstring table
+     delete-string removes any entry for string from the string-table
+     table, returning true if there was an entry.  clrstring removes all
+     entries from table.
+
+ - Function: getstring string table
+     This function returns as multiple values, first the value corresponding to the
+     string if it is found and nil if it isn't, and second true if it is found and
+     nil if it isn't.
+
+     This may be set with setf to add a new entry or to store a new value for a
+     string.  It is an error to try to insert a string with more than one
+     field separator character occurring contiguously.
+
+ - Function: complete-string string tables
+     This function completes string as far as possible over the list of
+     tables, returning five values.  It is an error for tables to have
+     different separator characters.  The five return values are as follows:
+
+  - The maximal completion of the string or nil if there is none.
+
+  - An indication of the usefulness of the returned string:
+
+      :none
+	 There is no completion of string.
+
+      :complete
+
+	 The completion is a valid entry, but other valid completions exist too.  This
+	 occurs when the supplied string is an entry as well as initial substring of
+	 another entry.
+
+      :unique
+	 The completion is a valid entry and unique.
+
+      :ambiguous
+	 The completion is invalid; get-string would return nil and nil if given
+	 the returned string.
+
+  - The value of the string when the completion is :unique or :complete,
+     otherwise nil.
+
+  - An index, or nil, into the completion returned, indicating where the addition
+     of a single field to string ends.  The command `Complete Field' uses
+     this when the completion contains the addition to string of more than one
+     field.
+
+  - An index to the separator following the first ambiguous field when the
+     completion is :ambiguous or :complete, otherwise nil.
+
+ - Function: find-ambiguous string table
+ - Function: find-containing string table
+     find-ambiguous returns a list in alphabetical order of all the
+     strings in table matching string.  This considers an entry as matching
+     if each field in string, taken in order, is an initial substring of the
+     entry's fields; entry may have fields remaining.
+
+     find-containing is similar, but it ignores the order of the fields in
+     string, returning all strings in table matching any permutation of the
+     fields in string.
+
+ - Macro: do-strings (string-var value-var table [result]) {declaration}* {tag | statement}*
+     This macro iterates over the strings in table in alphabetical order.  On
+     each iteration, it binds string-var to an entry's string and value-var
+     to an entry's value.
+]#
 
 
 ;;;; Implementation Details
@@ -42,7 +144,6 @@
 ;;; VALUE-NODES slot of the STRING-TABLE structure) and sorted by the
 ;;; FOLDED slot in the VALUE-NODE structure so that a binary search may
 ;;; be used to quickly find existing strings.
-;;;
 
 
 ;;;; Structure Definitions
@@ -57,7 +158,7 @@
 	    (:print-function print-string-table))
   "This structure is used to implement the string-table type."
   ;; Character used to
-  (separator #\Space :type base-char) ; character used for word separator
+  (separator #\Space :type base-char)      ; character used for word separator
   (num-nodes 0 :type fixnum)		   ; number of nodes in string table
   (value-nodes (make-array initial-string-table-size)) ; value node array
   (first-word-table (make-word-table)))	   ; pointer to first WORD-TABLE
@@ -75,6 +176,13 @@
     (dolist (x initial-contents)
       (setf (getstring (car x) table) (cdr x)))
     table))
+
+;; Public.
+;;
+(declaim (inline string-table-length))
+(defun string-table-length (table)
+  "Return the number of entries in string $table"
+  (string-table-num-nodes table))
 
 (defstruct (word-table
 	    (:print-function print-word-table))
@@ -513,9 +621,9 @@
 (proclaim '(simple-string *complete-string-buffer*))
 
 (defun complete-string (string tables)
-  "Attempts to complete the string String against the string tables in the
-   list Tables.  Tables must all use the same separator character.  FIX See
-   the manual for details on return values."
+  "Attempts to complete the string $string against the string tables in the
+   list $tables.  $tables must all use the same separator character.  FIX
+   See the manual for details on return values."
   (let ((separator (string-table-separator (car tables))))
     #|(when (member separator (cdr tables)
 		    :key #'string-table-separator :test-not #'char=)

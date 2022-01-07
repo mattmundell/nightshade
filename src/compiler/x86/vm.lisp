@@ -1,28 +1,9 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: python-x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/vm.lisp,v 1.2.2.3 2000/05/23 16:38:04 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the VM defintion noise for the x86.
-;;;
-;;; Written by William Lott
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; Enhancements/debugging by Douglas T. Crosher 1996, 1997, 1998.
-;;;
+;;; The VM definition noise for the x86.
 
-(in-package :x86)
+(in-package "X86")
 
 
-;;;; Register specs
+;;;; Register specs.
 
 (eval-when (compile eval)
 
@@ -39,14 +20,14 @@
      (defconstant ,name
        (list ,@(mapcar #'(lambda (name) (symbolicate name "-OFFSET")) regs)))))
 
-); eval-when 
+); eval-when
 
 ;;; Byte registers.
 ;;;
-;;; Note: the encoding here is different then that used by the chip.  We
+;;; Note: the encoding here is different than that used by the chip.  We
 ;;; use this encoding so that the compiler thinks that AX (and EAX) overlap
 ;;; AL and AH instead of AL and CL.
-;;; 
+;;;
 (eval-when (compile load eval)
   (defvar *byte-register-names* (make-array 8 :initial-element nil)))
 ;;;
@@ -93,7 +74,6 @@
 ;;;
 (defregset dword-regs eax ecx edx ebx esi edi)
 
-;;; added by jrd
 (eval-when (compile load eval)
   (defvar *float-register-names* (make-array 8 :initial-element nil)))
 (defreg fr0 0 :float)
@@ -118,7 +98,7 @@
 
 (define-storage-base registers :finite :size 16)
 
-;;;
+;;; FIX
 ;;; jrd changed this from size 1 to size 8.  it doesn't seem to make much
 ;;; sense to use the 387's idea of a stack.  8 separate registers is easier
 ;;; to deal with.
@@ -130,14 +110,12 @@
 (define-storage-base immediate-constant :non-packed)
 (define-storage-base noise :unbounded :size 2)
 
-
 
 ;;;; SC definitions.
 
-;;;
 ;;; Handy macro so we don't have to keep changing all the numbers whenever
 ;;; we insert a new storage class.
-;;; 
+;;;
 (defmacro define-storage-classes (&rest classes)
   (collect ((forms))
     (let ((index 0))
@@ -154,15 +132,15 @@
 
 (define-storage-classes
 
-  ;; Non-immediate contstants in the constant pool
+  ;; Non-immediate constants in the constant pool
   (constant constant)
 
   ;; Some FP constants can be generated in the i387 silicon.
   (fp-constant immediate-constant)
-    
+
   (immediate immediate-constant)
 
-  ;; **** The stacks.
+  ;;;; The stacks.
 
   ;; The control stack.
   (control-stack stack)			; may be pointers, scanned by GC
@@ -181,11 +159,11 @@
   #+long-float
   (complex-long-stack stack :element-size 6)	; complex-long-floats
 
-  ;; **** Magic SCs.
+  ;;;; Magic SCs.
 
   (ignore-me noise)
 
-  ;; **** Things that can go in the integer registers.
+  ;;;; Things that can go in the integer registers.
 
   ;; We don't have to distinguish between descriptor and
   ;; non-descriptor registers, because of the conservative GC.
@@ -256,7 +234,7 @@
 ;	    :reserve-locations (#.al-offset #.ah-offset)
 	    )
 
-  ;; **** Things that can go in the floating point registers.
+  ;;;; Things that can go in the floating point registers.
 
   ;; Non-Descriptor single-floats.
   (single-reg float-registers
@@ -303,8 +281,7 @@
 		    :alternate-scs (complex-long-stack))
 
   ;; A catch or unwind block.
-  (catch-block stack :element-size vm:catch-block-size)
-  )
+  (catch-block stack :element-size vm:catch-block-size))
 
 (eval-when (compile load eval)
 
@@ -314,7 +291,6 @@
   '(any-reg descriptor-reg sap-reg signed-reg unsigned-reg control-stack
     signed-stack unsigned-stack sap-stack single-stack constant))
 
-;;;
 ;;; added by jrd.  I guess the right thing to do is to treat floats
 ;;; as a separate size...
 ;;;
@@ -343,11 +319,7 @@
 (def-random-reg-tns unsigned-reg eax ebx ecx edx ebp esp edi esi)
 (def-random-reg-tns word-reg ax bx cx dx bp sp di si)
 (def-random-reg-tns byte-reg al ah bl bh cl ch dl dh)
-
-;; added by jrd
 (def-random-reg-tns single-reg fr0 fr1 fr2 fr3 fr4 fr5 fr6 fr7)
-
-;; Added by pw.
 
 (defparameter fp-constant-tn
   (make-random-tn :kind :normal
@@ -402,7 +374,7 @@
 (defconstant register-arg-count 3)
 
 ;;; Names, Offsets, and TNs to use for the argument registers.
-;;; 
+;;;
 (defconstant register-arg-names '(edx edi esi))
 (defregset register-arg-offsets edx edi esi)
 (defparameter register-arg-tns (list edx-tn edi-tn esi-tn))
@@ -417,8 +389,9 @@
 
 ;;; LOCATION-PRINT-NAME  --  Interface
 ;;;
-;;;    This function is called by debug output routines that want a pretty name
-;;; for a TN's location.  It returns a thing that can be printed with PRINC.
+;;; This function is called by debug output routines that want a pretty
+;;; name for a TN's location.  It returns a thing that can be printed with
+;;; PRINC.
 ;;;
 (def-vm-support-routine location-print-name (tn)
   (declare (type tn tn))

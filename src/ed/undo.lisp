@@ -4,6 +4,12 @@
 
 (export '(make-region-undo save-for-undo))
 
+#[ Undoing commands
+
+{function:ed:save-for-undo}
+{function:ed:make-region-undo}
+]#
+
 
 ;;;; Constants
 
@@ -41,7 +47,7 @@
 (setf (documentation 'undo-info-buffer 'function)
       "Return the buffer that the last undoable command was invoked in.")
 (setf (documentation 'undo-info-hold-name 'function)
-      "Return the name being held since the last invocation of \"Undo\"")
+      "Return the name being held since the last invocation of `Undo'")
 (setf (documentation 'undo-info-method-undo 'function)
       "Return the closure that undoes what undo-info-method does.")
 
@@ -50,18 +56,19 @@
   (format s "#<Undo Info ~S>" (undo-info-name obj)))
 
 
-;;;; Commands
+;;;; Commands.
 
-(defhvar "Confirm Undo" "If true then Confirmation is sought before any Undo."
+(defevar "Confirm Undo" "If true then Confirmation is sought before any Undo."
   :value t)
 
-(defcommand "Undo" (p)
-  "Undo last major change, kill, etc.
-   Simple insertions and deletions cannot be undone.  If you change the buffer
-   in this way before you undo, you may get slightly wrong results, but this
-   is probably still useful."
-  "This is not intended to be called in Lisp code."
-  (declare (ignore p))
+(defcommand "Undo" ()
+  "Undo the last major modification.  Killing commands and some other
+   commands save information about their modifications, so accidental uses
+   may be retracted.  Display the name of the operation to be undone and
+   ask for confirmation.  If the affected text has been modified between
+   the invocations of `Undo' and the command to be undone, then the result
+   may be somewhat incorrect but useful.  Often `Undo' itself can be undone
+   by invoking it again."
   (if (not *undo-info*) (editor-error "No currently undoable command."))
   (let ((buffer (undo-info-buffer *undo-info*))
 	(cleanup (undo-info-cleanup *undo-info*))
@@ -82,12 +89,24 @@
 	       (setf *undo-info* nil))))))
 
 
-;;;; Primitives
+;;;; Primitives.
 
 (defun save-for-undo (name method
 		      &optional cleanup method-undo (buffer (current-buffer)))
-  "Stashes information for next \"Undo\" command invocation.  If there is
-   an undo-info object, it is cleaned up first."
+  "Save information to undo a command.  If there is an existing undo-info,
+   cleaned it up first.
+
+   $name is a string displayed when prompting for confirmation in the
+   `Undo' command (for example, `Kill' or `Fill Paragraph').  $method is
+   the function invoked to undo the effect of the command.  $method-undo is
+   a function that undoes the undo function, or effectively re-establishes
+   the state immediately after invoking the command.
+
+   If there is any existing undo information, invoke the function $cleanup;
+   typically a method closes over or uses permanent marks into a buffer,
+   and the cleanup function deletes such references.  The `Undo' command
+   only invokes undo methods when they were saved for the buffer that is
+   current `Undo' is invoked."
   (cond (*undo-info*
 	 (let ((old-cleanup (undo-info-cleanup *undo-info*)))
 	   (if old-cleanup (funcall old-cleanup))
@@ -180,6 +199,62 @@
 ;;;    be unless there was a subsequent undo.
 ;;;
 (defun make-region-undo (kind name region &optional mark-or-region)
+  "Handle three common cases that commands fall into when setting up undo
+   methods, including cleanup and method-undo functions (as defined by
+   `save-for-undo').  Choose the case according to $kind:
+
+      :twiddle
+	 The command modifies a region, and the undo information indicates
+	 how to swap between two regions -- the one before any modification
+	 occurs and the resulting region.  $region is the resulting region,
+	 and it has permanent marks into the buffer.  $mark-or-region is a
+	 region free of marks into the buffer (for example, the result of
+	 `copy-region').  As a result of calling this, a first invocation
+	 of `Undo' deletes region, saving it, and inserts $mark-or-region
+	 where $region used to be.  The undo method sets up for a second
+	 invocation of `Undo' that will undo the effect of the undo; that
+	 is, after two calls, the buffer is exactly as it was after
+	 invoking the command.  This activity is repeatable any number of
+	 times.  This establishes a cleanup method that deletes the two
+	 permanent marks into the buffer used to locate the modified
+	 region.
+
+      :insert
+	 The command deletes a region, and the undo information indicates
+	 how to re-insert the region.  $region is the deleted and saved
+	 region, and it does not contain marks into any buffer.
+	 $mark-or-region is a permanent mark into the buffer where the undo
+	 method should insert $region.  As a result of calling this, a
+	 first invocation of `Undo' inserts $region at $mark-or-region and
+	 forms a region around the inserted text with permanent marks into
+	 the buffer.  This allows a second invocation of `Undo' to undo the
+	 effect of the undo; that is, after two calls, the buffer is
+	 exactly as it was after invoking the command.  This activity is
+	 repeatable any number of times.  This establishes a cleanup method
+	 that deletes either the permanent mark into the buffer or the two
+	 permanent marks of the region, depending on how many times `Undo'
+	 is invoked.
+
+      :delete
+
+	 The command has inserts a block of text, and the undo information
+	 indicates how to delete the region.  $region has permanent marks
+	 into the buffer and surrounds the inserted text.  Leave
+	 $mark-or-region out.  As a result of calling this, a first
+	 invocation of `Undo' deletes region, saving it, and establishes a
+	 permanent mark into the buffer to remember where the region was.
+	 This allows a second invocation of `Undo' to undo the effect of
+	 the undo; that is, after two calls, the buffer is exactly as it
+	 was after invoking the command.  This activity is repeatable any
+	 number of times.  This establishes a cleanup method that deletes
+	 either the permanent mark into the buffer or the two permanent
+	 marks of the region, depending on how many times `Undo' is
+	 invoked.
+
+   $name in all cases is an appropriate string indicating what the command
+   did.  This is used by `Undo' when prompting for confirmation before
+   calling the undo method.  The string used by `Undo' alternates between
+   this argument and something to indicate undoing of an undo."
   (case kind
     (:twiddle
      (save-for-undo name

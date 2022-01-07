@@ -1,24 +1,6 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/sparc/static-fn.lisp,v 1.5 1994/10/31 04:46:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/sparc/static-fn.lisp,v 1.5 1994/10/31 04:46:41 ram Exp $
-;;;
-;;; This file contains the VOPs and macro magic necessary to call static
-;;; functions.
-;;;
-;;; Written by William Lott.
-;;;
+;;; The VOPs and macro magic necessary to call static functions.
+
 (in-package "SPARC")
-
-
 
 (define-vop (static-function-template)
   (:save-p t)
@@ -33,14 +15,11 @@
   (:temporary (:sc any-reg :offset ocfp-offset) old-fp)
   (:temporary (:sc control-stack :offset nfp-save-offset) nfp-save))
 
-
 (eval-when (compile load eval)
-
 
 (defun static-function-template-name (num-args num-results)
   (intern (format nil "~:@(~R-arg-~R-result-static-function~)"
 		  num-args num-results)))
-
 
 (defun moves (dst src)
   (collect ((moves))
@@ -119,9 +98,7 @@
 	       (load-stack-tn cur-nfp nfp-save))
 	     ,@(moves (result-names) (temp-names))))))))
 
-
 ) ; eval-when (compile load eval)
-
 
 (macrolet ((frob (num-args num-res)
 	     (static-function-template-vop (eval num-args) (eval num-res))))
@@ -131,7 +108,6 @@
   (frob 3 1)
   (frob 4 1)
   (frob 5 1))
-
 
 (defmacro define-static-function (name args &key (results '(x)) translate
 				       policy cost arg-types result-types)

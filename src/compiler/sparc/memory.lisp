@@ -1,21 +1,5 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/sparc/memory.lisp,v 1.3 1994/10/31 04:46:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the SPARC definitions of some general purpose memory
-;;; reference VOPs inherited by basic memory reference operations.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Converted by William Lott.
-;;; 
+;;; The SPARC definitions of some general purpose memory reference VOPs
+;;; inherited by basic memory reference operations.
 
 (in-package "SPARC")
 
@@ -58,13 +42,12 @@
   (:generator 4
     (storew value object (+ base offset) lowtag)))
 
-
 
-;;;; Indexed references:
+;;;; Indexed references.
 
 ;;; Define-Indexer  --  Internal
 ;;;
-;;;    Define some VOPs for indexed memory reference.
+;;; Define some VOPs for indexed memory reference.
 ;;;
 (defmacro define-indexer (name write-p op shift)
   `(define-vop (,name)
@@ -111,4 +94,3 @@
 (define-indexer byte-index-ref nil ldub 2)
 (define-indexer signed-byte-index-ref nil ldsb 2)
 (define-indexer byte-index-set t stb 2)
-

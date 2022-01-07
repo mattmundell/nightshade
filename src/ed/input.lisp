@@ -9,6 +9,25 @@
 ;;; INPUT-WAITING is exported solely as a hack for the kbdmac definition
 ;;; mechanism.
 
+#[ Keyboard Input
+
+Keyboard input interacts with a number of other parts of the editor.  Since
+the command loop works by reading from the keyboard, keyboard input is the
+initial cause of everything that happens.  Also, the editor redisplays in
+the low-level input loop when there is no available input from the user.
+
+{variable:ed:*editor-input*}
+{variable:ed:*real-editor-input*}
+{evariable:Input Hook}
+{function:ed:get-key-event}
+{function:ed:unget-key-event}
+{function:ed:clear-editor-input}
+{function:ed:listen-editor-input}
+{function:ed:editor-sleep}
+{variable:ed:*key-event-history*}
+{variable:ed:*last-key-event-typed*}
+{variable:ed:*input-transcript*}
+]#
 
 ;;; These are public variables users hand to the four basic editor input
 ;;; routines for method dispatching:
@@ -17,13 +36,15 @@
 ;;;    LISTEN-EDITOR-INPUT
 ;;;    CLEAR-EDITOR-INPUT
 ;;;
-(defvar *editor-input* nil
-  "A structure used to do various operations on terminal input.")
+(defvar *editor-input* ()
+  "A structure on which the editor I/O routines operate.  There are
+   functions to get input, clear input, return input, and listen for input.
+   Input appears as key-events.")
 
 (defvar *real-editor-input* ()
-  "Useful when we want to read from the terminal when *editor-input* is
-   rebound.")
-
+  "The initial value of *editor-input*.  This is useful for reading from
+   the original input when *editor-input* is rebound (such as within a
+   keyboard macro).")
 
 ;; FIX where should this go?
 (define-condition editor-top-level-catcher ())
@@ -45,7 +66,6 @@
   ;; been read, the event is a dummy with a nil key-event.
   head
   tail)
-
 
 ;;; These are the elements of the editor-input event queue.
 ;;;
@@ -75,13 +95,17 @@
 ;;; This is a public variable.
 ;;;
 (defvar *last-key-event-typed* ()
-  "This variable contains the last key-event typed by the user and read as
-   input.")
+  "The last key-event that the command interpreter read.
+
+   This variable is also maintained within keyboard macros allowing
+   commands to behave the same on each repetition as they did in the
+   recording invocation.")
 
 ;;; This is a public variable.  SITE-INIT initializes this.
 ;;;
-(defvar *key-event-history* nil
-  "This ring holds the last 60 key-events read by the command interpreter.")
+(defvar *key-event-history* ()
+  "A ring buffer ([Rings]) that holds the last 60 key-events read from the
+   keyboard.")
 
 (proclaim '(special *input-transcript*))
 
@@ -90,7 +114,7 @@
 ;;; and return the character.  If there is none, return NIL.
 ;;;
 (defun dq-event (stream)
-  (without-interrupts
+  (block-interrupts
    (let* ((head (editor-input-head stream))
 	  (next (input-event-next head)))
      (if next
@@ -107,14 +131,14 @@
 ;;; editor stream.
 ;;;
 (defun q-event (stream key-event &optional x y hunk)
-  (without-interrupts
+  (block-interrupts
    (let ((new (new-event key-event x y hunk nil))
 	 (tail (editor-input-tail stream)))
      (setf (input-event-next tail) new)
      (setf (editor-input-tail stream) new))))
 
 (defun un-event (key-event stream)
-  (without-interrupts
+  (block-interrupts
    (let* ((head (editor-input-head stream))
 	  (next (input-event-next head))
 	  (new (new-event key-event (input-event-x head) (input-event-y head)
@@ -122,32 +146,30 @@
      (setf (input-event-next head) new)
      (unless next (setf (editor-input-tail stream) new)))))
 
-
 
 ;;;; Keyboard macro hacks.
 
 (defvar *input-transcript* ()
-  "If this variable is non-null then it should contain an adjustable vector
+  "If this variable is true then it should contain an adjustable vector
    with a fill pointer into which all keyboard input will be pushed.")
 
 ;;; INPUT-WAITING  --  Internal
 ;;;
-;;;    An Evil hack that tells us whether there is an unread key-event on
+;;; An Evil hack that tells us whether there is an unread key-event on
 ;;; *editor-input*.  Note that this is applied to the real *editor-input*
 ;;; rather than to a kbdmac stream.
 ;;;
 (defun input-waiting ()
-  "Returns true if there is a key-event which has been unread-key-event'ed
+  "Return true if there is a key-event which has been unread-key-event'ed
    on *editor-input*.  Used by the keyboard macro stuff."
   (let ((next (input-event-next
 	       (editor-input-head *real-editor-input*))))
     (and next (input-event-unread-p next))))
 
-
 
 ;;;; Input method macro.
 
-(defvar *in-hemlock-stream-input-method* nil
+(defvar *in-editor-stream-input-method* nil
   "This keeps us from undefined nasties like re-entering editor stream
    input methods from input hooks and scheduled events.")
 
@@ -184,9 +206,9 @@
 					    (window-hunk (current-window)))))
 			       (funcall (device-exit device) device))
 			     (invoke-debugger condition))))
-;     (when *in-hemlock-stream-input-method*
-;       (error "Entering editor stream input method recursively!"))
-     (let ((*in-hemlock-stream-input-method* t)
+;     (when *in-editor-stream-input-method*
+;       (error "Entering editor stream input method recursively."))
+     (let ((*in-editor-stream-input-method* t)
 	   (nrw-fun (device-note-read-wait
 		     (device-hunk-device (window-hunk (current-window)))))
 	   key-event)
@@ -208,10 +230,9 @@
 	 (or ignore-abort-attempts-p
 	     (progn
 	       (beep)
-	       (throw 'editor-top-level-catcher nil))))
+	       (signal 'editor-top-level-catcher ()))))
        key-event)))
 ) ;eval-when
-
 
 
 ;;;; Editor input from windowing system.
@@ -242,7 +263,7 @@
 #+clx
 (defun windowed-clear-input (stream)
   (loop (unless (system:serve-event 0) (return)))
-  (without-interrupts
+  (block-interrupts
    (let* ((head (editor-input-head stream))
 	  (next (input-event-next head)))
      (when next
@@ -286,7 +307,7 @@
   (un-event key-event stream))
 
 (defun tty-clear-input (stream)
-  (without-interrupts
+  (block-interrupts
    (let* ((head (editor-input-head stream))
 	  (next (input-event-next head)))
      (when next
@@ -307,46 +328,72 @@
 	      (editor-tty-listen stream))
       (return t))
     ;; If nothing is pending, check the queued input.
-    (unless (system:serve-event 0)
-      (return (not (null (input-event-next (editor-input-head stream))))))))
+    (fi (system:serve-event 0)
+	(return (not (null (input-event-next (editor-input-head stream))))))))
 
 
 ;;;; GET-KEY-EVENT, UNGET-KEY-EVENT, LISTEN-EDITOR-INPUT, CLEAR-EDITOR-INPUT.
 
+(defvar *busy* ()
+  "t during command processing.  For :busy status line field.")
+
 ;;; GET-KEY-EVENT -- Public.
 ;;;
 (defun get-key-event (editor-input &optional ignore-abort-attempts-p)
-  "This function returns a key-event as soon as it is available on
-   editor-input.  Editor-input is either *editor-input* or *real-editor-input*.
-   Ignore-abort-attempts-p indicates whether #k\"C-g\" and #k\"C-G\" throw to
-   the editor's top-level command loop; when this is non-nil, this function
-   returns those key-events when the user types them.  Otherwise, it aborts the
-   editor's current state, returning to the command loop."
-  (funcall (editor-input-get editor-input) editor-input ignore-abort-attempts-p))
+  "Return a key-event as soon as it is available on $editor-input.
+
+   $editor-input is either *editor-input* or *real-editor-input*.
+
+   $ignore-abort-attempts-p indicates whether the \"Interrupt\" interrupt
+   (sigint, usually control-g and control-G) throws to the top-level editor
+   command loop.  When this is true, return the control-g/G key-events if
+   they are input, otherwise, terminate from the editor's current state,
+   returning to the command loop.  When performing this termination invoke
+   the functions in *Abort Hook* and skip those in *Input Hook*."
+  (prog1
+      (let (*busy*)
+	(if (buffer-modeline-field-p *echo-area-buffer* :busy)
+	    (update-modeline-field *echo-area-buffer* *echo-area-window*
+				   (modeline-field :busy)))
+	(if (buffer-modeline-field-p *echo-area-buffer* :busy-or-menu)
+	    (update-modeline-field *echo-area-buffer* *echo-area-window*
+				   (modeline-field :busy-or-menu)))
+	(redisplay)
+	(funcall (editor-input-get editor-input)
+		 editor-input ignore-abort-attempts-p))
+    (if (buffer-modeline-field-p *echo-area-buffer* :busy)
+	(update-modeline-field *echo-area-buffer* *echo-area-window*
+			       (modeline-field :busy)))
+    (if (buffer-modeline-field-p *echo-area-buffer* :busy-or-menu)
+	(update-modeline-field *echo-area-buffer* *echo-area-window*
+			       (modeline-field :busy-or-menu)))
+    (redisplay)))
 
 ;;; UNGET-KEY-EVENT -- Public.
 ;;;
 (defun unget-key-event (key-event editor-input)
-  "This function returns the key-event to editor-input, so the next invocation
-   of GET-KEY-EVENT will return the key-event.  If the key-event is #k\"C-g\"
-   or #k\"C-G\", then whether GET-KEY-EVENT returns it depends on its second
-   argument.  Editor-input is either *editor-input* or *real-editor-input*."
+  "Return $key-event to $editor-input, so the next invocation of
+   `get-key-event' will return $key-event.
+
+   If $key-event is #k\"control-g\" or #k\"control-G\", then whether
+   `get-key-event' returns it depends on that function's second argument.
+
+   $editor-input is either *editor-input* or *real-editor-input*."
   (funcall (editor-input-unget editor-input) key-event editor-input))
 
 ;;; CLEAR-EDITOR-INPUT -- Public.
 ;;;
 (defun clear-editor-input (editor-input)
-  "This function flushes any pending input on editor-input.  Editor-input
-   is either *editor-input* or *real-editor-input*."
+  "Flush any pending input on $editor-input.  $editor-input is either
+   *editor-input* or *real-editor-input*."
   (funcall (editor-input-clear editor-input) editor-input))
 
 ;;; LISTEN-EDITOR-INPUT -- Public.
 ;;;
 (defun listen-editor-input (editor-input)
-  "This function returns whether there is any input available on editor-input.
-   Editor-input is either *editor-input* or *real-editor-input*."
+  "Return whether there is any input available on $editor-input.
+   $editor-input is either *editor-input* or *real-editor-input*."
   (funcall (editor-input-listen editor-input) editor-input))
-
 
 
 ;;;; LAST-KEY-EVENT-CURSORPOS and WINDOW-INPUT-HANDLER.
@@ -356,10 +403,10 @@
 ;;; Just look up the saved info in the last read key event.
 ;;;
 (defun last-key-event-cursorpos ()
-  "Return as values, the (X, Y) character position and window where the
-   last key event happened.  If this cannot be determined, Nil is returned.
-   If in the modeline, return a Y position of NIL and the correct X and window.
-   Returns nil for terminal input."
+  "Return as multiple values, the (X, Y) character position and window
+   where the last key event happened, if possible, else return ().  If in
+   the modeline, return a Y position of () and the correct X and window.
+   Return () for terminal input."
   (let* ((ev (editor-input-head *real-editor-input*))
 	 (hunk (input-event-hunk ev))
 	 (window (and hunk (device-hunk-window hunk))))
@@ -373,7 +420,6 @@
 ;;;
 (defun window-input-handler (hunk char x y)
   (q-event *real-editor-input* char x y hunk))
-
 
 
 ;;;; Random typeout input routines.
@@ -415,7 +461,7 @@
 	(update-modeline-field buffer window :more-prompt)
 	(random-typeout-redisplay window))
       (buffer-start (buffer-point buffer))
-      (let* ((xwindow #+clx (make-xwindow-like-hwindow window)
+      (let* ((xwindow #+clx (make-xwindow-like-window window)
 		      #-clx nil)
 	     (window (make-window start :window xwindow)))
 	(unless window
@@ -462,5 +508,5 @@
 		       (system:serve-event)))))
     (when (abort-key-event-p key-event)
       (beep)
-      (signal 'editor-top-level-catcher nil))
+      (signal 'editor-top-level-catcher ()))
     key-event))

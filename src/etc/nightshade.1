@@ -1,9 +1,10 @@
 .\" Nightshade man page.
+.\" FIX pull in intro from Info
 .\"
-.TH NIGHTSHADE 1 "December 3, 2006"
+.TH NIGHTSHADE 1 "August 8, 2008"
 .AT 3
 .SH NAME
-nightshade \- Lisp environment
+nightshade \- a Lisp environment
 .SH SYNOPSIS
 .B nightshade
 [input-files] [switch-list]
@@ -36,18 +37,21 @@ it is wrapped in a form that does output.
 .TP
 .BR \-init " filename"
 Specifies the name of a file containing user customizations to be
-loaded (default ~/nightshade.lisp or ~/.nightshade.lisp).
+loaded (usually the file is ~/.nightshade/lisp.lisp).
 The loader
 loads any compiled version of these files, else the source.
 .TP
 .BR \-einit " filename"
 Similar to \-init, but specifies the name of the editor
-init file (default `~/nightshade-ed.lisp' or ~/.nightshade-ed.lisp), which is loaded only
+init file (usually `~/.nightshade/ed.lisp'), which is loaded only
 when the editor is started.
 .TP
 .BR \-noinit
 Suppresses loading of the init file, and also prevents \-edit from loading the
 editor init file.
+.TP
+.BR \-xoff
+Instruct the editor to run in the terminal instead of as an X application.
 .TP
 .BR \-load " filename"
 Loads the specified file before entering the read-eval-print loop.
@@ -91,9 +95,21 @@ files used by Lisp at run-time.  The default is `/usr/local/lib/nightshade/lib'.
 .
 .PP
 .\"
+.SH EXAMPLES
+.\"
+.TP 10n
+.BR nightshade " script"
+Execute the code in script and then exit.
+.\"
+.TP
+.BR nightshade " file -edit"
+Open file in the editor.
+.\" .TP
+.PP
+.\"
 .SH FILES
 .\"
-The following pathnames are specified relative to the directory where
+The following pathnames are specified relative to the directory in which
 Nightshade is installed.
 .
 .TP 10n
@@ -103,13 +119,13 @@ Nightshade is installed.
 .BR bin/nightshade
 The lisp startup program.  This directory should be in PATH.
 .TP
-.BR lib/nigtshade/nightshade.core
+.BR lib/nightshade/nightshade.core
 The suspended Lisp image.
 .TP
 .BR lib/site-init.lisp
 Site specific initialization.
 .TP
-.BR lib/hemlock11.*, lib/mh-scan, lib/spell-dictionary.bin
+.BR lib/hemlock11.*, lib/spell-dictionary.bin
 Editor files.
 .TP
 .\" .BR lib/fonts/
@@ -118,17 +134,27 @@ Editor files.
 .\" .BR lib/XKeysymDB
 .\" Database of X Keysym names for Motif.
 .\" .TP
-.BR ~/nightshade.lisp,~/.nightshade.lisp
-User customization files loaded at lisp startup; either name is acceptable.
+.BR ~/.nightshade/lisp.lisp
+User customization files loaded at lisp startup.
 Init files can be compiled.
 .TP
-.BR ~/nightshade-ed.lisp, ~/.nightshade-ed.lisp
-Editor initialization file, loaded when the editor starts.
+.BR ~/.nightshade/ed.lisp
+User editor initialization file, loaded when the editor starts.
 .PP
+.\" .SH SEE ALSO
+.\"
+.\" FIX describe very basic ed intro exit
+.\"
+.SH COPYING
+.\"
+Nightshade is most probably in the public domain.  Further
+details at http://www.mundell.ukfsn.org/nightshade/public.html.
+.\" FIX more details
 .\"
 .\" .SH SEE ALSO
-.\" cmucl(1), README
-.\" .br
+.\" The documentation in the editor, available via c-h i or M-x Info.
+.\"
+.\" .SH AUTHORS
 .\" The ``CMU Common Lisp User's Manual'',
 .\" .br
 .\" the ``Hemlock User's Manual'', and

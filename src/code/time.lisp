@@ -4,6 +4,7 @@
 
 (in-package "LISP")
 
+;; FIX + now/current-time
 (export '(internal-time-units-per-second get-internal-real-time
 	  get-internal-run-time get-universal-time
 	  get-decoded-time encode-universal-time decode-universal-time
@@ -12,7 +13,7 @@
 
 (defconstant internal-time-units-per-second 100
   "The number of internal time units that fit into a second.  See
-   Get-Internal-Real-Time and Get-Internal-Run-Time.")
+   `get-internal-real-time' and `get-internal-run-time'.")
 
 (defconstant micro-seconds-per-internal-time-unit
   (/ 1000000 internal-time-units-per-second))
@@ -55,7 +56,7 @@
 ;;;
 (defun get-internal-real-time ()
   "Return the real time in the internal time format.  This is useful for
-   finding elapsed time.  See Internal-Time-Units-Per-Second."
+   finding elapsed time.  See constant internal-time-units-per-second."
   (locally (declare (optimize (speed 3) (safety 0)))
     (multiple-value-bind (ignore seconds useconds) (unix:unix-gettimeofday)
       (declare (ignore ignore) (type (unsigned-byte 32) seconds useconds))
@@ -128,17 +129,17 @@
 ;;;
 ;;;
 (defun get-universal-time ()
-  "Returns a single integer for the current time of day in universal time
+  "Return a single integer for the current time of day in universal time
    format."
   (multiple-value-bind (res secs) (unix:unix-gettimeofday)
     (declare (ignore res))
     (+ secs unix-to-universal-time)))
 
-(defun get-decoded-time ()
+(defun get-decoded-time (&optional time-zone)
   "Returns nine values specifying the current time as follows: second,
    minute, hour, date, month, year, day of week (0 = Monday), T (daylight
    savings times) or NIL (standard time), and timezone."
-  (decode-universal-time (get-universal-time)))
+  (decode-universal-time (get-universal-time) time-zone))
 
 (defun decode-universal-time (universal-time &optional time-zone)
   "Converts a universal-time to decoded time format returning the following
@@ -149,7 +150,7 @@
       (if time-zone
 	  (values nil (* time-zone 60 60))
 	  (multiple-value-bind
-		(ignore minwest dst)
+	      (ignore minwest dst)
 	      (unix:get-timezone (- universal-time unix-to-universal-time))
 	    (declare (ignore ignore))
 	    (values dst (* minwest 60))))
@@ -252,15 +253,94 @@
 	  (+ second (* (+ guess (- minwest minwest-guess)) 60))))))
 
 
+#[ Additional Timing Utilities
+
+{function:time}
+
+{function:ext:get-bytes-consed}
+
+The profiling routines use `get-bytes-consed' to report consing
+information.
+
+{variable:ext:*gc-run-time*}
+{constant:internal-time-units-per-second}
+]#
+
+
+#[ Timing
+\cpsubindex{CPU time}{interpretation of}
+\cpsubindex{run time}{interpretation of}
+\cindex{interpretation of run time}
+
+There are two general kinds of timing information provided by the `time'
+macro and other profiling utilities: real time and run time.  Real time is
+elapsed, wall clock time.  It will be affected in a fairly obvious way by
+any other activity on the machine.  The more other processes contending for
+CPU and memory, the more real time will increase.  This means that real
+time measurements are difficult to replicate, though this is less true on a
+dedicated workstation.  The advantage of real time is that it is real.  It
+tells you really how long the program took to run under the benchmarking
+conditions.  The problem is that you don't know exactly what those
+conditions were.
+
+Run time is the amount of time that the processor supposedly spent running
+the program, as opposed to waiting for I/O or running other processes.
+"User run time" and "system run time" are numbers reported by the Unix
+kernel.  They are supposed to be a measure of how much time the processor
+spent running your "user" program (which will include GC overhead, etc.),
+and the amount of time that the kernel spent running "on your behalf".
+
+Ideally, user time should be totally unaffected by benchmarking conditions;
+in reality user time does depend on other system activity, though in rather
+non-obvious ways.
+
+System time will clearly depend on benchmarking conditions.  In Lisp
+benchmarking, paging activity increases system run time (but not by as much
+as it increases real time, since the kernel spends some time waiting for
+the disk, and this is not run time, kernel or otherwise).
+
+In my experience, the biggest trap in interpreting kernel/user run time is
+to look only at user time.  In reality, it seems that the \var{sum} of
+kernel and user time is more reproducible.  The problem is that as system
+activity increases, there is a spurious \var{decrease} in user run time.
+In effect, as paging, etc., increases, user time leaks into system time.
+
+So, in practice, the only way to get truly reproducible results is to run
+with the same competing activity on the system.  Try to run on a machine
+with nobody else logged in, and check with "ps aux" to see if there are any
+system processes munching large amounts of CPU or memory.  If the ratio
+between real time and the sum of user and system time varies much between
+runs, then you have a problem.
+]#
+
+
 ;;;; Time.
 
 (defmacro time (form)
-  "Evaluates the Form and prints timing information on *Trace-Output*."
+  "time $form
+
+   Execute a form and report the time and consing overhead.
+
+   Evaluate $form, print some timing and memory allocation information to
+   *trace-output*, and return any values that $form returns.  The timing
+   information includes real time, user run time, and system run time.
+
+   If $form is interpreted then `compile' will be called on the form to
+   give more accurate timing information.  To time interpreted speed, the
+   following can be used
+
+       (time (eval '$form))
+
+   Forms that execute fairly quickly should be timed more than once, since
+   there may be more paging overhead in the first timing.  To increase the
+   accuracy of very short times, multiple evaluations can be timed:
+
+       (time (dotimes (i 100) $form))."
   `(%time #'(lambda () ,form)))
 
 ;;; MASSAGE-TIME-FUNCTION  --  Internal
 ;;;
-;;;    Try to compile the closure arg to %TIME if it is interpreted.
+;;; Try to compile the closure arg to %TIME if it is interpreted.
 ;;;
 (defun massage-time-function (fun)
   (cond
@@ -279,7 +359,7 @@
 
 ;;; TIME-GET-SYS-INFO  --  Internal
 ;;;
-;;;    Return all the files that we want time to report.
+;;; Return all the files that we want time to report.
 ;;;
 (defun time-get-sys-info ()
   (multiple-value-bind (user sys faults)
@@ -288,7 +368,7 @@
 
 ;;; %TIME  --  Internal
 ;;;
-;;;    The guts of the TIME macro.  Compute overheads, run the (compiled)
+;;; The guts of the `time' macro.  Compute overheads, run the (compiled)
 ;;; function, report the times.
 ;;;
 (defun %time (fun)

@@ -2,6 +2,102 @@
 
 (in-package "ED")
 
+#[ System Defined Character Attributes
+
+These are predefined:
+
+  `Whitespace'
+     A value of 1 indicates the character is whitespace.
+
+  `Word Delimiter'
+     A value of 1 indicates the character separates words (see section
+     [Text Functions]).
+
+  `Digit'
+     A value of 1 indicates the character is a base ten digit.  This may be
+     shadowed in modes or buffers to mean something else.
+
+  `Space'
+     This is like `Whitespace', but it should not include Newline.
+     The editor uses this primarily for handling indentation on a line.
+
+  `Sentence Terminator'
+     A value of 1 indicates these characters terminate sentences (see section
+     reftext-functions).
+
+  `Sentence Closing Char'
+     A value of 1 indicates these delimiting characters, such as "
+     or ), may follow a `Sentence Terminator' (see section
+     reftext-functions).
+
+  `Paragraph Delimiter'
+     A value of 1 indicates these characters delimit paragraphs when they begin
+     a line (see section reftext-functions).
+
+  `Page Delimiter'
+     A value of 1 indicates this character separates logical pages (see section
+     reflogical-pages) when it begins a line.
+
+  `Scribe Syntax'
+     This uses the following symbol values:
+
+          nil
+             These characters have no interesting properties.
+
+          :escape
+             This is @@ for the Scribe formatting language.
+
+          :open-paren
+             These characters begin delimited text.
+
+          :close-paren
+             These characters end delimited text.
+
+          :space
+             These characters can terminate the name of a formatting command.
+
+          :newline
+             These characters can terminate the name of a formatting command.
+
+
+  `Lisp Syntax'
+     This uses symbol values from the following:
+
+          nil
+             These characters have no interesting properties.
+
+          :space
+             These characters act like whitespace and should not include
+             Newline.
+
+          :newline
+             This is the Newline character.
+
+          :open-paren
+             This is ( character.
+
+          :close-paren
+             This is ) character.
+
+          :prefix
+             This is a character that is a part of any form it precedes --
+             for example, the single quote, '.
+
+          :string-quote
+             This is the character that quotes a string literal,
+             ".
+
+          :char-quote
+             This is the character that escapes a single character,
+             \.
+
+          :comment
+             This is the character that makes a comment with the rest of the
+             line, ;.
+
+          :constituent
+             These characters are constitute symbol names.
+]#
 
 (defattribute "Whitespace"
   "A value of 1 for this attribute indicates that the corresponding character

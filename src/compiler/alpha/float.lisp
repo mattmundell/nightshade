@@ -1,26 +1,9 @@
-;;; Being hacked to add IEEE support
-;;; -*- Package: ALPHA; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/float.lisp,v 1.3.2.2 2000/05/23 16:37:28 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains floating point support for the Alpha.
-;;;
-;;; Written by Rob MacLachlan
-;;; Conversion by Sean Hallgren
-;;; IEEE variants by Paul Werkowski
-;;; Complex-float support by Douglas Crosher 1998.
-;;;
+;;; Floating point support for the Alpha.
+
 (in-package "ALPHA")
 
 
-;;;; Move functions:
+;;;; Move functions.
 
 (define-move-function (load-fp-zero 1) (vop x y)
   ((fp-single-zero) (single-reg)
@@ -35,7 +18,6 @@
   ((single-reg) (single-stack))
   (inst sts x (* (tn-offset y) word-bytes) (current-nfp-tn vop)))
 
-
 (define-move-function (load-double 2) (vop x y)
   ((double-stack) (double-reg))
   (let ((nfp (current-nfp-tn vop))
@@ -48,9 +30,8 @@
 	(offset (* (tn-offset y) word-bytes)))
     (inst stt x offset nfp)))
 
-
 
-;;;; Move VOPs:
+;;;; Move VOPs.
 
 (macrolet ((frob (vop sc)
 	     `(progn
@@ -67,7 +48,6 @@
 		(define-move-vop ,vop :move (,sc) (,sc)))))
   (frob single-move single-reg)
   (frob double-move double-reg))
-
 
 (define-vop (move-from-float)
   (:args (x :to :save))
@@ -111,7 +91,6 @@
   (frob move-to-single single-reg nil single-float-value-slot)
   (frob move-to-double double-reg t double-float-value-slot))
 
-
 (macrolet ((frob (name sc stack-sc double-p)
 	     `(progn
 		(define-vop (,name)
@@ -136,7 +115,7 @@
   (frob move-double-float-argument double-reg double-stack t))
 
 
-;;;; Complex float move functions
+;;;; Complex float move functions.
 
 (defun complex-single-reg-real-tn (x)
   (make-random-tn :kind :normal :sc (sc-or-lose 'single-reg *backend*)
@@ -151,7 +130,6 @@
 (defun complex-double-reg-imag-tn (x)
   (make-random-tn :kind :normal :sc (sc-or-lose 'double-reg *backend*)
 		  :offset (1+ (tn-offset x))))
-
 
 (define-move-function (load-complex-single 2) (vop x y)
   ((complex-single-stack) (complex-single-reg))
@@ -171,7 +149,6 @@
     (let ((imag-tn (complex-single-reg-imag-tn x)))
       (inst sts imag-tn (+ offset vm:word-bytes) nfp))))
 
-
 (define-move-function (load-complex-double 4) (vop x y)
   ((complex-double-stack) (complex-double-reg))
   (let ((nfp (current-nfp-tn vop))
@@ -190,7 +167,6 @@
     (let ((imag-tn (complex-double-reg-imag-tn x)))
       (inst stt imag-tn (+ offset (* 2 vm:word-bytes)) nfp))))
 
-;;;
 ;;; Complex float register to register moves.
 ;;;
 (define-vop (complex-single-move)
@@ -231,7 +207,6 @@
 (define-move-vop complex-double-move :move
   (complex-double-reg) (complex-double-reg))
 
-;;;
 ;;; Move from a complex float to a descriptor register allocating a
 ;;; new complex float object in the process.
 ;;;
@@ -279,7 +254,6 @@
 (define-move-vop move-from-complex-double :move
   (complex-double-reg) (descriptor-reg))
 
-;;;
 ;;; Move from a descriptor to a complex float register
 ;;;
 (define-vop (move-to-complex-single)
@@ -314,7 +288,6 @@
 (define-move-vop move-to-complex-double :move
   (descriptor-reg) (complex-double-reg))
 
-;;;
 ;;; Complex float move-argument vop
 ;;;
 (define-vop (move-complex-single-float-argument)
@@ -365,13 +338,12 @@
 (define-move-vop move-complex-double-float-argument :move-argument
   (complex-double-reg descriptor-reg) (complex-double-reg))
 
-
 (define-move-vop move-argument :move-argument
   (single-reg double-reg complex-single-reg complex-double-reg)
   (descriptor-reg))
 
 
-;;;; Arithmetic VOPs:
+;;;; Arithmetic VOPs.
 
 (define-vop (float-op)
   (:args (x) (y))
@@ -439,7 +411,7 @@
   (frob %negate/double-float fneg %negate double-reg double-float))
 
 
-;;;; Comparison:
+;;;; Comparison.
 
 (define-vop (float-compare)
   (:args (x) (y))
@@ -484,7 +456,7 @@
   (frob = nil =/single-float =/double-float t))
 
 
-;;;; Conversion:
+;;;; Conversion.
 
 (macrolet ((frob (name translate inst ld-inst to-sc to-type &optional single)
              `(define-vop (,name)
@@ -732,7 +704,7 @@
     (inst mskll lo-bits 4 lo-bits)))
 
 
-;;;; Float mode hackery:
+;;;; Float mode hackery.
 
 (deftype float-modes () '(unsigned-byte 24))
 (defknown floating-point-modes () float-modes (flushable))
@@ -779,7 +751,7 @@
       (move res new))))
 
 
-;;;; Complex float VOPs
+;;;; Complex float VOPs.
 
 (define-vop (make-complex-single-float)
   (:translate complex)

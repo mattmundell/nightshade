@@ -1,27 +1,10 @@
-;;; -*- Package: MIPS -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/memory.lisp,v 1.16 1994/10/31 04:44:16 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the MIPS definitions of some general purpose memory
-;;; reference VOPs inherited by basic memory reference operations.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Converted by William Lott.
-;;; 
+;;; The MIPS definitions of some general purpose memory reference VOPs
+;;; inherited by basic memory reference operations.
 
 (in-package "MIPS")
 
-
-;;; Cell-Ref and Cell-Set are used to define VOPs like CAR, where the offset to
-;;; be read or written is a property of the VOP used.
+;;; Cell-Ref and Cell-Set are used to define VOPs like CAR, where the
+;;; offset to be read or written is a property of the VOP used.
 ;;;
 (define-vop (cell-ref)
   (:args (object :scs (descriptor-reg)))

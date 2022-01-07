@@ -1,26 +1,6 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/static-fn.lisp,v 1.2 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/rt/static-fn.lisp,v 1.2 1994/10/31 04:45:41 ram Exp $
-;;;
-;;; This file contains the VOPs and macro magic necessary to call static
-;;; functions.
-;;;
-;;; Written by William Lott.
-;;; Converted by Bill Chiles.
-;;;
+;;; The VOPs and macro magic necessary to call static functions.
 
 (in-package "RT")
-
-
 
 (define-vop (static-function-template)
   (:save-p t)
@@ -35,7 +15,6 @@
   (:temporary (:sc any-reg :offset nargs-offset) nargs)
   (:temporary (:sc any-reg :offset ocfp-offset) old-fp)
   (:temporary (:sc control-stack :offset nfp-save-offset) nfp-save))
-
 
 (eval-when (compile load eval)
 
@@ -122,13 +101,12 @@
 
 ) ;EVAL-WHEN (compile load eval)
 
-
 (macrolet ((frob (nargs nres)
 	     (static-function-template-vop nargs nres)))
   (frob 0 1)
   (frob 1 1)
   (frob 2 1))
-  
+
 (defmacro define-static-function (name args &key (results '(x)) translate
 				       policy cost arg-types result-types)
   `(define-vop (,name

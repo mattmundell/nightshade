@@ -18,10 +18,8 @@
 		    edi::*testing-moved*
 		    edi::*testing-writes*))
 
-(defcommand "Setup Tty Buffer" (p)
+(defcommand "Setup Tty Buffer" ()
   "Clear buffer and insert numbering strings 0..19."
-  "Clear buffer and insert numbering strings 0..19."
-  (declare (ignore p))
   (delete-region (buffer-region (current-buffer)))
   (let ((point (current-point)))
     (dotimes (i 20)
@@ -29,28 +27,22 @@
       (insert-character point #\newline))
     (buffer-start point)))
 
-(defcommand "Setup for Debugging" (p)
+(defcommand "Setup for Debugging" ()
   "Set *debugging-tty-redisplay* to t, and some other stuff to nil."
-  "Set *debugging-tty-redisplay* to t, and some other stuff to nil."
-  (declare (ignore p))
   (setf edi::*debugging-tty-redisplay* t)
   (setf edi::*testing-delete-queue* nil)
   (setf edi::*testing-insert-queue* nil)
   (setf edi::*testing-moved* nil)
   (setf edi::*testing-writes* nil))
 
-(defcommand "Cleanup for Debugging" (p)
+(defcommand "Cleanup for Debugging" ()
   "Set *debugging-tty-redisplay* to nil."
-  "Set *debugging-tty-redisplay* to nil."
-  (declare (ignore p))
   (setf edi::*debugging-tty-redisplay* nil))
 
 ;;; Given "Setup Tty Buffer", deletes lines numbered 3, 4, 5, 10, 11, 12,
 ;;; 13, and 14.  With argument, 3..7 and 12..14.
 ;;;
 (defcommand "Two Deletes" (p)
-  "At line 3, delete 3 lines.  At line 3+4, delete 5 lines.
-   With an argument, switch the number deleted."
   "At line 3, delete 3 lines.  At line 3+4, delete 5 lines.
    With an argument, switch the number deleted."
   (multiple-value-bind (dnum1 dnum2)
@@ -64,7 +56,6 @@
  	(line-offset point 4)
 	(line-offset (move-mark end point) dnum2)
 	(delete-region (region point end))))))
-
 
 ;;; Given "Setup Tty Buffer", opens two blank lines between 2 and 3, and
 ;;; opens four blank lines between 6 and 7, leaving line numbered 13 at
@@ -86,7 +77,6 @@
       (line-offset point 4)
       (dotimes (i onum2)
 	(insert-character point #\newline)))))
-
 
 ;;; Given "Setup Tty Buffer", deletes lines numbered 3, 4, and 5, and
 ;;; opens five lines between lines numbered 9 and 10, leaving line numbered
@@ -134,16 +124,11 @@
 	(line-offset end dnum)
 	(delete-region (region point end))))))
 
-
-;;; This could be thrown away, but I'll leave it here.  When I was testing
-;;; the problem of generating EQ screen image lines due to faulty
-;;; COMPUTE-TTY-CHANGES, this was a convenient command to get the editor
-;;; back under control.
-;;;
-(defcommand "Fix Screen Image Lines" (p)
-  ""
-  ""
-  (declare (ignore p))
+(defcommand "Fix Screen Image Lines" ()
+  "This could be thrown away, but I'll leave it here.  When I was testing
+   the problem of generating EQ screen image lines due to faulty
+   COMPUTE-TTY-CHANGES, this was a convenient command to get the editor
+   back under control."
   (let* ((device (edi::device-hunk-device (edi::window-hunk (current-window))))
 	 (lines (edi::tty-device-lines device))
 	 (columns (edi::tty-device-columns device))

@@ -1,21 +1,6 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/seqtran.lisp,v 1.22.2.1 2000/05/23 16:37:22 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains optimizers for list and sequence functions.
-;;;
-;;; Written by Rob MacLachlan.  Some code adapted from the old seqtran file,
-;;; written by Wholey and Fahlman.
-;;;
-(in-package "C")
+;;; Optimizers for list and sequence functions.
 
+(in-package "C")
 
 (defun mapper-transform (fn arglists accumulate take-car)
   (once-only ((fn fn))
@@ -82,19 +67,18 @@
 (deftransform %setelt ((s i v) (list * *))
   '(setf (car (nthcdr i s)) v))
 
-
 (dolist (name '(member memq))
   (deftransform name ((e l &key (test #'eql)) '* '* :node node :when :both
 		      :eval-name t)
     (unless (constant-continuation-p l) (give-up))
-    
+
     (let ((val (continuation-value l)))
       (unless (policy node
 		      (or (= speed 3)
 			  (and (>= speed space)
 			       (<= (length val) 5))))
 	(give-up))
-      
+
       (labels ((frob (els)
 		 (if els
 		     `(if (funcall test e ',(car els))
@@ -124,7 +108,7 @@
 	(splice '()))
        ((endp x) list)
      (cond ((funcall pred (car x))
-	    (if (null splice) 
+	    (if (null splice)
 		(setq list (cdr x))
 		(rplacd splice (cdr x))))
 	   (T (setq splice x)))))
@@ -156,7 +140,7 @@
 
 ;;; Names of predicates that compute the same value as CHAR= when applied to
 ;;; characters.
-;;; 
+;;;
 (defconstant char=-functions '(eql equal char=))
 
 (deftransform search ((string1 string2 &key (start1 0) end1 (start2 0) end2
@@ -167,7 +151,7 @@
     (give-up))
   '(lisp::%sp-string-search string1 start1 (or end1 (length string1))
 			    string2 start2 (or end2 (length string2))))
-			      
+
 (deftransform position ((item sequence &key from-end test (start 0) end)
 			(t simple-string &rest t))
   (unless (or (not test)
@@ -190,12 +174,11 @@
        nil))
 
 
-;;;; Utilities:
-
+;;;; Utilities.
 
 ;;; CONTINUATION-FUNCTION-IS  --  Interface
 ;;;
-;;;    Return true if Cont's only use is a non-notinline reference to a global
+;;; Return true if Cont's only use is a non-notinline reference to a global
 ;;; function with one of the specified Names.
 ;;;
 (defun continuation-function-is (cont names)
@@ -207,10 +190,9 @@
 		(eq (global-var-kind leaf) :global-function)
 		(not (null (member (leaf-name leaf) names :test #'equal))))))))
 
-
 ;;; CONSTANT-VALUE-OR-LOSE  --  Interface
 ;;;
-;;;    If Cont is a constant continuation, the return the constant value.  If
+;;; If Cont is a constant continuation, the return the constant value.  If
 ;;; it is null, then return default, otherwise quietly GIVE-UP.
 ;;; ### Probably should take an ARG and flame using the NAME.
 ;;;
@@ -225,10 +207,10 @@
 #|
 ;;; MAKE-ARG, ARG-CONT, ARG-NAME  --  Interface
 ;;;
-;;;    This is a frob whose job it is to make it easier to pass around the
-;;; arguments to IR1 transforms.  It bundles together the name of the argument
-;;; (which should be referenced in any expansion), and the continuation for
-;;; that argument (or NIL if unsupplied.)
+;;; This is a frob whose job it is to make it easier to pass around the
+;;; arguments to IR1 transforms.  It bundles together the name of the
+;;; argument (which should be referenced in any expansion), and the
+;;; continuation for that argument (or NIL if unsupplied.)
 ;;;
 (defstruct (arg (:constructor %make-arg (name cont)))
   (name nil :type symbol)
@@ -239,7 +221,7 @@
 
 ;;; DEFAULT-ARG  --  Interface
 ;;;
-;;;    If Arg is null or its CONT is null, then return Default, otherwise
+;;; If Arg is null or its CONT is null, then return Default, otherwise
 ;;; return Arg's NAME.
 ;;;
 (defun default-arg (arg default)
@@ -248,10 +230,9 @@
       (arg-name arg)
       default))
 
-
 ;;; ARG-CONSTANT-VALUE  --  Interface
 ;;;
-;;;    If Arg is null or has no CONT, return the default.  Otherwise, Arg's
+;;; If Arg is null or has no CONT, return the default.  Otherwise, Arg's
 ;;; CONT must be a constant continuation whose value we return.  If not, we
 ;;; give up.
 ;;;
@@ -264,10 +245,9 @@
 	(continuation-value from-end))
       default))
 
-
 ;;; ARG-EQL  --  Internal
 ;;;
-;;;    If Arg is a constant and is EQL to X, then return T, otherwise NIL.  If
+;;; If Arg is a constant and is EQL to X, then return T, otherwise NIL.  If
 ;;; Arg is NIL or its CONT is NIL, then compare to the default.
 ;;;
 (defun arg-eql (arg default x)
@@ -277,7 +257,6 @@
 	(and (constant-continuation-p cont)
 	     (eql (continuation-value cont) x)))
       (eql default x)))
-
 
 (defstruct iterator
   ;;
@@ -309,20 +288,18 @@
   ;; this when the iterator is Done.
   (next (error "Must specify NEXT.")))
 
-
 ;;; Type of an index var that can go negative (in the from-end case.)
 (deftype neg-index ()
   `(integer -1 ,most-positive-fixnum))
 
-
 ;;; MAKE-SEQUENCE-ITERATOR  --  Interface
 ;;;
-;;;    Return an ITERATOR structure describing how to iterate over an arbitrary
-;;; sequence.  Sequence is a variable bound to the sequence, and Type is the
-;;; type of the sequence.  If true, INDEX is a variable that should be bound to
-;;; the index of the current element in the sequence.
+;;; Return an ITERATOR structure describing how to iterate over an
+;;; arbitrary sequence.  Sequence is a variable bound to the sequence, and
+;;; Type is the type of the sequence.  If true, INDEX is a variable that
+;;; should be bound to the index of the current element in the sequence.
 ;;;
-;;;    If we can't tell whether the sequence is a list or a vector, or whether
+;;; If we can't tell whether the sequence is a list or a vector, or whether
 ;;; the iteration is forward or backward, then GIVE-UP.
 ;;;
 (defun make-sequence-iterator (sequence type &key start end from-end index)
@@ -386,20 +363,19 @@
 	  (t
 	   (give-up "Can't tell whether sequence is a list or a vector.")))))
 
-
 ;;; MAKE-RESULT-SEQUENCE-ITERATOR  --  Interface
 ;;;
-;;;    Make an iterator used for constructing result sequences.  Name is a
-;;; variable to be bound to the result sequence.  Type is the type of result
-;;; sequence to make.  Length is an expression to be evaluated to get the
-;;; maximum length of the result (not evaluated in list case.)
+;;; Make an iterator used for constructing result sequences.  Name is a
+;;; variable to be bound to the result sequence.  Type is the type of
+;;; result sequence to make.  Length is an expression to be evaluated to
+;;; get the maximum length of the result (not evaluated in list case.)
 ;;;
 (defun make-result-sequence-iterator (name type length)
   (declare (symbol name) (type ctype type))
 
 ;;; COERCE-FUNCTIONS  --  Interface
 ;;;
-;;;    Defines each Name as a local macro that will call the value of the
+;;; Defines each Name as a local macro that will call the value of the
 ;;; Fun-Arg with the given arguments.  If the argument isn't known to be a
 ;;; function, give them an efficiency note and reference a coerced version.
 ;;;
@@ -447,18 +423,17 @@
 			(arg-name ,test-not)))
      (coerce-functions ((,name (if not-p ,test-not ,test) eql))
        ,@body)))
-
 |#
-
-;;;; Hairy sequence transforms:
-
 
 
-;;;; String operations:
+;;;; Hairy sequence transforms.
+
+
+;;;; String operations.
 
 ;;; STRINGxxx transform  --  Internal
 ;;;
-;;;    We transform the case-sensitive string predicates into a non-keyword
+;;; We transform the case-sensitive string predicates into a non-keyword
 ;;; version.  This is an IR1 transform so that we don't have to worry about
 ;;; changing the order of evaluation.
 ;;;
@@ -474,12 +449,12 @@
 		       '* '* :eval-name t)
       `(,pred* string1 string2 start1 end1 start2 end2))))
 
-
 ;;; STRING-xxx* transform  --  Internal
 ;;;
-;;;    Return a form that tests the free variables STRING1 and STRING2 for the
-;;; ordering relationship specified by Lessp and Equalp.  The start and end are
-;;; also gotten from the environment.  Both strings must be simple strings.
+;;; Return a form that tests the free variables STRING1 and STRING2 for the
+;;; ordering relationship specified by Lessp and Equalp.  The start and end
+;;; are also gotten from the environment.  Both strings must be simple
+;;; strings.
 ;;;
 (dolist (stuff '((string<* t nil)
 		 (string<=* t t)
@@ -507,7 +482,6 @@
 		   (t nil))
 	     ,(if equalp 'end1 'nil))))))
 
-
 (dolist (stuff '((string=* not)
 		 (string/=* identity)))
   (destructuring-bind (name result-fun) stuff
@@ -520,7 +494,6 @@
 	 string2 start2 (or end2 (length string2)))))))
 
 
-
 ;;;; CONS assessor derive type optimizers.
 
 (defoptimizer (car derive-type) ((cons))

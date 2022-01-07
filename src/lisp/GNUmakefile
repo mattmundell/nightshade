@@ -15,6 +15,7 @@ endif
 SRCS = nightshade.c coreparse.c alloc.c monitor.c print.c interr.c \
 	vars.c parse.c interrupt.c search.c validate.c globals.c \
 	dynbind.c breakpoint.c regnames.c backtrace.c save.c purify.c \
+	xlib.c \
 	${ARCH_SRC} ${ASSEM_SRC} ${OS_SRC} ${GC_SRC}
 
 OBJS = $(patsubst %.c,%.o,$(patsubst %.S,%.o,$(patsubst %.s,%.o,$(SRCS))))
@@ -22,7 +23,7 @@ OBJS = $(patsubst %.c,%.o,$(patsubst %.S,%.o,$(patsubst %.s,%.o,$(SRCS))))
 ### Don't look in RCS for the files, because we might not want the latest.
 %: RCS/%,v
 
-nightshade.nm: nightshade
+nightshade.nm: nightshade # xlib.o
 	echo 'Map file for lisp version ' `cat version` > ,nightshade.nm
 	$(NM) nightshade | grep -v " F \| U " >> ,nightshade.nm
 	mv ,nightshade.nm nightshade.nm
@@ -36,11 +37,14 @@ nightshade: version.c ${OBJS} version
 		${OS_LIBS} -lm
 	mv -f ,nightshade nightshade
 
+#xlib.o: xlib.c
+#	$(CC) ${CFLAGS} -g -Wall   -c -o xlib.o xlib.c
+
 version:
 	echo 0 > version
 
 internals.h:
-	@echo "You must run genesis to create internals.h!"
+	@echo "Run genesis to create internals.h."
 	@false
 
 clean:

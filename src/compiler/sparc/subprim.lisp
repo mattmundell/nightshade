@@ -1,20 +1,6 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/sparc/subprim.lisp,v 1.3 1994/10/31 04:46:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    Linkage information for standard static functions, and random vops.
-;;;
-;;; Written by William Lott.
-;;; 
-(in-package "SPARC")
+;;; Linkage information for standard static functions, and random vops.
 
+(in-package "SPARC")
 
 
 ;;;; Length
@@ -54,7 +40,5 @@
 
       (emit-label done)
       (move result count))))
-       
 
 (define-static-function length (object) :translate length)
-

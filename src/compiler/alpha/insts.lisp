@@ -1,18 +1,4 @@
-;;; -*- Package: ALPHA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/insts.lisp,v 1.4 1997/06/07 19:04:39 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the instruction set definition for the Alpha.
-;;;
-;;; Written by Sean Hallgren.
-;;;
+;;; The instruction set definition for the Alpha.
 
 (in-package :alpha)
 
@@ -92,9 +78,9 @@
 			  (type disassem:disassem-state dstate))
 		 (+ (ash value 2) (disassem:dstate-cur-addr dstate))))
 
-
 
 ;;;; Define-instruction-formats for disassembler.
+
 (disassem:define-instruction-format
     (memory 32 :default-printer '(:name :tab ra "," disp "(" rb ")"))
   (op   :field (byte 6 26))
@@ -150,6 +136,7 @@
 
 
 ;;;; Emitters.
+
 (define-emitter emit-word 16
   (byte 16 0))
 
@@ -180,6 +167,7 @@
 
 
 ;;;; Macros for instructions.
+
 (defmacro define-memory (name op &optional fixup float)
   `(define-instruction ,name (segment ra disp rb ,@(if fixup
 						       '(&optional type)))
@@ -267,6 +255,7 @@
 
 
 ;;;; Instructions.
+
 (define-memory lda   #x08 :lda)
 (define-memory ldah  #x09 :ldah)
 (define-memory ldl   #x28)
@@ -440,7 +429,7 @@
 
 (define-instruction  excb (segment)
   (:emitter (emit-lword segment #x63ff0400)))
-  
+
 (define-instruction trapb (segment)
   (:emitter (emit-lword segment #x63ff0000)))
 
@@ -512,7 +501,7 @@
      (inst sll reg 32 reg)
      (inst lda reg value reg)
      (inst ldah reg value reg))))
-  
+
 (define-instruction-macro li (value reg)
   `(%li ,value ,reg))
 

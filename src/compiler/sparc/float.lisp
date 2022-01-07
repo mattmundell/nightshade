@@ -1,24 +1,9 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/sparc/float.lisp,v 1.12.2.3 2000/09/26 15:16:23 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains floating point support for the MIPS.
-;;;
-;;; Written by Rob MacLachlan
-;;; Sparc conversion by William Lott.
-;;; Complex-float and long-float support by Douglas Crosher 1998.
-;;;
+;;; Floating point support for the MIPS.
+
 (in-package "SPARC")
 
 
-;;;; Move functions:
+;;;; Move functions.
 
 (define-move-function (load-single 1) (vop x y)
   ((single-stack) (single-reg))
@@ -27,7 +12,6 @@
 (define-move-function (store-single 1) (vop x y)
   ((single-reg) (single-stack))
   (inst stf x (current-nfp-tn vop) (* (tn-offset y) vm:word-bytes)))
-
 
 (define-move-function (load-double 2) (vop x y)
   ((double-stack) (double-reg))
@@ -100,7 +84,7 @@
     (store-long-reg x nfp offset)))
 
 
-;;;; Move VOPs:
+;;;; Move VOPs.
 
 ;;; Exploit the V9 double-float move instruction. This is conditional
 ;;; on the :sparc-v9 feature.
@@ -152,7 +136,6 @@
   (frob double-move double-reg :double)
   #+long-float
   (frob long-move long-reg :long))
-
 
 (define-vop (move-from-float)
   (:args (x :to :save))
@@ -259,7 +242,7 @@
   (long-reg descriptor-reg) (long-reg))
 
 
-;;;; Complex float move functions
+;;;; Complex float move functions.
 
 (defun complex-single-reg-real-tn (x)
   (make-random-tn :kind :normal :sc (sc-or-lose 'single-reg *backend*)
@@ -284,7 +267,6 @@
   (make-random-tn :kind :normal :sc (sc-or-lose 'long-reg *backend*)
 		  :offset (+ (tn-offset x) 4)))
 
-
 (define-move-function (load-complex-single 2) (vop x y)
   ((complex-single-stack) (complex-single-reg))
   (let ((nfp (current-nfp-tn vop))
@@ -303,7 +285,6 @@
     (let ((imag-tn (complex-single-reg-imag-tn x)))
       (inst stf imag-tn nfp (+ offset vm:word-bytes)))))
 
-
 (define-move-function (load-complex-double 4) (vop x y)
   ((complex-double-stack) (complex-double-reg))
   (let ((nfp (current-nfp-tn vop))
@@ -321,7 +302,6 @@
       (inst stdf real-tn nfp offset))
     (let ((imag-tn (complex-double-reg-imag-tn x)))
       (inst stdf imag-tn nfp (+ offset (* 2 vm:word-bytes))))))
-
 
 #+long-float
 (define-move-function (load-complex-long 5) (vop x y)
@@ -343,7 +323,6 @@
     (let ((imag-tn (complex-long-reg-imag-tn x)))
       (store-long-reg imag-tn nfp (+ offset (* 4 vm:word-bytes))))))
 
-;;;
 ;;; Complex float register to register moves.
 ;;;
 (define-vop (complex-single-move)
@@ -405,7 +384,6 @@
 (define-move-vop complex-long-move :move
   (complex-long-reg) (complex-long-reg))
 
-;;;
 ;;; Move from a complex float to a descriptor register allocating a
 ;;; new complex float object in the process.
 ;;;
@@ -471,7 +449,6 @@
 (define-move-vop move-from-complex-long :move
   (complex-long-reg) (descriptor-reg))
 
-;;;
 ;;; Move from a descriptor to a complex float register
 ;;;
 (define-vop (move-to-complex-single)
@@ -518,7 +495,6 @@
 (define-move-vop move-to-complex-long :move
   (descriptor-reg) (complex-long-reg))
 
-;;;
 ;;; Complex float move-argument vop
 ;;;
 (define-vop (move-complex-single-float-argument)
@@ -595,14 +571,13 @@
 (define-move-vop move-complex-long-float-argument :move-argument
   (complex-long-reg descriptor-reg) (complex-long-reg))
 
-
 (define-move-vop move-argument :move-argument
   (single-reg double-reg #+long-float long-reg
    complex-single-reg complex-double-reg #+long-float complex-long-reg)
   (descriptor-reg))
 
 
-;;;; Arithmetic VOPs:
+;;;; Arithmetic VOPs.
 
 (define-vop (float-op)
   (:args (x) (y))
@@ -783,7 +758,7 @@
 	       (inst fmovs y-odd x-odd)))))))
 
 
-;;;; Comparison:
+;;;; Comparison.
 
 (define-vop (float-compare)
   (:args (x) (y))
@@ -841,7 +816,7 @@
 	(= (long-float-exp-bits x) (long-float-exp-bits y))))
 
 
-;;;; Conversion:
+;;;; Conversion.
 
 (macrolet ((frob (name translate inst to-sc to-type)
 	     `(define-vop (,name)
@@ -1238,7 +1213,7 @@
 	      vm:other-pointer-type)))))
 
 
-;;;; Float mode hackery:
+;;;; Float mode hackery.
 
 (deftype float-modes () '(unsigned-byte 32))
 (defknown floating-point-modes () float-modes (flushable))
@@ -1379,7 +1354,7 @@
     (inst fsqrtq y x)))
 
 
-;;;; Complex float VOPs
+;;;; Complex float VOPs.
 
 (define-vop (make-complex-single-float)
   (:translate complex)
@@ -1566,8 +1541,7 @@
   (:variant :imag))
 
 
-
-;;;; Complex float arithmetic
+;;;; Complex float arithmetic.
 
 #+complex-fp-vops
 (progn
@@ -1658,7 +1632,7 @@
 		(inst ,fop rr xr y)
 		(unless (location= ri xi)
 		  (,@fmov ri xi))))))))
-  
+
   (frob single + fadds (inst fmovs) 2)
   (frob single - fsubs (inst fmovs) 2)
   (frob double + faddd (move-double-reg) 4)
@@ -1885,7 +1859,6 @@
   (frob single fmuls (inst fmovs) 4)
   (frob double fmuld (move-double-reg) 4))
 
-
 ;; Divide a complex by a complex
 
 ;; Here's how we do a complex division
@@ -1909,7 +1882,7 @@
 ;;
 ;; We do the similar thing when |yi| > |yr|.  The result is
 ;;
-;;     
+;;
 ;; (xr + i*xi)      (xr + i*xi)
 ;; ----------- = -----------------
 ;; (yr + i*yi)   yi*((yr/yi) + i)
@@ -2069,8 +2042,8 @@
   (frob single fcmps fadds fsubs fmuls fdivs (inst fabss) 15)
   (frob double fcmpd faddd fsubd fmuld fdivd (abs-double-reg) 15))
 
-
 ;; Divide a complex by a real
+
 (macrolet
     ((frob (float-type fdiv cost)
        (let* ((vop-name (symbolicate "COMPLEX-" float-type "-FLOAT-/-" float-type "-FLOAT"))
@@ -2211,7 +2184,7 @@
 	single-float (complex single-float))
   (frob %compare-complex-double-double %compare-double-complex-double
 	double-float (complex double-float)))
-	   
+
 #+nil
 (macrolet
     ((frob (trans-1 trans-2 float-type fcmp fsub)
@@ -2500,7 +2473,7 @@
   ;; numbers.
   (frob min any-reg tagged-num cmp cmove 3
 	:icc :lt :ge "inline fixnum min"))
-	   
+
 #+nil
 (define-vop (max-boxed-double-float=>boxed-double-float)
   (:args (x :scs (descriptor-reg))
@@ -2533,7 +2506,7 @@
 	     ;; It doesn't matter what R is, just copy the min to R.
 	     (inst cmove :ge r x :fcc0)
 	     (inst cmove :l r y :fcc0))))))
-    
+
 )
 
 (in-package "C")
@@ -2545,7 +2518,7 @@
 ;;; The sparc-v9 architecture has conditional move instructions that
 ;;; can be used.  This should be faster than using the obvious if
 ;;; expression since we don't have to do branches.
-  
+
 (def-source-transform min (&rest args)
   (case (length args)
     ((0 2) (values nil t))
@@ -2674,4 +2647,3 @@
 		    ,arg1 ,arg2)))))))
 
 )
-

@@ -1,11 +1,27 @@
-;;; Auto-Save Mode
+;;; Auto-Save mode.
 
 (in-package "ED")
 
 
-;;;; Per Buffer State Information
+#[ Auto Save Mode
 
-;;;
+`Save' mode protects against loss of work in system crashes by periodically
+saving modified buffers in checkpoint files.
+
+{mode:Save}
+{evariable:Auto Save Checkpoint Frequency}
+{evariable:Auto Save Key Count Threshold}
+{evariable:Auto Save Cleanup Checkpoints}
+
+The next two variables determine the naming of checkpoint files.
+
+{evariable:Auto Save Filename Pattern}
+{evariable:Auto Save Pathname Hook}
+]#
+
+
+;;;; Per buffer state information.
+
 ;;; The auto-save-state structure is used to store the state information for
 ;;; a particular buffer in "Save" mode, namely the buffer-signature at the last
 ;;; key stroke, the buffer-signature at the time of the last checkpoint, a count
@@ -27,7 +43,6 @@
   (declare (ignore depth))
   (format stream "#<Auto Save Buffer State for buffer ~A>"
 	  (buffer-name (save-state-buffer auto-save-state))))
-
 
 ;;; GET-AUTO-SAVE-STATE tries to get the auto-save-state for the buffer.  If
 ;;; the buffer is not in "Save" mode then this function returns NIL.
@@ -52,7 +67,6 @@
 	(setf (save-state-key-count state)
 	      0)))))
 
-
 
 ;;;; Checkpoint Pathname Interface/Internal Routines
 
@@ -70,31 +84,24 @@
     (if state
 	(save-state-pathname state))))
 
-;;; MAKE-UNIQUE-SAVE-PATHNAME is used as the default value for "Auto Save
-;;; Pathname Hook" and is mentioned in the User's manual, so it gets a doc
-;;; doc string.
+;;; MAKE-UNIQUE-SAVE-PATHNAME is a candidate for "Auto Save Pathname Hook".
 ;;;
 (defun make-unique-save-pathname (buffer)
-  "Returns a pathname for a non-existing file in DEFAULT-DIRECTORY.  Uses
-   GENSYM to for a file name: save-GENSYM.CKP."
+  "Return a pathname for a non-existing file in DEFAULT-DIRECTORY.  Use
+   GENSYM to form a file name: save-GENSYM.CKP."
   (declare (ignore buffer))
-  (let ((def-dir (default-directory)))
+  (let ((def-dir (current-directory)))
     (loop
       (let* ((sym (gensym))
 	     (f (merge-pathnames (format nil "save-~A.CKP" sym) def-dir)))
-	(unless (probe-file f)
-	  (return f))))))
+	(or (probe-file f) (return f))))))
 
-(defhvar "Auto Save Pathname Hook"
-  "This hook is called by Auto Save to get a checkpoint pathname when there
-   is no pathname associated with a buffer.  If this value is NIL, then
-   \"Save\" mode is turned off in the buffer.  Otherwise, the function
-   will be called. It should take a buffer as its argument and return either
-   NIL or a pathname.  If NIL is returned, then \"Save\" mode is turned off
-   in the buffer;  else the pathname returned is used as the checkpoint
-   pathname for the buffer."
-  :value #'make-unique-save-pathname)
-
+(defevar "Auto Save Pathname Hook"
+  "A function called by `Auto Save' to get a checkpoint pathname to
+   associate with a buffer.  The function should take a buffer as its
+   argument and return the checkpoint pathname or ().  If the function
+   returns (), or if this variable is (), then `Save' mode is turned off in
+   the buffer.")
 
 ;;; MAKE-BUFFER-CKP-PATHNAME attempts to form a pathname by using the buffer's
 ;;; associated pathname (from buffer-pathname).  If there isn't a pathname
@@ -110,15 +117,13 @@
 			  (directory-namestring buffer-pn)
 			  (file-namestring buffer-pn))))))
 
-
 
 ;;;; Buffer-level Checkpoint Routines
 
-;;;
 ;;; write-checkpoint-file -- Internal
 ;;;
 ;;; Does the low-level write of the checkpoint.  Returns T if it succeeds
-;;; and NIL if it fails.  Echoes outcome.
+;;; and () if it fails.  Echoes outcome.
 ;;;
 (defun write-checkpoint-file (pathname buffer)
   (let ((ns (namestring pathname)))
@@ -137,9 +142,8 @@
 	   (message "Can't write ~A" ns)
 	   nil))))
 
-
-;;;
-;;; To save, or not to save... and to save as what?
+;; FIX doc
+;;; To save... and to save as what?
 ;;;
 ;;; First, make-buffer-ckp-pathname is called. It will return either NIL or
 ;;; a pathname formed by using buffer-pathname in conjunction with the hvar
@@ -151,9 +155,7 @@
 ;;; the hook with the buffer as an argument.  The function on the hook should
 ;;; return either NIL or a pathname. If it returns NIL, we toggle Save mode
 ;;; off for the buffer;  otherwise, we use the pathname it returned.
-;;;
 
-;;;
 ;;; checkpoint-buffer -- Internal
 ;;;
 ;;; This functions takes a buffer as its argument and attempts to write a
@@ -190,7 +192,6 @@
 		      (reset-auto-save-state buffer)
 		      (setf (save-state-pathname state) new-pn)))))))))
 
-;;;
 ;;; checkpoint-all-buffers -- Internal
 ;;;
 ;;; This function looks through the buffer list and checkpoints
@@ -212,11 +213,10 @@
 ;;;; Random Hooks: cleanup, buffer-modified, change-save-freq,
 ;;;;               warn-if-checkpoint-newer.
 
-;;;
 ;;; cleanup-checkpoint -- Internal
 ;;;
 ;;; Cleans up checkpoint file for a given buffer if Auto Save Cleanup
-;;; Checkpoints is non-NIL.  This is called via "Write File Hook"
+;;; Checkpoints is true.  This is called via "Write File Hook"
 ;;;
 (defun cleanup-checkpoint (buffer)
   (let ((ckp-pathname (get-checkpoint-pathname buffer)))
@@ -227,7 +227,6 @@
 
 (add-hook write-file-hook 'cleanup-checkpoint)
 
-;;;
 ;;; notice-buffer-modified -- Internal
 ;;;
 ;;; This function is called on "Buffer Modified Hook" to reset
@@ -241,7 +240,6 @@
 
 (add-hook buffer-modified-hook 'notice-buffer-modified)
 
-;;;
 ;;; change-save-frequency -- Internal
 ;;;
 ;;; This keeps us scheduled at the proper interval.  It is stuck on
@@ -256,7 +254,6 @@
 	     (plusp new-value))
     (schedule-event new-value 'checkpoint-all-buffers t)))
 
-
 ;;; "Save" mode is in "Default Modes", so turn it off in these modes.
 ;;;
 
@@ -266,13 +263,11 @@
 (add-hook typescript-mode-hook 'interactive-modes)
 (add-hook eval-mode-hook 'interactive-modes)
 
-
-;;;
 ;;; warn-if-checkpoint-newer -- Internal
-
+;;;
 (defun warn-if-checkpoint-newer (buffer pathname)
   "Warn if checkpoint for Buffer is newer than the file in the buffer.  If
-   \"Auto Save Offer Revert\" is true then offer to revert the file."
+   *Auto Save Offer Revert* is true then offer to revert the file."
   (let ((ckp-pathname (make-buffer-ckp-pathname buffer)))
     (when ckp-pathname
       (let ((date (buffer-write-date buffer)))
@@ -282,7 +277,7 @@
 		  (when (prompt-for-y-or-n
 			 :prompt (format nil
 		         "Checkpoint newer than ~A.~%Revert to checkpoint? "
-			                 (namestring pathname)))
+			 (namestring pathname)))
 		    (read-buffer-file ckp-pathname buffer)
 		    (setf (buffer-modified buffer) t)
 		    (setf (buffer-pathname buffer) pathname)
@@ -293,9 +288,8 @@
 (add-hook read-file-hook 'warn-if-checkpoint-newer)
 
 
-;;;; Key Count Routine for Input Hook
+;;;; Key Count Routine for input hook.
 
-;;;
 ;;; auto-save-count-keys -- Internal
 ;;;
 ;;; This function sits on the Input Hook to eat cycles.  If the current
@@ -326,74 +320,44 @@
 (add-hook input-hook 'auto-save-count-keys)
 
 
-;;;; Save Mode Editor Variables
+;;;; Save Mode editor variables.
 
-;;;
-;;; Editor variables/parameters for Auto-Save Mode
-;;;
-
-(defhvar "Auto Save Filename Pattern"
-  "This control-string is used with format to make the filename of the
-  checkpoint file.  Format is called with two arguments, the first
-  being the directory namestring and the second being the file
-  namestring of the default buffer pathname."
+(defevar "Auto Save Filename Pattern"
+  "A format string used to name the checkpoint files for buffers with
+   associated files.  Format is called with two arguments: the directory
+   and file namestrings of the associated file."
   :value "~A~A.CKP")
 
-(defhvar "Auto Save Key Count Threshold"
-  "This value is the number of destructive/modifying keystrokes that will
-  automatically trigger an checkpoint.  This value may be NIL to turn this
-  feature off."
+(defevar "Auto Save Key Count Threshold"
+  "The number of effective keystrokes that automatically trigger a
+   checkpoint.  A value of () turns this feature off."
   :value 256)
 
-(defhvar "Auto Save Cleanup Checkpoints"
-  "This variable controls whether or not \"Save\" mode will delete the
-  checkpoint file for a buffer after it is saved.  If this value is
-  non-NIL then cleanup will occur."
+(defevar "Auto Save Cleanup Checkpoints"
+  "If this variable is true, then any checkpoint file for a buffer will be
+   deleted when the buffer is successfully saved in its associated file."
   :value t)
 
-(defhvar "Auto Save Checkpoint Frequency"
-  "All modified buffers (in \"Save\" mode) will be checkpointed after this
-  amount of time (in seconds).  This value may be NIL (or non-positive)
-  to turn this feature off."
+(defevar "Auto Save Checkpoint Frequency"
+  "All modified buffers (in \"Save\" mode) are checkpointed at latest after
+   this number of seconds.  () and numbers <= 0 turn this feature off."
   :value (* 2 60)
   :hooks '(change-save-frequency))
 
-(defhvar "Auto Save State"
+(defevar "Auto Save State"
   "Shadow magic.  This variable is seen when in buffers that are not
-  in \"Save\" mode.  Do not change this value or you will lose."
-  :value nil)
+  in \"Save\" mode.  Do not change this value or you will lose.")
 
-(defhvar "Auto Save Offer Revert"
-  "If true when reading a file Auto Save will offer to revert the file if
-   it is older than the checkpoint."
-  :value nil)
+(defevar "Auto Save Offer Revert"
+  "If true when reading a file, Auto Save offers to revert the file if it
+   is older than the checkpoint.")
 
-(defhvar "Auto Save Verbosely"
+(defevar "Auto Save Verbosely"
   "If true then print a message when a checkpoint is written."
   :value t)
 
 
-;;;; "Save" mode
-
-(defcommand "Auto Save Mode" (p)
-  "If the argument is zero or negative, turn \"Save\" mode off.  If it
-  is positive turn \"Save\" mode on.  If there is no argument, toggle
-  \"Save\" mode in the current buffer.  When in \"Save\" mode, files
-  are automatically checkpointed every \"Auto Save Checkpoint Frequency\"
-  seconds or every \"Auto Save Key Count Threshold\" destructive
-  keystrokes.  If there is a pathname associated with the buffer, the
-  filename used for the checkpoint file is controlled by the hvar \"Auto
-  Save Filename Pattern\".  Otherwise, the hook \"Auto Save Pathname Hook\"
-  is used to generate a checkpoint pathname.  If the buffer's pathname
-  changes between checkpoints, the checkpoint file will be written under
-  the new name and the old checkpoint file will be deleted if it exists.
-  When a buffer is written out, the checkpoint will be deleted if the
-  hvar \"Auto Save Cleanup Checkpoints\" is non-NIL."
-  "Turn on, turn off, or toggle \"Save\" mode in the current buffer."
-  (setf (buffer-minor-mode (current-buffer) "Save")
-	(if p
-	    (plusp p)
-	    (not (buffer-minor-mode (current-buffer) "Save")))))
+;;;; "Save" mode.
 
 (defun setup-auto-save-mode (buffer)
   (let* ((signature (buffer-signature buffer))
@@ -403,7 +367,7 @@
 		 :last-ckp-signature (the fixnum signature))))
     ;; shadow the global value with a variable which will
     ;; contain our per buffer state information
-    (defhvar "Auto Save State"
+    (defevar "Auto Save State"
       "This is the \"Save\" mode state information for this buffer."
       :buffer buffer
       :value state)))
@@ -414,4 +378,16 @@
 
 (defmode "Save"
   :setup-function 'setup-auto-save-mode
-  :cleanup-function 'cleanup-auto-save-mode)
+  :cleanup-function 'cleanup-auto-save-mode
+  :documentation
+  "When in \"Save\" mode, files are automatically checkpointed every *Auto
+   Save Checkpoint Frequency* seconds or every *Auto Save Key Count
+   Threshold* destructive keystrokes.  If there is a pathname associated
+   with the buffer, the filename used for the checkpoint file is controlled
+   by the hvar *Auto Save Filename Pattern*.  Otherwise, the hook *Auto
+   Save Pathname Hook* is used to generate a checkpoint pathname.  If the
+   buffer's pathname changes between checkpoints, the checkpoint file will
+   be written under the new name and the old checkpoint file will be
+   deleted if it exists.  When a buffer is written out, the checkpoint will
+   be deleted if the editor variable *Auto Save Cleanup Checkpoints* is
+   true.")

@@ -1,24 +1,12 @@
-;;; -*- Package: C -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/assemfile.lisp,v 1.37 1994/10/31 04:57:57 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the extra code necessary to feed an entire file of
-;;; assembly code to the assembler.
-;;;
+;;; The extra code necessary to feed an entire file of assembly code to the
+;;; assembler.
+
 (in-package "C")
 
 (export '(define-assembly-routine))
 
-
 (defvar *do-assembly* nil
-  "If non-NIL, emit assembly code.  If NIL, emit VOP templates.")
+  "If true, emit assembly code.  If NIL, emit VOP templates.")
 
 (defvar *lap-output-file* nil
   "The FASL file currently being output to.")
@@ -74,8 +62,6 @@
       (close-fasl-file *lap-output-file* (not won)))
     won))
 
-
-
 (defstruct (reg-spec
 	    (:print-function %print-reg-spec))
   (kind :temp :type (member :arg :temp :res))
@@ -105,7 +91,6 @@
       ((:arg :res)
        (setf (reg-spec-temp reg) (make-symbol (symbol-name name)))))
     reg))
-
 
 (defun emit-assemble (name options regs code)
   (collect ((decls))
@@ -146,8 +131,8 @@
 	 (return-style (or (cadr (assoc :return-style options)) :raw))
 	 (cost (or (cadr (assoc :cost options)) 247))
 	 (vop (make-symbol "VOP")))
-    (unless (member return-style '(:raw :full-call :none))
-      (error "Unknown return-style for ~S: ~S" name return-style))
+    (or (member return-style '(:raw :full-call :none))
+	(error "Unknown return-style for ~S: ~S" name return-style))
     (multiple-value-bind
 	(call-sequence call-temps)
 	(let ((*backend* *target-backend*))

@@ -1,4 +1,4 @@
-;;;    Special proclamations for variables that are referenced in the code
+;;; Special proclamations for variables that are referenced in the code
 ;;; sources before they are defined.  There are also some function
 ;;; proclamations to make some common functions be known, avoiding large
 ;;; amounts of work in recording the calls that are done before the
@@ -8,7 +8,7 @@
 
 (declaim (special *keyword-package* *lisp-package* *package* *query-io*
 		  *terminal-io* *error-output* *trace-output* *debug-io*
-		  *standard-input* *standard-output* *hemlock-version*
+		  *standard-input* *standard-output*
 		  *evalhook* *applyhook* *command-line-switches*
 		  *command-switch-demons* ext::temporary-foreign-files
 		  *display-event-handlers* original-lisp-environment
@@ -17,7 +17,7 @@
 		  *print-length* *print-level* *print-pretty* *print-escape*
 		  *print-case* *print-circle* *print-gensym* *print-array*
 		  defmacro-error-string defsetf-error-string
-		  std-lisp-readtable ; hi::*in-the-editor*
+		  std-lisp-readtable
 		  debug::*in-the-debugger*
 		  conditions::*handler-clusters*
 		  conditions::*restart-clusters*
@@ -40,17 +40,18 @@
 (declaim (ftype (function * *)
 		disable-clx-event-handling
 		extensions::call-display-event-handler
-		xlib::display-input-stream xlib:event-listen
+		;xlib::display-input-stream
+		xlib::display-fd xlib:event-listen
 		flush-display-events))
 
-#-hemlock
+#-ed
 (declaim (ftype (function * *)
-		hemlock-internals::current-window
-		hemlock-internals::device-exit
-		hemlock-internals::device-hunk-device
-		hemlock-internals::device-init
-		hemlock::ts-stream-p hemlock::ts-stream-wire
-		hemlock-internals::window-hunk))
+		edi::current-window
+		edi::device-exit
+		edi::device-hunk-device
+		edi::device-init
+		ed::ts-stream-p ed::ts-stream-wire
+		edi::window-hunk))
 
 ;;; Gray streams functions not defined until after PCL is loaded.
 (declaim (ftype (function * *)

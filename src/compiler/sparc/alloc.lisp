@@ -1,18 +1,4 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/sparc/alloc.lisp,v 1.11 1994/10/31 04:46:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Allocation VOPs for the SPARC port.
-;;;
-;;; Written by William Lott.
-;;; 
 
 (in-package "SPARC")
 
@@ -115,7 +101,6 @@
       (storew null-tn result fdefn-function-slot other-pointer-type)
       (storew temp result fdefn-raw-addr-slot other-pointer-type))))
 
-
 (define-vop (make-closure)
   (:args (function :to :save :scs (descriptor-reg)))
   (:info length)
@@ -131,7 +116,7 @@
     (storew function result closure-function-slot function-pointer-type)))
 
 ;;; The compiler likes to be able to directly make value cells.
-;;; 
+;;;
 (define-vop (make-value-cell)
   (:args (value :to :save :scs (descriptor-reg any-reg)))
   (:temporary (:scs (non-descriptor-reg)) temp)
@@ -140,7 +125,6 @@
     (with-fixed-allocation
 	(result temp value-cell-header-type value-cell-size))
     (storew value result value-cell-value-slot other-pointer-type)))
-
 
 
 ;;;; Automatic allocators for primitive objects.

@@ -4,36 +4,35 @@
 
 (defmode "Roff" :major-p t)
 
-(defcommand "Roff Mode" (p)
+(defcommand "Roff Mode" ()
   "Put the current buffer into Roff mode."
-  "Put the current buffer into Roff mode."
-  (declare (ignore p))
   (setf (buffer-major-mode (current-buffer)) "Roff"))
 
-(defhvar "Indent Function"
-  "Indentation function which is invoked by \"Indent\" command.
-   It must take one argument that is the prefix argument."
+(defevar "Indent Function"
+  "Indentation function invoked by the `Indent' command.  The function
+   takes a :left-inserting mark that may be moved, and indents the line
+   that the mark is on."
   :value #'generic-indent
   :mode "Roff")
 
-(defhvar "Auto Fill Space Indent"
-  "When non-nil, uses \"Indent New Comment Line\" to break lines instead of
-   \"New Line\"."
+(defevar "Auto Fill Space Indent"
+  "When true, uses `Indent New Comment Line' to break lines instead of `New
+   Line'."
   :mode "Roff" :value t)
 
-(defhvar "Comment Start"
+(defevar "Comment Start"
   "String that indicates the start of a comment."
   :mode "Roff" :value ".\\\"")
 
-(defhvar "Comment End"
-  "String that ends comments.  Nil indicates #\newline termination."
-  :mode "Roff" :value nil)
+(defevar "Comment End"
+  "String that ends comments.  () indicates #\newline termination."
+  :mode "Roff")
 
-(defhvar "Comment Begin"
+(defevar "Comment Begin"
   "String that is inserted to begin a comment."
   :mode "Roff" :value ".\\\" ")
 
-(defhvar "Highlight Comments"
+(defevar "Highlight Comments"
   "If true single-line comments will be highlighted."
   :mode "Roff" :value t)
 

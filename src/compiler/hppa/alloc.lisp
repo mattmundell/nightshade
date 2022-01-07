@@ -1,18 +1,4 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/alloc.lisp,v 1.3 1994/10/31 04:42:45 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Allocation VOPs for the HPPA port.
-;;;
-;;; Written by William Lott.
-;;; 
 
 (in-package "HPPA")
 
@@ -66,7 +52,6 @@
 			null-tn)
 		    ptr cons-cdr-slot list-pointer-type))
 	  (move res result)))))))
-
 
 (define-vop (list list-or-list*)
   (:variant nil))
@@ -133,7 +118,7 @@
     (storew function result closure-function-slot function-pointer-type)))
 
 ;;; The compiler likes to be able to directly make value cells.
-;;; 
+;;;
 (define-vop (make-value-cell)
   (:args (value :to :save :scs (descriptor-reg any-reg)))
   (:temporary (:scs (non-descriptor-reg)) temp)
@@ -142,7 +127,6 @@
     (with-fixed-allocation
 	(result temp value-cell-header-type value-cell-size))
     (storew value result value-cell-value-slot other-pointer-type)))
-
 
 
 ;;;; Automatic allocators for primitive objects.

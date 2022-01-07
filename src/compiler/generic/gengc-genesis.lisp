@@ -1,19 +1,4 @@
-;;; -*- Package: Lisp -*-
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/generic/gengc-genesis.lisp,v 1.15 1994/10/31 04:38:06 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Core image builder for CMU Common Lisp.
-;;;
-;;; Written by Skef Wholey.  Package hackery courtesy of Rob MacLachlan.
-;;;
-;;; Completely Rewritten by William Lott for MIPS port.
-;;;
+;;; Core image builder.
 
 (in-package "LISP")
 
@@ -24,13 +9,12 @@
        (* ,size-var (ceiling ,num ,size-var)))))
 
 
-;;;; Addresses
+;;;; Addresses.
 
 (deftype address ()
   `(unsigned-byte ,vm:word-bits))
 
 (defconstant null-address 0)
-
 
 
 ;;;; Block allocator.
@@ -123,7 +107,6 @@
 (defun add-remset-entry (generation address)
   (declare (type generation generation) (type address address))
   (setf (gethash address (generation-remset generation)) t))
-
 
 
 ;;;; Step representation.
@@ -234,7 +217,6 @@
 (defvar *static*)
 (defvar *dynamic*)
 
-
 (defun make-generations ()
   (loop
     for gen-num from 0
@@ -254,7 +236,7 @@
 	gen))))
 
 
-;;;; Large object stuff
+;;;; Large object stuff.
 
 (defstruct (cluster
 	    (:print-function %print-cluster))
@@ -291,12 +273,12 @@
 
 ;;; LOS-OBJECT-WORD-OVERHEAD -- number of words extra we have to pre-pend
 ;;; to each large object.
-;;; 
+;;;
 (defconstant los-object-word-overhead 6)
 
 ;;; LOS-HEADER-mumble-OFFSET -- byte offset of the various slots in the
 ;;; large-object header.
-;;; 
+;;;
 (defconstant los-header-longs-offset 0)
 (defconstant los-header-step-offset 4)
 (defconstant los-header-prev-offset 8)
@@ -305,7 +287,7 @@
 ;;; LOS-OBJECT-MINIMUM-SIZE -- minimum number of words that a large object
 ;;; can be.  Objects smaller then this must be padded out to this.  Includes
 ;;; the los-object-word-overhead.
-;;; 
+;;;
 (defconstant los-object-minimum-size 128)
 
 ;;; LOS-REGION-ALIGNMENT -- word alignment for regions (object + overhead) in
@@ -314,7 +296,7 @@
 (defconstant los-region-alignment 2)
 
 ;;; MIN-CLUSTER-BLOCKS -- minimum number of blocks to allocate per cluster.
-;;; 
+;;;
 (defconstant min-cluster-blocks 4)
 
 ;;; LOS-CLUSTER-BYTE-OVERHEAD -- number of bytes needs for the cluster
@@ -521,7 +503,6 @@
 (defvar *in-cold-load* nil
   "Used by normal loader.")
 
-
 
 ;;;; Stuff to read and write the core memory.
 
@@ -546,7 +527,6 @@
       short
       (logior (ash (ldb (byte 8 0) short) 8)
 	      (ldb (byte 8 8) short))))
-  
 
 (defun write-bits (address index bits)
   (declare (type descriptor address)
@@ -576,7 +556,7 @@
 		     (from-gen-num (generation-num from-gen))
 		     (to-gen-num (generation-num (step-gen to-step))))
 		(when (> from-gen-num to-gen-num)
-		  (add-remset-entry from-gen 
+		  (add-remset-entry from-gen
 				    (ecase remember
 				      (:slot
 				       (+ (logandc2 (descriptor-bits address)
@@ -598,7 +578,6 @@
 	   (type index index)
 	   (values descriptor))
   (make-random-descriptor (read-bits address index)))
-
 
 
 ;;;; Allocating primitive objects.
@@ -762,7 +741,6 @@
       (write-descriptor result (+ index vm:vector-data-offset) (pop objects)))
     result))
 
-
 
 ;;;; Symbol magic.
 
@@ -790,7 +768,6 @@
   (declare (type descriptor symbol value))
   (write-descriptor symbol vm:symbol-value-slot value))
 
-
 ;;;; Interning.
 
 ;;;    In order to avoid having to know about the package format, we
@@ -817,7 +794,7 @@
 
 ;;; This holds a hash table mapping from descriptors to symbols, so we can
 ;;; back up.  The key is the *address* in the target core.
-;;; 
+;;;
 (defvar *cold-symbols*)
 
 ;;; Cold-Intern  --  Internal
@@ -899,7 +876,7 @@
 ;;; Finish-Symbols  --  Internal
 ;;;
 ;;;    Establish initial values for magic symbols.
-;;; 
+;;;
 ;;;    Scan over all the symbols referenced in each package in *cold-packages*
 ;;; making the apropriate entry in the *initial-symbols* data structure to
 ;;; intern the thing.
@@ -988,10 +965,9 @@
 
     (cold-push use res)
     (cold-push (cold-intern :use) res)
-    
+
     (cold-push (string-to-core (package-name package)) res)
     res))
-
 
 
 ;;;; Fdefinition objects.
@@ -1035,7 +1011,7 @@
 		(#.c:sparc-fasl-file-implementation
 		 (lookup-foreign-symbol "_undefined_tramp"))))))
 	  fdefn))))
-  
+
 (defun cold-fset (name defn)
   (assert (= (logand (read-bits defn 0) vm:type-mask) vm:function-header-type))
   (let ((fdefn (cold-fdefinition-object name t)))
@@ -1065,9 +1041,8 @@
 	     *fdefn-objects*)
     result))
 
-
 
-;;;; Layouts & type system pre-initialization:
+;;;; Layouts and type system pre-initialization.
 ;;;
 ;;; Since we want to be able to dump structure constants and predicates with
 ;;; reference layouts, we need to create layouts at cold-load time.  We use the
@@ -1104,7 +1079,6 @@
     (setf (gethash name *cold-layouts*) result)
     result))
 
-
 ;;; INITIALIZE-LAYOUTS  --  Internal
 ;;;
 ;;;    Clear the layout table and set *layout-layout*.  We initially create
@@ -1132,7 +1106,6 @@
     (write-descriptor *layout-layout*
 		      (+ vm:instance-slots-offset layout-hash-length 1 2)
 		      (cold-vector t-layout inst-layout so-layout))))
-
 
 ;;; LIST-ALL-LAYOUTS  --  Internal
 ;;;
@@ -1465,12 +1438,10 @@
   (let ((im (pop-stack)))
     (number-pair-to-core (pop-stack) im vm:complex-type)))
 
-
 ;;; Calling (or not calling).
 
 (not-cold-fop fop-eval)
 (not-cold-fop fop-eval-for-effect)
-
 
 (defvar *load-time-value-counter*)
 
@@ -1511,7 +1482,6 @@
   (if (= (read-arg 1) 0)
       (cold-push (pop-stack) *current-init-functions-cons*)
       (error "Can't FOP-FUNCALL random stuff in cold load.")))
-
 
 ;;;; Fixing up circularities.
 
@@ -1610,7 +1580,6 @@
 (define-cold-code-fop fop-code (read-arg 4) (read-arg 4))
 
 (define-cold-code-fop fop-small-code (read-arg 1) (read-arg 2))
-
 
 (clone-cold-fop (fop-alter-code nil)
 		(fop-byte-alter-code)
@@ -1713,7 +1682,6 @@
 
 (not-cold-fop fop-make-byte-compiled-function)
 
-
 ;;; Cold-Load loads stuff into the core image being built by rebinding
 ;;; the Fop-Functions table to a table of cold loading functions.
 
@@ -1728,7 +1696,6 @@
 			    :type (c:backend-fasl-file-type c:*backend*)))
 			  :element-type '(unsigned-byte 8))
       (load file :verbose nil))))
-
 
 
 ;;;; Fixups and related stuff.
@@ -1766,7 +1733,6 @@
     (unless found
       (warn "Undefined foreign symbol: ~S" name))
     value))
-
 
 (defvar *cold-assembler-routines*)
 
@@ -1827,7 +1793,7 @@
 		       inst))))
 	 (setf (sap-ref-32 sap 0)
 	       (maybe-byte-swap inst))))
-      ((#.c:rt-fasl-file-implementation 
+      ((#.c:rt-fasl-file-implementation
 	#.c:rt-afpa-fasl-file-implementation)
        (ecase kind
 	 (:cal
@@ -1905,7 +1871,6 @@
 			    (number-to-core (cdr rtn)))
 		 result))
     (cold-setq (cold-intern '*initial-assembler-routines*) result)))
-
 
 
 ;;;; Emit C Header.
@@ -2038,7 +2003,7 @@
 
 (defun emit-c-header (name)
   (let* ((new-name (concatenate 'string (namestring name) ".NEW"))
-	 (unix-newname (unix-namestring new-name nil)))
+	 (unix-newname (os-namestring new-name nil)))
     (with-open-file
 	(*standard-output* new-name
 			   :direction :output
@@ -2073,10 +2038,10 @@
 			  (core-name *genesis-core-name*)
 			  (map-name *genesis-map-name*)
 			  (header-name *genesis-c-header-name*))
-  "Builds a kernel Lisp image from the .FASL files specified in the given
-  File-List and writes it to a file named by Core-Name."
-  (unless symbol-table
-    (error "Can't genesis without a symbol-table."))
+  "Build a kernel Lisp image from the .FASL files specified in the given
+   File-List and write it to a file named by Core-Name."
+  (or symbol-table
+      (error "Can't genesis without a symbol-table."))
   (format t "~&Building ~S for the ~A~%"
 	  core-name (c:backend-version c:*backend*))
   (with-allocation-pool
@@ -2142,7 +2107,6 @@
 			 core-name)))
      (write-initial-core-file core-name version generations
 			      initial-function))))
-
 
 (defun write-map-file ()
   (let ((*print-pretty* nil)
@@ -2268,7 +2232,6 @@
 		(repeat next (range-next next)))))))
     ranges))
 
-
 (defconstant max-header-size (ash 1 12))
 
 (defvar *header-buffer*)
@@ -2382,4 +2345,3 @@
 	(really-do-writing chunks-start chunks file))))
   (format t "done]~%")
   (force-output))
-

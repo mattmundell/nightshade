@@ -1,32 +1,51 @@
 ;;; This file contains definitions for the Line structure, and some
 ;;; functions and macros to manipulate them.
 ;;;
-;;;    This stuff was allowed to become implementation dependant because
-;;; you make thousands of lines, so speed is real important.  In some
-;;; implementations (the Perq for example) it may be desirable to
-;;; not actually cons the strings in the line objects until someone
-;;; touches them, and just keep a pointer in the line to where the file
-;;; is mapped in memory.  Such lines are called "buffered".  This stuff
-;;; links up with the file-reading stuff and the line-image building stuff.
+;;; This stuff was allowed to become implementation dependant because the
+;;; editor makes thousands of lines, so speed is really important.  In some
+;;; implementations (the Perq for example) it may be desirable to only
+;;; actually cons the strings in the line objects when someone touches
+;;; them, and just keep a pointer in the line to where the file is mapped
+;;; in memory.  Such lines are called "buffered".  This stuff links up with
+;;; the file-reading stuff and the line-image building stuff.
 
 (in-package "EDI")
 
 (export '(line linep line-previous line-next line-plist line-signature))
 
+#[ Lines
+
+In the editor all text is in some line.  Text is broken into lines wherever
+it contains a newline character; newline characters are never stored, but
+are assumed to exist between every pair of lines.  The implicit newline
+character is treated as a single character by the text primitives.
+
+{function:ed:linep}
+{function:ed:line-string}
+{function:ed:line-previous}
+{function:ed:line-next}
+{function:ed:line-buffer}
+{function:ed:line-length}
+{function:ed:line-character}
+{function:ed:line-plist}
+{function:ed:line-signature}
+]#
 
 (setf (documentation 'linep 'function)
-  "Returns true if its argument is an editor line object, Nil otherwise.")
+  "Return true if $line is a line, else ().")
 (setf (documentation 'line-previous 'function)
-  "Return the edito line that precedes this one, or Nil if there is no
-   previous line.")
+  "Return the previous line if there is one, else ().")
 (setf (documentation 'line-next 'function)
-  "Return the editor line that follows this one, or Nil if there is no next
-   line.")
+  "Return the next line if there is one, else ().")
 (setf (documentation 'line-plist 'function)
-  "Return a line's property list.  This may be manipulated with Setf and Getf.")
+  "Return the property-list for line.
 
+   `setf', `getf', `putf' and `remf' change properties.  This is typically
+   used in conjunction with `line-signature' to cache information about the
+   line's contents.")
 
-;;;; The line object:
+
+;;;; The line object.
 
 (proclaim '(inline %make-line))
 (defstruct (line (:print-function %print-hline)
@@ -89,7 +108,6 @@
 (defmacro line-chars (x)
   `(line-%chars ,x))
 
-
 ;;; If buffered lines are supported, then we create the string
 ;;; representation for the characters when someone uses Line-Chars.  People
 ;;; who are prepared to handle buffered lines or who just want a signature
@@ -108,20 +126,17 @@
 (defmacro %set-line-chars (line chars)
   `(setf (line-%chars ,line) ,chars))
 
-
 ;;; Line-Signature  --  Public
 ;;;
-;;;    We can just return the Line-%Chars.
+;;; We can just return the Line-%Chars.
 ;;;
 (proclaim '(inline line-signature))
 (defun line-signature (line)
-  "This function returns an object which serves as a signature for a line's
-  contents.  It is guaranteed that any modification of text on the line will
-  result in the signature changing so that it is not EQL to any previous value.
-  Note that the signature may change even when the text hasn't been modified, but
-  this probably won't happen often."
+  "Return a signature for the contents of $line, guaranteeing that any
+   modification of the text on $line will result in the signature changing
+   so that it fails to be `eql' to any previous value.  The signature may
+   change even when the text remains the same, but this happens seldom."
   (line-%chars line))
-
 
 ;;; Return a copy of Line in buffer Buffer with the same chars.  We use
 ;;; this macro where we want to copy a line because it takes care of
@@ -141,7 +156,7 @@
   `(%make-line ,@(substitute :%chars :chars keys)))
 
 (defmacro line-length* (line)
-  "Returns the number of characters on the line, but it's a macro!"
+  "Return the number of characters on $line."
   `(cond ((eq ,line open-line)
 	  (+ left-open-pos (- line-cache-length right-open-pos)))
 	 ((line-buffered-p ,line))

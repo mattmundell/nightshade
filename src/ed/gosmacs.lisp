@@ -2,14 +2,11 @@
 
 (in-package "ED")
 
-
-(defcommand "Gosmacs Permute Characters" (p)
+(defcommand "Gosmacs Permute Characters" ()
   "Transpose the two characters before the point."
-  "Transpose the two characters before the point."
-  (declare (ignore p))
   (with-mark ((m (current-point) :left-inserting))
-    (unless (and (mark-before m) (previous-character m))
-      (editor-error "NIB     You have addressed a character not in the buffer?"))
+    (or (and (mark-before m) (previous-character m))
+	(editor-error "NIB     You have addressed a character outside the buffer?"))
     (rotatef (previous-character m) (next-character m))))
 
 (bind-key "Gosmacs Permute Characters" #k"control-t")

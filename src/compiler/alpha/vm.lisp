@@ -1,19 +1,4 @@
-;;; -*- Package: alpha -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/vm.lisp,v 1.2.2.2 2000/05/23 16:37:30 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the VM definition for the Alpha.
-;;;
-;;; Written by William Lott.
-;;; Alpha conversion by Sean Hallgren.
-;;;
+;;; The VM definition for the Alpha.
 
 (in-package "ALPHA")
 
@@ -35,13 +20,11 @@
 
 ); eval-when (compile eval)
 
-
 (eval-when (compile load eval)
 
 (defvar *register-names* (make-array 32 :initial-element nil))
 
 ); eval-when (compile load eval)
-
 
 ;; Ra
 (defreg lip 0)
@@ -96,7 +79,6 @@
 (defregset register-arg-offsets
   a0 a1 a2 a3 a4 a5)
 
-
 (define-storage-base registers :finite :size 32)
 (define-storage-base float-registers :finite :size 64)
 (define-storage-base control-stack :unbounded :size 8)
@@ -104,10 +86,9 @@
 (define-storage-base constant :non-packed)
 (define-storage-base immediate-constant :non-packed)
 
-;;;
 ;;; Handy macro so we don't have to keep changing all the numbers whenever
 ;;; we insert a new storage class.
-;;; 
+;;;
 (defmacro define-storage-classes (&rest classes)
   (do ((forms (list 'progn)
 	      (let* ((class (car classes))
@@ -160,7 +141,7 @@
   (complex-double-stack non-descriptor-stack :element-size 4 :alignment 2)
 
 
-  ;; **** Things that can go in the integer registers.
+  ;;;; Things that can go in the integer registers.
 
   ;; Immediate descriptor objects.  Don't have to be seen by GC, but nothing
   ;; bad will happen if they are.  (fixnums, characters, header values, etc).
@@ -213,7 +194,7 @@
    :locations (#.lip-offset))
 
 
-  ;; **** Things that can go in the floating point registers.
+  ;;;; Things that can go in the floating point registers.
 
   ;; Non-Descriptor single-floats.
   (single-reg float-registers
@@ -261,7 +242,7 @@
 
 ); eval-when (compile eval)
 
-;; These, we access by foo-TN only
+;; These, we access by foo-TN only.
 
 (defregtn zero any-reg)
 (defregtn null descriptor-reg)
@@ -314,8 +295,9 @@
      (if (eql value 0d0)
 	 (sc-number-or-lose 'fp-double-zero *backend*)
 	 nil))))
+
 
-;;;; Function Call Parameters
+;;;; Function Call Parameters.
 
 ;;; The SC numbers for register and stack arguments/return values.
 ;;;
@@ -335,11 +317,10 @@
 (defconstant register-arg-count 6)
 
 ;;; Names to use for the argument registers.
-;;; 
+;;;
 (defconstant register-arg-names '(a0 a1 a2 a3 a4 a5))
 
 ); Eval-When (Compile Load Eval)
-
 
 ;;; A list of TN's describing the register arguments.
 ;;;
@@ -360,8 +341,9 @@
 
 ;;; LOCATION-PRINT-NAME  --  Interface
 ;;;
-;;;    This function is called by debug output routines that want a pretty name
-;;; for a TN's location.  It returns a thing that can be printed with PRINC.
+;;; This function is called by debug output routines that want a pretty
+;;; name for a TN's location.  It returns a thing that can be printed with
+;;; PRINC.
 ;;;
 (def-vm-support-routine location-print-name (tn)
   (declare (type tn tn))

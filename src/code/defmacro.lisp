@@ -112,11 +112,10 @@
 		      (setf restp t)
 		      (push-let-binding (car rest-of-args) path nil))
 		     ;;
-		     ;; This branch implements an incompatible extension to
-		     ;; Common Lisp.  In place of a symbol following &body,
-		     ;; there may be a list of up to three elements which will
-		     ;; be bound to the body, declarations, and doc-string of
-		     ;; the body.
+		     ;; In place of a symbol following &body, there may be
+		     ;; a list of up to three elements which will be bound
+		     ;; to the body, declarations, and doc-string of the
+		     ;; body.
 		     ((and (cdr rest-of-args)
 			   (consp (cadr rest-of-args))
 			   (symbolp (caadr rest-of-args)))
@@ -215,8 +214,8 @@
 		  (push-let-binding var nil nil))))
 	      (t
 	       (error "Non-symbol in lambda-list - ~S." var)))))
-    ;; Generate code to check the number of arguments, unless dotted
-    ;; in which case length will not work.
+    ;; Generate code to check the number of arguments, unless dotted in
+    ;; which case length will not work.
     (unless restp
        (push `(unless (<= ,minimum
 			  (length (the list ,(if top-level

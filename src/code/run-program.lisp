@@ -9,6 +9,41 @@
 	  process-close process-pid process-p))
 
 
+#[ Running Programs from Lisp
+
+It is possible to run external programs from Lisp using the following
+function.  [Process Accessors] provide access to the returned process
+structure.
+
+{function:run-program}
+]#
+
+#[ Process Accessors
+
+Interfaces to the process returned by `run-program':
+
+{function:ext:process-p}
+{function:ext:process-pid}
+{function:ext:process-status}
+{function:ext:process-exit-code}
+{function:ext:process-core-dumped}
+{function:ext:process-pty}
+{function:ext:process-input}
+{function:ext:process-output}
+{function:ext:process-error}
+
+If the corresponding stream was created, these functions return the input,
+output or error file descriptor, otherwise they return ().
+
+{function:ext:process-status-hook}
+{function:ext:process-plist}
+{function:ext:process-wait}
+{function:ext:process-kill}
+{function:ext:process-alive-p}
+{function:ext:process-close}
+]#
+
+
 ;;;; Import WAIT3 from unix.
 
 (alien:def-alien-routine ("wait3" c-wait3) c-call:int
@@ -22,7 +57,7 @@
   (defconstant wait-wstopped #-svr4 #o177 #+svr4 wait-wuntraced))
 
 (defun wait3 (&optional do-not-hang check-for-stopped)
-  "Return any available status information on child processed."
+  "Return any available status information on child processes."
   (multiple-value-bind (pid status)
 		       (c-wait3 (logior (if do-not-hang
 					  wait-wnohang
@@ -61,7 +96,8 @@
 (defvar *active-processes* nil
   "List of process structures for all active processes.")
 
-(defstruct (process (:print-function %print-process))
+(defstruct (process (:print-function %print-process)
+		    (:predicate process-p))
   pid			    ; PID of child process.
   %status		    ; Either :RUNNING, :STOPPED, :EXITED, or :SIGNALED.
   exit-code		    ; Either exit code or signal
@@ -74,6 +110,40 @@
   plist			    ; Place for clients to stash tings.
   cookie)		    ; List of the number of pipes from the subproc.
 
+(setf (documentation 'process-p 'function)
+  "Return t if $process is a process, else return ()")
+
+(setf (documentation 'process-pid 'function)
+  "Return the process ID, an integer, for $process.")
+
+(setf (documentation 'process-status-hook 'function)
+  "Return the function that is called whenever $process's status changes.
+   The function takes the $process as a required argument.
+
+   This is `setf'able.")
+
+(setf (documentation 'process-exit-code 'function)
+  "Return either the exit code for $process, if it is :exited, or the
+   termination signal of $process if it is :signaled.
+
+   The result is arbitrary for processes that are still alive.")
+
+(setf (documentation 'process-core-dumped 'function)
+  "Return t if a Unix signal terminated the $process and caused it to dump
+   a Unix core image.")
+
+(setf (documentation 'process-pty 'function)
+  "Return the two-way stream connected to $PROCESS's Unix PTY connection if
+   there is one, else ().")
+
+(setf (documentation 'process-plist 'function)
+  "Return annotations of $process.
+
+   Setf'able.
+
+   This is available solely for users to associate information easily with
+   $process.")
+
 (defun %print-process (proc stream depth)
   (declare (ignore depth))
   (format stream "#<process ~D ~S>"
@@ -83,54 +153,63 @@
 ;;; PROCESS-STATUS -- Public.
 ;;;
 (defun process-status (proc)
-  "Return the current status of process.  The result is one of :running,
-   :stopped, :exited, :signaled."
+  "Return the current status of process $proc.  The result is one of
+   :running, :stopped, :exited, :signaled."
   (get-processes-status-changes)
   (process-%status proc))
 
 ;;; PROCESS-WAIT -- Public.
 ;;;
-(defun process-wait (proc &optional check-for-stopped)
-  "Wait for PROC to quit running for some reason.  Returns PROC."
+(defun process-wait (process &optional check-for-stopped)
+  "Wait for $process to finish.  Return $process.  If $check-for-stopped is
+   t, also return when $process has stopped."
   (loop
-    (case (process-status proc)
+    (case (process-status process)
       (:running)
       (:stopped
        (when check-for-stopped
 	 (return)))
       (t
-       (when (zerop (car (process-cookie proc)))
+       (when (zerop (car (process-cookie process)))
 	 (return))))
     (system:serve-all-events 1))
-  proc)
+  process)
 
 #-hpux
 ;;; FIND-CURRENT-FOREGROUND-PROCESS -- internal
 ;;;
-;;; Finds the current foreground process group id.
-;;;
 (defun find-current-foreground-process (proc)
+  "Find the current foreground process group id of $proc."
   (alien:with-alien ((result c-call:int))
     (multiple-value-bind
 	(wonp error)
 	(unix:unix-ioctl (system:fd-stream-fd (ext:process-pty proc))
 			 unix:TIOCGPGRP
 			 (alien:alien-sap (alien:addr result)))
-      (unless wonp
-	(error "TIOCPGRP ioctl failed: ~S"
-	       (unix:get-unix-error-msg error)))
+      (or wonp (error "TIOCPGRP ioctl failed: ~S"
+		      (unix:get-unix-error-msg error)))
       result))
   (process-pid proc))
 
 ;;; PROCESS-KILL -- public
 ;;;
-;;; Hand a process a signal.
-;;;
 (defun process-kill (proc signal &optional (whom :pid))
-  "Hand SIGNAL to PROC.  If whom is :pid, use the kill Unix system call.
-   If whom is :process-group, use the killpg Unix system call.  If whom is
-   :pty-process-group deliver the signal to whichever process group is
-   currently in the foreground."
+  "Send the Unix $signal to process $proc.  $signal should be the number of
+   the signal or a keyword with the Unix name (for example, :sigsegv).
+
+   $WHOM should be one of the following:
+
+    :pid
+	Send the signal to $process only.
+
+    :process-group
+	Send the signal to $process's group.
+
+    :pty-process-group
+        Send the signal to the process group currently in the foreground on
+        the Unix PTY connected to $process.  Useful to signal a program
+        running under the shell instead of signalling the shell itself.  If
+        `process-pty' of $process is (), throw an error."
   (let ((pid (ecase whom
 	       ((:pid :process-group)
 		(process-pid proc))
@@ -164,32 +243,30 @@
 
 ;;; PROCESS-ALIVE-P -- public
 ;;;
-;;; Returns T if the process is still alive, NIL otherwise.
-;;;
-(defun process-alive-p (proc)
-  "Returns T if the process is still alive, NIL otherwise."
-  (let ((status (process-status proc)))
+(defun process-alive-p (process)
+  "Return t if $process is still alive (i.e. if $process's status is either
+   :running or :stopped) else ()."
+  (let ((status (process-status process)))
     (if (or (eq status :running)
 	    (eq status :stopped))
       t
-      nil)))
+      ())))
 
 ;;; PROCESS-CLOSE -- public
 ;;;
-;;; Close all the streams held open by PROC.
-;;;
-(defun process-close (proc)
-  "Close all streams connected to PROC and stop maintaining the status
-   slot."
+(defun process-close (process)
+  "Close all the streams connected to $process and finish maintaining the
+   status slot.  This can be called after use of the process to reclaim
+   system resources."
   (macrolet ((frob (stream abort)
 	       `(when ,stream (close ,stream :abort ,abort))))
-    (frob (process-pty    proc)   t) ; Don't FLUSH-OUTPUT to dead process.
-    (frob (process-input  proc)   t) ; 'cause it will generate SIGPIPE.
-    (frob (process-output proc) nil)
-    (frob (process-error  proc) nil))
-  (system:without-interrupts
-   (setf *active-processes* (delete proc *active-processes*)))
-  proc)
+    (frob (process-pty    process)   t) ; Don't FLUSH-OUTPUT to dead process.
+    (frob (process-input  process)   t) ; 'cause it will generate SIGPIPE.
+    (frob (process-output process) nil)
+    (frob (process-error  process) nil))
+  (system:block-interrupts
+   (setf *active-processes* (delete process *active-processes*)))
+  process)
 
 ;;; SIGCHLD-HANDLER -- Internal.
 ;;;
@@ -216,21 +293,21 @@
 	    (funcall (process-status-hook proc) proc))
 	  (when (or (eq what :exited)
 		    (eq what :signaled))
-	    (system:without-interrupts
+	    (system:block-interrupts
 	      (setf *active-processes*
 		    (delete proc *active-processes*)))))))))
 
 
 ;;;; RUN-PROGRAM and close friends.
 
-(defvar *close-on-error* nil
-  "List of file descriptors to close when RUN-PROGRAM exits due to an
+(defvar *close-on-error* ()
+  "List of file descriptors to close when `run-program' exits due to an
    error.")
-(defvar *close-in-parent* nil
-  "List of file descriptors to close when RUN-PROGRAM returns in the
+(defvar *close-in-parent* ()
+  "List of file descriptors to close when `run-program' returns in the
    parent.")
-(defvar *handlers-installed* nil
-  "List of handlers installed by RUN-PROGRAM.")
+(defvar *handlers-installed* ()
+  "List of handlers installed by `run-program'.")
 
 ;;; FIND-A-PTY -- internal
 ;;;
@@ -239,17 +316,17 @@
 ;;; slave side of the pty, and the name of the tty device for the slave
 ;;; side.
 ;;;
-#-irix
+#-(or linux irix)
 (defun find-a-pty ()
   "Returns the master fd, the slave fd, and the name of the tty"
   (dolist (char '(#\p #\q))
     (dotimes (digit 16)
-      (let* ((master-name (format nil "/dev/pty~C~X" char digit))
+      (let* ((master-name (format nil "/dev/pty~C~x" char digit))
 	     (master-fd (unix:unix-open master-name
 					unix:o_rdwr
 					#o666)))
 	(when master-fd
-	  (let* ((slave-name (format nil "/dev/tty~C~X" char digit))
+	  (let* ((slave-name (format nil "/dev/tty~C~x" char digit))
 		 (slave-fd (unix:unix-open slave-name
 					   unix:o_rdwr
 					   #o666)))
@@ -271,7 +348,62 @@
 				   slave-fd
 				   slave-name)))
 	  (unix:unix-close master-fd))))))
-  (error "Could not find a pty."))
+  (error "Failed to find a pty."))
+
+#+()
+(defun find-a-pty ()
+  "Return the master fd, the slave fd, and the name of the tty."
+  (alien:with-alien ((master-fd c-call:int) (slave-fd c-call:int))
+    (if (zerop (unix:unix-openpty (alien:alien-sap (alien:addr master-fd))
+				  (alien:alien-sap (alien:addr slave-fd))
+				  (int-sap 0)
+				  (int-sap 0)
+				  (int-sap 0)))
+	1
+	2)))
+
+#+linux
+(alien:def-alien-routine ("unlockpt" unlockpt) c-call:int
+  (fd c-call:int))
+
+#+linux
+(alien:def-alien-routine ("ptsname" ptsname) c-call:c-string
+  (fd c-call:int))
+
+#+linux
+(defun find-a-pty ()
+  "Return the master fd, the slave fd, and the name of the tty."
+  (let ((master-fd (unix:unix-open "/dev/ptmx"
+					      unix:o_rdwr
+					      #o666)))
+    (if (plusp master-fd)
+	    (progn
+	      (when (minusp (unlockpt master-fd))
+		(unix:unix-close master-fd)
+		(error "unlockpt"))
+	      (let ((slave-name (ptsname master-fd)))
+		(when (eq slave-name (int-sap 0))
+		  (unix:unix-close master-fd)
+		  (error "ptsname"))
+		(let ((slave-fd (unix:unix-open slave-name
+						unix:o_rdwr
+						#o666)))
+; FIX
+; 		  ; Maybe put a vhangup here?
+; 		  #-glibc2
+; 		  (alien:with-alien ((stuff (alien:struct unix:sgttyb)))
+; 				    (let ((sap (alien:alien-sap stuff)))
+; 				      (unix:unix-ioctl slave-fd unix:TIOCGETP sap)
+; 				      (setf (alien:slot stuff 'unix:sg-flags) #o300) ; EVENP|ODDP
+; 				      (unix:unix-ioctl slave-fd unix:TIOCSETP sap)
+; 				      (unix:unix-ioctl master-fd unix:TIOCGETP sap)
+; 				      (setf (alien:slot stuff 'unix:sg-flags)
+; 					    (logand (alien:slot stuff 'unix:sg-flags)
+; 						    (lognot 8))) ; ~ECHO
+; 				      (unix:unix-ioctl master-fd unix:TIOCSETP sap)))
+		  (values master-fd
+			  slave-fd
+			  slave-name)))))))
 
 #+irix
 (alien:def-alien-routine ("_getpty" c-getpty) c-call:c-string
@@ -318,9 +450,9 @@
       (push slave *close-in-parent*)
       (when (streamp pty)
 	(multiple-value-bind (new-fd errno) (unix:unix-dup master)
-	  (unless new-fd
-	    (error "Could not UNIX:UNIX-DUP ~D: ~A"
-		   master (unix:get-unix-error-msg errno)))
+	  (or new-fd
+	      (error "Failed to unix:unix-dup ~D: ~A"
+		     master (unix:get-unix-error-msg errno)))
 	  (push new-fd *close-on-error*)
 	  (copy-descriptor-to-stream new-fd pty cookie)))
       (values name
@@ -379,7 +511,8 @@
 	 (system:deallocate-system-memory ,sap ,size)))))
 
 (defun %spawn (program args env pty-name stdin stdout stderr)
-  "Fork Program, setting the standard streams to Stdin, Stdout and Stderr."
+  "Fork $program, setting the standard streams to $stdin, $stdout and
+   $stderr."
   (let ((pid (unix:unix-fork)))
     (or (zerop pid) (return-from %spawn pid))
 
@@ -455,8 +588,8 @@
 
 ;;; RUN-PROGRAM -- public
 ;;;
-;;;   RUN-PROGRAM uses fork and execve to run a different program. Strange
-;;; stuff happens to keep the unix state of the world coherent.
+;;; RUN-PROGRAM uses fork and execve to run a program. Strange stuff
+;;; happens to keep the unix state of the world coherent.
 ;;;
 ;;; The child process needs to get it's input from somewhere, and send it's
 ;;; output (both standard and error) to somewhere. We have to do different
@@ -490,61 +623,105 @@
 ;;; and NIL if it did not.
 ;;;
 (defun run-program (program args
-		    &key (env *environment-list*) (wait t) pty input
-		    if-input-does-not-exist output (if-output-exists :error)
-		    (error :output) (if-error-exists :error) status-hook)
-  "Run-program creates a new process and runs the unix program in the
-   file specified by the simple-string program.  Args are the standard
-   arguments that can be passed to a Unix program, for no arguments
-   use NIL (which means just the name of the program is passed as arg 0).
+			    &key
+			    (env *environment-list*)
+			    (wait t)
+			    pty input if-input-does-not-exist output
+			    (if-output-exists :error)
+			    (error :output)
+			    (if-error-exists :error)
+			    status-hook)
+  "Run $program in a child process.
 
-   Run program will either return NIL or a PROCESS structure.  See the CMU
-   Common Lisp Users Manual for details about the PROCESS structure.
+   $program should be a pathname or string naming the program.  $args
+   should be a list of strings to passes to $program as normal Unix
+   parameters.
 
-   The keyword arguments have the following meanings:
-     :env -
-        An A-LIST mapping keyword environment variables to simple-string
-	values.
-     :wait -
-        If non-NIL (default), wait until the created process finishes.  If
-        NIL, continue running Lisp until the program finishes.
-     :pty -
-        Either T, NIL, or a stream.  Unless NIL, the subprocess is established
-	under a PTY.  If :pty is a stream, all output to this pty is sent to
-	this stream, otherwise the PROCESS-PTY slot is filled in with a stream
-	connected to pty that can read output and write input.
-     :input -
-        Either T, NIL, a pathname, a stream, or :STREAM.  If T, the standard
-	input for the current process is inherited.  If NIL, /dev/null
-	is used.  If a pathname, the file so specified is used.  If a stream,
-	all the input is read from that stream and send to the subprocess.  If
-	:STREAM, the PROCESS-INPUT slot is filled in with a stream that sends
-	its output to the process. Defaults to NIL.
-     :if-input-does-not-exist (when :input is the name of a file) -
-        can be one of:
-           :error - generate an error.
-           :create - create an empty file.
-           nil (default) - return nil from run-program.
-     :output -
-        Either T, NIL, a pathname, a stream, or :STREAM.  If T, the standard
-	output for the current process is inherited.  If NIL, /dev/null
-	is used.  If a pathname, the file so specified is used.  If a stream,
-	all the output from the process is written to this stream. If
-	:STREAM, the PROCESS-OUTPUT slot is filled in with a stream that can
-	be read to get the output. Defaults to NIL.
-     :if-output-exists (when :input is the name of a file) -
-        can be one of:
-           :error (default) - generates an error if the file already exists.
-           :supersede - output from the program supersedes the file.
-           :append - output from the program is appended to the file.
-           nil - run-program returns nil without doing anything.
-     :error and :if-error-exists -
-        Same as :output and :if-output-exists, except that :error can also be
-	specified as :output in which case all error output is routed to the
-	same place as normal output.
-     :status-hook -
-        This is a function the system calls whenever the status of the
-        process changes.  The function takes the process as an argument."
+   Return either a process structure (which is accessible via [process
+   accessors]) if the program starts successfully, or () if forking the
+   child process fails.
+
+   Other than sharing file descriptors as explained in the keyword argument
+   descriptions below, close all file descriptors in the child process
+   before running the program.  `process-close' can always be called after
+   `run-program' to reclaim the system resources of the process.  This is
+   necessary only when :stream is supplied for one of $input, $output, or
+   $error, and when $pty is true.
+
+   Keyword arguments:
+
+     $env
+         An a-list mapping keywords and simple-strings.  If $env is
+         specified, use the value given, otherwise combine the environment
+         passed to Lisp with the one specified.
+
+     $wait
+         If true, wait until the child process terminates, else continue
+         running Lisp while the child process runs.
+
+     $pty
+         Either t, (), or a stream.  If true, the subprocess is established
+         under a PTY.  If $pty is a stream, all output to this pty is sent
+         to this stream.  If $pty is t the `process-pty' slot is filled in
+         with a stream connected to a PTY that can read output and write
+         input.
+
+     $input
+         How the program gets input.  If specified as a string, it is the
+         name of a file that contains input for the child process.  The
+         file is opened as standard input.  If specified as () then
+         standard input is the file \"/dev/null\".  If specified as t, the
+         program uses the current standard input.  This may cause problems
+         if $wait is () since two processes may use the terminal at the same
+         time.  If specified as :stream, then the `process-input' slot
+         contains an output stream.  Anything written to this stream goes
+         to the program as input.  $input may also be an input stream that
+         already contains all the input for the process.  In this case all
+         the input is read from the stream before returning.
+
+     $if-input-does-not-exist
+         If the input file does not exist:
+            ()       simply return ()
+            :create  create the named file
+            :error   signal an error.
+
+     $output
+         Either t, (), a pathname, a stream, or :stream.  If t, the
+         standard output for the current process is inherited.  This may be
+         problematic if $wait is () since two processes may write to the
+         terminal at the same time.  If (), use \"/dev/null\".  If a
+         pathname, use the file so specified.  If a stream, write all the
+         output from the process to this stream. If :stream, fill the
+         `process-output' slot with a stream that can be read to get the
+         output.
+
+     $if-output-exists
+        If the output file already exists:
+           :error      generate an error if the file already exists.
+           :supersede  replace the file with the output from the program.
+           :append     append the output from the program to the file.
+           ()          simply return ().
+
+     $error
+         Like $output, only set the file to the program's standard error.
+         Additionally, $error can be :output, in which case route the
+         program's error output to the same place specified for $output.
+         If specified as :stream, fill the `process-error' slot with a
+         stream similar to the `process-output' slot of $output.
+
+     $if-error-exists
+         What to do if the error output file already exists.  As for
+         $if-output-exists.
+
+     $status-hook
+         A function to call whenever the process changes status.  This is
+         especially useful when specifying $wait as ().  The function takes
+         the process as a required argument.
+
+     $before-execve
+         A function to run in the child process before it becomes the
+         program to run.  This is useful for actions that must only affect
+         the child."
   ;; Make sure the interrupt handler is installed.
   (system:enable-interrupt unix:sigchld #'sigchld-handler)
   ;; Make sure all the args are okay.
@@ -552,13 +729,26 @@
       (error "All args to program must be simple strings -- ~S." args))
   ;; Pre-pend the program to the argument list.
   (push (namestring program) args)
-  ;; Clear random specials used by GET-DESCRIPTOR-FOR to communicate cleanup
-  ;; info.  Also, establish proc at this level so we can return it.
+  (when (remote-pathname-p (current-directory))
+    (let ((account (internet:make-inet-account
+		    (remote-pathname-host (current-directory)))))
+      (internet:fill-from-netrc account)
+      ;; FIX cater for other protocols (telnet?)
+      ;;     ~ (setq args (internet:prepare-remote-command args))
+      (push "-Y" args)
+      (push (format () "~A@~A"
+		    (internet::account-user account)
+		    (internet::inet-account-server account))
+	    args)
+      (push "ssh" args)
+      (setq program "ssh")))
+  ;; Clear random specials used by GET-DESCRIPTOR-FOR to communicate
+  ;; cleanup info.  Also, establish proc at this level so we can return it.
   (let (*close-on-error* *close-in-parent* *handlers-installed* proc)
     (unwind-protect
-	(let ((pfile (unix-namestring (merge-pathnames program "path:") t t))
+	(let ((pfile (os-namestring (merge-pathnames program "path:") t t))
 	      (cookie (list 0)))
-	  (or pfile (error "No such program: ~S" program))
+	  (or pfile (error "Failed to find program: ~S" program))
 	  (multiple-value-bind
 	      (stdin input-stream)
 	      (get-descriptor-for input cookie :direction :input
@@ -575,9 +765,10 @@
 					  :if-exists if-error-exists))
 		(multiple-value-bind (pty-name pty-stream)
 				     (open-pty pty cookie)
-		  ;; Make sure we are not notified about the child death before
-		  ;; we have installed the process struct in *active-processes*
-		  (system:without-interrupts
+		  ;; Ensure that the the process struct is installed in
+		  ;; *active-processes* before the child death notification
+		  ;; occurs.
+		  (system:block-interrupts
 		   (let ((child-pid
 			  (without-gcing
 			   (%spawn pfile args env pty-name
@@ -601,13 +792,12 @@
 	  (unix:unix-close fd))
 	(dolist (handler *handlers-installed*)
 	  (system:remove-fd-handler handler))))
-    (when (and wait proc)
-      (process-wait proc))
+    (and wait proc (process-wait proc))
     proc))
 
 ;;; COPY-DESCRIPTOR-TO-STREAM -- internal
 ;;;
-;;;   Installs a handler for any input that shows up on the file descriptor.
+;;; Install a handler for any input that shows up on the file descriptor.
 ;;; The handler reads the data and writes it to the stream.
 ;;;
 (defun copy-descriptor-to-stream (descriptor stream cookie)
@@ -625,7 +815,7 @@
 		      (unix:unix-select (1+ descriptor) (ash 1 descriptor)
 					0 0 0)
 		    (cond ((null result)
-			   (error "Could not select on sub-process: ~A"
+			   (error "Failed to select on sub-process: ~A"
 				  (unix:get-unix-error-msg readable/errno)))
 			  ((zerop result)
 			   (return))))
@@ -657,7 +847,7 @@
 
 ;;; GET-DESCRIPTOR-FOR -- internal
 ;;;
-;;;   Find a file descriptor to use for object given the direction. Returns
+;;; Find a file descriptor to use for object given the direction. Returns
 ;;; the descriptor. If object is :STREAM, returns the created stream as the
 ;;; second value.
 ;;;
@@ -685,7 +875,7 @@
 	     (read-fd write-fd)
 	     (unix:unix-pipe)
 	   (or read-fd
-	       (error "Could not create pipe: ~A"
+	       (error "Failed to create pipe: ~A"
 		      (unix:get-unix-error-msg write-fd)))
 	   (case direction
 	     (:input
@@ -712,7 +902,7 @@
 		    (push fd *close-in-parent*)
 		    (values fd nil))
 		   (t
-		    (error "Could not duplicate file descriptor: ~A"
+		    (error "Failed to duplicate file descriptor: ~A"
 			   (unix:get-unix-error-msg errno)))))))
 	((system:fd-stream-p object)
 	 (values (system:fd-stream-fd object) nil))
@@ -721,7 +911,7 @@
 	   (:input
 	    (dotimes (count
 		      256
-		      (error "Could not open a temporary file in /tmp"))
+		      (error "Failed to open a temporary file in /tmp"))
 	      (let* ((name (format nil "/tmp/.run-program-~D" count))
 		     (fd (unix:unix-open name
 					 (logior unix:o_rdwr
@@ -748,11 +938,11 @@
 	    (multiple-value-bind (read-fd write-fd)
 				 (unix:unix-pipe)
 	      (unless read-fd
-		(error "Cound not create pipe: ~A"
+		(error "Failed to create pipe: ~A"
 		       (unix:get-unix-error-msg write-fd)))
 	      (copy-descriptor-to-stream read-fd object cookie)
 	      (push read-fd *close-on-error*)
 	      (push write-fd *close-in-parent*)
 	      (values write-fd nil)))))
 	(t
-	 (error "Invalid option to run-program: ~S" object))))
+	 (error "Erroneous option to run-program: ~S" object))))

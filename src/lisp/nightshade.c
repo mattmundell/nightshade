@@ -135,7 +135,7 @@ void main(int argc, char *argv[], char *envp[])
 	    dynamic_space_size = atoi(str) * 1024 * 1024;
 	    if (dynamic_space_size > DYNAMIC_SPACE_SIZE)
 	      {
-                fprintf(stderr, "-dynamic-space-size must be no greater than %d MBytes.\n",
+                fprintf(stderr, "-dynamic-space-size must be at most %d MBytes.\n",
 			DYNAMIC_SPACE_SIZE / (1024 * 1024));
                 exit(1);
 	      }
@@ -155,7 +155,7 @@ void main(int argc, char *argv[], char *envp[])
 	extern char *getenv(char *var);
 #endif
 	static char buf[MAXPATHLEN];
-	char *lib = getenv("CMUCLLIB");
+	char *lib = getenv("NIGHTSHADELIB");
 
 	if (lib != NULL) {
 	    char *dst;
@@ -175,16 +175,12 @@ void main(int argc, char *argv[], char *envp[])
 	    } while (*lib++ == ':');
 	}
 	if (core == NULL) {
-	    /* Note: the /usr/misc/.cmucl/lib/ default path is also wired
+	    /* Note: the /usr/misc/.nightshade/lib/ default path is also wired
 	       into the lisp code in .../code/save.lisp. */
 #ifdef MACH
-	    strcpy(buf, "/usr/misc/.cmucl/lib/");
+	    strcpy(buf, "/usr/misc/.nightshade/lib/");
 #else
-#ifdef __linux__
-	    strcpy(buf, "/usr/lib/cmucl/");
-#else
-	    strcpy(buf, "/usr/local/lib/cmucl/lib/");
-#endif
+	    strcpy(buf, "/usr/local/lib/nightshade/");
 #endif
 	    strcat(buf, default_core);
 	    core = buf;
@@ -242,6 +238,7 @@ void main(int argc, char *argv[], char *envp[])
     SetSymbolValue(LISP_COMMAND_LINE_LIST, alloc_str_list(argv));
     SetSymbolValue(LISP_ENVIRONMENT_LIST, alloc_str_list(envp));
 
+    // FIX must kernel.core have -batch?
     /*
      * Parse the command line again, picking up values that override
      * those loaded from the core.

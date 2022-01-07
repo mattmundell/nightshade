@@ -2,6 +2,26 @@
 
 (in-package "ED")
 
+
+#[ Scribe Mode
+
+`Scribe' mode provides a number of facilities useful for editing Scribe
+documents.  It is also sufficiently parameterizable to be adapted to other
+similar syntaxes.
+
+{mode:Scribe}
+{command:Insert Scribe Directive}
+{command:Add Scribe Directive}
+{command:Add Scribe Paragraph Delimiter}
+{command:List Scribe Paragraph Delimiters}
+
+The variables `Escape Character', `Close Paren Character' and `Open Paren
+Character' determine the characters used when a Scribe directive is
+inserted.
+
+{command:Scribe Insert Bracket}
+{evariable:Scribe Bracket Table}
+]#
 
 
 ;;;; Variables.
@@ -15,21 +35,22 @@
 		"majorheading" "subheading"))
   (setf (gethash todo *scribe-para-break-table*) t))
 
-(defhvar "Open Paren Character"
+(defevar "Open Paren Character"
   "The open bracket inserted by Scribe commands."
   :value #\[)
 
-(defhvar "Close Paren Character"
+(defevar "Close Paren Character"
   "The close bracket inserted by Scribe commands."
   :value #\])
 
-(defhvar "Escape Character"
+(defevar "Escape Character"
   "The escape character inserted by Scribe commands."
   :value #\@)
 
-(defhvar "Scribe Bracket Table"
-  "This table maps Scribe brackets, open and close, to their opposing
-   brackets."
+(defevar "Scribe Bracket Table"
+  "A table that maps Scribe brackets, open and close, to their opposing
+   brackets.  If a character is a bracket, then the entry for its char-code
+   is the opposite bracket otherwise the entry is ()."
   :value (make-array char-code-limit))
 ;;;
 (mapc #'(lambda (x y)
@@ -41,7 +62,6 @@
   (defmacro opposing-bracket (bracket)
     `(svref (value scribe-bracket-table) (char-code ,bracket)))
 ) ;eval-when
-
 
 
 ;;;; "Scribe Syntax" Attribute.
@@ -69,11 +89,17 @@
 (setf (character-attribute :SCRIBE-SYNTAX #\Newline) :NEWLINE)
 (setf (character-attribute :SCRIBE-SYNTAX #\@)       :ESCAPE)
 
-
 
 ;;;; "Scribe" mode and setup.
 
-(defmode "Scribe" :major-p t)
+(defmode "Scribe" :major-p t
+  :documentation
+  "`Scribe' mode is like `Text' mode with modified rules for determining
+   paragraph breaks.  In `Scribe' mode, paragraphs delimited by Scribe
+   commands are normally placed on their own line, in addition to the
+   normal paragraph breaks.  The main reason for doing this is that it
+   prevents `Fill Paragraph' from mashing these commands into the body of a
+   paragraph.")
 
 (shadow-attribute :paragraph-delimiter #\@ 1 "Scribe")
 (shadow-attribute :word-delimiter #\' 0 "Scribe")		;from Text Mode
@@ -84,22 +110,18 @@
   (declare (ignore type))
   (setf (buffer-major-mode buffer) "Scribe"))
 
-
 
 ;;;; Commands.
 
-(defcommand "Scribe Mode" (p)
+(defcommand "Scribe Mode" ()
   "Puts buffer in Scribe mode.  Sets up comment variables and has delimiter
    matching.  The definition of paragraphs is changed to know about scribe
    commands."
   "Puts buffer in Scribe mode."
-  (declare (ignore p))
   (setf (buffer-major-mode (current-buffer)) "Scribe"))
 
-(defcommand "Select Scribe Warnings" (p)
-  "Goes to the Scribe Warnings buffer if it exists."
-  "Goes to the Scribe Warnings buffer if it exists."
-  (declare (ignore p))
+(defcommand "Select Scribe Warnings" ()
+  "Go to the Scribe Warnings buffer if it exists."
   (let ((buffer (getstring "Scribe Warnings" *buffer-names*)))
     (if buffer
 	(change-to-buffer buffer)
@@ -111,16 +133,14 @@
 		      :prompt "Scribe command: "
 		      :help "Name of Scribe command to make delimit paragraphs."
 		      :trim t)))
-  "Prompts for a name to add to the table of commands that delimit paragraphs
-   in Scribe mode.  If a prefix argument is supplied, then the command name is
-   removed from the table."
-  "Add or remove Word in the *scribe-para-break-table*, depending on P."
+  "Add a prompted string to the list of formatting commands that delimit
+   paragraphs in `Scribe' mode.  If the user supplies a prefix argument,
+   then this command removes the string as a delimiter."
+  "Add Word in the *scribe-para-break-table* if P is () else remove Word."
   (setf (gethash word *scribe-para-break-table*) (not p)))
 
-(defcommand "List Scribe Paragraph Delimiters" (p)
-  "Pops up a display of the Scribe commands that delimit paragraphs."
-  "Pops up a display of the Scribe commands that delimit paragraphs."
-  (declare (ignore p))
+(defcommand "List Scribe Paragraph Delimiters" ()
+  "Pop up a display of the Scribe commands that delimit paragraphs."
   (let (result)
     (maphash #'(lambda (k v)
 		 (declare (ignore v))
@@ -130,15 +150,13 @@
     (with-pop-up-display (s :height (length result))
       (dolist (ele result) (write-line ele s)))))
 
-(defcommand "Scribe Insert Bracket" (p)
-  "Inserts a the bracket it is bound to and then shows the matching bracket."
-  "Inserts a the bracket it is bound to and then shows the matching bracket."
-  (declare (ignore p))
+(defcommand "Scribe Insert Bracket" ()
+  "Insert the bracket (>, }, ), or ]), that caused its invocation, and then
+   show the matching bracket."
   (scribe-insert-paren (current-point)
 		       (ext:key-event-char *last-key-event-typed*)))
 
-
-(defhvar "Scribe Command Table"
+(defevar "Scribe Command Table"
   "This is a character dispatching table indicating which Scribe command or
    environment to use."
   :value (make-hash-table)
@@ -149,11 +167,11 @@
 		     '(("Command" . :command)
 		       ("Environment" . :environment))))
 
-(defcommand "Add Scribe Directive" (p &optional
-				      (command-name nil command-name-p)
+(defcommand "Add Scribe Directive" (p (command-name nil command-name-p)
 				      type key-event mode)
-  "Adds a new scribe function to put into \"Scribe Command Table\"."
-  "Adds a new scribe function to put into \"Scribe Command Table\"."
+  "Add to the database of directives recognized by `Insert Scribe
+   Directive'.  Prompt for the directive name, the kind of directive
+   (environment or command) and the key-event."
   (declare (ignore p))
   (let ((command-name (if command-name-p
 			  command-name
@@ -180,16 +198,22 @@
 				 "Could not find \"Scribe Command Table\"."))))
 	      (cons type command-name))))))
 
-(defcommand "Insert Scribe Directive" (p)
-  "Prompts for a character to dispatch on.  Some indicate \"commands\" versus
-   \"environments\".  Commands are wrapped around the previous or current word.
-   If there is no previous word, the command is insert, leaving point between
-   the brackets.  Environments are wrapped around the next or current
-   paragraph, but when the region is active, this wraps the environment around
-   the region.  Each uses \"Open Paren Character\" and \"Close Paren
-   Character\"."
-  "Wrap some text with some stuff."
-  (declare (ignore p))
+(defcommand "Insert Scribe Directive" ()
+  "Insert a Scribe directive according to a prompted key-event.  Insert
+   directives according to their kind:
+
+     environment
+	Enclose the current or next paragraph a begin-end pair:
+	@begin[directive] paragraph @end[directive].  If the current region
+	is active, then enclose the region instead of the paragraph.
+
+     command
+	Enclose the previous word by @directive[word].  If the previous
+	word is already enclosed by the same command, then extend the
+	beginning of the command backward by one word.
+
+   If help (usually ? or control-h) is given to the prompt then display a
+   list of all the defined key-events."
   (loop
     (let ((key-event (prompt-for-key-event :prompt "Dispatch Character: ")))
       (if (logical-key-event-p key-event :help)
@@ -203,7 +227,6 @@
 	       (enclose-with-environment (current-point) (cdr table-entry))
 	       (return))
 	      ((nil) (editor-error "Unknown dispatch character."))))))))
-
 
 
 ;;;; "Insert Scribe Directive" support.
@@ -247,11 +270,11 @@
 ;;; Inserting and extending :command directives.
 ;;;
 
-(defhvar "Insert Scribe Directive Function"
-  "\"Insert Scribe Directive\" calls this function when the directive type
-   is :command.  The function takes four arguments: a mark pointing to the word
-   start, the formatting command string, the open-paren character to use, and a
-   mark pointing to the word end."
+(defevar "Insert Scribe Directive Function"
+  "`Insert Scribe Directive' calls this function when the directive type is
+   :command.  The function takes four arguments: a mark pointing to the
+   word start, the formatting command string, the open-paren character to
+   use, and a mark pointing to the word end."
   :value 'scribe-insert-scribe-directive-fun
   :mode "Scribe")
 
@@ -262,18 +285,18 @@
   (insert-character word-start open-paren-char)
   (insert-character word-end (value close-paren-character)))
 
-(defhvar "Extend Scribe Directive Function"
-  "\"Insert Scribe Directive\" calls this function when the directive type is
-   :command to extend the the commands effect.  This function takes a string
-   and three marks: the first on pointing before the open-paren character for
-   the directive.  The string is the command-string to selected by the user
-   which this function uses to determine if it is actually extending a command
-   or inserting a new one.  The function must move the first mark before any
-   command text for the directive and the second mark to the end of any command
-   text.  It moves the third mark to the previous word's start where the
-   command region should be.  If this returns non-nil \"Insert Scribe
-   Directive\" moves the command region previous one word, and otherwise it
-   inserts the directive."
+(defevar "Extend Scribe Directive Function"
+  "`Insert Scribe Directive' calls this function when the directive type is
+   :command to extend the the commands effect.  This function takes a
+   string and three marks: the first on pointing before the open-paren
+   character for the directive.  The string is the command-string to
+   selected by the user which this function uses to determine if it is
+   actually extending a command or inserting a new one.  The function must
+   move the first mark before any command text for the directive and the
+   second mark to the end of any command text.  It moves the third mark to
+   the previous word's start where the command region should be.  If this
+   returns true `Insert Scribe Directive' moves the command region previous
+   one word, and otherwise it inserts the directive."
   :value 'scribe-extend-scribe-directive-fun
   :mode "Scribe")
 
@@ -390,7 +413,6 @@
       (insert-string mark environment)
       (insert-character mark close-paren)))
 
-
 (add-scribe-directive-command nil nil :Environment #k"Control-l" "Scribe")
 (add-scribe-directive-command nil nil :Command #k"Control-w" "Scribe")
 (add-scribe-directive-command nil "Begin" :Command #k"b" "Scribe")
@@ -423,11 +445,10 @@
 (add-scribe-directive-command nil "ux" :Command #k"Control-x" "Scribe")
 (add-scribe-directive-command nil "c" :Command #k"Control-k" "Scribe")
 
-
 
 ;;;; Scribe paragraph delimiter function.
 
-(defhvar "Paragraph Delimiter Function"
+(defevar "Paragraph Delimiter Function"
   "Scribe Mode's way of delimiting paragraphs."
   :mode "Scribe"
   :value 'scribe-delim-para-function)
@@ -435,7 +456,7 @@
 (defun scribe-delim-para-function (mark)
   "Returns whether there is a paragraph delimiting Scribe command on the
    current line.  Add or remove commands for this purpose with the command
-   \"Add Scribe Paragraph Delimiter\"."
+   `Add Scribe Paragraph Delimiter'."
   (let ((next-char (next-character mark)))
     (when (paragraph-delimiter-attribute-p next-char)
       (if (eq (character-attribute :scribe-syntax next-char) :escape)
@@ -445,9 +466,8 @@
 	    (if (scan-char end :scribe-syntax (or :space :newline :open-paren))
 		(gethash (nstring-downcase (region-to-string (region begin end)))
 			 *scribe-para-break-table*)
-		(editor-error "Unable to find Scribe command ending.")))
+		(editor-error "Failed to find Scribe command ending.")))
 	  t))))
-
 
 
 ;;;; Bracket matching.
@@ -460,7 +480,7 @@
 	  (unless (show-mark m (current-window) (value paren-pause-period))
 	    (clear-echo-area)
 	    (message "~A" (line-string (mark-line m)))))
-	(editor-error))))
+	(editor-error "Failed to match paren."))))
 
 ;;; BALANCE-PAREN moves the mark to the matching open paren character, or
 ;;; returns nil.  The mark must be after the closing paren.

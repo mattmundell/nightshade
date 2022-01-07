@@ -7,14 +7,47 @@
 	  character-attribute-hooks character-attribute-p shadow-attribute
 	  unshadow-attribute find-attribute reverse-find-attribute))
 
+#[ Character Attributes
+
+Character attributes provide a global database of information about characters.
+This facility is similar to, but more general than, the syntax tables of
+other editors such as Emacs.  For example, you should use character
+attributes for commands that need information regarding whether a character is
+whitespace.  Use character attributes for these reasons:
+
+  * If this information is all in one place, then it is easy the change the
+    behavior of the editor by changing the syntax table, much easier than it would
+    be if character constants were wired into commands.
+
+  * This centralization of information avoids needless duplication of effort.
+
+  * The syntax table primitives are probably faster than anything that can be
+    written above the primitive level.
+
+Note that an essential part of the character attribute scheme is that
+character attributes are global and are there for the user to change.
+Information about characters which is internal to some set of commands (and
+which the user should not know about) should not be maintained as a character
+attribute.  For such uses various character searching abilities are provided by
+the functions described in [Searching and Replacing (ext)].
+
+{constant:syntax-char-code-limit}
+
+[ Character Attribute Names           ]
+[ Character Attribute Functions       ]
+[ Character Attribute Hooks           ]
+[ System Defined Character Attributes ]
+]#
+
 
 ;;;; Character attribute caching.
 ;;;
-;;;    In order to permit the %SP-Find-Character-With-Attribute sub-primitive
+;;; In order to permit the %SP-Find-Character-With-Attribute sub-primitive
 ;;; to be used for a fast implementation of find-attribute and
 ;;; reverse-find-attribute, there must be some way of translating
 ;;; attribute/test-function pairs into a attribute vector and a mask.
-;;;    What we do is maintain a eq-hash-cache of attribute/test-function
+;;;
+;;; What we do is maintain a eq-hash-cache of attribute/test-function
 ;;; pairs.  If the desired pair is not in the cache then we reclaim an old
 ;;; attribute bit in the bucket we hashed to and stuff it by calling the
 ;;; test function on the value of the attribute for all characters.
@@ -31,10 +64,11 @@
   *character-attribute-cache*.")
 ); eval-when (compile eval)
 
-;;;    In addition, since a common pattern in code which uses find-attribute
+;;; In addition, since a common pattern in code which uses find-attribute
 ;;; is to repeatedly call it with the same function and attribute, we
 ;;; remember the last attribute/test-function pair that was used, and check
-;;; if it is the same pair beforehand, thus often avoiding the hastable lookup.
+;;; if it is the same pair beforehand, thus often avoiding the hastable
+;;; lookup.
 ;;;
 (defvar *last-find-attribute-attribute* ()
   "The attribute which we last did a find-attribute on.")
@@ -49,7 +83,6 @@
 (defvar *last-find-attribute-end-wins* ()
   "The the value of End-Wins for the last attribute/test-function pair.")
 
-
 (defvar *character-attributes* (make-hash-table :test #'eq)
   "A hash table which translates character attributes to their values.")
 (defvar *last-character-attribute-requested* nil
@@ -57,8 +90,21 @@
 (defvar *value-of-last-character-attribute-requested* nil
   "The value of the most recent character attribute, Do Not Bind.")
 
-(proclaim '(special *character-attribute-names*))
+#[ Character Attribute Names
 
+As for editor variables, character attributes have a user visible
+string name, but are referred to in Lisp code as a symbol.  The string
+name, which is typically composed of capitalized words separated by
+spaces, is translated into a keyword by replacing all spaces with
+hyphens and interning this string in the keyword package.  The
+attribute named `Ada Syntax' would thus become :ada-syntax.
+
+{variable:ed:*character-attribute-names*}
+]#
+
+(defvar *character-attribute-names* (make-string-table)
+ "String table of character attribute names and their corresponding
+  keywords.")
 
 ;;; Each bucket contains a list of character-attribute-bucket-size
 ;;; bit-descriptors.
@@ -78,6 +124,7 @@
 ;;; we don't have to worry about GC, since this is just a hint.
 ;;;
 (defvar *all-bit-descriptors* () "The list of all the bit descriptors.")
+
 
 (eval-when (compile eval)
 (defmacro allocate-bit (vec bit-num)
@@ -99,6 +146,7 @@
 		 (res ()))
 		((= i character-attribute-bucket-size) res)
 	      (push (allocate-bit vec bit-num) res))))))
+
 
 (eval-when (compile eval)
 (defmacro hash-it (attribute function)
@@ -108,11 +156,11 @@
 
 ;;; CACHED-ATTRIBUTE-LOOKUP  --  Internal
 ;;;
-;;;    Sets Vector and Mask such that they can be used as arguments
-;;; to %sp-find-character-with-attribute to effect a search with attribute
-;;; Attribute and test Function.  If the function and attribute
-;;; are the same as the last ones then we just set them to that, otherwise
-;;; we do the hash-cache lookup and update the *last-find-attribute-<mumble>*
+;;; Sets Vector and Mask such that they can be used as arguments to
+;;; %sp-find-character-with-attribute to effect a search with attribute
+;;; Attribute and test Function.  If the function and attribute are the
+;;; same as the last ones then we just set them to that, otherwise we do
+;;; the hash-cache lookup and update the *last-find-attribute-<mumble>*
 ;;;
 (defmacro cached-attribute-lookup (attribute function vector mask end-wins)
   `(if (and (eq ,function *last-find-attribute-function*)
@@ -146,9 +194,9 @@
 
 ;;; NEW-CACHE-ATTRIBUTE  --  Internal
 ;;;
-;;;    Pick out an old attribute to punt out of the cache and put in the
-;;; new one.  We pick a bit off of the end of the bucket and pull it around
-;;; to the beginning to get a degree of LRU'ness.
+;;; Pick out an old attribute to punt out of the cache and put in the new
+;;; one.  We pick a bit off of the end of the bucket and pull it around to
+;;; the beginning to get a degree of LRU'ness.
 ;;;
 (defun new-cache-attribute (attribute function)
   (let* ((hash (hash-it attribute function))
@@ -174,21 +222,49 @@
       (if (funcall fun (aref (the simple-array values) i))
 	  (setf (aref vec i) (logior (aref vec i) mask))
 	  (setf (aref vec i) (logandc2 (aref vec i) mask))))))
+
 
 (defun %print-attribute-descriptor (object stream depth)
   (declare (ignore depth))
   (format stream "#<Editor Attribute-Descriptor ~S>"
 	  (attribute-descriptor-name object)))
 
+#[ Character Attribute Functions
+
+{function:ed:defattribute}
+{function:ed:character-attribute-name}
+{function:ed:character-attribute-documentation}
+{function:ed:character-attribute}
+{evariable:Character Attribute Hook}
+{function:ed:character-attribute-p}
+{function:ed:shadow-attribute}
+{evariable:Shadow Attribute Hook}
+{function:ed:unshadow-attribute}
+{evariable:Unshadow Attribute Hook}
+{function:ed:find-attribute}
+{function:ed:reverse-find-attribute}
+]#
+
 ;;; DEFATTRIBUTE  --  Public
 ;;;
-;;;    Make a new vector of some type and enter it in the table.
+;;; Make a new vector of some type and enter it in the table.
 ;;;
 (defun defattribute (name documentation &optional (type '(mod 2))
 			  (initial-value 0))
-  "Define a new editor character attribute with named Name with the
-   supplied Documentation, Type and Initial-Value.  Type defaults to (mod
-   2) and Initial-Value defaults to 0."
+  "Define a new character attribute with simple-string $name.
+
+   Character attribute operations take attribute arguments as a keyword
+   whose name is $name uppercased with spaces replaced by hyphens.
+
+   Set the description of the uses of the character attribute to
+   $documentation.
+
+   Set the type of the values of the character attribute to $type.  Values
+   of a character attribute may be of any type which may be specified to
+   `make-array'.
+
+   Set the value which all characters will initially have for this
+   attribute to $initial-value."
   (setq name (coerce name 'simple-string))
   (let* ((attribute (string-to-keyword name))
 	 (new (make-attribute-descriptor
@@ -207,8 +283,8 @@
 
 ;;; WITH-ATTRIBUTE  --  Internal
 ;;;
-;;;    Bind obj to the attribute descriptor corresponding to symbol,
-;;; giving error if it is not a defined attribute.
+;;; Bind obj to the attribute descriptor corresponding to symbol, giving
+;;; error if it is not a defined attribute.
 ;;;
 (eval-when (compile eval)
 (defmacro with-attribute (symbol &body forms)
@@ -219,18 +295,37 @@
 ); eval-when (compile eval)
 
 (defun character-attribute-name (attribute)
-  "Return the string-name of the character-attribute Attribute."
+  "Return the string-name of the character attribute $attribute."
   (with-attribute attribute
     (attribute-descriptor-name obj)))
 
 (defun character-attribute-documentation (attribute)
-  "Return the documentation for the character-attribute Attribute."
+  "Return the documentation for the character attribute $attribute."
   (with-attribute attribute
     (attribute-descriptor-documentation obj)))
 
+#[ Character Attribute Hooks
+
+It is often useful to use the character attribute mechanism as an abstract
+interface to other information about characters which in fact is stored
+elsewhere.  For example, some implementation of the editor might decide to
+define a `Print Representation' attribute which controls how a character is
+displayed on the screen.
+
+To make this easy to do, each attribute has a list of hook functions
+which are invoked with the attribute, character and new value whenever
+the current value changes for any reason.
+
+{function:ed:character-attribute-hooks}
+]#
+
 (defun character-attribute-hooks (attribute)
-  "Return the hook-list for the character-attribute Attribute.  This can be
-   set with Setf."
+  "Return the current hook list for $attribute.
+
+   This may be set with `setf'.
+
+   The `add-hook' and `remove-hook' macros should be used to manipulate
+   these lists."
   (with-attribute attribute
     (attribute-descriptor-hooks obj)))
 
@@ -243,12 +338,21 @@
 
 ;;; CHARACTER-ATTRIBUTE  --  Public
 ;;;
-;;;    Return the value of a character attribute for some character.
+;;; Return the value of a character attribute for some character.
 ;;;
 (proclaim '(inline character-attribute))
 (defun character-attribute (attribute character)
-  "Return the value of the the character-attribute Attribute for Character.
-  If Character is Nil then return the end-value."
+  "Return the value of $attribute for $character.  Signal an error if the
+   definition of attribute is ().
+
+   `setf' will set a character's attributes.  This `setf' method invokes
+   the functions in *Character Attribute Hook* on the attribute and
+   character before it makes the change.
+
+   If character is (), then the value of the attribute for the beginning or
+   end of the buffer can be accessed or set.  The buffer beginning and end
+   thus become a sort of fictitious character, which simplifies the use of
+   character attributes in many cases."
   (if (and (eq attribute *last-character-attribute-requested*) character)
       (aref (the simple-array *value-of-last-character-attribute-requested*)
 	    (syntax-char-code character))
@@ -266,17 +370,17 @@
 
 ;;; CHARACTER-ATTRIBUTE-P
 ;;;
-;;;    Look up attribute in table.
+;;; Look up attribute in table.
 ;;;
 (defun character-attribute-p (symbol)
-  "Return true if Symbol is the symbol-name of a character-attribute, Nil
-  otherwise."
+  "Return true if $symbol is the name of a character attribute, else return
+   ()."
   (not (null (gethash symbol *character-attributes*))))
 
 
 ;;; %SET-CHARACTER-ATTRIBUTE  --  Internal
 ;;;
-;;;    Set the value of a character attribute.
+;;; Set the value of a character attribute.
 ;;;
 (defun %set-character-attribute (attribute character new-value)
   (with-attribute attribute
@@ -307,11 +411,12 @@
 	  (setf (bit-descriptor-end-wins bit)
 		(funcall (bit-descriptor-function bit) new-value))))
       new-value))))
+
 
 (eval-when (compile eval)
 ;;; swap-one-attribute  --  Internal
 ;;;
-;;;    Install the mode-local values described by Vals for Attribute, whose
+;;; Install the mode-local values described by Vals for Attribute, whose
 ;;; representation vector is Value.
 ;;;
  (defmacro swap-one-attribute (attribute value vals hooks)
@@ -338,11 +443,10 @@
       (rotatef (aref ,value (car char)) (cdr char)))))
 ); eval-when (compile eval)
 
-
 ;;; SWAP-CHAR-ATTRIBUTES  --  Internal
 ;;;
-;;;    Swap the current values of character attributes and the ones
-;;;specified by "mode".  This is used in Set-Major-Mode.
+;;; Swap the current values of character attributes and the ones specified
+;;; by $mode.  This is used in `set-major-mode'.
 ;;;
 (defun swap-char-attributes (mode)
   (dolist (attribute (mode-object-character-attributes mode))
@@ -354,16 +458,21 @@
       (swap-one-attribute sym value (cdr attribute) hooks))))
 
 
-
 (proclaim '(special *mode-names* *current-buffer*))
 
 ;;; SHADOW-ATTRIBUTE  --  Public
 ;;;
-;;;    Stick mode character attribute information in the mode object.
+;;; Stick mode character attribute information in the mode object.
 ;;;
 (defun shadow-attribute (attribute character value mode)
-  "Make a mode specific character attribute value.  The value of
-  Attribute for Character when we are in Mode will be Value."
+  "Establish $value as the value of $character's $attribute when in the
+   $mode.
+
+   $mode must be the name of a major mode.
+
+   Invoke *Shadow Attribute Hook* with the same arguments.  If the value
+   for an attribute is set while the value is shadowed, then only the
+   shadowed value is affected (the global one is left the same)."
   (let ((desc (gethash attribute *character-attributes*))
 	(obj (getstring mode *mode-names*)))
     (unless desc
@@ -390,10 +499,11 @@
 
 ;;; UNSHADOW-ATTRIBUTE  --  Public
 ;;;
-;;;    Nuke a mode character attribute.
+;;; Nuke a mode character attribute.
 ;;;
 (defun unshadow-attribute (attribute character mode)
-  "Make the value of Attribte for Character no longer shadowed in Mode."
+  "Clear the shadowing of the value of $attribute for $character in $mode.
+   Call *Unshadow Attribute Hook* with the same arguments."
   (let ((desc (gethash attribute *character-attributes*))
 	(obj (getstring mode *mode-names*)))
     (unless desc
@@ -414,8 +524,8 @@
 	  (swap-one-attribute attribute value vals hooks)))
       (setf (cdr current) (delete char (the list (cdr current))))))
   attribute)
-
 
+
 ;;; NOT-ZEROP, the default test function for find-attribute etc.
 ;;;
 (defun not-zerop (n)
@@ -423,7 +533,7 @@
 
 ;;; find-attribute  --  Public
 ;;;
-;;;    Do hairy cache lookup to find a find-character-with-attribute style
+;;; Do hairy cache lookup to find a find-character-with-attribute style
 ;;; vector that we can use to do the search.
 ;;;
 (eval-when (compile eval)
@@ -451,7 +561,16 @@
 ); eval-when (compile eval)
 ;;;
 (defun find-attribute (mark attribute &optional (test #'not-zerop))
-  "Find the next character whose attribute value satisfies test."
+  "Find the next character with some value for character $attribute
+   starting at $mark.
+
+   Pass $test one argument, the value of $attribute for the character
+   tested.  If the test succeeds, then modify $mark to point before the
+   character which satisfied the test.
+
+   If all characters fail the test, then return (), leaving mark the same.
+
+   Expect $test to depend only on its argument."
   (let ((charpos (mark-charpos mark))
 	(line (mark-line mark))
 	(mask 0)
@@ -487,11 +606,11 @@
 	 (t
 	  (when (normal-find-attribute line 0 charpos vector mask)
 	    (return (move-to-position mark charpos line))))))))))
-
 
+
 ;;; REVERSE-FIND-ATTRIBUTE  --  Public
 ;;;
-;;;    Line find-attribute, only goes backwards.
+;;; Line find-attribute, only goes backwards.
 ;;;
 (eval-when (compile eval)
 (defmacro rev-normal-find-attribute (line start result vector mask)
@@ -521,7 +640,16 @@
 ); eval-when (compile eval)
 ;;;
 (defun reverse-find-attribute (mark attribute &optional (test #'not-zerop))
-  "Find the previous character whose attribute value satisfies test."
+  "Find the previous character with some value for character $attribute
+   starting at $mark.
+
+   Pass $test one argument, the value of $attribute for the character
+   tested.  If the test succeeds, then modify $mark to point before the
+   character which satisfied the test.
+
+   If all characters fail the test, then return (), leaving mark the same.
+
+   Expect $test to depend only on its argument."
   (let* ((charpos (mark-charpos mark))
 	 (line (mark-line mark)) vector mask end-wins)
     (declare (type (or (simple-array (mod 256)) null) vector)

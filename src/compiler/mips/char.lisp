@@ -1,26 +1,9 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/char.lisp,v 1.14 1994/10/31 04:44:16 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/mips/char.lisp,v 1.14 1994/10/31 04:44:16 ram Exp $
-;;; 
-;;; This file contains the RT VM definition of character operations.
-;;;
-;;; Written by Rob MacLachlan
-;;; Converted for the MIPS R2000 by Christopher Hoover.
-;;;
+;;; The RT VM definition of character operations.
+
 (in-package "MIPS")
 
-
 
-;;;; Moves and coercions:
+;;;; Moves and coercions.
 
 ;;; Move a tagged char to an untagged representation.
 ;;;
@@ -32,7 +15,6 @@
 ;;;
 (define-move-vop move-to-base-char :move
   (any-reg descriptor-reg) (base-char-reg))
-
 
 ;;; Move an untagged char to a tagged representation.
 ;;;
@@ -81,16 +63,14 @@
 (define-move-vop move-base-char-argument :move-argument
   (any-reg base-char-reg) (base-char-reg))
 
-
 ;;; Use standard MOVE-ARGUMENT + coercion to move an untagged base-char
 ;;; to a descriptor passing location.
 ;;;
 (define-move-vop move-argument :move-argument
   (base-char-reg) (any-reg descriptor-reg))
 
-
 
-;;;; Other operations:
+;;;; Other operations.
 
 (define-vop (char-code)
   (:translate char-code)
@@ -114,7 +94,7 @@
 
 
 ;;; Comparison of base-chars.
-;;;
+
 (define-vop (base-char-compare pointer-compare)
   (:args (x :scs (base-char-reg))
 	 (y :scs (base-char-reg)))
@@ -131,4 +111,3 @@
 (define-vop (fast-char>/base-char base-char-compare)
   (:translate char>)
   (:variant :gt))
-

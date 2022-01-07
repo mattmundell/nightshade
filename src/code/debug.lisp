@@ -1,16 +1,16 @@
-;;; The Debugger.  Includes a basic command-line oriented debugger
-;;; interface as well as support for the editor to deliver debugger
-;;; commands to a slave.
+;;; The inspector.  Includes a basic command-line oriented interface as
+;;; well as support for the editor to deliver inspector commands to a
+;;; slave.
 
 (in-package "DEBUG")
 
 (export '(internal-debug *in-the-debugger* backtrace *flush-debug-errors*
 	  *debug-print-level* *debug-print-length* *debug-prompt*
 	  *debug-readtable* *help-line-scroll-count* *stack-top-hint*
-
+	  ;;
 	  *auto-eval-in-frame* var arg
 	  *only-block-start-locations* *print-location-kind*
-
+	  ;;
 	  do-debug-command))
 
 (in-package "LISP")
@@ -18,7 +18,798 @@
 
 (in-package "DEBUG")
 
-;;;
+
+#[ Debugger
+
+[ Debugger Introduction         ]
+[ The Debugger Command Loop     ]
+[ Stack Frames                  ]
+[ Variable Access               ]
+[ Source Location Printing      ]
+[ Compiler Policy Control       ]
+[ Exiting Commands              ]
+[ Information Commands          ]
+[ Breakpoint Commands           ]
+[ Function Tracing              ]
+[ Specials                      ]
+
+[ Debugger Programmer Interface ]
+]#
+
+#[ Debugger Introduction
+
+The debugger supports source-level inspection of compiled code.  The
+debugger
+
+  * allows access of variables by name,
+
+  * warns when a variable is yet to be initialized or has already been
+    deallocated, and
+
+  * can display the precise source location corresponding to a code
+    location in the program.
+
+These features allow the debugging of compiled code to be made almost the
+same as debugging interpreted code.
+
+The debugger is an interactive command loop that allows a user to examine
+the function call stack.  The debugger is invoked when:
+
+  * A \tindexed{serious-condition} is signalled, and it is not handled, or
+
+  * `error' is called, and the condition it signals is not handled, or
+
+  * The debugger is explicitly invoked with the `break' or `debug'
+    functions.
+
+On entering the TTY debugger, it looks something like this:
+
+    Error in function CAR.
+    Wrong type argument, 3, should have been of type LIST.
+
+    Restarts:
+      0: Return to Top-Level.
+
+    Debug  (type H for help)
+
+    (CAR 3)
+    0]
+
+The first group of lines describe what the error was that invoked the
+debugger.  In this case `car' was called on 3.  After "Restarts:" is a list
+of all the ways that we can restart execution after the error.  In this
+case, the only option is to return to top-level.  After printing the
+banner, the debugger prints the current frame and the debugger prompt.
+]#
+
+#[ Stack Frames
+\cindex{stack frames} \cpsubindex{frames}{stack}
+
+A stack frame is the run-time representation of a call to a function;
+the frame stores the state that a function needs to remember what it is
+doing.  Frames have:
+
+  * Variables (\pxlref{debug-vars}), which are the values being operated
+    on, and
+
+  * Arguments to the call (which are really just particularly interesting
+    variables), and
+
+  * A current location (\pxlref{source-locations}), which is the place in
+    the program where the function was running when it stopped to call another
+    function, or because of an interrupt or error.
+
+[ Stack Motion                     ]
+[ How Arguments are Printed        ]
+[ Function Names                   ]
+[ Funny Frames                     ]
+[ Debug Tail Recursion             ]
+[ Unknown Locations and Interrupts ]
+]#
+
+#[ Stack Motion
+
+These commands move to a new stack frame and print the name of the function
+and the values of its arguments in the style of a Lisp function call:
+
+  % up
+
+    Move up to the next higher frame.  More recent function calls are
+    considered to be higher on the stack.
+
+  % down
+
+    Move down to the next lower frame.
+
+  % top
+
+    Move to the highest frame.
+
+  % bottom
+
+    Move to the lowest frame.
+
+  % frame [n]
+
+    Move to the frame with the specified number.  Prompt for the number if
+    left out.
+]#
+#| Hidden from the description above:
+
+  % S function-name n:  Search down the stack for function.  Prompt for the
+    function name if left out.  Search an optional number of times, n.
+
+  % R function-name n:  Search up the stack for function.  Prompts for the
+    function name if left out.  Search an optional number of times, n.
+|#
+
+#[ How Arguments are Printed
+
+A frame is printed to look like a function call, but with the actual
+argument values in the argument positions.  So the frame for this call in
+the source:
+
+    (myfun (+ 3 4) 'a)
+
+would look like this:
+
+    (MYFUN 7 A)
+
+All keyword and optional arguments are displayed with their actual values;
+if the corresponding argument was not supplied, the value will be the
+default.  So this call:
+
+    (subseq "foo" 1)
+
+would look like this:
+
+    (SUBSEQ "foo" 1 3)
+
+And this call:
+
+    (string-upcase "test case")
+
+would look like this:
+
+    (STRING-UPCASE "test case" :START 0 :END NIL)
+
+
+The arguments to a function call are displayed by accessing the argument
+variables.  Although those variables are initialized to the actual argument
+values, they can be set inside the function; in this case the new value
+will be displayed.
+
+\code{&rest} arguments are handled somewhat differently.  The value of
+the rest argument variable is displayed as the spread-out arguments to
+the call, so:
+    (format t "~A is a ~A." "This" 'test)
+
+would look like this:
+
+    (FORMAT T "~A is a ~A." "This" 'TEST)
+
+Rest arguments cause an exception to the normal display of keyword
+arguments in functions that have both \code{&rest} and \code{&key}
+arguments.  In this case, the keyword argument variables are not displayed
+at all; the rest arg is displayed instead.  So for these functions, only
+the keywords actually supplied will be shown, and the values displayed will
+be the argument values, not values of the (possibly modified) variables.
+
+If the variable for an argument is never referenced by the function, it will be
+deleted.  The variable value is then unavailable, so the debugger prints
+\code{<unused-arg>} instead of the value.  Similarly, if for any of a number of
+reasons (described in more detail in section \ref{debug-vars}) the value of the
+variable is unavailable or not known to be available, then
+\code{<unavailable-arg>} will be printed instead of the argument value.
+
+Printing of argument values is controlled by *debug-print-level* and
+*debug-print-length*.
+]#
+
+#[ Function Names
+\cpsubindex{function}{names}
+\cpsubindex{names}{function}
+
+If a function is defined by `defun', `labels', or `flet', then the debugger
+will print the actual function name after the open parenthesis, like:
+
+    (STRING-UPCASE "test case" :START 0 :END NIL)
+    ((SETF AREF) #\back a "for" 1)
+
+Otherwise, the function name is a string, and will be printed in quotes:
+
+    ("DEFUN MYFUN" BAR)
+    ("DEFMACRO DO" (DO ((I 0 (1+ I))) ((= I 13))) NIL)
+    ("SETQ *GC-NOTIFY-BEFORE*")
+
+This string name is derived from the `defmumble' form that encloses or
+expanded into the lambda, or the outermost enclosing form if there is no
+`defmumble'.
+]#
+
+#[ Funny Frames
+\cindex{external entry points}
+\cpsubindex{entry points}{external}
+\cpsubindex{block compilation}{debugger implications}
+\cpsubindex{external}{stack frame kind}
+\cpsubindex{optional}{stack frame kind}
+\cpsubindex{cleanup}{stack frame kind}
+
+Sometimes the evaluator introduces new functions that are used to implement a
+user function, but are not directly specified in the source.  The main place
+this is done is for checking argument type and syntax.  Usually these functions
+do their thing and then go away, and thus are not seen on the stack in the
+debugger.  But when you get some sort of error during lambda-list processing,
+you end up in the debugger on one of these funny frames.
+
+These funny frames are flagged by printing "[:keyword]" after the
+parentheses.  For example, this call:
+
+    (car 'a 'b)
+
+will look like this:
+
+    (CAR 2 A) [:EXTERNAL]
+
+And this call:
+
+    (string-upcase "test case" :end)
+
+would look like this:
+
+    ("DEFUN STRING-UPCASE" "test case" 335544424 1) [:OPTIONAL]
+
+
+As you can see, these frames have only a vague resemblance to the original
+call.  Fortunately, the error message displayed when you enter the debugger
+will usually tell you what problem is (in these cases, too many arguments
+and odd keyword arguments.)  Also, if you go down the stack to the frame
+for the calling function, you can display the original source
+(\pxlref{source-locations}.)
+
+With recursive or block compiled functions (\pxlref{block-compilation}), an
+:EXTERNAL frame may appear before the frame representing the first call to
+the recursive function or entry to the compiled block.  This is a
+consequence of the way the compiler does block compilation: there is
+nothing odd with your program.  You will also see :CLEANUP frames during
+the execution of \code{unwind-protect} cleanup code.  Note that inline
+expansion and open-coding affect what frames are present in the debugger,
+see sections \ref{debugger-policy} and \ref{open-coding}.
+]#
+
+#[ Debug Tail Recursion
+\cindex{tail recursion}
+\cpsubindex{recursion}{tail}
+
+Both the compiler and the interpreter are "properly tail recursive."  If a
+function call is in a tail-recursive position, the stack frame will be
+deallocated \i{at the time of the call}, rather than after the call
+returns.
+Consider this backtrace:
+    (BAR ...)
+    (FOO ...)
+
+Because of tail recursion, it is not necessarily the case that `FOO'
+directly called `BAR'.  It may be that `FOO' called some other function
+`FOO2' which then called `BAR' tail-recursively, as in this example:
+
+    (defun foo ()
+      ...
+      (foo2 ...)
+      ...)
+
+    (defun foo2 (...)
+      ...
+      (bar ...))
+
+    (defun bar (...)
+      ...)
+
+
+Usually the elimination of tail-recursive frames makes debugging more
+pleasant, since these frames are mostly uninformative.  If there is any
+doubt about how one function called another, it can usually be eliminated
+by finding the source location in the calling frame (section
+\ref{source-locations}.)
+
+For a more thorough discussion of tail recursion, \pxlref{tail-recursion}.
+]#
+
+#[ Unknown Locations and Interrupts
+\cindex{unknown code locations}
+\cpsubindex{locations}{unknown}
+\cindex{interrupts}
+\cpsubindex{errors}{run-time}
+
+The debugger operates using special debugging information attached to the
+compiled code.  This debug information tells the debugger what it needs to
+know about the locations in the code where the debugger can be invoked.  If
+the debugger somehow encounters a location not described in the debug
+information, then it is said to be \var{unknown}.  If the code location for
+a frame is unknown, then some variables may be inaccessible, and the source
+location cannot be precisely displayed.
+
+There are three reasons why a code location could be unknown:
+
+  * There is inadequate debug information due to the value of the
+    \code{debug} optimization quality.  \xlref{debugger-policy}.
+
+  * The debugger was entered because of an interrupt such as \code{^C}.
+
+  * A hardware error such as "\code{bus error}" occurred in code that was
+    compiled unsafely due to the value of the \code{safety} optimization
+    quality.  \xlref{optimize-declaration}.
+
+In the last two cases, the values of argument variables are accessible, but
+may be incorrect.  \xlref{debug-var-validity} for more details on when
+variable values are accessible.
+
+It is possible for an interrupt to happen when a function call or return is
+in progress.  The debugger may then flame out with some obscure error or
+insist that the bottom of the stack has been reached, when the real problem
+is that the current stack frame can't be located.  If this happens, return
+from the interrupt and try again.
+
+When running interpreted code, all locations should be known.  However, an
+interrupt might catch some subfunction of the interpreter at an unknown
+location.  In this case, you should be able to go up the stack a frame or
+two and reach an interpreted frame which can be debugged.
+]#
+
+#[ Variable Access
+\cpsubindex{variables}{debugger access}
+\cindex{debug variables}
+
+There are three ways to access the current frame's local variables in the
+debugger.  The simplest is to type the variable's name into the debugger's
+read-eval-print loop.  The debugger will evaluate the variable reference as
+though it had appeared inside that frame.
+
+The debugger doesn't really understand lexical scoping; it has just one
+namespace for all the variables in a function.  If a symbol is the name of
+multiple variables in the same function, then the reference appears
+ambiguous, even though lexical scoping specifies which value is visible at
+any given source location.  If the scopes of the two variables are not
+nested, then the debugger can resolve the ambiguity by observing that only
+one variable is accessible.
+
+When there are ambiguous variables, the evaluator assigns each one a small
+integer identifier.  The `debug:var' function and the "list-locals" command
+use this identifier to distinguish between ambiguous variables:
+
+  % list-locals prefix*
+
+    Print the name and value of all variables in the current frame whose
+    name has the specified $prefix.  $prefix may be a string or a symbol.
+    If no $prefix is given, then all available variables are printed.  If a
+    variable has a potentially ambiguous name, then the name is printed
+    with a "#identifier" suffix, where identifier is the small integer used
+    to make the name unique.
+
+{function:debug:var}
+
+[ Variable Value Availability     ]
+[ Note On Lexical Variable Access ]
+]#
+
+#[ Variable Value Availability
+\cindex{availability of debug variables}
+\cindex{validity of debug variables}
+\cindex{debug optimization quality}
+
+The value of a variable may be unavailable to the debugger in portions of
+the program where Lisp says that the variable is defined.  If a variable
+value is not available, the debugger will not let you read or write that
+variable.  With one exception, the debugger will never display an incorrect
+value for a variable.  Rather than displaying incorrect values, the
+debugger tells you the value is unavailable.
+
+The one exception is this: if you interrupt (e.g., with "control-c") or if
+there is an unexpected hardware error such as "bus error" (which should
+only happen in unsafe code), then the values displayed for arguments to the
+interrupted frame might be incorrect.  (Since the location of an interrupt
+or hardware error will always be an unknown location
+(\pxlref{unknown-locations}), non-argument variable values will never be
+available in the interrupted frame.)  This exception applies only to the
+interrupted frame: any frame farther down the stack will be fine.
+
+The value of a variable may be unavailable for these reasons:
+
+  * The value of the \code{debug} optimization quality may have omitted debug
+    information needed to determine whether the variable is available.
+    Unless a variable is an argument, its value will only be available when
+    \code{debug} is at least 2.
+
+  * The compiler did lifetime analysis and determined that the value was no
+    longer needed, even though its scope had not been exited.  Lifetime
+    analysis is inhibited when the \code{debug} optimization quality is
+    3.
+
+  * The variable's name is an uninterned symbol (gensym).  To save space,
+    the compiler only dumps debug information about uninterned variables
+    when the \code{debug} optimization quality is 3.
+
+  * The frame's location is unknown (\pxlref{unknown-locations}) because the
+    debugger was entered due to an interrupt or unexpected hardware error.
+    Under these conditions the values of arguments will be available, but
+    might be incorrect.  This is the exception above.
+
+  * The variable was optimized out of existence.  Variables with no reads are
+    always optimized away, even in the interpreter.  The degree to which the
+    compiler deletes variables will depend on the value of the
+    \code{compile-speed} optimization quality, but most source-level
+    optimizations are done under all compilation policies.
+
+Since it is especially useful to be able to get the arguments to a
+function, argument variables are treated specially when the \code{speed}
+optimization quality is less than 3 and the \code{debug} quality is at
+least 1.  With this compilation policy, the values of argument variables
+are almost always available everywhere in the function, even at unknown
+locations.  For non-argument variables, \code{debug} must be at least 2 for
+values to be available, and even then, values are only available at known
+locations.
+]#
+
+#[ Note On Lexical Variable Access
+\cpsubindex{evaluation}{debugger}
+
+When the debugger command loop establishes variable bindings for available
+variables, these variable bindings have lexical scope and dynamic extent.
+(The variable bindings are actually created using `symbol-macro-let'
+special form.)  You can close over them, but such closures can't be used as
+upward funargs.
+
+You can also set local variables using `setq', but if the variable was
+closed over in the original source and never set, then setting the variable
+in the debugger may not change the value in all the functions the variable
+is defined in.  Another risk of setting variables is that you may assign a
+value of a type that the compiler proved the variable could never take on.
+This may result in bad things happening.
+]#
+
+#[ Source Location Printing
+\cpsubindex{source location printing}{debugger}
+
+Source level debugging of compiled code is available.  These commands
+display the source location for the current frame:
+
+  % source context*
+
+    Display the file that the current frame's function was defined from (if
+    it was defined from a file), and then the source form responsible for
+    generating the code that the current frame was executing.  If context
+    is specified, then it is an integer specifying the number of enclosing
+    levels of list structure to print.
+
+  % vsource context*
+
+    This command is identical to "source", except that it uses the global
+    values of *print-level* and *print-length* instead of the debugger
+    printing control variables *debug-print-level* and
+    *debug-print-length*.
+
+The source form for a location in the code is the innermost list present in
+the original source that encloses the form responsible for generating that
+code.  If the actual source form is not a list, then some enclosing list
+will be printed.  For example, if the source form was a reference to the
+variable *some-random-special*, then the innermost enclosing evaluated form
+will be printed.  Here are some possible enclosing forms:
+
+    (let ((a *some-random-special*))
+      ...)
+
+    (+ *some-random-special* ...)
+
+
+If the code at a location was generated from the expansion of a macro or a
+source-level compiler optimization, then the form in the original source
+that expanded into that code will be printed.  Suppose the file
+"/home/ed/stuff.lisp" looked like this:
+
+    (defmacro mymac ()
+      '(myfun))
+
+    (defun foo ()
+      (mymac)
+      ...)
+
+If `foo' has called `myfun', and is waiting for it to return, then the
+"source" command would print:
+
+    ; File: /home/ed/stuff.lisp
+
+    (MYMAC)
+
+Note that the macro use was printed, not the actual function call form,
+\code{(myfun)}.
+
+If enclosing source is printed by giving an argument to \code{source} or
+\code{vsource}, then the actual source form is marked by wrapping it in a
+list whose first element is "#:***HERE***".  In the previous example,
+\code{source 1} would print:
+
+    ; File: /home/ed/stuff.lisp
+
+    (DEFUN FOO ()
+      (#:***HERE***
+       (MYMAC))
+      ...)
+
+[ How the Source is Found      ]
+[ Source Location Availability ]
+]#
+
+#[ How the Source is Found
+
+If the code was defined from Lisp by `compile' or `eval', then the source
+can always be reliably located.  If the code was defined from a FASL file
+created by `compile-file', then the debugger gets the source forms it
+prints by reading them from the original source file.  This is a potential
+problem, since the source file might have moved or changed since the time
+it was compiled.
+
+The source file is opened using the `truename' of the source file pathname
+originally given to the compiler.  This is an absolute pathname with all
+logical names and symbolic links expanded.  If the file can't be located
+using this name, then the debugger gives up and signals an error.
+
+If the source file can be found, but has been modified since the time it was
+compiled, the debugger prints this warning:
+
+    ; File has been modified since compilation:
+    ;   "filename
+    ; Using form offset instead of character position.
+
+where "filename" is the name of the source file.  It then proceeds using a
+robust but not foolproof heuristic for locating the source.  This heuristic
+works if:
+
+  * No top-level forms before the top-level form containing the source have
+    been added or deleted, and
+
+  * The top-level form containing the source has not been modified much.
+    (More precisely, none of the list forms beginning before the source form
+    have been added or deleted.)
+
+If the heuristic doesn't work, the displayed source will be wrong, but will
+probably be near the actual source.  If the "shape" of the top-level form in
+the source file is too different from the original form, then an error will be
+signalled.  When the heuristic is used, the the source location commands are
+noticeably slowed.
+
+Source location printing can also be confused if (after the source was
+compiled) a read-macro you used in the code was redefined to expand into
+something different, or if a read-macro ever returns the same \code{eq}
+list twice.  If you don't define read macros and don't use \code{##} in
+perverted ways, you don't need to worry about this.
+]#
+
+#[ Source Location Availability
+
+\cindex{debug optimization quality}
+Source location information is only available when the \code{debug}
+optimization quality is at least 2.  If source location information is
+unavailable, the source commands will give an error message.
+
+If source location information is available, but the source location is
+unknown because of an interrupt or unexpected hardware error
+(\pxlref{unknown-locations}), then the command will print:
+    Unknown location: using block start.
+
+and then proceed to print the source location for the start of the \i{basic
+block} enclosing the code location. \cpsubindex{block}{basic}
+\cpsubindex{block}{start location}
+It's a bit complicated to explain exactly what a basic block is, but
+here are some properties of the block start location:
+
+  * The block start location may be the same as the true location.
+
+  * The block start location will never be later in the the program's flow
+    of control than the true location.
+
+  * No conditional control structures (such as `if', `cond', `or') will
+    intervene between the block start and the true location (but note that
+    some conditionals present in the original source could be optimized
+    away.)  Function calls \i{do not} end basic blocks.
+
+  * The head of a loop will be the start of a block.
+
+  * The programming language concept of "block structure" and the `block'
+    special form are totally unrelated to the compiler's basic block.
+
+In other words, the true location lies between the printed location and the
+next conditional (but watch out because the compiler may have changed the
+program).
+]#
+
+#[ Compiler Policy Control
+\cpsubindex{policy}{debugger}
+\cindex{debug optimization quality}
+\cindex{optimize declaration}
+
+The compilation policy specified by \code{optimize} declarations affects
+the behavior seen in the debugger.  The \code{debug} quality directly
+affects the debugger by controlling the amount of debugger information
+dumped.  Other optimization qualities have indirect but observable effects
+due to changes in the way compilation is done.
+
+Unlike the other optimization qualities (which are compared in relative value
+to evaluate tradeoffs), the \code{debug} optimization quality is directly
+translated to a level of debug information.  This absolute interpretation
+allows the user to count on a particular amount of debug information being
+available even when the values of the other qualities are changed during
+compilation.  These are the levels of debug information that correspond to the
+values of the \code{debug} quality:
+
+  % 0
+
+    Only the function name and enough information to allow the stack to be
+    parsed.
+
+  % > 0
+
+    Any level greater than \code{0} gives level \code{0} plus all argument
+    variables.  Values will only be accessible if the argument variable is
+    never set and \code{speed} is not 3.  Nightshade allows any real value
+    for optimization qualities.  It may be useful to specify 0.5 to get
+    backtrace argument display without argument documentation.
+
+  % 1
+
+    Level 1 provides argument documentation (printed arglists) and derived
+    argument/result type information.  This makes \findexed{describe} more
+    informative, and allows the compiler to do compile-time argument count
+    and type checking for any calls compiled at run-time.
+
+  % 2
+
+    Level 1 plus all interned local variables, source location information,
+    and lifetime information that tells the debugger when arguments are
+    available (even when \code{speed} is 3 or the argument is set.)  This
+    is the default.
+
+  % 3
+
+    Level 2 plus all uninterned variables.  In addition, lifetime analysis
+    is disabled (even when \code{speed} is 3), ensuring that all variable
+    values are available at any known location within the scope of the
+    binding.  This has a speed penalty in addition to the obvious space
+    penalty.
+
+As you can see, if the \code{speed} quality is 3, debugger performance is
+degraded.  This effect comes from the elimination of argument variable
+special-casing (\pxlref{debug-var-validity}.)  Some degree of
+speed/debuggability tradeoff is required, but the effect is not too drastic
+when \code{debug} is at least 2.
+
+\cindex{inline expansion}
+\cindex{semi-inline expansion}
+
+In addition to \code{inline} and \code{notinline} declarations, the
+relative values of the \code{speed} and \code{space} qualities also change
+whether functions are inline expanded (\pxlref{inline-expansion}.)  If a
+function is inline expanded, then there will be no frame to represent the
+call, and the arguments will be treated like any other local variable.
+Functions may also be "semi-inline", in which case there is a frame to
+represent the call, but the call is to an optimized local version of the
+function, not to the original function.
+]#
+
+
+#[ Function Tracing
+\cindex{tracing}
+\cpsubindex{function}{tracing}
+
+The tracer causes selected functions to print their arguments and their
+results whenever they are called.  Options allow conditional printing of
+the trace information and conditional breakpoints on function entry or
+exit.
+
+{function:trace}
+{function:untrace}
+
+{variable:ext:*max-trace-indentation*}
+
+[ Encapsulation Functions ]
+]#
+
+#[ Encapsulation Functions
+\cindex{encapsulation}
+\cindex{advising}
+
+The encapsulation functions provide a mechanism for intercepting the
+arguments and results of a function.  `encapsulate' changes the function
+definition of a symbol, and saves it so that it can be restored later.  The
+new definition normally calls the original definition.  The function
+`fdefinition' always returns the original definition, stripping off any
+encapsulation.
+
+The original definition of the symbol can be restored at any time by the
+`unencapsulate' function.  `encapsulate' and `unencapsulate' allow a symbol
+to be multiply encapsulated in such a way that different encapsulations can
+be completely transparent to each other.
+
+Each encapsulation has a type which may be an arbitrary lisp object.  If a
+symbol has several encapsulations of different types, then any one of them
+can be removed without affecting more recent ones.  A symbol may have more
+than one encapsulation of the same type, but only the most recent one can
+be undone.
+
+{function:ext:encapsulate}
+{function:ext:unencapsulate}
+{function:ext:encapsulated-p}
+]#
+
+;; FIX was this a planned feature?
+#[ The Single Stepper
+
+\defmac{step}{ \args{\var{form}}}
+Evaluates form with single stepping enabled or if \var{form} is \code{T},
+enables stepping until explicitly disabled.  Stepping can be
+disabled by quitting to the lisp top level, or by evaluating the form
+\w{\code{(step ())}}.
+
+While stepping is enabled, every call to eval will prompt the user for
+a single character command.  The prompt is the form which is about to
+be \code{eval}ed.  It is printed with \code{*print-level*} and
+\code{*print-length*} bound to \code{*step-print-level*} and
+\code{*step-print-length*}.  All interaction is done through the stream
+\code{*query-io*}.  Because of this, the stepper can not be used in the editor
+eval mode.  When connected to a slave Lisp, the stepper can be used
+from the editor.
+
+The commands are:
+\begin{description}
+
+\item[\key{n} (next)]
+Evaluate the expression with stepping still enabled.
+
+\item[\key{s} (skip)]
+Evaluate the expression with stepping disabled.
+
+\item[\key{q} (quit)]
+Evaluate the expression, but disable all further
+stepping inside the current call to \code{step}.
+
+\item[\key{p} (print)]
+Print current form.  (does not use
+\code{*step-print-level*} or \code{*step-print-length*}.)
+
+\item[\key{b} (break)]
+Enter break loop, and then prompt for the command
+again when the break loop returns.
+
+\item[\key{e} (eval)]
+Prompt for and evaluate an arbitrary expression.
+The expression is evaluated with stepping disabled.
+
+\item[\key{?} (help)]
+Prints a brief list of the commands.
+
+\item[\key{r} (return)]
+Prompt for an arbitrary value to return as result
+of the current call to eval.
+
+\item[\key{g}]
+Throw to top level.
+\end{description}
+\enddefmac
+
+\defvar{step-print-level}[extensions]
+\defvarx{step-print-length}[extensions]
+\code{*print-level*} and \code{*print-length*} are bound to these values while
+printing the current form.  \code{*Step-print-level*} and
+\code{*step-print-length*} are initially bound to 4 and 5, respectively.
+\enddefvar
+
+\defvar{max-step-indentation}[extensions]
+Step indents the prompts to highlight the nesting of the evaluation.
+This variable contains the maximum number of spaces to use for
+indenting.  Initially set to 40.
+\enddefvar
+]#
+
+
 ;;; Used to communicate to debug-loop that we are at a step breakpoint.
 ;;;
 (define-condition step-condition (simple-condition) ())
@@ -26,16 +817,27 @@
 
 ;;;; Variables, parameters, and constants.
 
+#[ Specials
+
+These are the special variables that control the debugger action.
+
+{variable:debug:*debug-print-level*}
+{variable:debug:*debug-print-length*}
+
+When evaluating arbitrary expressions in the debugger, the normal values of
+*print-level* and *print-length* are in effect.
+]#
+
 (defparameter *debug-print-level* 3
-  "*PRINT-LEVEL* is bound to this value when debug prints a function call.
-   If null, use *PRINT-LEVEL*")
+  "*print-level* is bound to this value when debug prints a function call.
+   If (), use *print-level*")
 
 (defparameter *debug-print-length* 5
-  "*PRINT-LENGTH* is bound to this value when debug prints a function call.
-   If null, use *PRINT-LENGTH*.")
+  "*print-length* is bound to this value when debug prints a function call.
+   If null, use *print-length*.")
 
 (defvar *in-the-debugger* nil
-  "This is T while in the debugger.")
+  "This is #t while in the debugger.")
 
 (defvar *debug-command-level* 0
   "Pushes and pops/exits inside the debugger change this.")
@@ -88,12 +890,15 @@ Changing frames:
   F n   goes to frame n.
 
 Inspecting frames:
-  BACKTRACE [n]  shows n frames going down the stack.
-  L              lists locals in current function.
-  P, PP          displays current function call.
-  SOURCE [n]     displays frame's source form with n levels of enclosing forms.
-  VSOURCE [n]    displays frame's source form without any ellipsis.
-  DESCRIBE       describe current function call.
+  BACKTRACE [n]   shows n frames going down the stack.
+  L               lists locals in current function.
+  P, PP           displays current function call.
+  SOURCE [n]      displays frame's source form with n levels of enclosing forms.
+  VSOURCE [n]     displays frame's source form without any ellipsis.
+  DESCRIBE        describe current function call.
+
+Inspecting values:
+  INSPECT [var]  inspect the contents of variable var.
 
 Breakpoints and steps:
   LIST-LOCATIONS [{function | :c}]  list the locations for breakpoints.
@@ -107,6 +912,10 @@ Breakpoints and steps:
     Abbreviations: BR, BP
   STEP [n]                          step to the next location or step n times.
 
+Editor commands (in a slave):
+  EDIT-SOURCE  edit the source of the current function call.
+  ED-HELP      read about the Debugger in the editor documentation system.
+
 Function and macro commands:
   (DEBUG:DEBUG-RETURN expression)
     returns expression's values from the current frame, exiting the debugger.
@@ -114,11 +923,6 @@ Function and macro commands:
     returns the n'th argument, remaining in the debugger.
   (DEBUG:VAR string-or-symbol [id])
     returns the specified variable's value, remaining in the debugger.
-
-Editor commands:
-  EDIT-SOURCE  (in a slave) edit the source of the current function call.
-
-There is more information in the Nightshade User Manual.
 ")
 
 
@@ -282,11 +1086,11 @@ There is more information in the Nightshade User Manual.
   ;; The breakpoint returned by di:make-breakpoint.
   (breakpoint (required-argument) :type di:breakpoint)
   ;;
-  ;; Function returned from di:preprocess-for-eval.  If result is non-nil,
+  ;; Function returned from di:preprocess-for-eval.  If result is true,
   ;; drop into the debugger.
   (break #'identity :type function)
   ;;
-  ;; Function returned from di:preprocess-for-eval.  If result is non-nil,
+  ;; Function returned from di:preprocess-for-eval.  If result is true,
   ;; eval (each) print and print results.
   (condition #'identity :type function)
   ;;
@@ -302,7 +1106,6 @@ There is more information in the Nightshade User Manual.
   ;; The number used when listing the breakpoints active and to delete
   ;; breakpoints.
   (breakpoint-number (required-argument) :type integer))
-
 
 ;;; CREATE-BREAKPOINT-INFO -- Internal.
 ;;;
@@ -521,10 +1324,10 @@ There is more information in the Nightshade User Manual.
 
 ;;; PRINT-FRAME-CALL-1 -- Internal.
 ;;;
-;;; This prints frame with verbosity level 1.  If we hit a rest-arg,
-;;; then print as many of the values as possible,
-;;; punting the loop over lambda-list variables since any other arguments
-;;; will be in the rest-arg's list of values.
+;;; This prints frame with verbosity level 1.  If we hit a rest-arg, then
+;;; print as many of the values as possible, punting the loop over
+;;; lambda-list variables since any other arguments will be in the
+;;; rest-arg's list of values.
 ;;;
 (defun print-frame-call-1 (frame)
   (let* ((d-fun (di:frame-debug-function frame))
@@ -679,7 +1482,7 @@ There is more information in the Nightshade User Manual.
 ;;;
 (defun internal-debug ()
   (let ((*in-the-debugger* t)
-	(*read-suppress* nil))
+	(*read-suppress*))
     (unless (typep *debug-condition* 'step-condition)
       (clear-input *debug-io*)
       (format *debug-io* "~2&Debug  (type H for help)~2%"))
@@ -689,12 +1492,45 @@ There is more information in the Nightshade User Manual.
 
 ;;;; Debug-loop.
 
+#[ The Debugger Command Loop
+
+The debugger is an interactive read-eval-print loop much like the normal
+top-level, but some symbols are interpreted as debugger commands instead of
+being evaluated.  A debugger command starts with the symbol name of the
+command, possibly followed by some arguments on the same line.  Some
+commands prompt for additional input.  Debugger commands can be abbreviated
+by any unique prefix: "help" can be typed as "h", "he", etc.  For
+convenience, some commands have ambiguous one-letter abbreviations: "f" for
+"frame".
+
+The package is not significant in debugger commands; any symbol with the
+name of a debugger command will work.  If you want to show the value of a
+variable that happens also to be the name of a debugger command, you can
+use the "list-locals" command or the `debug:var' function, or you can wrap
+the variable in a `progn' to hide it from the command loop.
+
+The debugger prompt is "<frame>]", where <frame> is the number of the
+current frame.  Frames are numbered starting from zero at the top (most
+recent call), increasing down to the bottom.  The current frame is the
+frame that commands refer to.  The current frame also provides the lexical
+environment for evaluation of forms other than debugger commands.
+
+\cpsubindex{evaluation}{debugger} The debugger evaluates forms in the
+lexical environment of the functions being debugged.  The debugger can only
+access variables.  You can't \code{go} or \code{return-from} into a
+function, and you can't call local functions.  Special variable references
+are evaluated with their current value (the innermost binding around the
+debugger invocation) -- you don't get the value that the special had in the
+current frame.  \xlref{debug-vars} for more information on debugger
+variable access.
+]#
+
 (defvar *flush-debug-errors* t
   "When set, avoid calling INVOKE-DEBUGGER recursively when errors occur
    while executing in the debugger.  The 'flush' command toggles this.")
 
 (defvar *debug-readtable* nil
-  "When non-NIL, becomes the system *READTABLE* in the debugger
+  "When true, becomes the system *READTABLE* in the debugger
    read-eval-print loop")
 
 (defun debug-loop ()
@@ -791,10 +1627,10 @@ There is more information in the Nightshade User Manual.
 				  name))))
 	  (location (di:frame-code-location *current-frame*))
 	  ;; Let's only deal with valid variables.
-	  (vars (remove-if-not #'(lambda (v)
-				   (eq (di:debug-variable-validity v location)
-				       :valid))
-			       temp)))
+	  (vars (keep-if #'(lambda (v)
+			     (eq (di:debug-variable-validity v location)
+				 :valid))
+			 temp)))
      (declare (list vars))
      (cond ((null vars)
 	    (error "No known valid variables match ~S." name))
@@ -811,10 +1647,10 @@ There is more information in the Nightshade User Manual.
 	    (let* ((name (etypecase name
 			   (symbol (symbol-name name))
 			   (simple-string name)))
-		   (exact (remove-if-not #'(lambda (v)
-					     (string= (di:debug-variable-name v)
-						      name))
-					 vars))
+		   (exact (keep-if #'(lambda (v)
+				       (string= (di:debug-variable-name v)
+						name))
+				   vars))
 		   (vars (or exact vars)))
 	      (declare (simple-string name)
 		       (list exact vars))
@@ -861,21 +1697,27 @@ There is more information in the Nightshade User Manual.
 ;;; VAR -- Public.
 ;;;
 (defun var (name &optional (id 0 id-supplied))
-  "Returns a variable's value if possible.  Name is a simple-string or symbol.
-   If it is a simple-string, it is an initial substring of the variable's name.
-   If name is a symbol, it has the same name and package as the variable whose
-   value this function returns.  If the symbol is uninterned, then the variable
-   has the same name as the symbol, but it has no package.
+  "Return the value of the variable in the current frame named $name.
+   $name is a simple-string or symbol.
 
-   If name is the initial substring of variables with different names, then
-   this return no values after displaying the ambiguous names.  If name
-   determines multiple variables with the same name, then you must use the
-   optional id argument to specify which one you want.  If you left id
-   unspecified, then this returns no values after displaying the distinguishing
-   id values.
+   When $name is a symbol, interpret it as the symbol name of the variable,
+   i.e. the package is significant.  If $name is an uninterned symbol
+   (`gensym'), then return the value of the uninterned variable with the
+   same name.  If $name is a string, interpret it as the prefix of a
+   variable name, which must uniquely complete to the name of a valid
+   variable.
+
+   If name is the initial substring of variables with ambiguous names, then
+   simply displayi the ambiguous names.  If name determines multiple
+   variables with the same name, and $id is specified return the name
+   indexed by $id.  If $id was left out, then simply displaying the
+   distinguishing id values.
+
+   This function is useful mainly for accessing the value of uninterned or
+   ambiguous variables, since most variables can be evaluated directly.
 
    The result of this function is limited to the availability of variable
-   information.  This is SETF'able."
+   information.  This is `setf'able."
   (define-var-operation :ref))
 ;;;
 (defun (setf var) (value name &optional (id 0 id-supplied))
@@ -933,7 +1775,7 @@ There is more information in the Nightshade User Manual.
       (decf n))))
 
 
-;;;; Debug loop command definition:
+;;;; Debug loop command definition.
 
 (defvar *debug-commands* nil)
 
@@ -1099,6 +1941,40 @@ There is more information in the Nightshade User Manual.
 
 ;;;; In and Out commands.
 
+;; FIX think lost args to these commands
+#[ Exiting Commands
+
+These commands exit the debugger.
+
+  % quit
+
+    Throw to top level.
+
+  % restart
+
+    Invoke the n'th restart case as displayed by the "error" command.  If n
+    is left out, report the available restart cases.
+
+  % go
+
+    Call "continue" on the condition given to `debug'.  If there is no
+    restart case named "continue", then signal an error.
+
+  % abort
+
+    Calls `abort' on the condition given to `debug'.  This is useful for
+    popping debug command loop levels or aborting to top level, as the case
+    may be.
+]#
+#| Hidden from the description above
+
+  % debug:debug-return} \var{expression} \mopt{\var{frame}})
+
+    From the current or specified frame, return the result of evaluating
+    expression.  If multiple values are expected, then this function should
+    be called for multiple values.
+|#
+
 (def-debug-command "QUIT" ()
   (throw 'lisp::top-level-catcher nil))
 
@@ -1131,6 +2007,60 @@ There is more information in the Nightshade User Manual.
 
 ;;;; Information commands.
 
+#[ Information Commands
+
+Most of these commands print information about the current frame or
+function, but a few show general information.
+
+  % help, ?
+
+    Display a synopsis of debugger commands.
+
+  % describe
+
+    Call `describe' on the current function, display number of local
+    variables, and indicate whether the function is compiled or
+    interpreted.
+
+  % print
+
+    Display the current function call as it would be displayed by moving to
+    this frame.
+
+  % vprint (or pp) verbosity*
+
+    Displays the current function call using *print-level* and
+    *print-length* instead of *debug-print-level* and *debug-print-length*.
+    $verbosity is a small integer (fallback 2) that controls other
+    dimensions of verbosity.
+
+  % error
+
+    Prints the condition given to `invoke-debugger' and the active proceed
+    cases.
+
+  % backtrace n*
+
+    Display all the frames from the current to the bottom.  Only show $n
+    frames, if $n is specified.  The printing is controlled by
+    *debug-print-level* and *debug-print-length*.
+]#
+#| Hidden in description above:
+
+  % (debug:debug-function n*)
+
+    Return the function from the current or specified frame.
+
+  % (debug:function-name n*)
+
+    Return the function name from the current or specified frame.
+
+  % (debug:pc frame*)
+
+    Return the index of the instruction for the function in the current or
+    specified frame.  This is useful in conjunction with `disassemble'.
+    The pc returned points to the instruction after the one that was fatal.
+|#
 (defvar *help-line-scroll-count* 20
   "This controls how many lines the debugger's help command prints before
    printing a prompting line to continue with output.")
@@ -1294,16 +2224,16 @@ There is more information in the Nightshade User Manual.
 		    (error "No start positions map."))
 		local-tlf-offset))
 	 (name (di:debug-source-name d-source)))
-    (unless (eq d-source *cached-debug-source*)
-      (unless (and *cached-source-stream*
-		   (equal (pathname *cached-source-stream*)
-			  (pathname name)))
-	(setq *cached-readtable* nil)
-	(when *cached-source-stream* (close *cached-source-stream*))
-	(setq *cached-source-stream* (open name :if-does-not-exist nil))
-	(unless *cached-source-stream*
-	  (error "Source file no longer exists:~%  ~A." (namestring name)))
-	(format t "~%; File: ~A~%" (namestring name)))
+    (or (eq d-source *cached-debug-source*)
+	(unless (and *cached-source-stream*
+		     (equal (pathname *cached-source-stream*)
+			    (pathname name)))
+	  (setq *cached-readtable* nil)
+	  (when *cached-source-stream* (close *cached-source-stream*))
+	  (setq *cached-source-stream* (open name :if-does-not-exist ()))
+	  (or *cached-source-stream*
+	      (error "Source file no longer exists:~%  ~A." (namestring name)))
+	  (format t "~%; File: ~A~%" (namestring name)))
 
 	(setq *cached-debug-source*
 	      (if (= (di:debug-source-created d-source) (file-write-date name))
@@ -1345,14 +2275,63 @@ There is more information in the Nightshade User Manual.
 	 (form-num (di:code-location-form-number location)))
     (multiple-value-bind (translations form)
 			 (get-top-level-form location)
-      (unless (< form-num (length translations))
-	(error "Source path no longer exists."))
+      (or (< form-num (length translations))
+	  (error "Source path no longer exists."))
       (prin1 (di:source-path-context form
 				     (svref translations form-num)
 				     context)))))
 
 
 ;;;; Breakpoint and step commands.
+
+#[ Breakpoint Commands
+
+Breakpoints can be set inside compiled functions and stepping of compiled
+code.  Breakpoints can only be set at known locations
+(\pxlref{unknown-locations}), so these commands are mostly only useful when
+the \code{debug} optimize quality is at least 2 (\pxlref{debugger-policy}).
+These commands manipulate breakpoints:
+
+  % breakpoint location [option value]*
+
+    Set a breakpoint in some function.  $location may be an integer code
+    location number (as displayed by "list-locations") or a keyword.  The
+    keyword can be used to indicate setting a breakpoint at the function
+    start (:start, :s) or function end (:end, :e).  The options can
+    :condition, :break, :print and :function, and work similarly to the
+    options in the `trace' function.
+
+  % list-locations (or ll) function*
+
+    List all the code locations in the current frame's function, or in
+    $function if it is supplied.  The display format is the code location
+    number, a colon and then the source form for that location:
+
+        3: (1- N)
+
+    If consecutive locations have the same source, then a numeric range
+    like \code{3-5:} will be printed.  For example, a default function call
+    has a known location both immediately before and after the call, which
+    would result in two code locations with the same source.  The listed
+    function becomes the new default function for breakpoint setting (via
+    the "breakpoint" command).
+
+  % list-breakpoints (or lb)
+
+    List all currently active breakpoints with their breakpoint number.
+
+  % delete-breakpoint (or db) number*
+
+    Delete a breakpoint specified by its breakpoint number.  If number is
+    left out, delete all breakpoints.
+
+  % step
+
+    Step to the next possible breakpoint location in the current function.
+    This always steps over function calls, instead of stepping into them.
+
+[ Breakpoint Example ]
+]#
 
 ;;; Steps to the next code-location
 (def-debug-command "STEP" ()
@@ -1564,6 +2543,10 @@ There is more information in the Nightshade User Manual.
 	(describe function)
 	(format t "Can't figure out the function for this frame."))))
 
+(def-debug-command "INSPECT" (&optional
+			      (variable (read-prompting-maybe "Variable: ")))
+  (inspect::tty-inspect (var variable)))
+
 
 ;;;; Editor commands.
 
@@ -1595,6 +2578,15 @@ There is more information in the Nightshade User Manual.
 	 (ed::cannot-edit-source-location))
        (wire:wire-force-output wire)))))
 
+(def-debug-command "ED-HELP" ()
+  (or (ed::ts-stream-p *terminal-io*)
+      (error "The debugger's ED-HELP command only works in slave ~
+	      Lisps connected to the editor."))
+  (let* ((wire (ed::ts-stream-wire *terminal-io*)))
+    (wire:remote wire
+      (ed::info-command () "The Debugger"))
+    (wire:wire-force-output wire)))
+
 
 ;;;; Debug loop command utilities.
 
@@ -1609,3 +2601,72 @@ There is more information in the Nightshade User Manual.
   (if (ext:listen-skip-whitespace stream)
       (read stream)
       default))
+
+
+#[ Breakpoint Example
+
+Consider this definition of the factorial function:
+    (defun ! (n)
+      (if (zerop n)
+	  1
+	  (* n (! (1- n)))))
+
+This debugger session demonstrates the use of breakpoints:
+
+    common-lisp-user> (break) ; Invoke debugger
+
+    Break
+
+    Restarts:
+      0: [CONTINUE] Return from BREAK.
+      1: [ABORT   ] Return to Top-Level.
+
+    Debug  (type H for help)
+
+    (INTERACTIVE-EVAL (BREAK))
+    0] ll #'!
+    0: #'(LAMBDA (N) (BLOCK ! (IF # 1 #)))
+    1: (ZEROP N)
+    2: (* N (! (1- N)))
+    3: (1- N)
+    4: (! (1- N))
+    5: (* N (! (1- N)))
+    6: #'(LAMBDA (N) (BLOCK ! (IF # 1 #)))
+    0] br 2
+    (* N (! (1- N)))
+    1: 2 in !
+    Added.
+    0] q
+
+    common-lisp-user> (! 10) ; Call the function
+
+    *Breakpoint hit*
+
+    Restarts:
+      0: [CONTINUE] Return from BREAK.
+      1: [ABORT   ] Return to Top-Level.
+
+    Debug  (type H for help)
+
+    (! 10) ; We are now in first call (arg 10) before the multiply
+    Source: (* N (! (1- N)))
+    3] st
+
+    *Step*
+
+    (! 10) ; We have finished evaluation of (1- n)
+    Source: (1- N)
+    3] st
+
+    *Breakpoint hit*
+
+    Restarts:
+      0: [CONTINUE] Return from BREAK.
+      1: [ABORT   ] Return to Top-Level.
+
+    Debug  (type H for help)
+
+    (! 9) ; We hit the breakpoint in the recursive call
+    Source: (* N (! (1- N)))
+    3]
+]#

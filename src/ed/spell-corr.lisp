@@ -1,9 +1,9 @@
-;;;      This is the file that deals with checking and correcting words
-;;; using a dictionary read in from a binary file.  It has been written
-;;; from the basic ideas used in Ispell (on DEC-20's) which originated as
-;;; Spell on the ITS machines at MIT.  There are flags which have proper
-;;; uses defined for them that indicate permissible suffixes to entries.
-;;; This allows for about three times as many known words than are actually
+;;; This is the file that deals with checking and correcting words using a
+;;; dictionary read in from a binary file.  It has been written from the
+;;; basic ideas used in Ispell (on DEC-20's) which originated as Spell on
+;;; the ITS machines at MIT.  There are flags which have proper uses
+;;; defined for them that indicate permissible suffixes to entries.  This
+;;; allows for about three times as many known words than are actually
 ;;; stored.  When checking the spelling of a word, first it is looked up;
 ;;; if this fails, then possible roots are looked up, and if any has the
 ;;; appropriate suffix flag, then the word is considered to be correctly
@@ -22,15 +22,15 @@
 ;;; In general the file I/O and structure accesses encompass the system
 ;;; dependencies.
 
-;;;      This next section will discuss the storage of the dictionary
+;;; This next section will discuss the storage of the dictionary
 ;;; information.  There are three data structures that "are" the
 ;;; dictionary: a hash table, descriptors table, and a string table.  The
 ;;; hash table is a vector of type '(unsigned-byte 16), whose elements
 ;;; point into the descriptors table.  This is a cyclic hash table to
 ;;; facilitate dumping it to a file.  The descriptors table (also of type
 ;;; '(unsigned-byte 16)) dedicates three elements to each entry in the
-;;; dictionary.  Each group of three elements has the following organization
-;;; imposed on them:
+;;; dictionary.  Each group of three elements has the following
+;;; organization imposed on them:
 ;;;    ----------------------------------------------
 ;;;    |  15..5  hash code  |      4..0 length      |
 ;;;    ----------------------------------------------
@@ -42,18 +42,19 @@
 ;;; eleven bits from the hash code to allow for quicker lookup, "flags"
 ;;; indicate possible suffixes for the basic entry, and "character index"
 ;;; is the index of the start of the entry in the string table.
-;;;      This was originally adopted due to the Perq's word size (can you guess?
-;;; 16 bits, that's right).  Note the constraint that is placed on the number
-;;; of the entries, 21845, because the hash table could not point to more
-;;; descriptor units (16 bits of pointer divided by three).  Since a value of
-;;; zero as a hash table element indicates an empty location, the zeroth element
-;;; of the descriptors table must be unused (it cannot be pointed to).
+;;;
+;;; This was originally adopted due to the Perq's word size (can you guess?
+;;; 16 bits, that's right).  Note the constraint that is placed on the
+;;; number of the entries, 21845, because the hash table could not point to
+;;; more descriptor units (16 bits of pointer divided by three).  Since a
+;;; value of zero as a hash table element indicates an empty location, the
+;;; zeroth element of the descriptors table must be unused (it cannot be
+;;; pointed to).
 
-
-;;;      The following is a short discussion with examples of the correct
-;;; use of the suffix flags.  Let # and @ be symbols that can stand for any
-;;; single letter.  Upper case letters are constants.  "..." stands for any
-;;; string of zero or more letters,  but note that no word may exist in the
+;;; The following is a short discussion with examples of the correct use of
+;;; the suffix flags.  Let # and @ be symbols that can stand for any single
+;;; letter.  Upper case letters are constants.  "..." stands for any string
+;;; of zero or more letters, but note that no word may exist in the
 ;;; dictionary which is not at least 2 letters long, so, for example, FLY
 ;;; may not be produced by placing the "Y" flag on "F".  Also, no flag is
 ;;; effective unless the word that it creates is at least 4 letters long,
@@ -114,7 +115,6 @@
 ;;;            then ...@# => ...@#ER  as in  convey => conveyer
 ;;;         if # .ne. E or Y, then  ...# => ...#ER  as in  build => builder
 ;;;
-
 ;;; "Z FLAG:
 ;;;         ...E => ...ERS  as in  skate => skaters
 ;;;         if @ .ne. A, E, I, O, or U,
@@ -144,6 +144,25 @@
 ;;;         ... => ...'S  as in DOG => DOG'S
 
 (in-package "SPELL")
+
+#[ Spelling
+
+The editor supports spelling checking and correcting commands based on the ITS
+Ispell dictionary.  These commands use the following routines which include
+adding and deleting entries, reading the Ispell dictionary in a compiled binary
+format, reading user dictionary files in a text format, and checking and
+correcting possible spellings.
+
+{function:spell:maybe-read-spell-dictionary}
+{function:spell:read-dictionary}
+{function:spell:spell-add-entry}
+{function:spell:spell-remove-entry}
+{function:spell:correct-spelling}
+{function:spell:spell-try-word}
+{function:spell:spell-root-word}
+{function:spell:spell-collect-close-words}
+{function:spell:spell-root-flags}
+]#
 
 
 ;;;; Some Constants
@@ -177,7 +196,6 @@
 (defconstant P-mask (ash 1 1))
 (defconstant M-mask 1)
 
-
 ;;; These are the eleven bits of a computed hash that are stored as part of
 ;;; an entries descriptor unit.  The shifting constant is how much the
 ;;; eleven bits need to be shifted to the right, so they take up the upper
@@ -185,7 +203,6 @@
 ;;;
 (defconstant new-hash-byte (byte 11 13))
 (defconstant stored-hash-byte (byte 11 5))
-
 
 ;;; The next two constants are used to extract information from an entry's
 ;;; descriptor unit.  The first is the two most significant bits of 18
@@ -197,11 +214,10 @@
 (defconstant stored-index-high-byte (byte 2 14))
 (defconstant stored-length-byte (byte 5 0))
 
-
 ); eval-when (compile load eval)
 
 
-;;;; Some Specials and Accesses
+;;;; Some Specials and Accesses.
 
 ;;; *spell-aeiou* will have bits on that represent the capital letters
 ;;; A, E, I, O, and U to be used to determine if some word roots are legal
@@ -216,7 +232,6 @@
 (setf (aref *aeiou* (char-code #\O)) 1)
 (setf (aref *aeiou* (char-code #\U)) 1)
 
-
 ;;; *sxzh* will have bits on that represent the capital letters
 ;;; S, X, Z, and H to be used to determine if some word roots are legal for
 ;;; looking up.
@@ -229,7 +244,6 @@
 (setf (aref *sxzh* (char-code #\Z)) 1)
 (setf (aref *sxzh* (char-code #\H)) 1)
 
-
 ;;; SET-MEMBER-P will be used with *aeiou* and *sxzh* to determine if a
 ;;; character is in the specified set.
 ;;;
@@ -239,14 +253,12 @@
 				 (char-code ,char))))))
 ) ;eval-when
 
-
 (defvar *dictionary*)
 (defvar *dictionary-size*)
 (defvar *descriptors*)
 (defvar *descriptors-size*)
 (defvar *string-table*)
 (defvar *string-table-size*)
-
 
 (eval-when (compile eval)
 
@@ -260,7 +272,6 @@
 
 (defmacro descriptor-ref (idx)
   `(sapref *descriptors* ,idx))
-
 
 ;;; DESCRIPTOR-STRING-START access an entry's (indicated by idx)
 ;;; descriptor unit (described at the beginning of the file) and returns
@@ -277,24 +288,32 @@
 
 ) ;eval-when
 
-
 
-;;;; Top level Checking/Correcting
+;;;; Top level Checking/Correcting.
 
 ;;; CORRECT-SPELLING can be called from top level to check/correct a words
-;;; spelling.  It is not used for any other purpose.
+;;; spelling.
 ;;;
 (defun correct-spelling (word)
-  "Check/correct the spelling of word.  Output is done to *standard-output*."
+  "Check the spelling of word and output the results to *standard-output*.
+
+   Indicate if the word is correctly spelled due to some appropriate suffix
+   on a root.  If the word is a root entry, simply outputs that word was
+   found.
+
+   On failing to find word at all, output possibly correct close
+   spellings.
+
+   Call `maybe-read-spell-dictionary' before attempting any lookups."
   (setf word (coerce word 'simple-string))
   (let ((word (string-upcase (the simple-string word)))
 	(word-len (length (the simple-string word))))
     (declare (simple-string word) (fixnum word-len))
     (maybe-read-spell-dictionary)
-    (when (= word-len 1)
-      (error "Single character words are not in the dictionary."))
-    (when (> word-len max-entry-length)
-      (error "~A is too long for the dictionary." word))
+    (if (= word-len 1)
+	(error "Single character words are not in the dictionary."))
+    (if (> word-len max-entry-length)
+	(error "~A is too long for the dictionary." word))
     (multiple-value-bind (idx used-flag-p)
 			 (spell-try-word word word-len)
       (if idx
@@ -310,18 +329,17 @@
 			close-words)
 		(format *standard-output* "Word not found.")))))))
 
-
 (defvar *dictionary-read-p* nil)
 
 ;;; MAYBE-READ-SPELL-DICTIONARY  --  Public
 ;;;
 (defun maybe-read-spell-dictionary ()
-  "Read the spelling dictionary if it has not be read already."
-  (unless *dictionary-read-p* (read-dictionary)))
-
+  "Ensure that the binary spell dictionary has been read."
+  (fi *dictionary-read-p* (read-dictionary)))
 
 (defun spell-root-word (index)
-  "Return the root word corresponding to a dictionary entry at index."
+  "Return a copy of the root word at dictionary entry $index.  This index
+   is the same as returned by `spell-try-word'."
   (let* ((start (descriptor-string-start index))
 	 (len (the fixnum (ldb stored-length-byte
 			       (the fixnum (descriptor-ref index)))))
@@ -331,7 +349,6 @@
     (sap-replace result (the system-area-pointer *string-table*)
 		 start 0 len)
     result))
-
 
 (eval-when (compile eval)
 (defmacro check-closeness (word word-len closeness-list)
@@ -350,9 +367,17 @@
 ;;; different kinds of close words.
 ;;;
 (defun spell-collect-close-words (word)
-  "Returns a list of all \"close\" correctly spelled words.  This has the
-   same contraints as SPELL-TRY-WORD, which you have probably already called
-   if you are calling this."
+  "Return a list of words correctly spelled that are close to $word.  $word
+   must be uppercase, and its length must be inclusively in the range 2
+   through max-entry-length.  Close words are determined by:
+
+     1) Two adjacent letters can be transposed to form a correct spelling.
+
+     2) One letter can be changed to form a correct spelling.
+
+     3) One letter can be added to form a correct spelling.
+
+     4) One letter can be removed to form a correct spelling."
   (declare (simple-string word))
   (let* ((word-len (length word))
 	 (word-len--1 (1- word-len))
@@ -405,15 +430,22 @@
 ;;; TRY-WORD-ENDINGS relies on the guarantee that word-len is at least 4.
 ;;;
 (defun spell-try-word (word word-len)
-  "See if the word or an appropriate root is in the spelling dicitionary.
-   Word-len must be inclusively in the range 2..max-entry-length."
+  "Return an index into the dictionary if it finds $word or an appropriate
+   root of $word.
+
+   $word-len must be inclusively in the range 2 through (FIX markup
+   constant) max-entry-length, and it is the length of $word.
+
+   $word must be uppercase.
+
+   Return a second value that is true if $word was found due to a suffix
+   flag, and () if $word is a root entry."
   (or (lookup-entry word word-len)
       (if (>= (the fixnum word-len) 4)
 	  (try-word-endings word word-len))))
 
-
 
-;;;; Divining Correct Spelling
+;;;; Divining Correct Spelling.
 
 (eval-when (compile eval)
 
@@ -438,7 +470,6 @@
        (try-root ,root-word ,root-len ,flag-mask))))
 
 ) ;eval-when
-
 
 (defvar *rooting-buffer* (make-string max-entry-length))
 
@@ -618,7 +649,7 @@
 
     Y-FLAG
          (setf char-idx (1- char-idx))
-         (setf char (schar word char-idx))
+	 (setf char (schar word char-idx))
          (if (char= char #\L)
 	     (try-root word char-idx Y-mask))
          (return nil)
@@ -634,8 +665,6 @@
 			    V-mask char-idx #\E)
          (return nil)))
 
-
-
 ;;; DESCRIPTOR-FLAG returns t or nil based on whether the flag is on.
 ;;; From the diagram at the beginning of the file, we see that the flags
 ;;; are stored two words off of the first word in the descriptor unit for
@@ -649,7 +678,7 @@
 	      (the fixnum flag-mask))))))
 
 
-;;;; Looking up Trials
+;;;; Looking up Trials.
 
 (eval-when (compile eval)
 
@@ -692,19 +721,18 @@
     `(let* ((,incr (hash2-increment ,hash))
 	    (,location-var ,loc)
 	    (,contents-var 0))
-	(declare (fixnum ,location-var ,contents-var ,incr))
+       (declare (fixnum ,location-var ,contents-var ,incr))
        (loop (setf ,location-var
 		   (rem (+ ,location-var ,incr) (the fixnum *dictionary-size*)))
-	     (setf ,contents-var (dictionary-ref ,location-var))
-	     (if (zerop ,contents-var) (return ,zero-contents-form))
-	     ,@(if for-insertion-p
-		   `((if (= ,contents-var spell-deleted-entry)
-			 (return ,zero-contents-form))))
-	     (if (= ,location-var ,loc) (return nil))
-	     ,@(if body-form `(,body-form))))))
+	 (setf ,contents-var (dictionary-ref ,location-var))
+	 (if (zerop ,contents-var) (return ,zero-contents-form))
+	 ,@(if for-insertion-p
+	       `((if (= ,contents-var spell-deleted-entry)
+		     (return ,zero-contents-form))))
+	 (if (= ,location-var ,loc) (return nil))
+	 ,@(if body-form `(,body-form))))))
 
 ) ;eval-when
-
 
 ;;; LOOKUP-ENTRY returns the index of the first element of entry's
 ;;; descriptor unit on success, otherwise nil.
@@ -727,8 +755,9 @@
 	     nil
 	     (if (found-entry-p loc-contents entry entry-len hash-and-len)
 		 (return loc-contents)))))))
+
 
-;;;; Binary File Reading
+;;;; Binary File Reading.
 
 (defparameter default-binary-dictionary
   "library:spell-dictionary.bin")
@@ -762,6 +791,16 @@
 ;;; lengths while the RT is 8bit-byte addressable.
 ;;;
 (defun read-dictionary (&optional (f default-binary-dictionary))
+  "Add entries to the dictionary from the lines in the file filename.
+   Dictionary files contain line oriented records like the following:
+
+       entry1/flag1/flag2
+       entry2
+       entry3/flag1
+
+   The flags indicate which endings are appropriate for the given entry
+   root.  FIX You can consult Ispell documentation if you want to know more
+   about them."
   (when *dictionary-read-p*
     (setf *dictionary-read-p* nil)
     (deallocate-bytes (system-address *dictionary*)

@@ -1,25 +1,6 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/alloc.lisp,v 1.2.2.1 1998/06/23 11:23:54 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Allocation VOPs for the x86 port.
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; Enhancements/debugging by Douglas T. Crosher 1996,1996.
-;;; 
 
-(in-package :x86)
+(in-package "X86")
 
 
 ;;;; LIST and LIST*
@@ -109,8 +90,8 @@
      (inst mov temp nil-value)
      (storew temp result code-entry-points-slot other-pointer-type))
     (storew temp result code-debug-info-slot other-pointer-type)))
-
 
+
 (define-vop (allocate-dynamic-code-object)
   (:args (boxed-arg :scs (any-reg) :target boxed)
 	 (unboxed-arg :scs (any-reg) :target unboxed))
@@ -152,7 +133,6 @@
       (storew (make-fixup (extern-alien-name "undefined_tramp") :foreign)
 	      result fdefn-raw-addr-slot other-pointer-type))))
 
-
 (define-vop (make-closure)
   (:args (function :to :save :scs (descriptor-reg)))
   (:info length)
@@ -171,7 +151,7 @@
     (storew temp result closure-function-slot function-pointer-type))))
 
 ;;; The compiler likes to be able to directly make value cells.
-;;; 
+;;;
 (define-vop (make-value-cell)
   (:args (value :scs (descriptor-reg any-reg) :to :result))
   (:results (result :scs (descriptor-reg) :from :eval))
@@ -180,7 +160,6 @@
     (with-fixed-allocation
 	(result value-cell-header-type value-cell-size node))
     (storew value result value-cell-value-slot other-pointer-type)))
-
 
 
 ;;;; Automatic allocators for primitive objects.
@@ -218,7 +197,7 @@
 	  (make-ea :dword :base extra :disp (* (1+ words) word-bytes)))
     (inst mov header bytes)
     (inst shl header (- type-bits 2))	; w+1 to length field
-    
+
     (inst lea header			; (w-1 << 8) | type
 	  (make-ea :dword :base header :disp (+ (ash -2 type-bits) type)))
     (inst and bytes (lognot lowtag-mask))
@@ -228,7 +207,6 @@
      (storew header result 0 lowtag))))
 
 
-
 (define-vop (make-symbol)
   (:policy :fast-safe)
   (:translate make-symbol)

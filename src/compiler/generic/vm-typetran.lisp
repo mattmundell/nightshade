@@ -1,26 +1,11 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/generic/vm-typetran.lisp,v 1.12.2.2 2000/05/23 16:37:34 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;
-;;; This file contains the implementation specific type transformation magic.
-;;; Basically, the various non-standard predicates that can be used in typep
+;;; The implementation specific type transformation magic.  Basically, the
+;;; various non-standard predicates that can be used in typep
 ;;; transformations.
-;;; 
-;;; Written by William Lott.
-;;;
 
 (in-package "C")
 
 
-;;;; Internal predicates:
+;;;; Internal predicates.
 ;;;
 ;;;    These type predicates are used to implement simple cases of typep.  They
 ;;; shouldn't be used explicitly.

@@ -1,5 +1,5 @@
-
 (in-package "C")
+
 (proclaim '(special
 	    *defprint-pretty* *event-info* *event-note-threshold*
 	    *compiler-error-context*

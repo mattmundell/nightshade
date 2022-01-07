@@ -1,26 +1,6 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/static-fn.lisp,v 1.1.2.1 1998/06/23 11:24:12 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the VOPs and macro magic necessary to call static
-;;; functions.
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; Enhancements/debugging by Douglas T. Crosher 1996,1997.
-;;;
-(in-package :x86)
+;;; The VOPs and macro magic necessary to call static functions.
 
+(in-package "X86")
 
 (define-vop (static-function-template)
   (:save-p t)
@@ -104,11 +84,11 @@
 		;; ESP into EBP.  We want the new EBP to be the
 		;; original ESP, so we fix it up afterwards.
 		(inst add ebp-tn (fixnum 1))))
-	 
+
 	 ,(if (zerop num-args)
 	      '(inst xor ecx ecx)
 	      `(inst mov ecx (fixnum ,num-args)))
-	 
+
 	 (note-this-location vop :call-site)
 	 ;; Static-function-offset gives the offset from the start of
 	 ;; the nil object to the static function fdefn and has the
@@ -136,9 +116,7 @@
 		       ,num-results)))
 	 ,@(moves (result-names) (temp-names)))))))
 
-
 ) ; eval-when (compile load eval)
-
 
 (macrolet ((frob (num-args num-res)
 	     (static-function-template-vop (eval num-args) (eval num-res))))
@@ -146,7 +124,6 @@
   (frob 1 1)
   (frob 2 1)
   (frob 3 1))
-
 
 (defmacro define-static-function (name args &key (results '(x)) translate
 				       policy cost arg-types result-types)

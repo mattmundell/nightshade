@@ -1,6 +1,6 @@
-;;; The definition of the CTYPE (Compiler TYPE) structure and macros used
-;;; for manipulating it.  This is sort of a mini object system with rather
-;;; odd dispatching rules.  Other compile-time definitions needed by
+;;; The definition of the CTYPE (Compiler TYPE) structure and the macros
+;;; used for manipulating it.  This is sort of a mini object system with
+;;; rather odd dispatching rules.  Other compile-time definitions needed by
 ;;; multiple files are also here.
 
 (in-package "KERNEL")
@@ -20,7 +20,7 @@
 
 ;;; Def-Type-Translator  --  Interface
 ;;;
-;;;    Define the translation from a type-specifier to a type structure for
+;;; Define the translation from a type-specifier to a type structure for
 ;;; some particular type.  Syntax is identical to DEFTYPE.
 ;;;
 (defmacro def-type-translator (name arglist &body body)
@@ -72,7 +72,7 @@
     (collect ((defuns)
 	      (calls))
       (loop
-	(unless cold-type-init-forms (return))
+	(or cold-type-init-forms (return))
 	(let ((num-forms (min 10 (length cold-type-init-forms)))
 	      (name (intern (format nil "~A-INIT-~D" prefix (incf index)))))
 	  (defuns `(defun ,name ()
@@ -95,7 +95,7 @@
 
 ;;;; Type classes.
 ;;;
-;;;    The TYPE-CLASS structure represents the "kind" of a type.  It mainly
+;;; The TYPE-CLASS structure represents the "kind" of a type.  It mainly
 ;;; contains functions which are methods on that kind of type, but is also
 ;;; used in EQ comparisons to determined if two types have the "same kind".
 
@@ -239,7 +239,7 @@
 
 ;;; INVOKE-TYPE-METHOD  --  Interface
 ;;;
-;;;    Invoke a type method on TYPE1 and TYPE2.  If the two types have the
+;;; Invoke a type method on TYPE1 and TYPE2.  If the two types have the
 ;;; same class, invoke the simple method.  Otherwise, invoke any complex
 ;;; method.  If there isn't a distinct complex-arg1 method, then swap the
 ;;; arguments when calling type1's method.  If no applicable method, return
@@ -285,7 +285,7 @@
 
 ;;; %Print-Type  --  Internal
 ;;;
-;;;    The print-function for all type structures.
+;;; The print-function for all type structures.
 ;;;
 (defun %print-type (s stream d)
   (declare (ignore d))
@@ -303,10 +303,10 @@
 
 ;;; ANY-TYPE-OP, EVERY-TYPE-OP  --  Interface
 ;;;
-;;;    Like ANY and EVERY, except that we handle two-arg uncertain predicates.
+;;; Like ANY and EVERY, except that we handle two-arg uncertain predicates.
 ;;; If the result is uncertain, then we return Default from the block PUNT.
-;;; If LIST-FIRST is true, then the list element is the first arg, otherwise
-;;; the second.
+;;; If LIST-FIRST is true, then the list element is the first arg,
+;;; otherwise the second.
 ;;;
 (defmacro any-type-op (op thing list &key (default '(values nil nil))
 			  list-first)
@@ -345,7 +345,7 @@
 
 ;;; VANILLA-INTERSECTION  --  Interface
 ;;;
-;;;    Compute the intersection for types that intersect only when one is a
+;;; Compute the intersection for types that intersect only when one is a
 ;;; hierarchical subtype of the other.
 ;;;
 (defun vanilla-intersection (type1 type2)
@@ -368,7 +368,7 @@
 
 ;;; TYPE-CACHE-HASH  --  Interface
 ;;;
-;;;    EQ hash two things (types) down to 8 bits.
+;;; EQ hash two things (types) down to 8 bits.
 ;;;
 (defmacro type-cache-hash (type1 type2)
   `(the fixnum

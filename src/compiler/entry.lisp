@@ -1,32 +1,40 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/entry.lisp,v 1.11 1994/10/31 04:27:28 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    Code in this file handles VM-independent details of run-time
-;;; function representation that primarily concern IR2 conversion and the
-;;; dumper/loader. 
-;;; 
-;;; Written by Rob MacLachlan
-;;;
+;;; Handling of VM-independent details of run-time function representation
+;;; that primarily concern IR2 conversion and the dumper/loader.
+
 (in-package "C")
 
+#[ Entry analysis
+
+    Collect some back-end information for each externally callable
+    function.
+
+Phase position: 14/23 (middle)
+
+Presence: required
+
+Files: entry
+
+Entry functions: `entry-analyze', `replace-top-level-xeps'
+
+Call sequences:
+
+    native-compile-component
+      entry-analyze
+        compute-entry-info
+
+Handling of cross-VM details of run-time function representation that
+primarily concern IR2 conversion and the dumper/loader.
+]#
 
 ;;; Entry-Analyze  --  Interface
 ;;;
-;;;    This phase runs before IR2 conversion, initializing each XEP's
+;;; This phase runs before IR2 conversion, initializing each XEP's
 ;;; Entry-Info structure.  We call the VM-supplied Select-Component-Format
-;;; function to make VM-dependent initializations in the IR2-Component.  This
-;;; includes setting the IR2-Component-Kind and allocating fixed implementation
-;;; overhead in the constant pool.  If there was a forward reference to a
-;;; function, then the ENTRY-INFO will already exist, but will be
-;;; uninitialized.
+;;; function to make VM-dependent initializations in the IR2-Component.
+;;; This includes setting the IR2-Component-Kind and allocating fixed
+;;; implementation overhead in the constant pool.  If there was a forward
+;;; reference to a function, then the ENTRY-INFO will already exist, but
+;;; will be uninitialized.
 ;;;
 (defun entry-analyze (component)
   (let ((2comp (component-info component)))
@@ -40,10 +48,9 @@
   (select-component-format component)
   (undefined-value))
 
-
 ;;; Make-Arg-Names  --  Internal
 ;;;
-;;;    Takes the list representation of the debug arglist and turns it into a
+;;; Takes the list representation of the debug arglist and turns it into a
 ;;; string.
 ;;;
 (defun make-arg-names (x)
@@ -58,11 +65,10 @@
 	      (*print-radix* nil)
 	      (*print-case* :downcase))
 	  (write-to-string args)))))
-  
 
 ;;; Compute-Entry-Info  --  Internal
 ;;;
-;;;    Initialize Info structure to correspond to the XEP lambda Fun.
+;;; Initialize Info structure to correspond to the XEP lambda Fun.
 ;;;
 (defun compute-entry-info (fun info)
   (declare (type clambda fun) (type entry-info info))
@@ -80,13 +86,12 @@
       (setf (entry-info-type info) (type-specifier (leaf-type internal-fun)))))
   (undefined-value))
 
-
 ;;; REPLACE-TOP-LEVEL-XEPS  --  Interface
 ;;;
-;;;    Replace all references to Component's non-closure XEPS that appear in
+;;; Replace all references to Component's non-closure XEPS that appear in
 ;;; top-level components, changing to :TOP-LEVEL-XEP functionals.  If the
-;;; cross-component ref is not in a :TOP-LEVEL component, or is to a closure,
-;;; then substitution is suppressed.
+;;; cross-component ref is not in a :TOP-LEVEL component, or is to a
+;;; closure, then substitution is suppressed.
 ;;;
 ;;; When a cross-component ref is not substituted, we return T to indicate that
 ;;; early deletion of this component's IR1 should not be done.  We also return

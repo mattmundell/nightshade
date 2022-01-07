@@ -1,22 +1,8 @@
-;;; -*- Package: hppa -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/insts.lisp,v 1.7 1994/10/31 04:42:45 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the instruction set definition for the HP-PA.
-;;;
-;;; Written by William Lott.
-;;;
+;;; The instruction set definition for the HP-PA.
 
-(in-package :hppa)
+(in-package "HPPA")
 
-(use-package :new-assem)
+(use-package "NEW-ASSEM")
 
 (def-assembler-params
   :scheduler-p nil)
@@ -120,7 +106,6 @@
       (or (position cond extract/deposit-conditions :test #'eq)
 	  (error "Bogus Extract/Deposit condition: ~S" cond))
       0))
-
 
 (defun space-encoding (space)
   (declare (type (unsigned-byte 3) space)
@@ -495,7 +480,6 @@
   (x5  :field (byte 1 5) :value 0)
   (t   :field (byte 5 0) :type 'fp-reg))
 
-
 
 ;;;; Load and Store stuff.
 
@@ -505,7 +489,6 @@
   (byte 5 16)
   (byte 2 14)
   (byte 14 0))
-
 
 (defun im14-encoding (segment disp)
   (declare (type (or fixup (signed-byte 14))))
@@ -528,7 +511,7 @@
        (:emitter
 	(emit-load/store segment ,opcode
 			 (reg-tn-encoding base) (reg-tn-encoding reg) 0
-			 (im14-encoding segment disp)))))  
+			 (im14-encoding segment disp)))))
   (defmacro define-store-inst (name opcode)
     `(define-instruction ,name (segment reg disp base)
        (:declare (type tn reg base)
@@ -875,7 +858,7 @@
 			      (if cond 2 6) target nullify))))
 
 
-;;;; Computation Instructions
+;;;; Computation Instructions.
 
 (define-emitter emit-r3-inst 32
   (byte 6 26) (byte 5 21) (byte 5 16) (byte 3 13)
@@ -886,7 +869,7 @@
     `(define-instruction ,name (segment r1 r2 res &optional cond)
        (:declare (type tn res r1 r2))
        (:printer r3-inst ((op ,opcode) (c nil :type ',(symbolicate
-						       cond-kind 
+						       cond-kind
 						       "-CONDITION"))))
        ,@(when (= opcode #x12)
 	   `((:printer r3-inst ((op ,opcode) (r2 0)
@@ -900,7 +883,7 @@
 	  (emit-r3-inst segment #x02 (reg-tn-encoding r2) (reg-tn-encoding r1)
 			cond (if false 1 0) ,opcode
 			(reg-tn-encoding res)))))))
-  
+
 (define-r3-inst add add #x30)
 (define-r3-inst addl add #x50)
 (define-r3-inst addo add #x70)
@@ -950,7 +933,7 @@
        (:declare (type tn dst src)
 		 (type (signed-byte 11) imm))
        (:printer imm-inst ((op ,opcode) (o ,subcode)
-			   (c nil :type 
+			   (c nil :type
 			      ',(symbolicate cond-kind "-CONDITION"))))
        (:emitter
 	(multiple-value-bind
@@ -1065,7 +1048,6 @@
 (define-deposit-inst dep 1)
 (define-deposit-inst zdep 0)
 
-
 
 ;;;; System Control Instructions.
 
@@ -1131,7 +1113,6 @@
    (emit-system-inst segment 0 (control-reg ctrl-reg) 0 0 #x45
 		     (reg-tn-encoding reg))))
 
-
 
 ;;;; Floating point instructions.
 
@@ -1176,7 +1157,7 @@
      (emit-fp-load/store segment (if double-p #x0B #x09) (reg-tn-encoding base)
 			 (reg-tn-encoding index) 0 (if scale 1 0) 0 0 1
 			 (or side 0) (if modify 1 0) value-encoding))))
-  
+
 (define-instruction flds (segment disp base result &key modify side)
   (:declare (type tn base result)
 	    (type (signed-byte 5) disp)
@@ -1218,7 +1199,6 @@
 			 (short-disp-encoding segment disp) 0
 			 (if (eq modify :before) 1 0) 1 0 1
 			 (or side 0) (if modify 1 0) value-encoding))))
-
 
 (define-emitter emit-fp-class-0-inst 32
   (byte 6 26) (byte 5 21) (byte 5 16) (byte 3 13) (byte 2 11) (byte 2 9)
@@ -1336,7 +1316,6 @@
 				   (error "Bogus FBINOP: ~S" op))
 			       (if r1-double-p 1 0) 3 0 0
 			       result-encoding))))))
-
 
 
 ;;;; Instructions built out of other insts.

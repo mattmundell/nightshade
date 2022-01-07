@@ -2,20 +2,53 @@
 
 (in-package "EDI")
 
-(export '(make-window delete-window next-window previous-window))
+(export '(make-window delete-window next-window previous-window
+	  set-window-foreground-color set-window-background-color))
 
+#[ Display Conventions
+
+There are two ways that the editor displays information on the screen; one
+is normal buffer display, in which the text being edited is shown on the
+screen, and the other is a pop-up window.
+
+[ Pop-Up Windows      ]
+[ Buffer Display      ]
+[ Recentering Windows ]
+[ Modelines           ]
+]#
+
+#[ Controlling the Display
+
+[ Windows            ]
+[ The Current Window ]
+[ Window Functions   ]
+[ Cursor Positions   ]
+[ Redisplay          ]
+]#
+
+#[ Windows
+
+A window is a mechanism for displaying part of a buffer on some physical
+device.  A window is a way to view a buffer but is not synonymous with one; a
+buffer may be viewed in any number of windows.  A window may have a
+modeline which is a line of text displayed across the bottom of a window to
+indicate status information, typically related to the buffer displayed.
+]#
 
 
 ;;;; Screen management initialization.
 
 (proclaim '(special *echo-area-buffer*))
 
+(defvar *devices* ()
+  "List of all devices.")
+
 ;;; %INIT-SCREEN-MANAGER creates the initial windows and sets up the data
-;;; structures used by the screen manager.  The "Main" and "Echo Area"
-;;; buffer modelines are set here in case the user modified these editor
-;;; variables in his init file.  Since these buffers don't have windows
-;;; yet, these sets won't cause any updates to occur.  This is called from
-;;; %INIT-REDISPLAY.
+;;; structures used by the screen manager.  The "Main", "Echo Area" and
+;;; "Ring Marker" buffer modelines are set here in case these editor
+;;; variables are modified in an init file.  Since these buffers don't have
+;;; windows yet, these sets won't cause any updates to occur.  This is
+;;; called from %INIT-REDISPLAY.
 ;;;
 (defun %init-screen-manager (display)
   #-clx
@@ -24,6 +57,8 @@
 	(value ed::default-modeline-fields))
   (setf (buffer-modeline-fields *echo-area-buffer*)
 	(value ed::default-status-line-fields))
+  (setf (buffer-modeline-fields *ring-marker-buffer*)
+	(value ed::default-modeline-fields))
   #+clx
   (if (windowed-monitor-p)
       (init-bitmap-screen-manager display)
@@ -35,13 +70,29 @@
 
 ;;;; Window operations.
 
-;;; The width must be that of a tab for the screen image builder, and the
-;;; height must be one line (two with a modeline).
-;;;
-(defconstant minimum-window-lines 2
-  "Windows must have at least this many lines.")
-(defconstant minimum-window-columns 10
-  "Windows must be at least this many characters wide.")
+#[ Window Functions
+
+{function:ed:make-window}
+{evariable:Default Window Width}
+{evariable:Default Window Height}
+{evariable:Make Window Hook}
+{function:ed:windowp}
+{function:ed:delete-window}
+{evariable:Delete Window Hook}
+{function:ed:window-buffer}
+{evariable:Window Buffer Hook}
+{function:ed:window-display-start}
+{function:ed:window-display-end}
+{function:ed:window-display-recentering}
+{function:ed:window-point}
+{function:ed:center-window}
+{function:ed:scroll-window}
+{function:ed:displayed-p}
+{function:ed:window-height}
+{function:ed:window-width}
+{function:ed:next-window}
+{function:ed:previous-window}
+]#
 
 (defun make-window (start &key (modelinep t) (device nil) window
 			  (proportion .5)
@@ -50,35 +101,35 @@
 			  (ask-user nil) x y
 			  (width (value ed::default-window-width))
 			  (height (value ed::default-window-height)))
-  "Make a window that displays text starting at the mark start.  The default
-   action is to make the new window a proportion of the current window's height
-   to make room for the new window.
+  "Return a window displaying text starting at the mark $start, which must
+   point into a buffer.  On failure to make a window if $error is true
+   signal an error otherwise return ().
 
-   Proportion determines what proportion of the current window's height
+   Make the current window a proportion of its current height to make room
+   for the new window
+
+   Set the window to display buffer modelines if $modelinep is true.
+
+   $window is a device dependent window (e.g. an X window) to be used with
+   the editor window.  Some devices support this argument.  $window becomes
+   the parent window for a new group of windows that behave in a stack
+   orientation as windows do on the terminal.
+
+   $font-family is the font-family used for displaying text in the window.
+
+   If $ask-user is true, prompt for any missing dimensions ($x, $y, $width,
+   and $height) to make a new group of windows, as with the $window
+   argument.  Some devices support this argument.  True values other than t
+   may have device dependent meanings.  $x and $y are in pixel units,
+   $width and $height are characters units.
+
+   $proportion determines what proportion of the current window's height
    the new window will use.  The current window retains whatever space left
-   after accommodating the new one.  The default is to split the current window
-   in half.
+   after accommodating the new one.
 
-   Modelinep specifies whether the window should display buffer modelines.
-
-   Device is the editor device to make the window on.  If it is nil, then
-   the window is made on the same device as CURRENT-WINDOW.
-
-   Window is an X window to be used with the editor window.  The supplied
-   window becomes the parent window for a new group of windows that behave
-   in a stack orientation as windows do on the terminal.
-
-   Font-Family is the font-family used for displaying text in the window.
-
-   If Ask-User is non-nil, the editor prompts the user for missing X, Y, Width,
-   and Height arguments to make a new group of windows that behave in a stack
-   orientation as windows do on the terminal.  This occurs by invoking
-   edi::*create-window-hook*.  X and Y are supplied as pixels, but Width and
-   Height are supplied in characters.
-
-   In the case of the window creation failing, if Error is true then invoke
-   an editor error, else return nil."
-
+   Invoke *Make Window Hook* with the new window."
+  (if (eq (current-window) *echo-area-window*)
+      (editor-error "Attempt to make a window in the echo area."))
   (let* ((device (or device (device-hunk-device (window-hunk (current-window)))))
 	 (window (funcall (device-make-window device)
 			  device start modelinep window font-family
@@ -87,14 +138,14 @@
 	(progn
 	  (invoke-hook ed::make-window-hook window)
 	  window)
-	(if error (editor-error "Could not make a window.")))))
+	(if error (editor-error "Failed to make a window.")))))
 
 (defun delete-window (window)
-  "Make Window go away, removing it from the screen.  This uses
-   edi::*delete-window-hook* to get rid of parent windows on a bitmap device
-   when you delete the last editor window in a group."
-  (when (<= (length *window-list*) 2)
-    (error "Cannot kill the only window."))
+  "Release $window after invoking *Delete Window Hook* with $window.  Use
+   edi::*delete-window-hook* to get rid of parent windows on a bitmap
+   device deleting the last editor window in a group."
+  (if (<= (length *window-list*) 2)
+      (error "Cannot kill the only window."))
   (invoke-hook ed::delete-window-hook window)
   (setq *window-list* (delq window *window-list*))
   (funcall (device-delete-window (device-hunk-device (window-hunk window)))
@@ -112,19 +163,38 @@
 	    (current-window) window))))
 
 (defun next-window (window)
-  "Return the next window after Window, wrapping around if Window is the
-  bottom window."
+  "Return the next window of $window, wrapping around if $window is the
+   bottom window.
+
+   The exact meaning of next depends on the device displaying the window.
+   Repeated calls should eventually cycle through all the windows displayed
+   on a device"
   (check-type window window)
   (funcall (device-next-window (device-hunk-device (window-hunk window)))
 	   window))
 
 (defun previous-window (window)
-  "Return the previous window after Window, wrapping around if Window is the
-  top window."
+  "Return the previous window of $window, wrapping around if $window is the
+   top window.
+
+   The exact meaning of previous depends on the device displaying the
+   window.  Repeated calls should eventually cycle through all the windows
+   displayed on a device"
   (check-type window window)
   (funcall (device-previous-window (device-hunk-device (window-hunk window)))
 	   window))
 
+(defun set-window-foreground-color (window color)
+  "Set the foreground color of $window to $color."
+  (funcall (device-set-foreground-color (device-hunk-device (window-hunk window)))
+	   window
+	   color))
+
+(defun set-window-background-color (window color)
+  "Set the background color of $window to $color."
+  (funcall (device-set-background-color (device-hunk-device (window-hunk window)))
+	   window
+	   color))
 
 
 ;;;; Random typeout support.
@@ -137,7 +207,7 @@
 ;;; add one to the height for the modeline, and we subtract one line if the
 ;;; last line is empty.  Just before using the height, make sure it is at
 ;;; least two -- one for the modeline and one for text, so window making
-;;; primitives don't puke.
+;;; primitives survive.
 ;;;
 (defun prepare-for-random-typeout (stream height)
   (let* ((buffer (line-buffer (mark-line (random-typeout-stream-mark stream))))
@@ -175,8 +245,8 @@
 
 ;;; RANDOM-TYPEOUT-CLEANUP  --  Internal
 ;;;
-;;;    Clean up after random typeout.  This clears the area where the
-;;; random typeout was and redisplays any affected windows.
+;;; Clean up after random typeout.  This clears the area where the random
+;;; typeout was and redisplays any affected windows.
 ;;;
 (defun random-typeout-cleanup (stream &optional (degree t))
   (let* ((window (random-typeout-stream-window stream))
@@ -201,7 +271,7 @@
 		       (declare (ignore window))
 		       (ecase *more-prompt-action*
 			 (:more "--More--")
-			 (:flush "--Flush--")
+			 (:flush "--End--")
 			 (:empty "")
 			 (:normal
 			  (concatenate 'simple-string

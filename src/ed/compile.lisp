@@ -3,7 +3,7 @@
 (in-package "ED")
 
 
-(defhvar "Compile Command"
+(defevar "Compile Command"
   "Proposed value for command at Compile prompt.  Passed as format
    specifier to Format with name of file associated with current buffer as
    first format argument."
@@ -12,7 +12,13 @@
 
 ;;;; Mode.
 
+(defun setup-compile-mode (buffer)
+  (highlight-visible-compile-buffer buffer)
+  (pushnew '("Compile" () highlight-visible-compile-buffer)
+	   *mode-highlighters*))
+
 (defmode "Compile" :major-p nil
+  :setup-function 'setup-compile-mode
   :precedence 4.0
   :documentation
   "Mode for output from compilation processes.")
@@ -41,55 +47,86 @@
     (decf *last-compile-buffers-len*)
     (pop *last-compile-buffers*)))
 
+(defun get-root (name)
+  (if (editor-bound-p 'compile-root :buffer (current-buffer))
+      (value compile-root)
+      (let* ((dir (prompt-for-file
+		   :prompt "Root of referenced file: "
+		   :help "Enter the root directory of the referenced file."
+		   :default (current-directory)))
+	     (pn (merge-pathnames (file-namestring name) dir)))
+	(when (probe-file pn)
+	  (defevar "Compile Root"
+	    "Root of references in compile buffer."
+	    :buffer (current-buffer)
+	    :value pn)
+	  pn))))
+
 (defun parse-reference-line (line buffer)
   "Return the name and line number of the reference on Line, if there is
-   one, else return nil and nil."
+   one, else () and an arbitrary value."
   (let* ((chars (line-string line))
 	 (pos1 (position #\: chars)))
     (when pos1
       (let ((name (merge-pathnames (subseq chars 0 pos1)
 				   (directory-namestring
 				    (buffer-pathname buffer)))))
-	(when (probe-file name)
-	  (let ((pos2 (position #\: chars :start (1+ pos1))))
-	    (when pos2
-	      (let ((offset (read-from-string (subseq chars
-						      (1+ pos1)
-						      pos2))))
-		(if (numberp offset)
-		    (return-from parse-reference-line
-				 (values name offset))))))))))
-  (values nil nil))
+	(let ((pos2 (position #\: chars :start (1+ pos1))))
+	  (when pos2
+	    (let* ((field (subseq chars (1+ pos1) pos2))
+		   (offset (read-from-string field)))
+	      (if (numberp offset)
+		  (if (probe-file name)
+		      (values name offset)
+		      (values (get-root name) offset))
+		  (if (or (probe-file field)
+			  ;; FIX this needs checking
+			  (setq field (get-root name)))
+		      (let ((pos1 (position #\: chars :start (1+ pos2))))
+			(when pos1
+			  (let ((offset (read-from-string (subseq chars
+								  (1+ pos2)
+								  pos1))))
+			    (if (numberp offset)
+				(return-from parse-reference-line
+					     (values field offset)))))))))))))))
 
 
 ;;;; Commands.
 
-(defcommand "Compile" (p)
+(defvar *compile-command-history* (make-ring 350)
+  "Ring-buffer containing previous compile commands.")
+
+(defvar *compile-command-history-pointer* 0
+  "Current position during a historical exploration.")
+
+(defcommand "Compile" ()
   "Run a prompted compile shell command."
-  "Run a prompted compile shell command."
-  (declare (ignore p))
-  (hlet ((save-all-files-confirm nil))
-    (save-all-files-command nil))
-  (let ((current-file (buffer-pathname (current-buffer))))
+  (elet ((save-all-files-confirm nil))
+    (save-all-files-command))
+  (let ((current-file (buffer-pathname (current-buffer)))
+	(*shell-command-in-buffer-history* *compile-command-history*)
+	(*shell-command-in-buffer-history-pointer*
+	 *compile-command-history-pointer*))
     (make-new-shell t nil nil :clear-buffer t
+#|
 		    :proposed-command
 		    (string-trim " "
 				 (format nil (value compile-command)
 					 (or (and current-file
 						  (pathname-name current-file))
-					     ""))))
+					     "")))
+|#
+)
     (let ((buffer (current-buffer)))
       (setf (buffer-minor-mode buffer "Compile") t)
       (push-compile-buffer buffer))
-    (defhvar "Compile Referenced"
+    (defevar "Compile Referenced"
       "t if a reference in the buffer has been followed."
-      :value nil
       :buffer (current-buffer))))
 
-(defcommand "Last Compile" (p)
+(defcommand "Last Compile" ()
   "Switch to the last compile."
-  "Switch to the last compile."
-  (declare (ignore p))
   (when *last-compile-buffers*
     (do ((buf (car *last-compile-buffers*)
 	      (car *last-compile-buffers*)))
@@ -117,24 +154,20 @@
       (push-compile-buffer (current-buffer))
       (when p
 	(if (eq (next-window (current-window)) (current-window))
-	    (split-window-command nil)
-	    (next-window-command nil)))
+	    (split-window-command)
+	    (next-window-command)))
       (change-to-buffer (find-file-buffer name))
       (buffer-start (current-point))
       (line-offset (current-point) (1- offset)))))
 
-(defcommand "Follow Compile Reference in Other Window" (p)
+(defcommand "Follow Compile Reference in Other Window" ()
   "Show the file referenced at point in the other window."
-  "Show the file referenced at point in the other window."
-  (declare (ignore p))
   (follow-compile-reference-command t))
 
-(defcommand "Switch to Next Compile Reference" (p)
+(defcommand "Switch to Next Compile Reference" ()
   "Switch to the next file reference from the most recent compilation."
-  "Switch to the next file reference from the most recent compilation."
-  (declare (ignore p))
-  (when (last-compile-command nil)
-    (next-compile-reference-command nil)
+  (when (last-compile-command)
+    (next-compile-reference-command)
     (follow-compile-reference-command t)))
 
 (defcommand "Next Compile Reference" (p)
@@ -188,10 +221,8 @@
   "Move to the previous file reference."
   (next-compile-reference-command (if p (- p) -1)))
 
-(defcommand "Update Compile Buffer" (p)
+(defcommand "Update Compile Buffer" ()
   "Update a Compile mode buffer."
-  "Update a Compile mode buffer."
-  (declare (ignore p))
   (or (editor-bound-p 'compile-referenced)
       (editor-error "Current buffer must be a Compile buffer."))
   (when (prompt-for-y-or-n
@@ -202,12 +233,30 @@
       (push-compile-buffer buffer)
       (setv compile-referenced nil)
       (delete-region (buffer-region buffer))
-      (multiple-value-bind (got dir)
-			   (unix:unix-current-directory)
-	(or got (editor-error "Failed to get current directory: ~A." dir))
-	(unwind-protect
-	    (progn
-	      (unix:unix-chdir (buffer-pathname buffer))
-	      (setv process (eval (value process-start-expression))))
-	  (unix:unix-chdir dir)))
+      (in-directory (buffer-pathname buffer)
+	(setv process (eval (value process-start-expression))))
       (update-process-buffer buffer))))
+
+
+;;;; Highlighting.
+
+(defun highlight-compile-line (line chi-info)
+  (when (plusp (line-length line))
+    (let ((mark (mark line 0)))
+      (when (find-character mark #\:)
+	(let ((mark2 (copy-mark mark)))
+	  (when (and (mark-after mark2) (find-character mark2 #\:))
+	    (chi-mark line 0 *special-form-font* :special-form
+		      chi-info)
+	    (mark-after mark)
+	    (chi-mark line (mark-charpos mark) *variable-name-font*
+		      :variable chi-info)
+	    (mark-after mark2)
+	    (chi-mark line (mark-charpos mark2) *original-font*
+		      :window-foreground chi-info)))))))
+
+(defun highlight-compile-buffer (buffer)
+  (highlight-chi-buffer buffer highlight-compile-line))
+
+(defun highlight-visible-compile-buffer (buffer)
+  (highlight-visible-chi-buffer buffer highlight-compile-line))

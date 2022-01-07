@@ -5,7 +5,7 @@
 
 (in-package "ED")
 
-(defhvar "Outline Character"
+(defevar "Outline Character"
   "Character which starts Outline sections."
   :value #\*)
 
@@ -20,7 +20,7 @@
   (pushnew '("Outline" nil highlight-outline) *mode-highlighters*))
 
 (defun cleanup-outline-buffer (buffer)
-  (do-lines (line buffer)
+  (do-buffer-lines (line buffer)
    (let ((info (getf (line-plist line) 'outline-ch-info)))
      (when info
        (dolist (fmark (ch-info-font-marks info))
@@ -44,7 +44,7 @@
 (defun highlight-outline (buffer)
   "Highlight section headings in Outline Buffer."
   (let ((ochar (value outline-character)))
-    (do-lines (line buffer)
+    (do-buffer-lines (line buffer)
       (when (> (line-length line) 0)
 	(let ((info (check-outline-line line)))
 	  (when info
@@ -52,11 +52,16 @@
 	      (delete-font-mark fmark))
 	    (let ((mark (mark line 0)))
 	      (when (eq (next-character mark) ochar)
-		(push (font-mark line 0
-				 (loop
-				   for i = 1 then (1+ i)
-				   while (and (mark-after mark)
-					      (eq (next-character mark)
-						  ochar))
-				   finally return (mod i edi::font-map-size)))
+		(push (color-mark line 0
+				  (while ((i 1 (1+ i)))
+					 ((and (mark-after mark)
+					       (eq (next-character mark)
+						   ochar))
+					  (nth (mod i 6)
+					       '(:comment
+						 :string
+						 :variable
+						 :function
+						 :preprocessor
+						 :special-form)))))
 		      (ch-info-font-marks info))))))))))

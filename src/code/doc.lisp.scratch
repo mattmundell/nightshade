@@ -1,0 +1,369 @@
+	    (many
+	     (let ((args (gnode-args node)))
+	       (declare (ignore args))
+	       ,(if (eval emit)
+		    '`(let ((cont t))
+			(catch 'end-many
+			  (loop while (and ,(write-generic-nodes (gnode-content node))
+					   cont)
+			    finally return cont)))
+		    '(let ((cont t))
+		       (catch 'end-many
+			 (loop while (and (write-generic-nodes (gnode-content node))
+					  cont)
+			   finally return cont))))))
+
+
+(doc:defun-doc-to-html cv-to-text '((string . "CURRICULUM VITAE")))
+
+	    (paragraph
+	     (let ((args (gnode-args node)))
+	       ,(if (eval emit)
+		    ;; FIX buffer paragraph else terpri<LI> when
+		    ;;     return-from-many
+		    '`(let ((class (if ,(car args)
+				       (format () " CLASS=\"~A\"" ,(car args))
+				       "")))
+			,(open-line)
+			(format stream "<P~A>" class)
+			(prog1 ,(write-generic-nodes (gnode-content node))
+			  (write-string "</P>" stream)
+			  (fresh-line stream)))
+		    '(let ((class (if (car args)
+				      (format () " CLASS=\"~A\"" (car args))
+				      "")))
+		       (open-line)
+		       (format stream "<P~A>" class)
+		       (prog1 (write-generic-nodes (gnode-content node))
+			 (write-string "</P>" stream)
+			 (fresh-line stream))))))))
+
+
+	    (section
+	     (let ((args (gnode-args node)))
+	       ,(if (eval emit)
+		    '`(progn
+			,(open-line)
+			(format stream
+				"~%<p>~
+	                         <table CLASS=\"heading\" CELLPADDING=\"0\" CELLSPACING=\"0\">~%~
+			         <tr><td CLASS=\"heading\">~A</td></tr>~%~
+                                 <tr><td><table WIDTH=\"100%\" STYLE=\"background-color: #000000\" CELLPADDING=\"0\" CELLSPACING=\"0\"><tr><td>~%~
+				 </td></tr></table></td></tr></table></p>~%"
+				,(car args))
+			,(write-generic-nodes (gnode-content node)))
+		    '(progn
+		       (open-line)
+		       (terpri stream)
+		       (format stream
+			       "~%<p>~
+				<table CLASS=\"heading\" CELLPADDING=\"0\" CELLSPACING=\"0\">~%~
+				<tr><td CLASS=\"heading\">~A</td></tr>~%~
+				<tr><td><table WIDTH=\"100%\" STYLE=\"background-color: #000000\" CELLPADDING=\"0\" CELLSPACING=\"0\"><tr><td>~%~
+				</td></tr></table></td></tr></table></p>~%"
+			       (car args)) ;; FIX cadr, car for styles
+		       (write-generic-nodes (gnode-content node))))))
+	    (table
+	     (let* ((rows (gnode-content node))
+		    (args (gnode-args node)))
+	       ,(if (eval emit)
+		    '`(let ((row-buffer (progn
+					  (setq *column-widths* ())
+					  ,(buffer-rows rows)))
+			    (class (if ,(car args)
+				       (format () " CLASS=\"~A\"" ,(car args))
+				       "")))
+			,(open-line)
+			(format stream "<TABLE~A>" class)
+			(loop for row = row-buffer then (cdr row) while row do
+			  (format stream "<TR~A>" class)
+			  (loop for node = (car row) then (cdr node)
+			    for col = 0 then (1+ col) while node do
+			    (format stream "<TD~A>" class)
+			    ,(output-string '(car node))
+			    (write-string "</TD>" stream))
+			  (write-string "</TR>" stream)
+			  (terpri stream))
+			(format stream "</TABLE>~%")
+			t)
+		    '(let ((row-buffer (progn
+					 (setq *column-widths* ())
+					 (buffer-rows rows)))
+			   (class (if (car args)
+				      (format () " CLASS=\"~A\"" (car args))
+				      "")))
+		       (open-line)
+		       (format stream "<TABLE~A>" class)
+		       (loop for row = row-buffer then (cdr row) while row do
+			 (format stream "<TR~A>" class)
+			 (loop for node = (car row) then (cdr node)
+			   for col = 0 then (1+ col) while node do
+			   (format stream "<TD~A>" class)
+			   (output-string (car node))
+			   (write-string "</TD>" stream))
+			 (write-string "</TR>" stream)
+			 (terpri stream))
+		       (write-string "</TABLE>" stream)
+		       t))))
+	    (rule
+	     (let ((args (gnode-args node)))
+	       ,(if (eval emit)
+		    '`(let ((class (if ,(car args)
+				       (format () " CLASS=\"~A-rule\"" ,(car args))
+				       ""))
+			    (inner (if ,(car args)
+				       (format () " CLASS=\"~A-rule-inner\"" ,(car args))
+				       "")))
+			,(open-line)
+			(format stream "<TABLE CELLPADDING=\"0\" CELLSPACING=\"0\"~A><TR><TD>~
+					  <TABLE CELLPADDING=\"0\" CELLSPACING=\"0\"~A>~
+					    <TR><TD></TD></TR></TABLE>~
+					</TD></TR></TABLE>~%" class inner)
+			t)
+		    `(let ((class (if (car args)
+				      (format () " CLASS=\"~A-rule\"" (car args))
+				      ""))
+			   (inner (if (car args)
+				      (format () " CLASS=\"~A-rule-inner\"" (car args))
+				      "")))
+		       (open-line)
+		       (format stream "<TABLE CELLPADDING=\"0\" CELLSPACING=\"0\"~A><TR><TD>~
+				       <TABLE CELLPADDING=\"0\" CELLSPACING=\"0\"~A>~
+				       <TR><TD></TD></TR></TABLE>~
+				       </TD></TR></TABLE>~%" class inner)
+		       t))))
+	    (string
+	     ,(if (eval emit)
+		  '(output-string
+		    (substitute #\space #\newline
+				(string-right-trim '(#\newline)
+						   (gnode-single-content
+						    node))))
+		  '(output-string
+		    (substitute #\space #\newline
+				(string-right-trim '(#\newline)
+						   (gnode-single-content
+						    node))))))
+	    (data
+	     ,(if (eval emit)
+		  '`(let ((result ,(gnode-single-content node)))
+		      (if result
+			  ,(output-string
+			    '(substitute #\space #\newline
+					 (string-right-trim '(#\newline)
+							    result)))))
+		  '(let ((result (eval (gnode-single-content node))))
+		     (if result
+			 (output-string
+			  (substitute #\space #\newline
+				      (string-right-trim '(#\newline)
+							 result)))))))))
+
+
+))	    (paragraph
+	     (let ((args (gnode-args node)))
+	       ,(if (eval emit)
+		    ;; FIX buffer paragraph else terpri<LI> when
+		    ;;     return-from-many
+		    '`(let ((class (if ,(car args)
+				       (format () " CLASS=\"~A\"" ,(car args))
+				       "")))
+			,(open-line)
+			(format stream "<P~A>" class)
+			(prog1 ,(write-generic-nodes (gnode-content node))
+			  (write-string "</P>" stream)
+			  (fresh-line stream)))
+		    '(let ((class (if (car args)
+				      (format () " CLASS=\"~A\"" (car args))
+				      "")))
+		       (open-line)
+		       (format stream "<P~A>" class)
+		       (prog1 (write-generic-nodes (gnode-content node))
+			 (write-string "</P>" stream)
+			 (fresh-line stream))))))))
+
+
+
+
+				       (data . mh::*signature*)))
+				 (row ((string . "line 2")
+				       (string . "right")))))))
+
+
+
+
+
+
+
+))
+
+
+
+
+
+
+
+
+
+(doc:defun-doc-to-html cv-to-text '((string . "CURRICULUM VITAE")))
+
+
+
+
+
+
+
+
+text
+
+
+
+
+
+
+	    (section
+	     (let ((args (gnode-args node)))
+	       ,(if (eval emit)
+		    '`(progn
+			,(open-line)
+			(format stream
+				"~%<p>~
+	                         <table CLASS=\"heading\" CELLPADDING=\"0\" CELLSPACING=\"0\">~%~
+			         <tr><td CLASS=\"heading\">~A</td></tr>~%~
+                                 <tr><td><table WIDTH=\"100%\" STYLE=\"background-color: #000000\" CELLPADDING=\"0\" CELLSPACING=\"0\"><tr><td>~%~
+				 </td></tr></table></td></tr></table></p>~%"
+				,(car args))
+			,(write-generic-nodes (gnode-content node)))
+		    '(progn
+		       (open-line)
+		       (terpri stream)
+		       (format stream
+			       "~%<p>~
+				<table CLASS=\"heading\" CELLPADDING=\"0\" CELLSPACING=\"0\">~%~
+				<tr><td CLASS=\"heading\">~A</td></tr>~%~
+				<tr><td><table WIDTH=\"100%\" STYLE=\"background-color: #000000\" CELLPADDING=\"0\" CELLSPACING=\"0\"><tr><td>~%~
+				</td></tr></table></td></tr></table></p>~%"
+			       (car args)) ;; FIX cadr, car for styles
+		       (write-generic-nodes (gnode-content node))))))
+	    (table
+	     (let* ((rows (gnode-content node))
+		    (args (gnode-args node)))
+	       ,(if (eval emit)
+		    '`(let ((row-buffer (progn
+					  (setq *column-widths* ())
+					  ,(buffer-rows rows)))
+			    (class (if ,(car args)
+				       (format () " CLASS=\"~A\"" ,(car args))
+				       "")))
+			,(open-line)
+			(format stream "<TABLE~A>" class)
+			(loop for row = row-buffer then (cdr row) while row do
+			  (format stream "<TR~A>" class)
+			  (loop for node = (car row) then (cdr node)
+			    for col = 0 then (1+ col) while node do
+			    (format stream "<TD~A>" class)
+			    ,(output-string '(car node))
+			    (write-string "</TD>" stream))
+			  (write-string "</TR>" stream)
+			  (terpri stream))
+			(format stream "</TABLE>~%")
+			t)
+		    '(let ((row-buffer (progn
+					 (setq *column-widths* ())
+					 (buffer-rows rows)))
+			   (class (if (car args)
+				      (format () " CLASS=\"~A\"" (car args))
+				      "")))
+		       (open-line)
+		       (format stream "<TABLE~A>" class)
+		       (loop for row = row-buffer then (cdr row) while row do
+			 (format stream "<TR~A>" class)
+			 (loop for node = (car row) then (cdr node)
+			   for col = 0 then (1+ col) while node do
+			   (format stream "<TD~A>" class)
+			   (output-string (car node))
+			   (write-string "</TD>" stream))
+			 (write-string "</TR>" stream)
+			 (terpri stream))
+		       (write-string "</TABLE>" stream)
+		       t))))
+	    (rule
+	     (let ((args (gnode-args node)))
+	       ,(if (eval emit)
+		    '`(let ((class (if ,(car args)
+				       (format () " CLASS=\"~A-rule\"" ,(car args))
+				       ""))
+			    (inner (if ,(car args)
+				       (format () " CLASS=\"~A-rule-inner\"" ,(car args))
+				       "")))
+			,(open-line)
+			(format stream "<TABLE CELLPADDING=\"0\" CELLSPACING=\"0\"~A><TR><TD>~
+					  <TABLE CELLPADDING=\"0\" CELLSPACING=\"0\"~A>~
+					    <TR><TD></TD></TR></TABLE>~
+					</TD></TR></TABLE>~%" class inner)
+			t)
+		    `(let ((class (if (car args)
+				      (format () " CLASS=\"~A-rule\"" (car args))
+				      ""))
+			   (inner (if (car args)
+				      (format () " CLASS=\"~A-rule-inner\"" (car args))
+				      "")))
+		       (open-line)
+		       (format stream "<TABLE CELLPADDING=\"0\" CELLSPACING=\"0\"~A><TR><TD>~
+				       <TABLE CELLPADDING=\"0\" CELLSPACING=\"0\"~A>~
+				       <TR><TD></TD></TR></TABLE>~
+				       </TD></TR></TABLE>~%" class inner)
+		       t))))
+	    (string
+	     ,(if (eval emit)
+		  '(output-string
+		    (substitute #\space #\newline
+				(string-right-trim '(#\newline)
+						   (gnode-single-content
+						    node))))
+		  '(output-string
+		    (substitute #\space #\newline
+				(string-right-trim '(#\newline)
+						   (gnode-single-content
+						    node))))))
+	    (data
+	     ,(if (eval emit)
+		  '`(let ((result ,(gnode-single-content node)))
+		      (if result
+			  ,(output-string
+			    '(substitute #\space #\newline
+					 (string-right-trim '(#\newline)
+							    result)))))
+		  '(let ((result (eval (gnode-single-content node))))
+		     (if result
+			 (output-string
+			  (substitute #\space #\newline
+				      (string-right-trim '(#\newline)
+							 result)))))))))
+
+
+
+
+
+
+	    (paragraph
+	     (let ((args (gnode-args node)))
+	       ,(if (eval emit)
+		    ;; FIX buffer paragraph else terpri<LI> when
+		    ;;     return-from-many
+		    '`(let ((class (if ,(car args)
+				       (format () " CLASS=\"~A\"" ,(car args))
+				       "")))
+			,(open-line)
+			(format stream "<P~A>" class)
+			(prog1 ,(write-generic-nodes (gnode-content node))
+			  (write-string "</P>" stream)
+			  (fresh-line stream)))
+		    '(let ((class (if (car args)
+				      (format () " CLASS=\"~A\"" (car args))
+				      "")))
+		       (open-line)
+		       (format stream "<P~A>" class)
+		       (prog1 (write-generic-nodes (gnode-content node))
+			 (write-string "</P>" stream)
+			 (fresh-line stream))))))))

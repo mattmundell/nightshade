@@ -4,9 +4,10 @@
 
 (export '(sort stable-sort merge))
 
+;; FIX (mapcar function lists) (find item sequence)
 (defun sort (sequence predicate &key key)
-  "Destructively sorts sequence.  Predicate should returns non-Nil if
-   Arg1 is to precede Arg2."
+  "Destructively sorts sequence.  Predicate should return true if Arg1 is
+   to precede Arg2." ; FIX key?
   (typecase sequence
     (simple-vector
      (if (> (the fixnum (length (the simple-vector sequence))) 0)
@@ -109,8 +110,8 @@
 ;;;; Stable Sorting
 
 (defun stable-sort (sequence predicate &key key)
-  "Destructively sorts sequence.  Predicate should returns non-Nil if Arg1
-   is to precede Arg2."
+  "Destructively sorts sequence.  Predicate should returns true if Arg1 is
+   to precede Arg2." ; FIX key?
   (typecase sequence
     (simple-vector
      (stable-sort-simple-vector sequence predicate key))

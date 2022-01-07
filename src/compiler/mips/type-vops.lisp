@@ -1,23 +1,6 @@
-;;; -*- Package: MIPS -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/type-vops.lisp,v 1.44.2.2 2000/05/23 16:37:42 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the VM definition of type testing and checking VOPs
-;;; for the MIPS.
-;;;
-;;; Written by William Lott
-;;; Earlier versions by Rob MacLachlan and Christopher Hoover.
-;;; Complex-float support by Douglas Crosher 1998.
-;;;
-(in-package "MIPS")
+;;; The VM definition of type testing and checking VOPs for the MIPS.
 
+(in-package "MIPS")
 
 
 ;;;; Test generation utilities.
@@ -197,9 +180,8 @@
 	(inst nop)
 	(emit-label drop-through)))))
 
-
 
-;;;; Type checking and testing:
+;;;; Type checking and testing.
 
 (define-vop (check-type)
   (:args (value :target result :scs (any-reg descriptor-reg)))
@@ -538,7 +520,7 @@
       (inst beq temp zero-tn yep)
       (inst nop)
       (inst b nope)
-	
+
       SINGLE-WORD
       ;; Get the single digit.
       (loadw temp value bignum-digits-offset other-pointer-type)
@@ -565,10 +547,9 @@
     OKAY
     (move result value)))
 
-
 
-;;;; List/symbol types:
-;;; 
+;;;; List/symbol types.
+;;;
 ;;; symbolp (or symbol (eq nil))
 ;;; consp (and list (not (eq nil)))
 
@@ -586,7 +567,7 @@
       (test-type value temp error t symbol-header-type))
     DROP-THRU
     (move result value)))
-  
+
 (define-vop (consp type-predicate)
   (:translate consp)
   (:generator 8

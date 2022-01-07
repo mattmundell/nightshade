@@ -1,21 +1,74 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/copyprop.lisp,v 1.8 1994/10/31 04:27:28 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file implements the copy propagation phase of the compiler,
-;;; which uses global flow analysis to eliminate unnecessary copying of
-;;; variables.
-;;; 
-;;; Written by Rob MacLachlan
-;;;
+;;; The copy propagation phase of the compiler, which uses global flow
+;;; analysis to eliminate unnecessary copying of variables.
+
 (in-package "C")
+
+#[ Copy Propagation
+
+    Use flow analysis to eliminate spurious copying of TN values.
+
+Phase position: 16/23 (back)
+
+Presence: optional
+
+Files: copyprop
+
+Entry functions: `copy-propagate'
+
+Call sequences:
+
+    native-compile-component
+      copy-propagate
+        init-copy-sets
+          tn-is-copy-of
+        copy-flow-analysis
+        propagate-copies
+          tn-is-copy-of
+          change-tn-ref-tn
+
+This phase is optional, but should be done whenever speed or space is more
+important than compile speed.  We use global flow analysis to find the reaching
+definitions for each TN.  This information is used here to eliminate
+unnecessary TNs, and is also used later on by loop invariant optimization.
+
+    FIX is this per-block?
+
+In some cases, VMR conversion will unnecessarily copy the value of a TN into
+another TN, since it may not be able to tell that the initial TN has the same
+value at the time the second TN is referenced.  This can happen when ICR
+optimize is unable to eliminate a trivial variable binding, or when the user
+does a setq, or may also result from creation of expression evaluation
+temporaries during VMR conversion.  Whatever the cause, we would like to avoid
+the unnecessary creation and assignment of these TNs.
+
+What we do is replace TN references whose only reaching definition is a Move
+VOP with a reference to the TN moved from, and then delete the Move VOP if the
+copy TN has no remaining references.  There are several restrictions on copy
+propagation:
+
+ * The TNs must be ``ordinary'' TNs, not restricted or otherwise
+   unusual.  Extending the life of restricted (or wired) TNs can make register
+   allocation impossible.  Some other TN kinds have hidden references.
+
+ * We don't want to defeat source-level debugging by replacing named
+   variables with anonymous temporaries.
+
+ * We can't delete moves that representation selected might want to change
+   into a representation conversion, since we need the primitive types of both TNs
+   to select a conversion.
+
+Some cleverness reduces the cost of flow analysis.  As for lifetime analysis,
+we only need to do flow analysis on global packed TNs.  We can't do the real
+local TN assignment pass before this, since we allocate TNs afterward, so we do
+a pre-pass that marks the TNs that are local for our purposes.  We don't care
+if block splitting eventually causes some of them to be considered global.
+
+Note also that we really only are interested in knowing if there is a
+unique reaching definition, which we can mash into our flow analysis rules by
+doing an intersection.  Then a definition only appears in the set when it is
+unique.  We then propagate only definitions of TNs with only one write, which
+allows the TN to stand for the definition.
+]#
 
 ;;; In copy propagation, we manipulate sets of TNs.  We only consider TNs whose
 ;;; sole write is by a MOVE VOP.  This allows us to use a degenerate version of
@@ -42,26 +95,24 @@
 ;;; write appears in the block.)
 ;;;
 ;;; OUT is (union (difference IN KILL) GEN)
-;;;
-
 
 ;;; TN-IS-COPY-OF  --  Internal
 ;;;
-;;;    If TN is subject to copy propagation, then return the TN it is a copy
-;;; of, otherwise NIL.
+;;; If TN is subject to copy propagation, then return the TN of which it is
+;;; a copy, otherwise return NIL.
 ;;;
-;;; We also only consider TNs where neither the TN nor the copied TN are wired
-;;; or restricted.  If we extended the life of a wired or restricted TN,
-;;; register allocation might fail, and we can't substitute arbitrary things
-;;; for references to wired or restricted TNs, since the reader may be
-;;; expencting the argument to be in a particular place (as in a passing
+;;; Only consider TNs where neither the TN nor the copied TN are wired or
+;;; restricted.  If we extend the life of a wired or restricted TN,
+;;; register allocation might fail, and we can't substitute arbitrary
+;;; things for references to wired or restricted TNs, since the reader may
+;;; be expecting the argument to be in a particular place (as in a passing
 ;;; location.)
 ;;;
-;;; The TN must be a :NORMAL TN.  Other TNs might have hidden references or be
-;;; otherwise bizzare.
+;;; The TN must be a :NORMAL TN.  Other TNs might have hidden references or
+;;; be otherwise bizzare.
 ;;;
-;;; A TN is also inelegible if it has interned name, policy is such that we
-;;; would dump it in the debug vars, and speed is not 3.
+;;; A TN is also inelegible if it has an interned name, policy is such that
+;;; we would dump it in the debug vars, and speed is not 3.
 ;;;
 ;;; The SCs of the TN's primitive types is a subset of the SCs of the copied
 ;;; TN.  Moves between TNs of different primitive type SCs may need to be
@@ -75,7 +126,7 @@
   (declare (type tn tn) (inline subsetp))
   (let ((writes (tn-writes tn)))
     (and (eq (tn-kind tn) :normal)
-	 (not (tn-sc tn))		; Not wired or restricted. 
+	 (not (tn-sc tn))		; Not wired or restricted.
 	 (and writes (null (tn-ref-next writes)))
 	 (let ((vop (tn-ref-vop writes)))
 	   (and (eq (vop-info-name (vop-info vop)) 'move)
@@ -93,13 +144,12 @@
 				     (or (= speed 3) (< debug 2)))))
 		       arg-tn)))))))
 
-
 ;;; INIT-COPY-SETS  --  Internal
 ;;;
-;;;    Init the sets in Block for copy propagation.  To find Gen, we just look
-;;; for MOVE vops, and then see if the result is a eligible copy TN.  To find
-;;; Kill, we must look at all VOP results, seeing if any of the reads of the
-;;; written TN are copies for eligible TNs.
+;;; Init the sets in Block for copy propagation.  To find Gen, we just look
+;;; for MOVE vops, and then see if the result is an eligible copy TN.  To
+;;; find Kill, we must look at all VOP results, seeing if any of the reads
+;;; of the written TN are copies for eligible TNs.
 ;;;
 (defun init-copy-sets (block)
   (declare (type cblock block))
@@ -129,12 +179,12 @@
     (setf (block-gen block) gen))
   (undefined-value))
 
-
 ;;; COPY-FLOW-ANALYSIS  --  Internal
 ;;;
-;;;    Do the flow analysis step for copy propagation on Block.  We rely on OUT
-;;; being initilized to GEN, and use SSET-UNION-OF-DIFFERENCE to incrementally
-;;; build the union in OUT, rather than replacing OUT each time.
+;;; Do the flow analysis step for copy propagation on Block.  We rely on
+;;; OUT being initialized to GEN, and use SSET-UNION-OF-DIFFERENCE to
+;;; incrementally build the union in OUT, rather than replacing OUT each
+;;; time.
 ;;;
 (defun copy-flow-analysis (block)
   (declare (type cblock block))
@@ -145,15 +195,15 @@
     (setf (block-in block) in)
     (sset-union-of-difference (block-out block) in (block-kill block))))
 
-
 (defevent copy-deleted-move "Copy propagation deleted a move.")
 
 ;;; OK-COPY-REF  --  Internal
 ;;;
-;;;    Return true if Arg is a reference to a TN that we can copy propagate to.
-;;; In addition to dealing with copy chains (as discussed below), we also throw
-;;; out references that are arguments to a local call, since IR2tran introduces
-;;; tempes in that context to preserve parallel assignment semantics.
+;;; Return true if Arg is a reference to a TN that we can copy propagate
+;;; to.  In addition to dealing with copy chains (as discussed below), we
+;;; also throw out references that are arguments to a local call, since
+;;; IR2tran introduces tempes in that context to preserve parallel
+;;; assignment semantics.
 ;;;
 (defun ok-copy-ref (vop arg in original-copy-of)
   (declare (type vop vop) (type tn arg) (type sset in)
@@ -171,41 +221,40 @@
 			   (error "Couldn't find REF?"))
 		       (length (template-arg-types info))))))))
 
-
 ;;; PROPAGATE-COPIES  --  Internal
 ;;;
-;;;    Make use of the result of flow analysis to eliminate copies.  We scan
+;;; Make use of the result of flow analysis to eliminate copies.  We scan
 ;;; the VOPs in block, propagating copies and keeping our IN set in sync.
 ;;;
-;;;    Original-Copy-Of is an EQ hash table that we use to keep track of
-;;; renamings when there are copy chains, i.e. copies of copies.  When we see
-;;; copy of a copy, we enter the first copy in the table with the second copy
-;;; as a key.  When we see a reference to a TN in a copy chain, we can only
-;;; substitute the first copied TN for the reference when all intervening
-;;; copies in the copy chain are also avaliable.  Otherwise, we just leave the
-;;; reference alone.  It is possible that we might have been able to reference
-;;; one of the intermediate copies instead, but that copy might have already
-;;; been deleted, since we delete the move immediately when the references go
-;;; to zero.
+;;; Original-Copy-Of is an EQ hash table that we use to keep track of
+;;; renamings when there are copy chains, i.e. copies of copies.  When we
+;;; see copy of a copy, we enter the first copy in the table with the
+;;; second copy as a key.  When we see a reference to a TN in a copy chain,
+;;; we can only substitute the first copied TN for the reference when all
+;;; intervening copies in the copy chain are also avaliable.  Otherwise, we
+;;; just leave the reference alone.  It is possible that we might have been
+;;; able to reference one of the intermediate copies instead, but that copy
+;;; might have already been deleted, since we delete the move immediately
+;;; when the references go to zero.
 ;;;
-;;;    To understand why we always can to the substitution when the copy chain
-;;; recorded in the Original-Copy-Of table hits NIL, note that we make an entry
-;;; in the table iff we change the arg of a copy.  If an entry is not in the
-;;; table, it must be that we hit a move which *originally* referenced our
-;;; Copy-Of TN.  If all the intervening copies reach our reference, then
-;;; Copy-Of must reach the reference.
+;;; To understand why we always can to (FIX do?) the substitution when the copy chain
+;;; recorded in the Original-Copy-Of table hits NIL, note that we make an
+;;; entry in the table iff we change the arg of a copy.  If an entry is not
+;;; in the table, it must be that we hit a move which *originally*
+;;; referenced our Copy-Of TN.  If all the intervening copies reach our
+;;; reference, then Copy-Of must reach the reference.
 ;;;
-;;;    Note that due to our restricting copies to single-writer TNs, it will
+;;; Note that due to our restricting copies to single-writer TNs, it will
 ;;; always be the case that when the first copy in a chain reaches the
 ;;; reference, all intervening copies reach also reach the reference.  We
 ;;; don't exploit this, since we have to work backward from the last copy.
 ;;;
-;;;    In this discussion, we are really only playing with the tail of the true
-;;; copy chain for which all of the copies have already had PROPAGATE-COPIES
-;;; done on them.  But, because we do this pass in DFO, it is virtually always
-;;; the case that we will process earlier copies before later ones.  In
-;;; perverse cases (non-reducible flow graphs), we just miss some optimization
-;;; opportinities.
+;;; In this discussion, we are really only playing with the tail of the
+;;; true copy chain for which all of the copies have already had
+;;; PROPAGATE-COPIES done on them.  But, because we do this pass in DFO, it
+;;; is virtually always the case that we will process earlier copies before
+;;; later ones.  In perverse cases (non-reducible flow graphs), we just
+;;; miss some optimization opportinities.
 ;;;
 (defun propagate-copies (block original-copy-of)
   (declare (type cblock block) (type hash-table original-copy-of))
@@ -242,10 +291,9 @@
 
   (undefined-value))
 
-
 ;;; COPY-PROPAGATE  --  Interface
 ;;;
-;;;    Do copy propgation on Component by initilizing the flow analysis sets,
+;;; Do copy propgation on Component by initializing the flow analysis sets,
 ;;; doing flow analysis, and then propagating copies using the results.
 ;;;
 (defun copy-propagate (component)

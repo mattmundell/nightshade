@@ -1,5 +1,7 @@
 ;;; Echo Area stuff.
 
+;; FIX replace :default* w :suggest*
+
 (in-package "EDI")
 
 (export '(*echo-area-buffer* *echo-area-stream* *echo-area-window*
@@ -8,54 +10,213 @@
 	  *parse-value-must-exist* *parse-default* *parse-default-string*
 	  *parse-prompt* *parse-help* *parse-history* *parse-history-pointer*
 	  *parse-initial-string*
-	  *echo-area-history* *echo-area-history-pointer*
 	  clear-echo-area message msg loud-message
-	  prompt-for-buffer prompt-for-file prompt-for-integer
+	  prompt-for-buffer prompt-for-date prompt-for-file prompt-for-integer
 	  prompt-for-keyword prompt-for-expression prompt-for-string
 	  prompt-for-variable prompt-for-yes-or-no prompt-for-y-or-n
-	  prompt-for-key-event prompt-for-key prompt-in-buffer
+	  prompt-for-key-event prompt-for-key prompt-for-mode
+	  prompt-in-buffer
 	  *logical-key-event-names* logical-key-event-p
 	  logical-key-event-documentation logical-key-event-name
 	  logical-key-event-key-events define-logical-key-event *parse-type*
 	  current-variable-tables))
 
+#[ The Echo Area
 
+The echo area is the region which occupies the bottom few lines on the
+screen.  It is used for two purposes: displaying brief messages to the user
+and prompting.
+
+When a command needs some information from the user, it requests it by
+displaying a prompt in the echo area.  The following is a typical prompt:
+
+Select Buffer: [nightshade-ed.lisp /home/user/]
+
+The general format of a prompt is a one or two word description of the
+input requested, possibly followed by a default in brackets.  The default
+is a standard response to the prompt that the editor uses if you type
+Return without giving any other input.
+
+There are four general kinds of prompts:
+
+  key-event
+      The response is a single key-event and no confirming Return is
+     needed.
+
+  keyword
+      The response is a selection from one of a limited number of choices.
+     Completion is available using Space and Escape, and you
+     only need to supply enough of the keyword to distinguish it from any other
+     choice.  In some cases a keyword prompt accepts unknown input, indicating the
+     prompter should create a new entry.  If this is the case, then you must enter
+     the keyword fully specified or completed using Escape; this
+     distinguishes entering an old keyword from making a new keyword which is a
+     prefix of an old one since the system completes partial input automatically.
+
+  file
+      The response is the name of a file, which may have to exist.  Unlike other
+     prompts, the default has some effect even after the user supplies some input:
+     the system merges the default with the input filename.  See page
+     pagerefmerging for a description of filename merging.  Escape and
+     Space complete the input for a file parse.
+
+  string
+      The response is a string which must satisfy some property, such as being the
+     name of an existing file.
+
+These key-events have special meanings when prompting:
+
+  Return
+      Confirm the current parse.  If no input has been entered, then use the
+     default.  If for some reason the input is unacceptable, the editor does two
+     things:
+
+  1) beeps, if the variable `Beep on Ambiguity' set, and
+
+  2) moves the point to the end of the first word requiring disambiguation.
+     This allows you to add to the input before confirming the it again.
+
+  Home, C-_
+      Print some sort of help message.  If the parse is a keyword parse, then print
+     all the possible completions of the current input in a pop-up window.
+
+  Escape
+      Attempt to complete the input to a keyword or file parse as far as possible,
+     beeping if the result is ambiguous.  When the result is ambiguous, the editor
+     moves the point to the first ambiguous field, which may be the end of the
+     completed input.
+
+  Space
+      In a keyword parse, attempt to complete the input up to the next space.  This
+     is useful for completing the names of the editor commands and similar things
+     without beeping a lot, and you can continue entering fields while leaving
+     previous fields ambiguous.  For example, you can invoke `Forward Word' as
+     an extended command by typing M-X f Space w Return.  Each time the
+     user enters space, the editor attempts to complete the current field and all
+     previous fields.
+
+  C-i, Tab
+      In a string or keyword parse, insert the default so that it may be edited.
+
+  C-p
+      Retrieve the text of the last string input from a history of echo area inputs.
+     Repeating this moves to successively earlier inputs.
+
+  C-n
+      Go the other way in the echo area history.
+
+  C-q
+      Quote the next key-event so that it is not interpreted as a command.
+
+{evariable:Ignore File Types}
+]#
+
+#[ The Echo Area (extension)
+
+The editor provides a number of facilities for displaying information and
+prompting the user for it.  Most of these work through a small window displayed
+at the bottom of the screen.  This is called the echo area and is supported by
+a buffer and a window.  This buffer's modeline (see section refmodelines) is
+referred to as the status line, which, unlike other buffers' modelines, is used
+to show general status about the editor, Lisp, or world.
+
+{evariable:Default Status Line Fields}
+{evariable:Echo Area Height}
+
+[ Echo Area Functions              ]
+[ Prompting Functions              ]
+[ Control of Parsing Behavior      ]
+[ Defining New Prompting Functions ]
+[ Some Echo Area Commands          ]
+]#
+
+
 (defmode "Echo Area" :major-p t)
-(defvar *echo-area-buffer* (make-buffer "Echo Area" :modes '("Echo Area"))
-  "Buffer used to hack text for the echo area.")
+
+(defvar *echo-area-buffer* (make-buffer "Echo Area"
+					:modes '("Echo Area")
+					:position :top)
+  "Buffer used as the echo area.")
+
 (defvar *echo-area-region* (buffer-region *echo-area-buffer*)
   "Internal thing that's the *echo-area-buffer*'s region.")
+
 (defvar *echo-area-stream*
-  (make-hemlock-output-stream (region-end *echo-area-region*) :full)
-  "Buffered stream that prints into the echo area.")
+  (make-editor-output-stream (region-end *echo-area-region*) :full)
+  "A buffered editor output stream created with `make-editor-output-stream'
+   which inserts text written to it at the point of the echo area buffer.
+   Since this stream is buffered a `force-output' must be done when output
+   is complete to assure that it is displayed.")
+
 (defvar *echo-area-window* ()
-  "Window used to display stuff in the echo area.")
+  "The window displaying *echo-area-buffer*, that is, the window used to
+   display the echo area.  Its modeline is the status line.")
+
 (defvar *echo-parse-starting-mark*
   (copy-mark (buffer-point *echo-area-buffer*) :right-inserting)
   "Mark that points to the beginning of the text that'll be parsed.")
+
 (defvar *echo-parse-input-region*
   (region *echo-parse-starting-mark* (region-end *echo-area-region*))
   "Region that contains the text typed in.")
+
 (defvar *last-parse-input-string* ""
   "The previous text typed in, as a string.")
 
 (proclaim '(special *parse-starting-mark* *parse-input-region*))
 
+(setf (documentation '*parse-starting-mark* 'variable)
+  "A mark in the *echo-area-buffer*: the position at which the parse
+   began.")
+
+(setf (documentation '*parse-input-region* 'variable)
+  "A region with `parse-starting-mark' as its start and the end of
+   *echo-area-buffer* as its end.  When `Confirm Parse' is called, the text
+   in this region is the text that will be parsed.")
 
 
-;;;; Variables that control parsing:
+#[ Defining New Prompting Functions
+
+Prompting functions are implemented as a recursive edit in the
+`Echo Area' buffer.  Completion, help, and other parsing features
+are implemented by commands which are bound in `Echo Area Mode'.
+
+A prompting function passes information down into the recursive edit
+by binding a collection of special variables.
+
+{variable:ed:*parse-verification-function*}
+{variable:ed:*parse-string-tables*}
+{variable:ed:*parse-value-must-exist*}
+{variable:ed:*parse-default*}
+{variable:ed:*parse-default-string*}
+{variable:ed:*parse-type*}
+{variable:ed:*parse-prompt*}
+{variable:ed:*parse-help*}
+{variable:ed:*parse-starting-mark*}
+{variable:ed:*parse-input-region*}
+]#
+
+
+;;;; Variables that control parsing.
 
 (defvar *parse-verification-function* '%not-inside-a-parse
-  "Function that verifies what's being parsed.")
+  "This is bound to a function of one argument that `Confirm Parse' calls.
+   It does most of the work when parsing prompted input.  The argument is
+   the string that was in `parse-input-region' when the `Confirm Parse' was
+   invoked.  The function should return a list of values which are to be
+   the result of the recursive edit, or () to indicate that the parse
+   failed.  In order to return zero values, a true second value may be
+   returned along with a () first value.")
 
 ;;; %Not-Inside-A-Parse  --  Internal
 ;;;
-;;;    This function is called if someone does stuff in the echo area when
-;;; we aren't inside a parse.  It tries to put them back in a reasonable place.
+;;; This function is called if someone does stuff in the echo area when we
+;;; aren't inside a parse.  It tries to put them back in a reasonable
+;;; place.
 ;;;
 (defun %not-inside-a-parse (quaz)
   "Thing that's called when somehow we get called to confirm a parse that's
-  not in progress."
+   not in progress."
   (declare (ignore quaz))
   (let* ((bufs (remove *echo-area-buffer* *buffer-list*))
 	 (buf (or (find-if #'buffer-windows bufs)
@@ -63,39 +224,48 @@
 		  (make-buffer "Main"))))
     (setf (current-buffer) buf)
     (dolist (w *window-list*)
-      (when (and (eq (window-buffer w) *echo-area-buffer*)
-		 (not (eq w *echo-area-window*)))
-	(setf (window-buffer w) buf)))
+      (and (eq (window-buffer w) *echo-area-buffer*)
+	   (or (eq w *echo-area-window*)
+	       (setf (window-buffer w) buf))))
     (setf (current-window)
 	  (or (car (buffer-windows buf))
 	      (make-window (buffer-start-mark buf)))))
-  (editor-error "Wham!  We tried to confirm a parse that wasn't in progress?"))
+  (editor-error "Attempt to confirm a parse that wasn't in progress?"))
 
 (defvar *parse-string-tables* ()
-  "String tables being used in the current parse.")
+  "The list of string-tables, if any, that pertain to the current parse.")
 
 (defvar *parse-value-must-exist* ()
-  "True if a value must be entered at the prompt..")
+  "True if a value must be entered at the prompt.")
 
 (defvar *parse-default* ()
-  "When the user attempts to default a parse, we call the verification function
-   on this string.  This is not the :Default argument to the prompting function,
-   but rather a string representation of it.")
+  "When prompting, this is bound to a string representing the fallback
+   value, which is supplied as the :default argument.
+
+   `Confirm Parse' supplies this to the parse verification function when
+   the `parse-input-region' is empty.")
 
 (defvar *parse-default-string* ()
-  "String that we show the user to inform him of the default.  If this
-   is NIL then we just use *Parse-Default*.")
+  "String used to show the fallback value.  When prompting, if
+   `parse-default' is (), displays this string as a representation of the
+   fallback value; for example, when prompting for a buffer, this variable
+   would be bound to the buffer name.  If this is () prompting uses
+   *Parse-Default*.")
 
 (defvar *parse-initial-string* ()
   "String inserted at the prompt initially.")
 
 (defvar *parse-prompt* ()
-  "Prompt for the current parse.")
+  "The prompt for the current parse.")
 
 (defvar *parse-help* ()
-  "Help string for the current parse.")
+  "The help string or function being used for the current parse.")
 
-(defvar *parse-type* :string "A hack. :String, :File or :Keyword.")
+(defvar *parse-type* :string
+  "The kind of parse in progress, one of :file, :keyword or :string.
+
+   This tells the completion commands how to do completion, with :string
+   turning off completion.")
 
 (defvar *parse-history* ()
   "History for the current parse.")
@@ -103,19 +273,30 @@
 (defvar *parse-history-pointer* 0
   "History pointer for the current parse.")
 
-(defvar *echo-area-history* (make-ring 350)
-  "Ring-buffer containing strings previously input in the echo area.")
+
+#[ Echo Area Functions
 
-(defvar *echo-history-pointer* 0
-  "The echo history position during historical explorations.")
+The message function is the prefered was to perform text operations on the
+echo area buffer to display messages.  A command must use this function or
+clear buffer-modified for the `Echo Area' buffer to cause the editor to
+leave text in the echo area after the command's execution.
+
+{function:ed:clear-echo-area}
+{function:ed:message}
+{function:ed:loud-message}
+
+{variable:ed:*echo-area-window*}
+{variable:ed:*echo-area-buffer*}
+{variable:ed:*echo-area-stream*}
+]#
 
 
-;;;; MESSAGE and CLEAR-ECHO-AREA:
+;;;; MESSAGE and CLEAR-ECHO-AREA.
 
 (defvar *last-message-time* 0
   "Internal-Real-Time the last time we displayed a message.")
 
-(defvar *message-buffer* nil
+(defvar *message-buffer* ()
   "Buffer holding history of messages.")
 
 (defun maybe-wait ()
@@ -136,7 +317,8 @@
   "Add String (formatted with Args) to the message history buffer."
   (or *message-buffer*
       (setq *message-buffer* (or (getstring "Messages" *buffer-names*)
-				 (make-buffer "Messages"))))
+				 (make-buffer "Messages"
+					      :modes '("Messages")))))
   (with-writable-buffer (*message-buffer*)
     (with-output-to-mark (s (buffer-end-mark *message-buffer*))
       (if args
@@ -146,14 +328,17 @@
 
 ;;; Message  --  Public
 ;;;
-;;;    Display the stuff on *echo-area-stream* and then wait.  Editor-Sleep
+;;; Display the stuff on *echo-area-stream* and then wait.  Editor-Sleep
 ;;; will do a redisplay if appropriate.
 ;;;
 (defun message (string &rest args)
-  "Nicely display a message in the echo-area.
-   Put the message on a fresh line and wait for \"Message Pause\" seconds
-   to make the message more noticeable.  String and Args are a format
-   control string and format arguments, respectively."
+  "Nicely display a message in the Echo Area.
+
+   Format the message onto a fresh line and wait for *Message Pause*
+   seconds to make the message more noticeable.  $string and $args are the
+   format control string and format arguments, respectively.
+
+   Related to `loud-message'."
   (maybe-wait)
   (cond ((eq *current-window* *echo-area-window*)
 	 (let ((point (buffer-point *echo-area-buffer*)))
@@ -163,15 +348,13 @@
 	       (if args
 		   (apply #'format s string args)
 		   (write-string string s))
-	       (if :fresh-line ;; FIX was this an old arg (and below)?
-		   (fresh-line s))))))
+	       (fresh-line s)))))
 	(t
 	 (let ((mark (region-end *echo-area-region*)))
 	   (cond ((buffer-modified *echo-area-buffer*)
 		  (clear-echo-area))
 		 ((not (zerop (mark-charpos mark)))
-		  (if :fresh-line
-		      (insert-character mark #\newline))
+		  (insert-character mark #\newline)
 		  (or (displayed-p mark *echo-area-window*)
 		      (clear-echo-area))))
 	   (if args
@@ -183,7 +366,6 @@
   (apply #'log-message string args)
   nil)
 
-
 ;;; Msg  --  Public
 ;;;
 (defun msg (string &rest args)
@@ -192,13 +374,10 @@
 
 ;;; LOUD-MESSAGE -- Public.
 ;;;
-;;; Like message, only more provocative.
-;;;
 (defun loud-message (string &rest args)
-  "This is the same as MESSAGE, but it beeps and emphasizes the message."
+  "Beep and pass an empasized version of $string with $args to `message'."
   (beep)
-  (apply #'message (format nil "** ~A **" string) args))
-
+  (apply #'message (format () "** ~A **" string) args))
 
 ;;; RAISE-ECHO-AREA-WHEN-MODIFIED -- Internal.
 ;;;
@@ -217,6 +396,72 @@
       (xlib:display-force-output
        (bitmap-device-display (device-hunk-device hunk))))))
 
+#[ Prompting Functions
+
+Most of the prompting functions accept the following keyword arguments:
+
+  :must-exist
+     If :must-exist has a true value then the user is prompted until a
+     valid response is obtained.  If :must-exist is nil then return as a
+     string whatever is input.  The default is true.
+
+  :default
+     If null input is given when the user is prompted
+     then this value is returned.  If no default is given then
+     some input must be given before anything interesting will happen.
+
+  :default-string
+     If a :default is given then this is a
+     string to be printed to indicate what the default is.  The default is
+     some representation of the value for :default, for example for a
+     buffer it is the name of the buffer.
+
+  :prompt
+     This is the prompt string to display.
+
+  :help
+
+This is similar to :prompt, except that it is displayed when
+the help command is typed during input.
+
+This may also be a function.  When called with no arguments, it should either
+return a string which is the help text or perform some action to help the user,
+returning nil.
+
+{function:ed:prompt-for-buffer}
+
+Since the description of `command-case' is rather complex, here is an usage
+example:
+
+    (defcommand "Save All Buffers" ()
+     "Offer to save each modified buffer."
+     (dolist (b *buffer-list*)
+       (select-buffer-command () b)
+       (when (buffer-modified b)
+	 (command-case (:prompt "Save this buffer: [Y] "
+			:help "Save buffer, or do something else:")
+	   ((:yes :confirm)
+	    "Save this buffer and go on to the next."
+	    (save-file-command () b))
+	   (:no "Skip saving this buffer, and go on to the next.")
+	   (:recursive-edit
+	    "Go into a recursive edit in this buffer."
+	    (do-recursive-edit) (reprompt))
+	   ((:exit #\q) "Quit immediately."
+	    (return ()))))))
+
+{function:ed:command-case}
+{function:ed:prompt-for-key-event}
+{function:ed:prompt-for-key}
+{function:ed:prompt-for-file}
+{function:ed:prompt-for-integer}
+{function:ed:prompt-for-keyword}
+{function:ed:prompt-for-expression}
+{function:ed:prompt-for-string}
+{function:ed:prompt-for-variable}
+{function:ed:prompt-for-y-or-n}
+{function:ed:prompt-for-yes-or-no}
+]#
 
 
 ;;;; DISPLAY-PROMPT-NICELY and PARSE-FOR-SOMETHING.
@@ -229,10 +474,18 @@
     (if (listp prompt)
 	(apply #'format *echo-area-stream* prompt)
 	(insert-string point prompt))
-    (when default
-      (insert-character point #\[)
-      (insert-string point default)
-      (insert-string point "] "))))
+    (if default
+	(progn
+	  (insert-character point #\[)
+	  (insert-string point default)
+	  (insert-string point "] "))
+	(when (and *parse-history* (plusp (ring-length *parse-history*)))
+	  (insert-character point #\[)
+	  (insert-string point
+			 (setq *parse-default*
+			       (ring-ref *parse-history*
+					 (symbol-value *parse-history-pointer*))))
+	  (insert-string point "] ")))))
 
 (defun parse-for-something (&optional (initial (or *parse-initial-string*
 						   "")))
@@ -265,29 +518,28 @@
 			       ((:history *parse-history*) *buffer-input-history*)
 			       ((:history-pointer *parse-history-pointer*)
 				'*buffer-input-history-pointer*))
-  "Prompts for a buffer name and returns the corresponding buffer.  If
-   :must-exist is nil, then return the input string.  This refuses to accept
-   the empty string as input when no default is supplied.  :default-string
-   may be used to supply a default buffer name even when :default is nil, but
-   when :must-exist is non-nil, :default-string must be the name of an existing
-   buffer."
-    (let ((*parse-string-tables* (list *buffer-names*))
-	  (*parse-type* :keyword)
-	  (*parse-default* (cond
-			    (default (buffer-name default))
-			    (*parse-default-string*
-			     (when (and *parse-value-must-exist*
-					(not (getstring *parse-default-string*
-							*buffer-names*)))
-			       (error "Default-string must name an existing ~
-				       buffer when must-exist is non-nil -- ~S."
-				      *parse-default-string*))
-			     *parse-default-string*)
-			    (t nil)))
-	  (*parse-verification-function* #'buffer-verification-function)
-	  (*parse-input-region* *echo-parse-input-region*)
-	  (*parse-starting-mark* *echo-parse-starting-mark*))
-      (parse-for-something)))
+  "Prompt for a buffer name and return the corresponding buffer.  If
+   $must-exist is true then the input must be the name of an existing
+   buffer, otherwise just return the input string.  Only accept an empty
+   input string when $default is supplied.  If $default-string is given it
+   names the buffer to use if $default is ()."
+  (let ((*parse-string-tables* (list *buffer-names*))
+	(*parse-type* :keyword)
+	(*parse-default* (cond
+			  (default (buffer-name default))
+			  (*parse-default-string*
+			   (when (and *parse-value-must-exist*
+				      (not (getstring *parse-default-string*
+						      *buffer-names*)))
+			     (error "Default-string must name an existing ~
+				     buffer when must-exist is true -- ~S."
+				    *parse-default-string*))
+			   *parse-default-string*)
+			  (t nil)))
+	(*parse-verification-function* #'buffer-verification-function)
+	(*parse-input-region* *echo-parse-input-region*)
+	(*parse-starting-mark* *echo-parse-starting-mark*))
+    (parse-for-something)))
 
 (defun buffer-verification-function (string)
   (declare (simple-string string))
@@ -312,6 +564,32 @@
 	(t
 	 (list (or (getstring string *buffer-names*) string)))))
 
+
+;;;; Date prompting.
+
+(defvar *date-input-history* (make-ring 50)
+  "This ring-buffer contains previously input dates.")
+
+(defvar *date-input-history-pointer* 0
+  "Current position during a historical exploration.")
+
+(defun prompt-for-date (&key default
+			     ((:default-string *parse-default-string*))
+			     ((:prompt *parse-prompt*) "Date: ")
+			     ((:help *parse-help*) "Type a date.")
+			     ((:history *parse-history*) *date-input-history*)
+			     ((:history-pointer *parse-history-pointer*)
+			      '*date-input-history-pointer*))
+  "Prompt for a date and return the corresponding universal time.  Only
+   accept an empty input string when $default is supplied.  If
+   $default-string is given it names the date to use if $default is ()."
+  (let ((*parse-verification-function*
+	 #'(lambda (string)
+	     (let ((time (parse-time string)))
+	       (if time (list time) ()))))
+	(*parse-input-region* *echo-parse-input-region*)
+	(*parse-starting-mark* *echo-parse-starting-mark*))
+    (parse-for-something)))
 
 
 ;;;; File Prompting.
@@ -329,8 +607,13 @@
 			     ((:help *parse-help*) "Type a file name.")
 			     ((:history *parse-history*) *file-input-history*)
 			     ((:history-pointer *parse-history-pointer*)
-			      '*file-prompt-history-pointer*))
-  "Prompts for a filename."
+			      '*file-input-history-pointer*))
+  "Prompt for an acceptable filename.  \"Acceptable\" means that it is a
+   legal filename, and it exists if $must-exist is true.  Return a
+   pathname.
+
+   If the file exists as entered, then return it, otherwise merge it with
+   $default as by `merge-pathnames'."
   (let ((*parse-verification-function* #'file-verification-function)
 	(*parse-default* (if default (namestring default) #|FIX|# ""))
 ;; FIX Problem is "Find: [/a/b/c] /a/b/" initial string in way for input "e:"
@@ -373,7 +656,6 @@
 				(- idx (length string)))
 	     nil))))
 
-
 
 ;;;; Keyword and variable prompting.
 
@@ -384,41 +666,71 @@
 			   ((:default-string *parse-default-string*))
 			   ((:prompt *parse-prompt*) "Keyword: ")
 			   ((:help *parse-help*) "Type a keyword.")
-			   ((:history *parse-history*) *echo-area-history*)
-			   ((:history-pointer *parse-history-pointer*)
-			    '*echo-area-history-pointer*))
-  "Prompts for a keyword using the String Tables."
+			   ((:history *parse-history*))
+			   ((:history-pointer *parse-history-pointer*)))
+  "Prompt for a keyword, using the string tables in the list
+   $*parse-string-tables*.  If $must-exist is true, then the result must be
+   an unique prefix of a string in one of the string tables, and the return
+   the complete string even if only a prefix of the full string was typed.
+   In addition, return the value of the corresponding entry in the string
+   table as the second value.
+
+   If $must-exist is (), then return the string exactly as entered.
+
+   The input `prompt-for-keyword' with $must-exist () may be completed
+   using the `Complete Parse' and `Complete Field' commands, whereas the
+   input to `prompt-for-string' must FIX."
   (let ((*parse-verification-function* #'keyword-verification-function)
 	(*parse-type* :keyword)
 	(*parse-input-region* *echo-parse-input-region*)
 	(*parse-starting-mark* *echo-parse-starting-mark*))
     (parse-for-something)))
 
+(defvar *variable-prompt-history* (make-ring 50)
+  "Variable previously put into the echo area.")
+
+(defvar *variable-prompt-history-pointer* 0
+  "The variable prompt history position during historical explorations.")
+
+;; FIX prompt-for-editor-variable
 (defun prompt-for-variable (&key ((:must-exist *parse-value-must-exist*) t)
 				 ((:default *parse-default*))
 				 ((:default-string *parse-default-string*))
 				 ((:prompt *parse-prompt*) "Variable: ")
 				 ((:help *parse-help*)
 				  "Type the name of a variable.")
-				 ((:history *parse-history*) *echo-area-history*)
+				 ((:history *parse-history*)
+				  *variable-prompt-history*)
 				 ((:history-pointer *parse-history-pointer*)
-				  '*echo-area-history-pointer*))
-  "Prompts for a variable defined in the current scheme of things."
-  (let ((*parse-string-tables* (current-variable-tables))
+				  '*variable-prompt-history-pointer*)
+				 (where  :current))
+  "Prompt for a variable name.  If $must-exist is true, then the string
+   must be a variable defined in the current environment, in which case
+   return the symbol name of the variable found as the second value."
+  (let ((*parse-string-tables* (current-variable-tables where))
 	(*parse-verification-function* #'keyword-verification-function)
 	(*parse-type* :keyword)
 	(*parse-input-region* *echo-parse-input-region*)
 	(*parse-starting-mark* *echo-parse-starting-mark*))
     (parse-for-something)))
 
-(defun current-variable-tables ()
-  "Returns a list of all the variable tables currently established globally,
-   by the current buffer, and by any modes for the current buffer."
-  (do ((tables (list (buffer-variables *current-buffer*)
-		     *global-variable-names*)
-	       (cons (mode-object-variables (car mode)) tables))
-       (mode (buffer-mode-objects *current-buffer*) (cdr mode)))
-      ((null mode) tables)))
+(defun current-variable-tables (&optional (where :current))
+  "Return a list of all the variable tables currently established in
+   context $where.
+
+   $where can be :buffer for the current buffer, :mode for the current mode
+   or :current for buffer, mode and global variables.
+
+   Return a list suitable for use with `prompt-for-variable'."
+  (case where
+    (:buffer (list (buffer-variables *current-buffer*)))
+    (:mode (list *global-variable-names*))
+    (:current
+     (do ((tables (list (buffer-variables *current-buffer*)
+			*global-variable-names*)
+		  (cons (mode-object-variables (car mode)) tables))
+	  (mode (buffer-mode-objects *current-buffer*) (cdr mode)))
+	 ((null mode) tables)))))
 
 (defun keyword-verification-function (string)
   (declare (simple-string string))
@@ -432,6 +744,8 @@
 	     ((:unique :complete)
 	      (list prefix value))
 	     (:ambiguous
+	      (if (ed::value ed::help-on-ambiguity)
+		  (ed::help-on-parse-command))
 	      (delete-region *parse-input-region*)
 	      (insert-string (region-start *parse-input-region*) prefix)
 	      (let ((point (current-point)))
@@ -448,20 +762,25 @@
 	   ;; instead of the user's input.
 	   (list (if (= (length string) (length prefix)) prefix string))))))
 
-
 
 ;;;; Integer, expression, and string prompting.
+
+(defvar *integer-prompt-history* (make-ring 30)
+  "Ring-buffer containing strings previously input in the echo area.")
+
+(defvar *integer-prompt-history-pointer* 0
+  "The echo history position during historical explorations.")
 
 (defun prompt-for-integer (&key ((:must-exist *parse-value-must-exist*) t)
 				default
 				((:default-string *parse-default-string*))
 				((:prompt *parse-prompt*) "Integer: ")
 				((:help *parse-help*) "Type an integer.")
-				((:history *parse-history*) *echo-area-history*)
+				((:history *parse-history*) *integer-prompt-history*)
 				((:history-pointer *parse-history-pointer*)
-				 '*echo-area-history-pointer*))
-  "Prompt for an integer.  If :must-exist is Nil, then we return as a string
-  whatever was input if it is not a valid integer."
+				 '*integer-prompt-history-pointer*))
+  "Prompt for a possibly signed integer.  If $must-exist is (), then return
+   the input if it is an integer, else return the value of $must-exist."
   (let ((*parse-verification-function*
 	 #'(lambda (string)
 	     (let ((number (parse-integer string  :junk-allowed t)))
@@ -473,9 +792,14 @@
 	(*parse-starting-mark* *echo-parse-starting-mark*))
     (parse-for-something)))
 
-
 (defvar editor-eof '(())
   "An object that won't be EQ to anything read.")
+
+(defvar *expression-prompt-history* (make-ring 350)
+  "Expressions previously put into the echo area.")
+
+(defvar *expression-prompt-history-pointer* 0
+  "Current position during a historical exploration.")
 
 (defun prompt-for-expression (&key ((:must-exist *parse-value-must-exist*) t)
 				   (default nil defaultp)
@@ -483,17 +807,18 @@
 				   ((:prompt *parse-prompt*) "Expression: ")
 				   ((:help *parse-help*)
 				    "Type a Lisp expression.")
-				   ((:history *parse-history*) *echo-area-history*)
+				   ((:history *parse-history*) *expression-prompt-history*)
 				   ((:history-pointer *parse-history-pointer*)
-				    '*echo-area-history-pointer*))
-  "Prompts for a Lisp expression."
+				    '*expression-prompt-history-pointer*))
+  "Prompt for a Lisp expression.  If $must-exist is () then return the
+   string typed when a read error occurs."
   (let ((*parse-verification-function*
          #'(lambda (string)
-	     (let ((expr (with-input-from-region (stream *parse-input-region*)
+	     (let ((expr (with-input-from-string (stream string)
 			   (handler-case (read stream nil editor-eof)
 			     (error () editor-eof)))))
 	       (if *parse-value-must-exist*
-		   (if (not (eq expr editor-eof)) (values (list expr) t))
+		   (fi (eq expr editor-eof) (values (list expr) t))
 		   (if (eq expr editor-eof)
 		       (list string) (values (list expr) t))))))
 	(*parse-default* (if defaultp (prin1-to-string default)))
@@ -501,17 +826,24 @@
 	(*parse-starting-mark* *echo-parse-starting-mark*))
       (parse-for-something)))
 
+(defvar *string-prompt-history* (make-ring 350)
+  "Strings previously put into the echo area.")
+
+(defvar *string-prompt-history-pointer* 0
+  "Current position during a historical exploration.")
+
 (defun prompt-for-string (&key ((:default *parse-default*))
 			       ((:default-string *parse-default-string*))
 			       (trim ())
 			       ((:prompt *parse-prompt*) "String: ")
 			       ((:help *parse-help*) "Type a string.")
-			       ((:history *parse-history*) *echo-area-history*)
+			       ((:history *parse-history*)
+				*string-prompt-history*)
 			       ((:history-pointer *parse-history-pointer*)
-				'*echo-area-history-pointer*))
-  "Prompts for a string.  If :trim is t, then leading and trailing whitespace
-   is removed from input, otherwise it is interpreted as a Char-Bag argument
-   to String-Trim."
+				'*string-prompt-history-pointer*))
+  "Prompt for a string.  If $trim is t, then trim leading and trailing
+   whitespace from the input, otherwise trim the input with $trim
+   interpreted as the `char-bag' argument to `string-trim'."
   (let ((*parse-verification-function*
 	 #'(lambda (string)
 	     (list (string-trim (if (eq trim t) '(#\space #\tab) trim)
@@ -520,12 +852,45 @@
 	(*parse-starting-mark* *echo-parse-starting-mark*))
     (parse-for-something)))
 
+(defvar *mode-prompt-history* (make-ring 35)
+  "Modes previously put into the echo area.")
+
+(defvar *mode-prompt-history-pointer* 0
+  "Current position during a historical exploration.")
+
+(defun prompt-for-mode (&key ((:default *parse-default*))
+			     ((:default-string *parse-default-string*))
+			     ((:prompt *parse-prompt*) "Mode: ")
+			     ((:help *parse-help*) "Enter a mode.")
+			     ((:history *parse-history*)
+			      *mode-prompt-history*)
+			     ((:history-pointer *parse-history-pointer*)
+			      '*mode-prompt-history-pointer*))
+  "Prompt for a mode."
+  (let ((*parse-verification-function*
+	 #'(lambda (mode)
+	     (if (ignore-errors (parse-integer mode))
+		 (list (parse-integer mode))
+		 (let ((split (split mode '(#\+ #\-))))
+		   (if (and split
+			    (eq (length split) 2)
+			    (every (lambda (char) (find char "augo"))
+				   (car split))
+			    (every (lambda (char) (find char "rwx"))
+				   (cadr split)))
+		       (list mode)
+		       (let ((mode (ignore-errors
+				    (eval (read-from-string mode)))))
+			 (if (integerp mode) (list mode))))))))
+	(*parse-input-region* *echo-parse-input-region*)
+	(*parse-starting-mark* *echo-parse-starting-mark*))
+    (parse-for-something)))
 
 
 ;;;; Yes-or-no and y-or-n prompting.
 
 (defvar *yes-or-no-history* (make-ring 2)
-  "This ring-buffer contains previous input to prompt-for-y-or-n.")
+  "This ring-buffer contains previous input to `prompt-for-yes-or-no'.")
 
 (defvar *yes-or-no-history-pointer* 0
   "Current position during a historical exploration.")
@@ -540,8 +905,14 @@
 				  ((:help *parse-help*) "Type Yes or No.")
 				  ((:history *parse-history*) *yes-or-no-history*)
 				  ((:history-pointer *parse-history-pointer*)
-				   '*yes-or-noecho-area-history-pointer*))
-  "Prompts for Yes or No."
+				   '*yes-or-no-history-pointer*))
+  "Prompt for a case-folded \"yes\" or \"no\", returning t or (),
+   respectively.  If $default is supplied suggest \"Yes\" at the prompt if
+   $default is true and \"No\" if $default is ().  If $must-exist is (),
+   return the input string; however, if the input string is t or () return
+   t or (), respectively.
+
+   This is analogous to the function `yes-or-no-p'."
   (let* ((*parse-string-tables* (list *yes-or-no-string-table*))
 	 (*parse-default* (if defaultp (if default "Yes" "No")))
 	 (*parse-verification-function*
@@ -564,13 +935,20 @@
 			       default-string
 			       ((:prompt prompt) "Y or N? ")
 			       ((:help *parse-help*) "Type Y or N."))
-  "Prompts for Y or N."
+  "Prompt for y, Y, n, or N.  Return T for y and Y or () for n and N.  If
+   $default is supplied suggest Y if $default is true, N if $default if ().
+   If $must-exist is (), return the input key-event; however, if the input
+   is one of y, Y, n or N, return true or () accordingly.
+
+   This is analogous to `y-or-n-p'."
   (let ((old-window (current-window)))
     (unwind-protect
 	(progn
 	  (setf (current-window) *echo-area-window*)
-	  (display-prompt-nicely prompt (or default-string
-					    (if defaultp (if default "Y" "N"))))
+	  (display-prompt-nicely prompt
+				 (or default-string
+				     (if defaultp
+					 (if default "Y" "N"))))
 	  (loop
 	    (let ((key-event (get-key-event *editor-input*)))
 	      (cond ((or (eq key-event #k"y")
@@ -584,18 +962,18 @@
 			 (return default)
 			 (beep)))
 		    ((logical-key-event-p key-event :help)
-		     (ed::help-on-parse-command ()))
+		     (ed::help-on-parse-command))
 		    (t
 		     (unless must-exist (return key-event))
 		     (beep))))))
       (setf (current-window) old-window))))
 
-
 
 ;;;; Key-event and key prompting.
 
 (defun prompt-for-key-event (&key (prompt "Key-event: ") (change-window t))
-  "Prompts for a key-event."
+  "Prompt for a key-event, returning immediately after the next key-event.
+   `command-case' is more useful for most purposes."
   (prompt-for-key-event* prompt change-window))
 
 (defun prompt-for-key-event* (prompt change-window)
@@ -604,15 +982,20 @@
 	(progn
 	  (when change-window
 	    (setf (current-window) *echo-area-window*))
-	  (display-prompt-nicely prompt)
+	  (display-prompt-nicely prompt ())
 	  (get-key-event *editor-input* t))
       (when change-window (setf (current-window) old-window)))))
 
 (defvar *prompt-key* (make-array 10 :adjustable t :fill-pointer 0))
+
 (defun prompt-for-key (&key ((:must-exist must-exist) t)
 			    default default-string
 			    (prompt "Key: ")
 			    ((:help *parse-help*) "Type a key."))
+  "Prompt for a key, a vector of key-events, suitable for passing to any of
+   the functions that manipulate [key bindings].  If $must-exist is true,
+   then the key must be bound in the current environment, and the command
+   currently bound is returned as the second value."
   (let ((old-window (current-window))
 	(string (if default
 		    (or default-string
@@ -640,7 +1023,7 @@
 			     (t
 			      (go FLAME))))
 		      ((logical-key-event-p key-event :help)
-		       (ed::help-on-parse-command ())
+		       (ed::help-on-parse-command)
 		       (go TOP)))
 		(vector-push-extend key-event key)
 		(when must-exist
@@ -662,7 +1045,6 @@
 		(go TOP)))
       (force-output *echo-area-stream*)
       (setf (current-window) old-window))))
-
 
 
 ;;;; Prompting with a buffer.
@@ -701,13 +1083,32 @@
 	  (ring-push string *parse-history*))
       (if trim (string-trim '(#\space #\tab) string) string))))
 
-
 
 ;;;; Logical key-event stuff.
 
+#[ Logical Key-Events
+
+Some functions such as `prompt-for-key' and commands such as query replace
+read key-events directly from the keyboard instead of using the command
+interpreter.  To encourage consistency between these commands and to make
+them portable and easy to customize, there is a mechanism for defining
+logical key-events.
+
+A logical key-event is a keyword which stands for some set of key-events.  The
+system globally interprets these key-events as indicators a particular action.
+For example, the :help logical key-event represents the set of key-events
+that request help in a given editor implementation.  This mapping is a
+many-to-many mapping, not one-to-one, so a given logical key-event may have
+multiple corresponding actual key-events.  Also, any key-event may represent
+different logical key-events.
+
+[ Logical Key-Event Functions       ]
+[ System Defined Logical Key-Events ]
+]#
+
 (defvar *logical-key-event-names* (make-string-table)
-  "This variable holds a string-table from logical-key-event names to the
-   corresponding keywords.")
+  "A string-table mapping all logical key-event names to the keyword
+   identifying the logical key-event.")
 
 (defvar *real-to-logical-key-events* (make-hash-table :test #'eql)
   "A hashtable from real key-events to their corresponding logical
@@ -722,21 +1123,31 @@
   key-events
   documentation)
 
+#[ Logical Key-Event Functions
+
+{variable:ed:*logical-key-event-names*}
+
+{function:ed:define-logical-key-event}
+{function:ed:logical-key-event-key-events}
+{function:ed:logical-key-event-name}
+{function:ed:logical-key-event-documentation}
+{function:ed:logical-key-event-p}
+]#
+
 ;;; LOGICAL-KEY-EVENT-P  --  Public
 ;;;
 (defun logical-key-event-p (key-event keyword)
-  "Return true if key-event has been defined to have Keyword as its
-   logical key-event.  The relation between logical and real key-events
-   is defined by using SETF on LOGICAL-KEY-EVENT-P.  If it is set to
-   true then calling LOGICAL-KEY-EVENT-P with the same key-event and
-   Keyword, will result in truth.  Setting to false produces the opposite
-   result.  See DEFINE-LOGICAL-KEY-EVENT and COMMAND-CASE."
+  "Return true if $key-event has been defined to have $keyword as its
+   logical key-event.  The relation between logical and real key-events is
+   defined by using `setf' on `logical-key-event-p'.  If it is set to true
+   then calling `logical-key-event-p' with the same key-event and $keyword,
+   will result in truth.  Setting to false produces the opposite result."
   (not (null (memq keyword (gethash key-event *real-to-logical-key-events*)))))
 
 ;;; GET-LOGICAL-KEY-EVENT-DESC  --  Internal
 ;;;
-;;;    Return the descriptor for the logical key-event keyword, or signal
-;;; an error if it isn't defined.
+;;; Return the descriptor for the logical key-event keyword, or signal an
+;;; error if it isn't defined.
 ;;;
 (defun get-logical-key-event-desc (keyword)
   (let ((res (gethash keyword *logical-key-event-descriptors*)))
@@ -746,7 +1157,7 @@
 
 ;;; %SET-LOGICAL-KEY-EVENT-P  --  Internal
 ;;;
-;;;    Add or remove a logical key-event link by adding to or deleting from
+;;; Add or remove a logical key-event link by adding to or deleting from
 ;;; the list in the from-char hashtable and the descriptor.
 ;;;
 (defun %set-logical-key-event-p (key-event keyword new-value)
@@ -764,29 +1175,33 @@
 
 ;;; LOGICAL-KEY-EVENT-DOCUMENTATION, NAME, KEY-EVENTS  --  Public
 ;;;
-;;;    Grab the right field out of the descriptor and return it.
+;;; Grab the right field out of the descriptor and return it.
 ;;;
 (defun logical-key-event-documentation (keyword)
-  "Return the documentation for the logical key-event Keyword."
+  "Return the documentation for the logical key-event $keyword."
   (logical-key-event-descriptor-documentation
    (get-logical-key-event-desc keyword)))
 ;;;
 (defun logical-key-event-name (keyword)
-  "Return the string name for the logical key-event Keyword."
+  "Return the string name for the logical key-event $keyword."
   (logical-key-event-descriptor-name (get-logical-key-event-desc keyword)))
 ;;;
 (defun logical-key-event-key-events (keyword)
-  "Return the list of key-events for which Keyword is the logical key-event."
+  "Return the list of key-events representing the logical key-event
+   $keyword."
   (logical-key-event-descriptor-key-events
    (get-logical-key-event-desc keyword)))
 
 ;;; DEFINE-LOGICAL-KEY-EVENT  --  Public
 ;;;
-;;;    Make the entries in the two hashtables and the string-table.
+;;; Make the entries in the two hashtables and the string-table.
 ;;;
 (defun define-logical-key-event (name documentation)
-  "Define a logical key-event having the specified Name and Documentation.
-   See LOGICAL-KEY-EVENT-P and COMMAND-CASE."
+  "Define a new logical key-event with $name, a simple-string.  Logical
+   key-event operations take logical key-events arguments as a keyword
+   whose name is string-name uppercased with spaces replaced by hyphens.
+
+   $Documentation describes the action indicated by the logical key-event."
   (check-type name string)
   (check-type documentation (or string function))
   (let* ((keyword (string-to-keyword name))
@@ -797,9 +1212,8 @@
     (setf (logical-key-event-descriptor-documentation entry) documentation)
     (setf (getstring name *logical-key-event-names*) keyword)))
 
-
 
-;;;; Some standard logical-key-events:
+;;;; Some standard logical-key-events.
 
 (define-logical-key-event "Forward Search"
   "This key-event is used to indicate that a forward search should be made.")
@@ -832,7 +1246,6 @@
 (define-logical-key-event "Switch To Reference"
   "This key-event is used to switch to a reference buffer.")
 
-
 
 ;;;; COMMAND-CASE help message printing.
 
@@ -858,8 +1271,8 @@
 
 ;;; COMMAND-CASE-HELP  --  Internal
 ;;;
-;;;    Print out a help message derived from the options in a
-;;; random-typeout window.
+;;; Print out a help message derived from the options in a random-typeout
+;;; window.
 ;;;
 (defun command-case-help (help options)
   (let ((help (if (listp help)

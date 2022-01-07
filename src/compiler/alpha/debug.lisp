@@ -1,21 +1,6 @@
-;;; -*- Package: ALPHA; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/debug.lisp,v 1.2 1994/10/31 04:39:51 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Compiler support for the new whizzy debugger.
-;;;
-;;; Written by William Lott.
-;;; Converted by Sean Hallgren.
-;;; 
-(in-package "ALPHA")
+;;; Compiler support for the debugger.
 
+(in-package "ALPHA")
 
 (define-vop (debug-cur-sp)
   (:translate current-sp)
@@ -85,7 +70,6 @@
     (inst stl value (* offset word-bytes) sap)
     (move value result)))
 
-
 (define-vop (code-from-mumble)
   (:policy :fast-safe)
   (:args (thing :scs (descriptor-reg)))
@@ -143,10 +127,6 @@
   (:generator 5
     (loadw res fun 0 function-pointer-type)
     (inst srl res vm:type-bits res)))
-
-
-
-
 
 (defknown make-number-stack-pointer ((unsigned-byte 32)) system-area-pointer
   (movable foldable flushable))

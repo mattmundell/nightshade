@@ -1,39 +1,38 @@
 ;;; Tex mode.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 (defmode "Tex" :major-p t)
 
-(defcommand "Tex Mode" (p)
+(defcommand "Tex Mode" ()
   "Put the current buffer into Tex mode."
-  "Put the current buffer into Tex mode."
-  (declare (ignore p))
   (setf (buffer-major-mode (current-buffer)) "Tex"))
 
-(defhvar "Indent Function"
-  "Indentation function which is invoked by \"Indent\" command.
-   It must take one argument that is the prefix argument."
+(defevar "Indent Function"
+  "Indentation function invoked by the `Indent' command.  The function
+   takes a :left-inserting mark that may be moved, and indents the line
+   that the mark is on."
   :value #'generic-indent
   :mode "Tex")
 
-(defhvar "Auto Fill Space Indent"
-  "When non-nil, uses \"Indent New Comment Line\" to break lines instead of
-   \"New Line\"."
+(defevar "Auto Fill Space Indent"
+  "When true, uses `Indent New Comment Line' to break lines instead of `New
+   Line'."
   :mode "Tex" :value t)
 
-(defhvar "Comment Start"
+(defevar "Comment Start"
   "String that indicates the start of a comment."
   :mode "Tex" :value "%")
 
-(defhvar "Comment End"
-  "String that ends comments.  Nil indicates #\newline termination."
-  :mode "Tex" :value nil)
+(defevar "Comment End"
+  "String that ends comments.  () indicates #\newline termination."
+  :mode "Tex")
 
-(defhvar "Comment Begin"
+(defevar "Comment Begin"
   "String that is inserted to begin a comment."
   :mode "Tex" :value "% ")
 
-(defhvar "Highlight Comments"
+(defevar "Highlight Comments"
   "If true single-line comments will be highlighted."
   :mode "Tex" :value t)
 

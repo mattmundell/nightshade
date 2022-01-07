@@ -1,28 +1,12 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/srctran.lisp,v 1.51.2.10 2000/09/26 15:15:44 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains macro-like source transformations which convert
-;;; uses of certain functions into the canonical form desired within the
-;;; compiler.  ### and other IR1 transforms and stuff.  Some code adapted from
-;;; CLC, written by Wholey and Fahlman.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Propagate-float-type extension by Raymond Toy.
-;;;
+;;; Macro-like source transformations which convert uses of certain
+;;; functions into the canonical form desired within the compiler.  ### and
+;;; other IR1 transforms and stuff.
+
 (in-package "C")
 
 ;;; Source transform for Not, Null  --  Internal
 ;;;
-;;;    Convert into an IF so that IF optimizations will eliminate redundant
+;;; Convert into an IF so that IF optimizations will eliminate redundant
 ;;; negations.
 ;;;
 (def-source-transform not (x) `(if ,x nil t))
@@ -30,7 +14,7 @@
 
 ;;; Source transform for Endp  --  Internal
 ;;;
-;;;    Endp is just NULL with a List assertion.
+;;; Endp is just NULL with a List assertion.
 ;;;
 (def-source-transform endp (x)
   `(null (the (values &optional list &rest t) ,x)))
@@ -42,7 +26,7 @@
 
 ;;; CONSTANTLY source transform  --  Internal
 ;;;
-;;;    Bind the values and make a closure that returns them.
+;;; Bind the values and make a closure that returns them.
 ;;;
 (def-source-transform constantly (value &rest values)
   (let ((temps (loop repeat (1+ (length values))
@@ -55,16 +39,15 @@
 	   (declare (ignore ,dum))
 	   (values ,@temps)))))
 
-
 ;;; COMPLEMENT IR1 transform  --  Internal
 ;;;
-;;;    If the function has a known number of arguments, then return a lambda
+;;; If the function has a known number of arguments, then return a lambda
 ;;; with the appropriate fixed number of args.  If the destination is a
 ;;; FUNCALL, then do the &REST APPLY thing, and let MV optimization figure
 ;;; things out.
 ;;;
 (deftransform complement ((fun) * * :node node :when :both)
-  "open code"
+  "open code" ;; FIX
   (multiple-value-bind (min max)
 		       (function-type-nargs (continuation-type fun))
     (cond
@@ -81,9 +64,8 @@
       (give-up "Function doesn't have fixed argument count.")))))
 
 
-;;;; List hackery:
+;;;; List hackery.
 
-;;;
 ;;; Translate CxxR into car/cdr combos.
 
 (defun source-transform-cxr (form)
@@ -107,7 +89,6 @@
 				(mapcar #'(lambda (x) (logbitp x j)) b))))
 	  #'source-transform-cxr)))
 
-;;;
 ;;; Turn First..Fourth and Rest into the obvious synonym, assuming whatever is
 ;;; right for them is right for us.  Fifth..Tenth turn into Nth, which can be
 ;;; expanded into a car/cdr later on if policy favors it.
@@ -123,8 +104,6 @@
 (def-source-transform ninth (x) `(nth 8 ,x))
 (def-source-transform tenth (x) `(nth 9 ,x))
 
-
-;;;
 ;;; Translate RPLACx to LET and SETF.
 (def-source-transform rplaca (x y)
   (once-only ((n-x x))
@@ -138,14 +117,13 @@
        (setf (cdr ,n-x) ,y)
        ,n-x)))
 
-
 (def-source-transform nth (n l) `(car (nthcdr ,n ,l)))
-  
+
 (defvar *default-nthcdr-open-code-limit* 6)
 (defvar *extreme-nthcdr-open-code-limit* 20)
 
 (deftransform nthcdr ((n l) (unsigned-byte t) * :node node)
-  "convert NTHCDR to CAxxR"
+  "convert `nthcdr' to `caxxr'"
   (unless (constant-continuation-p n) (give-up))
   (let ((n (continuation-value n)))
     (when (> n
@@ -162,6 +140,11 @@
 
 
 ;;;; ARITHMETIC and NUMEROLOGY.
+
+;; FIX Is there a reason these have to be supported in the compiler, given that
+;; they translate so directly?  i.e. could they just be macros?
+
+;; FIX plus-or-minusp or <>zerop ~naturalp (math for <>zero)
 
 (def-source-transform plusp (x) `(> ,x 0))
 (def-source-transform minusp (x) `(< ,x 0))
@@ -202,9 +185,8 @@
 (def-source-transform ldb-test (bytespec integer)
   `(not (zerop (mask-field ,bytespec ,integer))))
 
-
-;;; With the ratio and complex accessors, we pick off the "identity" case, and
-;;; use a primitive to handle the cell access case.
+;;; With the ratio and complex accessors, we pick off the "identity" case,
+;;; and use a primitive to handle the cell access case.
 ;;;
 (def-source-transform numerator (num)
   (once-only ((n-num `(the (values rational &rest t) ,num)))
@@ -225,23 +207,22 @@
   `(if (>= index #.vm:word-bits)
        (minusp integer)
        (not (zerop (logand integer (ash 1 index))))))
-
-;;;; Interval arithmetic for computing bounds
-;;;; (toy@rtp.ericsson.se)
-;;;;
-;;;; This is a set of routines for operating on intervals.  It implements a
-;;;; simple interval arithmetic package.  Although CMUCL has an interval type
-;;;; in numeric-type, we choose to use our own for two reasons:
-;;;;
-;;;;   1.  This package is simpler than numeric-type
-;;;;
-;;;;   2.  It makes debugging much easier because you can just strip out these
-;;;;   routines and test them independently of CMUCL.  (A big win!)
-;;;;
-;;;; One disadvantage is a probable increase in consing because we have to
-;;;; create these new interval structures even though numeric-type has
-;;;; everything we want to know.  Reason 2 wins for now.
 
+
+;;;; Interval arithmetic for computing bounds.
+;;;
+;;; This is a set of routines for operating on intervals.  It implements a
+;;; simple interval arithmetic package.  Although CMUCL has an interval type
+;;; in numeric-type, we choose to use our own for two reasons:
+;;;
+;;;   1.  This package is simpler than numeric-type
+;;;
+;;;   2.  It makes debugging much easier because you can just strip out these
+;;;   routines and test them independently of CMUCL.  (A big win!)
+;;;
+;;; One disadvantage is a probable increase in consing because we have to
+;;; create these new interval structures even though numeric-type has
+;;; everything we want to know.  Reason 2 wins for now.
 
 #+propagate-float-type
 (progn
@@ -274,7 +255,7 @@
 			;; Bound exists, so keep it open still
 			(list new-val))))
 		   (t
-		    (error "Unknown bound type in make-interval!")))))
+		    (error "Unknown bound type in make-interval.")))))
     (%make-interval :low (normalize-bound low)
 		    :high (normalize-bound high))))
 
@@ -638,7 +619,7 @@
   (declare (type interval x))
   (make-interval :low (bound-func #'- (interval-high x))
 		 :high (bound-func #'- (interval-low x))))
-		       
+
 ;;; INTERVAL-ADD
 ;;;
 ;;; Add two intervals
@@ -705,7 +686,7 @@
 			    :high (bound-mul (interval-high x)
 					     (interval-high y))))
 	    (t
-	     (error "This shouldn't happen!"))))))
+	     (error "It's an error if this happens."))))))
 
 ;;; INTERVAL-DIV
 ;;;
@@ -769,8 +750,7 @@
 			    :high (bound-div (interval-high top)
 					     (interval-low bot) t)))
 	    (t
-	     (error "This shouldn't happen!"))))))
-
+	     (error "It's an error if this happens."))))))
 
 ;;; INTERVAL-FUNC
 ;;;
@@ -798,7 +778,7 @@
     ;; Intervals are bounded in the appropriate way.  Make sure they don't
     ;; overlap.
     (let ((left (interval-high x))
-	  (right (interval-low y))) 
+	  (right (interval-low y)))
       (cond ((> (bound-value left)
 		(bound-value right))
 	     ;; Definitely overlap so result is NIL
@@ -851,16 +831,15 @@
 		 (interval-abs x)))
 ) ; end progn
 
-
 
-;;;; Numeric Derive-Type methods:
+;;;; Numeric Derive-Type methods.
 
 ;;; Derive-Integer-Type  --  Internal
 ;;;
-;;;    Utility for defining derive-type methods of integer operations.  If the
-;;; types of both X and Y are integer types, then we compute a new integer type
-;;; with bounds determined Fun when applied to X and Y.  Otherwise, we use
-;;; Numeric-Contagion.
+;;; Utility for defining derive-type methods of integer operations.  If the
+;;; types of both X and Y are integer types, then we compute a new integer
+;;; type with bounds determined Fun when applied to X and Y.  Otherwise, we
+;;; use Numeric-Contagion.
 ;;;
 (defun derive-integer-type (x y fun)
   (declare (type continuation x y) (type function fun))
@@ -880,8 +859,8 @@
 #+(or propagate-float-type propagate-fun-type)
 (progn
 
-;; Simple utility to flatten a list
 (defun flatten-list (x)
+  "Simple utility to flatten a list."
   (labels ((flatten-helper (x r);; 'r' is the stuff to the 'right'.
 	     (cond ((null x) r)
 		   ((atom x)
@@ -890,8 +869,8 @@
 				      (flatten-helper (cdr x) r))))))
     (flatten-helper x nil)))
 
-;;; Take some type of continuation and massage it so that we get a list of the
-;;; constituent types.  If ARG is *EMPTY-TYPE*, return NIL to indicate
+;;; Take some type of continuation and massage it so that we get a list of
+;;; the constituent types.  If ARG is *EMPTY-TYPE*, return NIL to indicate
 ;;; failure.
 ;;;
 (defun prepare-arg-for-derive-type (arg)
@@ -921,9 +900,9 @@
 	(unless (member *empty-type* new-args)
 	  new-args)))))
 
-;;; Convert from the standard type convention for which -0.0 and 0.0 and equal
-;;; to an intermediate convention for which they are considered different
-;;; which is more natural for some of the optimisers.
+;;; Convert from the standard type convention for which -0.0 and 0.0 and
+;;; equal to an intermediate convention for which they are considered
+;;; different which is more natural for some of the optimisers.
 ;;;
 #-negative-zero-is-not-zero
 (defun convert-numeric-type (type)
@@ -955,8 +934,9 @@
       ;; Not real float.
       type))
 
-;;; Convert back from the intermediate convention for which -0.0 and 0.0 are
-;;; considered different to the standard type convention for which and equal.
+;;; Convert back from the intermediate convention for which -0.0 and 0.0
+;;; are considered different to the standard type convention for which and
+;;; equal.
 ;;;
 #-negative-zero-is-not-zero
 (defun convert-back-numeric-type (type)
@@ -1379,14 +1359,13 @@
       ;; General contagion
       (numeric-contagion x y)))
 
-
 (defoptimizer (+ derive-type) ((x y))
   (two-arg-derive-type x y #'+-derive-type-aux #'+))
 
 (defun --derive-type-aux (x y same-arg)
   (if (and (numeric-type-real-p x)
 	   (numeric-type-real-p y))
-      (let ((result 
+      (let ((result
 	     ;; (- x x) is always 0.
 	     (if same-arg
 		 (make-interval :low 0 :high 0)
@@ -1477,12 +1456,10 @@
 			   :high (interval-high result)))
       (numeric-contagion x y)))
 
-
 (defoptimizer (/ derive-type) ((x y))
   (two-arg-derive-type x y #'/-derive-type-aux #'/))
 
 ) ;end progn
-
 
 #-propagate-fun-type
 (defoptimizer (ash derive-type) ((n shift))
@@ -1688,7 +1665,6 @@
 	 ;; are REAL so the result is a REAL.
 	 'real)))
 
-
 (defun truncate-derive-type-quot (number-type divisor-type)
   (let* ((rem-type (rem-result-type number-type divisor-type))
 	 (number-interval (numeric-type->interval number-type))
@@ -1768,7 +1744,6 @@
     (when (and quot rem)
       (make-values-type :required (list quot rem)))))
 
-
 (defun ftruncate-derive-type-quot (number-type divisor-type)
   ;; The bounds are the same as for truncate.  However, the first
   ;; result is a float of some type.  We need to determine what that
@@ -1795,7 +1770,6 @@
 				  #'truncate-derive-type-rem-aux #'rem)))
     (when (and quot rem)
       (make-values-type :required (list quot rem)))))
-
 
 (defun %unary-truncate-derive-type-aux (number)
   (truncate-derive-type-quot number (specifier-type '(integer 1 1))))
@@ -1882,7 +1856,7 @@
 		:format (numeric-type-format res-type)
 		:low  (interval-low quot)
 		:high (interval-high quot))))
-	   
+
 	   (defoptimizer (,name derive-type) ((number divisor))
 	     (flet ((derive-q (n d same-arg)
 		      (declare (ignore same-arg))
@@ -1940,10 +1914,10 @@
 (defun floor-rem-bound (div)
   ;; The remainder depends only on the divisor.  Try to get the
   ;; correct sign for the remainder if we can.
-  
+
   (case (interval-range-info div)
     (+
-     ;; Divisor is always positive.  
+     ;; Divisor is always positive.
      (let ((rem (interval-abs div)))
        (setf (interval-low rem) 0)
        (when (and (numberp (interval-high rem))
@@ -1990,7 +1964,6 @@
 (floor-quotient-bound (make-interval :low -1.0 :high 10.3))
 => #S(INTERVAL :LOW -1 :HIGH 10)
 
-
 (floor-rem-bound (make-interval :low 0.3 :high 10.3))
 => #S(INTERVAL :LOW 0 :HIGH '(10.3))
 (floor-rem-bound (make-interval :low 0.3 :high '(10.3)))
@@ -2035,11 +2008,10 @@
 		 lo)))
     (make-interval :low lo :high hi)))
 
-
 (defun ceiling-rem-bound (div)
   ;; The remainder depends only on the divisor.  Try to get the
   ;; correct sign for the remainder if we can.
-  
+
   (case (interval-range-info div)
     (+
      ;; Divisor is always positive.  The remainder is negative.
@@ -2090,7 +2062,6 @@
 (ceiling-quotient-bound (make-interval :low -1.0 :high 10.3))
 => #S(INTERVAL :LOW -1 :HIGH 11)
 
-
 (ceiling-rem-bound (make-interval :low 0.3 :high 10.3))
 => #S(INTERVAL :LOW (-10.3) :HIGH 0)
 (ceiling-rem-bound (make-interval :low 0.3 :high '(10.3)))
@@ -2105,10 +2076,7 @@
 => #S(INTERVAL :LOW (-20.3) :HIGH (20.3))
 |#
 
-
 
-
-
 (defun truncate-quotient-bound (quot)
   ;; For positive quotients, truncate is exactly like floor.  For
   ;; negative quotients, truncate is exactly like ceiling.  Otherwise,
@@ -2127,7 +2095,6 @@
 	 (interval-split 0 quot t t)
        (interval-merge-pair (ceiling-quotient-bound neg)
 			    (floor-quotient-bound pos))))))
-
 
 (defun truncate-rem-bound (num div)
   ;; This is significantly more complicated than floor or ceiling.  We
@@ -2165,8 +2132,6 @@
 			    (truncate-rem-bound pos div))))))
 )
 
-
-
 ;;; NUMERIC-RANGE-INFO  --  internal.
 ;;;
 ;;; Derive useful information about the range.  Returns three values:
@@ -2184,7 +2149,7 @@
 	 (values nil 0 (and low high (max (- low) high))))))
 
 ;;; INTEGER-TRUNCATE-DERIVE-TYPE -- internal
-;;; 
+;;;
 (defun integer-truncate-derive-type
        (number-low number-high divisor-low divisor-high)
   ;; The result cannot be larger in magnitude than the number, but the sign
@@ -2249,7 +2214,6 @@
 	     ;; anything about the result.
 	     `integer)))))
 
-
 #-propagate-float-type
 (defun integer-rem-derive-type
        (number-low number-high divisor-low divisor-high)
@@ -2296,7 +2260,6 @@
 		     ((or (consp high) (zerop high)) high)
 		     (t `(,high))))))))
 
-
 #+propagate-float-type
 (defun random-derive-type-aux (type)
   (let ((class (numeric-type-class type))
@@ -2316,14 +2279,13 @@
   (one-arg-derive-type bound #'random-derive-type-aux nil))
 
 
-;;;; Logical derive-type methods:
-
+;;;; Logical derive-type methods.
 
 ;;; Integer-Type-Length -- Internal
 ;;;
-;;; Return the maximum number of bits an integer of the supplied type can take
-;;; up, or NIL if it is unbounded.  The second (third) value is T if the
-;;; integer can be positive (negative) and NIL if not.  Zero counts as
+;;; Return the maximum number of bits an integer of the supplied type can
+;;; take up, or NIL if it is unbounded.  The second (third) value is T if
+;;; the integer can be positive (negative) and NIL if not.  Zero counts as
 ;;; positive.
 ;;;
 (defun integer-type-length (type)
@@ -2614,12 +2576,10 @@
 ) ; end progn
 
 
-;;;; Miscellaneous derive-type methods:
-
+;;;; Miscellaneous derive-type methods.
 
 (defoptimizer (code-char derive-type) ((code))
   (specifier-type 'base-char))
-
 
 (defoptimizer (values derive-type) ((&rest values))
   (values-specifier-type
@@ -2627,16 +2587,14 @@
 			  (type-specifier (continuation-type x)))
 		      values))))
 
-
 
-;;;; Byte operations:
+;;;; Byte operations.
 ;;;
-;;;    We try to turn byte operations into simple logical operations.  First,
-;;; we convert byte specifiers into separate size and position arguments passed
-;;; to internal %FOO functions.  We then attempt to transform the %FOO
-;;; functions into boolean operations when the size and position are constant
-;;; and the operands are fixnums.
-
+;;; We try to turn byte operations into simple logical operations.  First,
+;;; we convert byte specifiers into separate size and position arguments
+;;; passed to internal %FOO functions.  We then attempt to transform the
+;;; %FOO functions into boolean operations when the size and position are
+;;; constant and the operands are fixnums.
 
 ;;; With-Byte-Specifier  --  Internal
 ;;;
@@ -2753,8 +2711,6 @@
 	      *universal-type*))
 	*universal-type*)))
 
-
-
 (deftransform %ldb ((size posn int)
 		    (fixnum fixnum integer)
 		    (unsigned-byte #.vm:word-bits))
@@ -2810,12 +2766,11 @@
 	     (logand int (lognot mask)))))
 
 
-;;; Miscellanous numeric transforms:
-
+;;; Miscellanous numeric transforms.
 
 ;;; COMMUTATIVE-ARG-SWAP  --  Internal
 ;;;
-;;;    If a constant appears as the first arg, swap the args.
+;;; If a constant appears as the first arg, swap the args.
 ;;;
 (deftransform commutative-arg-swap ((x y) * * :defun-only t :node node)
   (if (and (constant-continuation-p x)
@@ -2873,15 +2828,15 @@
 	`(ash x ,len))))
 
 ;;; If both arguments and the result are (unsigned-byte 32), try to come up
-;;; with a ``better'' multiplication using multiplier recoding.  There are two
-;;; different ways the multiplier can be recoded.  The more obvious is to shift
-;;; X by the correct amount for each bit set in Y and to sum the results.  But
-;;; if there is a string of bits that are all set, you can add X shifted by
-;;; one more then the bit position of the first set bit and subtract X shifted
-;;; by the bit position of the last set bit.  We can't use this second method
-;;; when the high order bit is bit 31 because shifting by 32 doesn't work
-;;; too well.
-;;; 
+;;; with a ``better'' multiplication using multiplier recoding.  There are
+;;; two different ways the multiplier can be recoded.  The more obvious is
+;;; to shift X by the correct amount for each bit set in Y and to sum the
+;;; results.  But if there is a string of bits that are all set, you can
+;;; add X shifted by one more then the bit position of the first set bit
+;;; and subtract X shifted by the bit position of the last set bit.  We
+;;; can't use this second method when the high order bit is bit 31 because
+;;; shifting by 32 doesn't work too well.
+;;;
 (deftransform * ((x y)
 		 ((unsigned-byte 32) (unsigned-byte 32))
 		 (unsigned-byte 32))
@@ -2944,7 +2899,6 @@
     "convert division by 2^k to shift"
     (frob y t)))
 
-
 ;;; Do the same for mod.
 ;;;
 (deftransform mod ((x y) (integer integer) * :when :both)
@@ -2958,7 +2912,6 @@
       (if (minusp y)
 	  `(- (logand (- x) ,mask))
 	  `(logand x ,mask)))))
-
 
 ;;; If arg is a constant power of two, turn truncate into a shift and mask.
 ;;;
@@ -2996,11 +2949,10 @@
 	   (logand x ,mask)))))
 
 
-;;;; Arithmetic and logical identity operation elimination:
+;;;; Arithmetic and logical identity operation elimination.
 ;;;
 ;;; Flush calls to random arith functions that convert to the identity
 ;;; function or a constant.
-
 
 (dolist (stuff '((ash 0 x)
 		 (logand -1 x)
@@ -3038,18 +2990,16 @@
   "fold zero arg"
   'x)
 
-
 ;;; Not-More-Contagious  --  Interface
 ;;;
-;;;    Return T if in an arithmetic OP including continuations X and
-;;; Y, the result type is not affected by the type of X. The main
-;;; checks performed here are that the type of X does not cause a
-;;; change in the float format of the result, or change the result to
-;;; a complex float. It is assumed that the caller considers the
-;;; affect of X on Value of the result. Thus with rational
-;;; canonicalisation, X is permitted to be a rational or complex
-;;; rational even if Y is only an integer or complex integer assuming
-;;; that the result will be canonacilisted to the correct type.
+;;; Return T if in an arithmetic OP including continuations X and Y, the
+;;; result type is not affected by the type of X. The main checks performed
+;;; here are that the type of X does not cause a change in the float format
+;;; of the result, or change the result to a complex float. It is assumed
+;;; that the caller considers the affect of X on Value of the result. Thus
+;;; with rational canonicalisation, X is permitted to be a rational or
+;;; complex rational even if Y is only an integer or complex integer
+;;; assuming that the result will be canonacilisted to the correct type.
 ;;;
 (defun not-more-contagious (x y)
   (declare (type continuation x y))
@@ -3088,8 +3038,8 @@
 
 ;;; Fold (- x 0).
 ;;;
-;;;    If y is not constant, not zerop, or is contagious, or a negative
-;;; float -0.0 then give up because (- -0.0 -0.0) is 0.0, not -0.0.
+;;; If y is not constant, not zerop, or is contagious, or a negative float
+;;; -0.0 then give up because (- -0.0 -0.0) is 0.0, not -0.0.
 ;;;
 (deftransform - ((x y) (t (constant-argument t)) * :when :both)
   "fold zero arg"
@@ -3148,9 +3098,8 @@
     "fold zero arg"
     '(values 0 0)))
 
-    
 
-;;;; Character operations:
+;;;; Character operations.
 
 (deftransform char-equal ((a b) (base-char base-char))
   "open code"
@@ -3179,8 +3128,7 @@
 	 x)))
 
 
-;;;; Equality predicate transforms:
-
+;;;; Equality predicate transforms.
 
 ;;; SAME-LEAF-REF-P  --  Internal
 ;;;
@@ -3195,7 +3143,6 @@
 	 (ref-p y-use)
 	 (eq (ref-leaf x-use) (ref-leaf y-use))
 	 (constant-reference-p x-use))))
-
 
 ;;; SIMPLE-EQUALITY-TRANSFORM  --  Internal
 ;;;
@@ -3214,7 +3161,6 @@
 
 (dolist (x '(eq char= equal))
   (%deftransform x '(function * *) #'simple-equality-transform))
-
 
 ;;; EQL IR1 Transform  --  Internal
 ;;;
@@ -3255,12 +3201,11 @@
 	  (t
 	   (give-up)))))
 
-
 ;;; = IR1 Transform  --  Internal
 ;;;
 ;;;    Convert to EQL if both args are rational and complexp is specified
 ;;; and the same for both.
-;;; 
+;;;
 (deftransform = ((x y) * * :when :both)
   "open code"
   (let ((x-type (continuation-type x))
@@ -3285,7 +3230,6 @@
 	       (give-up "Operands might not be the same type.")))
 	(give-up "Operands might not be the same type."))))
 
-
 ;;; Numeric-Type-Or-Lose  --  Interface
 ;;;
 ;;;    If Cont's type is a numeric type, then return the type, otherwise
@@ -3296,7 +3240,6 @@
   (let ((res (continuation-type cont)))
     (unless (numeric-type-p res) (give-up))
     res))
-
 
 ;;; IR1-TRANSFORM-<  --  Internal
 ;;;
@@ -3387,7 +3330,7 @@
   (ir1-transform-< y x x y '<))
 
 
-;;;; Converting N-arg comparisons:
+;;;; Converting N-arg comparisons.
 ;;;
 ;;;    We convert calls to N-arg comparison functions such as < into two-arg
 ;;; calls.  This transformation is enabled for all such comparisons in this
@@ -3425,7 +3368,6 @@
 	       ((zerop i)
 		`((lambda ,vars ,result) . ,args)))))))
 
-
 (def-source-transform = (&rest args) (multi-compare '= args nil))
 (def-source-transform < (&rest args) (multi-compare '< args nil))
 (def-source-transform > (&rest args) (multi-compare '> args nil))
@@ -3444,10 +3386,9 @@
 (def-source-transform char-not-greaterp (&rest args) (multi-compare 'char-greaterp args t))
 (def-source-transform char-not-lessp (&rest args) (multi-compare 'char-lessp args t))
 
-
 ;;; Multi-Not-Equal  --  Internal
 ;;;
-;;;    This function does source transformation of N-arg inequality functions
+;;; This function does source transformation of N-arg inequality functions
 ;;; such as /=.  This is similar to Multi-Compare in the <3 arg cases.  If
 ;;; there are more than two args, then we expand into the appropriate n^2
 ;;; comparisons only when speed is important.
@@ -3477,8 +3418,6 @@
 (def-source-transform char/= (&rest args) (multi-not-equal 'char= args))
 (def-source-transform char-not-equal (&rest args) (multi-not-equal 'char-equal args))
 
-
-
 #-sparc-v9
 (progn
 ;;; Expand Max and Min into the obvious comparisons.
@@ -3497,18 +3436,17 @@
 		  (arg2 `(min ,@more-args)))
 	`(if (< ,arg1 ,arg2)
 	     ,arg1 ,arg2))))
-
 )
 
 
-;;;; Converting N-arg arithmetic functions:
+;;;; Converting N-arg arithmetic functions.
 ;;;
-;;;    N-arg arithmetic and logic functions are associated into two-arg
+;;; N-arg arithmetic and logic functions are associated into two-arg
 ;;; versions, and degenerate cases are flushed.
 
 ;;; Associate-Arguments  --  Internal
 ;;;
-;;;    Left-associate First-Arg and More-Args using Function.
+;;; Left-associate First-Arg and More-Args using Function.
 ;;;
 (defun associate-arguments (function first-arg more-args)
   (declare (symbol function) (list more-args) (values list))
@@ -3520,9 +3458,10 @@
 
 ;;; Source-Transform-Transitive  --  Internal
 ;;;
-;;;    Do source transformations for transitive functions such as +.  One-arg
-;;; cases are replaced with the arg and zero arg cases with the identity.  If
-;;; Leaf-Fun is true, then replace two-arg calls with a call to that function. 
+;;; Do source transformations for transitive functions such as +.  One-arg
+;;; cases are replaced with the arg and zero arg cases with the identity.
+;;; If Leaf-Fun is true, then replace two-arg calls with a call to that
+;;; function.
 ;;;
 (defun source-transform-transitive (fun args identity &optional leaf-fun)
   (declare (symbol fun leaf-fun) (list args))
@@ -3563,12 +3502,11 @@
     (2 (values nil t))
     (t (associate-arguments 'lcm (first args) (rest args)))))
 
-
 ;;; Source-Transform-Intransitive  --  Internal
 ;;;
-;;;    Do source transformations for intransitive n-arg functions such as /.
-;;; With one arg, we form the inverse.  With two args we pass.  Otherwise we
-;;; associate into two-arg calls.
+;;; Do source transformations for intransitive n-arg functions such as /.
+;;; With one arg, we form the inverse.  With two args we pass.  Otherwise
+;;; we associate into two-arg calls.
 ;;;
 (defun source-transform-intransitive (function args inverse)
   (declare (symbol function) (list args) (values list &optional t))
@@ -3584,9 +3522,9 @@
   (source-transform-intransitive '/ args '(/ 1)))
 
 
-;;;; Apply:
+;;;; Apply.
 ;;;
-;;;    We convert Apply into Multiple-Value-Call so that the compiler only
+;;; We convert Apply into Multiple-Value-Call so that the compiler only
 ;;; needs to understand one kind of variable-argument call.  It is more
 ;;; efficient to convert Apply to MV-Call than MV-Call to Apply.
 
@@ -3599,14 +3537,14 @@
        (values-list ,(car (last args))))))
 
 
-;;;; FORMAT transform:
+;;;; FORMAT transform.
 ;;;
 ;;; If the control string is a compile-time constant, then replace it with
-;;; a use of the FORMATTER macro so that the control string is ``compiled.''
-;;; Furthermore, if the destination is either a stream or T and the control
-;;; string is a function (i.e. formatter), then convert the call to format to
-;;; just a funcall of that function.
-;;; 
+;;; a use of the FORMATTER macro so that the control string is
+;;; ``compiled.''  Furthermore, if the destination is either a stream or T
+;;; and the control string is a function (i.e. formatter), then convert the
+;;; call to format to just a funcall of that function.
+;;;
 (deftransform format ((dest control &rest args) (t simple-string &rest t) *
 		      :policy (> speed space))
   (unless (constant-continuation-p control)

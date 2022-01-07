@@ -9,36 +9,36 @@
 
 
 (defmode "Dylan" :major-p t)
-(defcommand "Dylan Mode" (p)
+(defcommand "Dylan Mode" ()
   "Put the current buffer into \"Dylan\" mode."
-  "Put the current buffer into \"Dylan\" mode."
-  (declare (ignore p))
   (setf (buffer-major-mode (current-buffer)) "Dylan"))
 
 (define-file-type-hook ("dylan") (buffer type)
   (declare (ignore type))
   (setf (buffer-major-mode buffer) "Dylan"))
 
-(defhvar "Indent Function"
-  "Indentation function which is invoked by \"Indent\" command.
-   It must take one argument that is the prefix argument."
+(defevar "Indent Function"
+  "A function called by indent to do the indentation.  Passed a mark as its
+   argument.  The function should indent the line that the mark points to.
+   The function may move the mark around on the line.  The mark is
+   :left-inserting."
   :value #'generic-indent
   :mode "Dylan")
 
-(defhvar "Auto Fill Space Indent"
-  "When non-nil, uses \"Indent New Comment Line\" to break lines instead of
-   \"New Line\"."
+(defevar "Auto Fill Space Indent"
+  "When true, use `Indent New Comment Line' to break lines instead of `New
+   Line'."
   :mode "Dylan" :value t)
 
-(defhvar "Comment Start"
+(defevar "Comment Start"
   "String that indicates the start of a comment."
   :mode "Dylan" :value "//")
 
-(defhvar "Comment End"
+(defevar "Comment End"
   "String that ends comments.  Nil indicates #\newline termination."
-  :mode "Dylan" :value nil)
+  :mode "Dylan")
 
-(defhvar "Comment Begin"
+(defevar "Comment Begin"
   "String that is inserted to begin a comment."
   :mode "Dylan" :value "// ")
 

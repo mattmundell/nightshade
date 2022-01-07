@@ -1,21 +1,5 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/assembly/x86/arith.lisp,v 1.3.2.2 1998/06/23 11:21:17 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Stuff to handle simple cases for generic arithmetic.
-;;;
-;;; Written by William Lott.
-;;; Debugged by Paul Werkowski -- Spring/Summer 1995.
-;;;
+
 (in-package :x86)
 
 (eval-when (compile eval)
@@ -57,12 +41,11 @@
     (inst jmp (make-ea :dword
 	       	       :disp (+ nil-value (static-function-offset
 					   ',(symbolicate "TWO-ARG-" fun)))))
-    
+
     DO-BODY
     ,@body))
 
 ); eval-when
-
 
 (define-generic-arith-routine (+ 10)
   (move res x)
@@ -75,24 +58,23 @@
 
   (with-fixed-allocation (res bignum-type (1+ bignum-digits-offset))
     (storew ecx res bignum-digits-offset other-pointer-type))
-  
+
   OKAY)
 
-
 (define-generic-arith-routine (- 10)
-    ;;; I can't figure out the flags on subtract. Overflow never gets
-    ;;; set and carry always does. (- 0 most-negative-fixnum) can't be
-    ;;; easily detected so just let the upper level stuff do it.
+  ;;; I can't figure out the flags on subtract. Overflow never gets set and
+  ;;; carry always does. (- 0 most-negative-fixnum) can't be easily
+  ;;; detected so just let the upper level stuff do it.
   (inst jmp DO-STATIC-FUN)
-  
+
   (move res x)
   (inst sub res y)
   (inst jmp :no OKAY)
   (inst rcr res 1)
   (inst sar res 1)			; remove type bits
-  
+
   (move ecx res)
-  
+
   (with-fixed-allocation (res bignum-type (1+ bignum-digits-offset))
     (storew ecx res bignum-digits-offset other-pointer-type))
   OKAY)
@@ -120,7 +102,7 @@
   (inst jmp DONE)
 
   SINGLE-WORD-BIGNUM
-  
+
   (with-fixed-allocation (res bignum-type (1+ bignum-digits-offset))
     (storew eax res bignum-digits-offset other-pointer-type))
   (inst jmp DONE)
@@ -151,7 +133,7 @@
   (inst mov ecx (fixnum 1))		; arg count
   (inst jmp (make-ea :dword
 		     :disp (+ nil-value (static-function-offset '%negate))))
-  
+
   FIXNUM
   (move res x)
   (inst neg res)			; (- most-negative-fixnum) is BIGNUM
@@ -161,9 +143,8 @@
 
   (with-fixed-allocation (res bignum-type (1+ bignum-digits-offset))
     (storew ecx res bignum-digits-offset other-pointer-type))
-  
-  OKAY)
 
+  OKAY)
 
 
 ;;;; Comparison routines.
@@ -179,7 +160,7 @@
 			     (:save-p t))
 			    ((:arg x (descriptor-reg any-reg) edx-offset)
 			     (:arg y (descriptor-reg any-reg) edi-offset)
-			     
+
 			     (:res res descriptor-reg edx-offset)
 
 			     (:temp eax unsigned-reg eax-offset)
@@ -188,7 +169,7 @@
     (inst jmp :nz DO-STATIC-FN)
     (inst test y 3)
     (inst jmp :z DO-COMPARE)
-    
+
     DO-STATIC-FN
     (inst pop eax)
     (inst push ebp-tn)
@@ -199,7 +180,7 @@
     (inst jmp (make-ea :dword
 	       	       :disp (+ nil-value
 				(static-function-offset ',static-fn))))
-    
+
     DO-COMPARE
     (inst cmp x y)
     (inst jmp ,test TRUE)
@@ -207,7 +188,7 @@
     (inst pop eax)
     (inst add eax 2)
     (inst jmp eax)
-    
+
     TRUE
     (load-symbol res t)))
 
@@ -224,9 +205,9 @@
 			  (:save-p t))
 			 ((:arg x (descriptor-reg any-reg) edx-offset)
 			  (:arg y (descriptor-reg any-reg) edi-offset)
-			  
+
 			  (:res res descriptor-reg edx-offset)
-			  
+
 			  (:temp eax unsigned-reg eax-offset)
 			  (:temp ecx unsigned-reg ecx-offset))
   (inst cmp x y)
@@ -251,7 +232,7 @@
   (inst mov ecx (fixnum 2))
   (inst jmp (make-ea :dword
 		     :disp (+ nil-value (static-function-offset 'eql))))
-  
+
   RETURN-T
   (load-symbol res t))
 
@@ -263,9 +244,9 @@
 			  (:save-p t))
 			 ((:arg x (descriptor-reg any-reg) edx-offset)
 			  (:arg y (descriptor-reg any-reg) edi-offset)
-			  
+
 			  (:res res descriptor-reg edx-offset)
-			  
+
 			  (:temp eax unsigned-reg eax-offset)
 			  (:temp ecx unsigned-reg ecx-offset)
 			  )
@@ -290,7 +271,7 @@
   (inst mov ecx (fixnum 2))
   (inst jmp (make-ea :dword
 		     :disp (+ nil-value (static-function-offset 'two-arg-=))))
-  
+
   RETURN-T
   (load-symbol res t))
 
@@ -380,7 +361,7 @@
   (inst inc k)
   (inst cmp k (- 624 1))
   (inst jmp :b loop2)
-  
+
   (inst mov y (make-ea :dword :base state
 		       :disp (- (* (+ (- 624 1) 3 vm:vector-data-offset)
 				   vm:word-bytes)

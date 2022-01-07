@@ -13,20 +13,60 @@
 	  update-all-modeline-fields update-line-number update-line-numbers
 	  editor-finish-output *window-list*))
 
+
+#[ Windows
+
+Editor windows display a portion of a buffer's text.  The section on window
+groups, [Groups], discusses managing windows on a bitmap device.
+
+{command:New Window}
+{command:Split Window}
+{command:Next Window}
+{command:Previous Window}
+{command:Delete Window}
+{command:Delete Next Window}
+
+On bitmap devices, if there is only one window in the group, both `Delete
+Window' and `Delete Next Window' delete the group, making some window in
+another group the current window.  If it is the only gropu, they signal a
+user error.
+
+{command:Go to One Window}
+{command:Line to Top of Window}
+{command:Line to Center of Window}
+{command:Scroll Next Window Down}
+{command:Scroll Next Window Up}
+{command:Refresh Screen}
+
+`Refresh Screen' is useful if the screen gets trashed.
+]#
 
 
 ;;;; CURRENT-WINDOW.
 
-(defvar *current-window* nil "The current window object.")
+#[ The Current Window
+
+{function:edi:current-window}
+{evariable:Set Window Hook}
+{variable:ed:*window-list*}
+]#
+
+(defvar *current-window* () "The current window object.")
 (defvar *window-list* () "A list of all window objects.")
 
 (proclaim '(inline current-window))
 
 (defun current-window ()
-  "Return the current window.  The current window is specially treated by
-  redisplay in several ways, the most important of which is that is does
-  recentering, ensuring that the Buffer-Point of the current window's
-  Window-Buffer is always displayed.  This may be set with Setf."
+  "Return the window currently displaying the cursor.
+
+   The cursor always tracks the buffer-point of the corresponding buffer.
+   If the point is moved to a position which would be off the screen the
+   recentering process is invoked.  Recentering shifts the starting point
+   of the window so that the point is once again displayed.
+
+   The current window may be changed with `setf'.  Before the current
+   window is changed, the hook *Set Window Hook* is invoked with the new
+   value."
   *current-window*)
 
 (defun %set-current-window (new-window)
@@ -37,7 +77,6 @@
 	     (window-point new-window))
   (setq *current-window* new-window))
 
-
 
 ;;;; Window structure support.
 
@@ -47,9 +86,11 @@
   (write-string (buffer-name (window-buffer obj)) stream)
   (write-string "\">" stream))
 
-
 (defun window-buffer (window)
-  "Return the buffer which is displayed in Window."
+  "Return the buffer from which the $window displays text.
+
+   This may be changed with `setf', in which case the hook *Window Buffer
+   Hook* is invoked beforehand with the window and the new buffer."
   (window-%buffer window))
 
 (defun %set-window-buffer (window new-buffer)
@@ -87,7 +128,6 @@
     (setf (window-tick window) -3)
     (setf (window-%buffer window) new-buffer)))
 
-
 
 ;;; %INIT-REDISPLAY sets up redisplay's internal data structures.  We create
 ;;; initial windows, setup some hooks to cause modeline recomputation, and call
@@ -101,10 +141,60 @@
   (add-hook ed::buffer-pathname-hook 'queue-buffer-change)
   (add-hook ed::buffer-modified-hook 'queue-buffer-change)
   (add-hook ed::window-buffer-hook 'queue-window-change)
+
+  ;; FIX rename :normal/standard (original sounds like tty original pair)
+  (defcolor :original     '(0.0 0.0 0.0) "Normal text.")
+  (defcolor :comment      '(1.0 0.0 0.0) "Comments.")
+  (defcolor :string       '(0.0 0.7 0.0) "Strings.")
+  (defcolor :variable     '(1.0 1.0 0.0) "Variable names.")
+  (defcolor :function     '(0.0 0.0 1.0) "Function names.")
+  (defcolor :preprocessor '(1.0 0.0 1.0)
+    "Preprocessor and reader macro directives.")
+  (defcolor :special-form '(0.0 1.0 1.0) "Special forms.")
+  (defcolor :error        '(1.0 0.5 1.0) "Errors.")
+
   (let ((device (device-hunk-device (window-hunk (current-window)))))
     (funcall (device-init device) device))
   (center-window *current-window* (current-point)))
 
+
+#[ Modelines
+
+A modeline is the line displayed at the bottom of each window where the
+editor shows information about the buffer displayed in that window.  Here
+is a typical modeline:
+
+    EDI: window.lisp (Lisp Save)   /src/nightshade/src/ed/
+
+This indicates that the file associated with this buffer is
+"/src/nightshade/src/ed/window.lisp", and the `Current Package' for Lisp
+interaction commands is the "ED" package.  The modes currently present are
+`Lisp' and `Save'; the major mode is always displayed first, followed by
+any minor modes.  If the buffer has no associated file, then the buffer
+name will be present instead:
+
+    PLAY: (Lisp)  Silly:
+
+In this case, the buffer is named `Silly' and is in `Lisp' mode.  The
+user has set `Current Package' for this buffer to "PLAY".
+
+{evariable:Maximum Modeline Pathname Length}
+{evariable:Maximum Modeline Short Name Length}
+
+The `defevar' command can be used to establish these variables buffer
+locally.
+
+If the user has modified the buffer since the last time it was read from or
+save to a file, then the modeline starts with two asterisks (**)
+
+    ** EDI: window.lisp (Lisp Save)   /src/nightshade/src/ed/
+
+This serves as a reminder that the buffer should be saved eventually.
+
+There is a special modeline known as the status line which appears as the
+`Echo Area''s modeline.  This area displays general information --
+recursive edits, whether new mail has arrived, etc.
+]#
 
 
 ;;;; Modelines-field structure support.
@@ -121,33 +211,42 @@
   (prin1 (modeline-field-%name (ml-field-info-field obj)) stream)
   (write-string ">" stream))
 
-
 (defvar *modeline-field-names* (make-hash-table))
 
 (defun make-modeline-field (&key name width function (replace nil))
-  "Returns a modeline-field object."
-  (or (eq width nil)
-      (and (integerp width) (plusp width))
-      (error "Width must be nil or a positive integer."))
+  "Return a modeline-field with $name, $width, and $function.
+
+   If width is () the field is of variable width.
+
+   $function must take a buffer and window as arguments and return a
+   simple-string containing only standard characters.
+
+   If $name already names a modeline-field, then signal an error."
+  (if width
+      (or (and (integerp width) (plusp width))
+	  (error "Width must be () or a positive integer.")))
   (or replace
-      (when (gethash name *modeline-field-names*)
-	(with-simple-restart (continue
-			      "Use the new definition for this modeline field.")
-			     (error "Modeline field ~S already exists."
-				    (gethash name *modeline-field-names*)))))
+      (if (gethash name *modeline-field-names*)
+	  (with-simple-restart (continue
+				   "Use the new definition for this modeline field.")
+	    (error "Modeline field ~S already exists."
+		   (gethash name *modeline-field-names*)))))
   (setf (gethash name *modeline-field-names*)
 	(%make-modeline-field name function width)))
 
 (defun modeline-field (name)
-  "Returns the modeline-field object named name.  If none exists, return nil."
+  "Return the modeline-field named $name if such a field exists, else
+   return ()."
   (gethash name *modeline-field-names*))
-
 
 (proclaim '(inline modeline-field-name modeline-field-width
 		   modeline-field-function))
 
 (defun modeline-field-name (ml-field)
-  "Returns the name of a modeline field object."
+  "Return the name field of modeline-field $ml-field.
+
+   If this is set with `setf', and the new name already names a
+   modeline-field, then the `setf' method signals an error."
   (modeline-field-%name ml-field))
 
 (defun %set-modeline-field-name (ml-field name)
@@ -160,15 +259,21 @@
   (setf (gethash name *modeline-field-names*) ml-field))
 
 (defun modeline-field-width (ml-field)
-  "Returns the width of a modeline field."
+  "Return the width to which modeline-field $ml-field is constrained, or
+   () to indicate that it is of variable width.
+
+   When this is set with `setf', the `setf' method updates all
+   modeline-fields for all windows on all buffers that contain the given
+   field, so the next trip through redisplay will reflect the change.  All
+   the fields for any such modeline display must be updated."
   (modeline-field-%width ml-field))
 
 (proclaim '(special *buffer-list*))
 
 (defun %set-modeline-field-width (ml-field width)
   (check-type ml-field modeline-field)
-  (unless (or (eq width nil) (and (integerp width) (plusp width)))
-    (error "Width must be nil or a positive integer."))
+  (or (eq width nil) (and (integerp width) (plusp width))
+      (error "Width must be nil or a positive integer."))
   (unless (eql width (modeline-field-%width ml-field))
     (setf (modeline-field-%width ml-field) width)
     (dolist (b *buffer-list*)
@@ -178,7 +283,14 @@
   width)
 
 (defun modeline-field-function (ml-field)
-  "Returns the function of a modeline field object.  It returns a string."
+  "Return the function called when updating modeline-field $ml-field.
+
+   When this is set with `setf', the `setf' method updates modeline-field
+   for all windows on all buffers that contain the given field, so the next
+   trip through redisplay will reflect the change.
+
+   All modeline-field functions must return simple strings with standard
+   characters, and take a buffer and a window as arguments."
   (modeline-field-%function ml-field))
 
 (defun %set-modeline-field-function (ml-field function)
@@ -191,7 +303,6 @@
 	(update-modeline-field b w ml-field))))
   function)
 
-
 
 ;;;; Modelines maintenance.
 
@@ -201,13 +312,14 @@
 ;;; then first gets the modeline-buffer setup, and second blasts the necessary
 ;;; portion into the window's modeline-dis-line, setting the dis-line's changed
 ;;; flag.
-;;;
 
 (defparameter hunk-width-limit 256)  ;; Was in hacks.lisp.
 
 (defun update-modeline-fields (buffer window)
-  "Recompute all the fields of buffer's modeline for window, so the next
-   redisplay will reflect changes."
+  "Invoke each modeline-field function from $buffer's list, passing $buffer
+   and $window.  Collect the results regarding each modeline-field's width
+   as appropriate, and mark the window so the next trip through redisplay
+   will reflect the changes."
   (let ((ml-buffer (window-modeline-buffer window)))
     (declare (simple-string ml-buffer))
     (when ml-buffer
@@ -220,6 +332,15 @@
 	     (len (min (window-width window) ml-buffer-len)))
 	(replace (the simple-string (dis-line-chars dis-line)) ml-buffer
 		 :end1 len :end2 len)
+	;; TODO Sortof tentative, for future fancy modeline.  For now the
+	;; tty version is reading the first font change only, and the
+	;; bitmap version is reading window-modeline-*-color directly.
+	(setf (dis-line-font-changes dis-line)
+	      (alloc-font-change 0 ; Position.
+				 0 ; Font.
+				 (window-modeline-fore-color window)
+				 (window-modeline-back-color window)
+				 t)) ; Dummy mark.
 	(setf (window-modeline-buffer-len window) ml-buffer-len)
 	(setf (dis-line-length dis-line) len)
 	(setf (dis-line-flags dis-line) changed-bit)))))
@@ -232,13 +353,20 @@
 ;;; the buffer is now.
 ;;;
 (defun update-modeline-field (buffer window field)
-  "Recompute the field of the buffer's modeline for window, so the next
-   redisplay will reflect the change.  Field is either a modeline-field object
-   or the name of one for buffer."
+  "Invoke the modeline-field's update function of $field, which is a
+   modeline-field or the name of one, for $buffer.  Pass $buffer and
+   $window to the function.
+
+   Apply the result to the window's modeline display using the
+   modeline-field's width, and mark the window so the next trip through
+   redisplay reflects the changes.
+
+   If $field is missing from buffer's list of modeline-field, then signal
+   an error."
   (let ((finfo (internal-buffer-modeline-field-p buffer field)))
-    (unless finfo
-      (error "~S is not a modeline-field or the name of one for buffer ~S."
-	     field buffer))
+    (or finfo
+	(error "~S must be a modeline-field or the name of one for buffer ~S."
+	       field buffer))
     (let ((ml-buffer (window-modeline-buffer window))
 	  (dis-line (window-modeline-dis-line window)))
       (declare (simple-string ml-buffer))
@@ -338,15 +466,14 @@
 	      (frob (ml-field-info-end f)))
 	    (frob (window-modeline-buffer-len window)))))))))
 
-
 
-;;;; Default modeline and update hooks.
+;;;; Pre-defined modeline and update hooks.
 
 (make-modeline-field
  :name :package :replace t
  :function #'(lambda (buffer window)
-	       "Returns the value of buffer's \"Current Package\" followed
-		by a colon and two spaces, or a string with one space."
+	       "Return the value of $buffer's *Current Package* followed by
+	        a colon and two spaces, or a string with one space."
 	       (declare (ignore window))
 	       (if (editor-bound-p 'ed::current-package :buffer buffer)
 		   (let ((val (variable-value 'ed::current-package
@@ -359,14 +486,21 @@
 (make-modeline-field
  :name :modes :replace t
  :function #'(lambda (buffer window)
-	       "Returns buffer's modes followed by one space."
+	       "Return $buffer's modes."
 	       (declare (ignore window))
-	       (format nil "~A  " (buffer-modes buffer))))
+	       (format nil "~A"
+		       (mapcar (lambda (mode)
+				 (let ((mode (getstring mode
+							*mode-names*)))
+				   (or (mode-object-short-name mode)
+				       (mode-object-name mode)
+				       "")))
+			       (buffer-modes buffer)))))
 
 (make-modeline-field
  :name :modifiedp :replace t
  :function #'(lambda (buffer window)
-	       "Returns \"* \" if buffer is modified, or the empty string."
+	       "Return \"* \" if $buffer is modified, or the empty string."
 	       (declare (ignore window))
 	       (let ((modifiedp (buffer-modified buffer)))
 		 (if modifiedp
@@ -376,9 +510,9 @@
 (make-modeline-field
  :name :buffer-name :replace t
  :function #'(lambda (buffer window)
-	       "Returns buffer's name followed by a colon and a space if the
-		name is not derived from the buffer's pathname, or the empty
-		string."
+	       "Return $buffer's name followed by a colon and a space if
+	        the name is not derived from the buffer's pathname, or the
+	        empty string."
 	       (declare (ignore window))
 	       (let ((pn (buffer-pathname buffer))
 		     (name (buffer-name buffer)))
@@ -387,7 +521,6 @@
 		       ((string/= (ed::pathname-to-buffer-name pn) name)
 			(format nil "~A: " name))
 		       (t "")))))
-
 
 ;;; MAXIMUM-MODELINE-PATHNAME-LENGTH-HOOK is called whenever "Maximum Modeline
 ;;; Pathname Length" is set.
@@ -402,14 +535,16 @@
 	  (edi::queue-buffer-change buffer)))))
 
 (defun buffer-pathname-ml-field-fun (buffer window)
-  "Returns the namestring of buffer's pathname if there is one.  When
-   \"Maximum Modeline Pathname Length\" is set, and the namestring is too long,
-   return a truncated namestring chopping off leading directory specifications."
+  "Return the namestring of buffer's pathname if there is one.  When
+   *Maximum Modeline Pathname Length* is set, and the namestring is too
+   long, return a truncated namestring chopping off leading directory
+   specifications."
   (declare (ignore window))
   (let ((pn (buffer-pathname buffer)))
     (if pn
 	(let* ((name (namestring pn))
 	       (length (length name))
+	       ;; FIX?
 	       ;; Prefer a buffer local value over the global one.
 	       ;; Because variables don't work right, blow off looking for
 	       ;; a value in the buffer's modes.  In the future this will
@@ -442,7 +577,7 @@
  :replace t
  :name :buffer-state
  :function #'(lambda (buffer window)
-	       "Returns \"* \" if buffer is modified, else \"  \"."
+	       "Return \"* \" if $buffer is modified, else \"  \"."
 	       (declare (ignore window))
 	       (if (buffer-writable buffer)
 		   (if (buffer-modified buffer)
@@ -456,26 +591,40 @@
  :replace t
  :name :buffer-short-name
  :function #'(lambda (buffer window)
-	       "Returns a short version of buffer's name followed by a space."
+	       "Return a short version of $buffer's name followed by a space."
 	       (declare (ignore window))
-	       (let ((pn (buffer-pathname buffer))
-		     (name (buffer-name buffer)))
-		 (cond ((not pn)
-			(format nil "~A " name))
-		       ((string/= (ed::pathname-to-buffer-name pn) name)
-			(format nil "~A " name))
-		       (t
-			(let ((type (pathname-type pn)))
-			  (format nil "~A~A~A "
-				  (pathname-name pn)
-				  (if type "." "")
-				  (if type type ""))))))))
+	       (let* ((pn (buffer-pathname buffer))
+		      (name (buffer-name buffer))
+		      ;; FIX should ml-name be a flet, macrolet or variable
+		      ;;     ~ is there any generic way to tell?
+		      ;;     ~~ should there be only one way to do it?
+		      (ml-name (if (and pn
+					(string= (ed::pathname-to-buffer-name pn)
+						 name))
+				   (let ((type (pathname-type pn)))
+				     (format () "~A~A~A"
+					     (pathname-name pn)
+					     (if type "." "")
+					     (if type type "")))
+				   (format () "~A" name)))
+		      ;; FIX as in buffer-pathname-ml-field-fun above
+		      (max (if (editor-bound-p 'ed::maximum-modeline-short-name-length
+					       :buffer buffer)
+			       (variable-value 'ed::maximum-modeline-short-name-length
+					       :buffer buffer)
+			       (variable-value 'ed::maximum-modeline-short-name-length
+					       :global))))
+		 (if (and max (> (length ml-name) max))
+		     (concat (string-right-trim '(#\space #\tab)
+						(subseq ml-name 0 max))
+			     (string *truncated-field-char*) " ")
+		     (concat ml-name " ")))))
 
 (make-modeline-field
  :replace t
  :name :position
  :function #'(lambda (buffer window)
-	       "Returns the point positions \"(<column>,<buffer line number>)\"."
+	       "Return the point positions \"(<column>,<$buffer line $number>)\"."
 	       (let ((point (buffer-point buffer)))
 		 (format nil "(~2,'0D,~D)"
 			 (mark-column point)
@@ -485,7 +634,7 @@
  :replace t
  :name :column
  :function #'(lambda (buffer window)
-	       "Returns the column point is on, prefixed with a 'C'."
+	       "Return the column $buffer's point is on, prefixed with a 'C'."
 	       (declare (ignore window))
 	       (format nil "C~2,'0D" (mark-column (buffer-point buffer)))))
 
@@ -493,7 +642,7 @@
  :replace t
  :name :line
  :function #'(lambda (buffer window)
-	       "Returns the line point is on, prefixed with an 'L'."
+	       "Return the line $buffer's point is on, prefixed with an 'L'."
 	       (declare (ignore buffer))
 	       (format nil "L~A" (window-line-number window))))
 
@@ -501,7 +650,7 @@
  :replace t
  :name :%
  :function #'(lambda (buffer window)
-	       "Returns the percent of the buffer before point, suffixed
+	       "Return the percent of the $buffer before point, suffixed
 		with a '%'."
 	       (format nil "~A%"
 		       (if (zerop (buffer-line-count buffer))
@@ -600,7 +749,6 @@
     (dolist (w (buffer-windows buffer))
       (update-modeline-fields buffer w))))
 
-
 ;;; QUEUE-WINDOW-CHANGE is used for the "Window Buffer Hook".  We ignore the
 ;;; argument since this hook function is invoked before any changes are made,
 ;;; and the changes must be made before the fields can be set according to the
@@ -619,16 +767,60 @@
 
 (make-modeline-field
  :replace t
+ :name :user
+ :function #'(lambda (buffer window)
+	       "Return the user name associated with the current process."
+	       (declare (ignore buffer window))
+	       (user-name)))
+
+(make-modeline-field
+ :replace t
+ :name :machine-instance
+ :function #'(lambda (buffer window)
+	       "Return the machine instance (the hostname)."
+	       (declare (ignore buffer window))
+	       (machine-instance)))
+
+(make-modeline-field
+ :replace t
+ :name :user-at-machine
+ :function #'(lambda (buffer window)
+	       "Return the current user name at the machine name, e.g.
+	        name@host."
+	       (declare (ignore buffer window))
+	       (format () "~A@~A" (user-name) (machine-instance))))
+
+(make-modeline-field
+ :replace t
+ :name :busy
+ :width 4
+ :function #'(lambda (buffer window)
+	       "Return \"BUSY\" if *busy*."
+	       (declare (ignore buffer window))
+	       (if *busy* "BUSY" "    ")))
+
+(make-modeline-field
+ :replace t
+ :name :busy-or-menu
+ :width 4
+ :function #'(lambda (buffer window)
+	       "Return \"BUSY\" if *busy*, else \"Menu\"."
+	       (declare (ignore buffer window))
+	       (if *busy* "BUSY" "Menu")))
+
+(make-modeline-field
+ :replace t
  :name :time
  :function #'(lambda (buffer window)
-	       "Return the time in \"21h03 \" format."
+	       "Return the time in \"21h03\" format."
 	       (declare (ignore buffer window))
 	       (multiple-value-bind (sec min hr date month yr day ds tz)
 				    (get-decoded-time)
-		 (declare (ignore sec date month yr day ds tz))
-		 (format nil "~A~Ah~A~A"
-			 (if (> hr 9) "" "0") hr
-			 (if (> min 9) "" "0") min))))
+		 (declare (ignore sec min hr date month yr day ds))
+		 (multiple-value-bind (sec min hr date month yr day ds tz)
+				      (get-decoded-time (- (* tz 60)))
+		   (declare (ignore sec date month yr day ds tz))
+		   (format () "~2Dh~2,'0D" hr min)))))
 
 (make-modeline-field
  :replace t
@@ -650,10 +842,11 @@
 (make-modeline-field
  :replace t
  :name :mail
+ :width 4
  :function #'(lambda (buffer window)
-	       "Return \"Mail \" if there is new mail, else a space."
+	       "Return \"Mail\" if there is new mail."
 	       (declare (ignore buffer window))
-	       (if ed::*new-mail-p* "Mail " " ")))
+	       (if ed::*new-mail-p* "Mail" "    ")))
 
 
 ;;;; Bitmap setting up new windows and modifying old.
@@ -661,7 +854,6 @@
 (defvar dummy-line (make-window-dis-line "")
   "Dummy dis-line that we put at the head of window's dis-lines")
 (setf (dis-line-position dummy-line) -1)
-
 
 ;;; WINDOW-FOR-HUNK makes an editor window and sets up its dis-lines and
 ;;; marks to display starting at start.
@@ -676,7 +868,7 @@
     (when (or (< height minimum-window-lines)
 	      (< width minimum-window-columns))
       (error "Window too small."))
-    (unless buffer (error "Window start is not in a buffer."))
+    (or buffer (error "Window start must be in a buffer."))
     (let ((window
 	   (internal-make-window
 	    :hunk hunk
@@ -720,11 +912,19 @@
   (setf (window-modeline-buffer window) (make-string hunk-width-limit))
   (setf (window-modeline-dis-line window)
 	(make-window-dis-line (make-string (window-width window))))
+  (setf (window-modeline-fore-color window)
+	(color (or (value ed::initial-modeline-foreground-color)
+		   (value ed::initial-background-color)
+		   '(0 0 0)))) ; Black.
+  (setf (window-modeline-back-color window)
+	(color (or (value ed::initial-modeline-background-color)
+		   (value ed::initial-foreground-color)
+		   '(1 1 1)))) ; White.
   (update-modeline-fields buffer window))
 
 ;;; Window-Changed  --  Internal
 ;;;
-;;;    The bitmap-hunk changed handler for windows.  This is only called if
+;;; The bitmap-hunk changed handler for windows.  This is only called if
 ;;; the hunk is not locked.  We invalidate the window image and change its
 ;;; size, then do a full redisplay.
 ;;;
@@ -774,26 +974,25 @@
     (when (eq window *current-window*) (maybe-recenter-window window))
     hunk))
 
-
 
 ;;; EDITOR-FINISH-OUTPUT is used to synch output to a window with the rest of the
 ;;; system.
 ;;;
 (defun editor-finish-output (window)
+  "Ensure the editor is synchronized with respect to redisplay output to
+   $WINDOW."
   (let* ((device (device-hunk-device (window-hunk window)))
 	 (finish-output (device-finish-output device)))
-    (when finish-output
-      (funcall finish-output device window))))
-
+    (if finish-output
+	(funcall finish-output device window))))
 
 
 ;;;; Tty setting up new windows and modifying old.
 
 ;;; setup-window-image  --  Internal
 ;;;
-;;;    Set up the dis-lines and marks for Window to display starting
-;;; at Start.  Height and Width are the number of lines and columns in
-;;; the window.
+;;; Set up the dis-lines and marks for Window to display starting at Start.
+;;; Height and Width are the number of lines and columns in the window.
 ;;;
 (defun setup-window-image (start window height width)
   (check-type start mark)
@@ -826,7 +1025,7 @@
 
 ;;; change-window-image-height  --  Internal
 ;;;
-;;;    Milkshake.
+;;;    (Soya)Milkshake.
 ;;;
 (defun change-window-image-height (window new-height)
   ;; Nuke all the lines in the window image.

@@ -6,6 +6,152 @@
 	  reset-time))
 
 
+#[ Profiler
+
+\cindex{profiling}
+\cindex{timing}
+\cindex{consing}
+\cindex{tuning}
+
+The first step in improving a program's performance is to profile the
+activity of the program to find where it spends its time.  The best way to
+do this is to use the profiling utility found in the \code{profile}
+package.  This package provides a macro `profile' that encapsulates
+functions with statistics gathering code.
+
+[ Profile Interface           ]
+[ Profiling Techniques        ]
+[ Nested or Recursive Calls   ]
+[ Clock resolution            ]
+[ Profiling overhead          ]
+[ Additional Timing Utilities ]
+[ Timing                      ]
+[ Benchmarking Techniques     ]
+]#
+
+#[ Profiling Techniques
+
+Start by profiling big pieces of a program, then carefully choose which
+functions close to, but not in, the inner loop are to be profiled next.
+Avoid profiling functions that are called by other profiled functions, since
+this opens the possibility of profiling overhead being included in the reported
+times.
+
+If the per-call time reported is less than 1/10 second, then consider the clock
+resolution and profiling overhead before you believe the time.  It may be that
+you will need to run your program many times in order to average out to a
+higher resolution.
+]#
+
+#[ Nested or Recursive Calls
+
+The profiler attempts to compensate for nested or recursive calls.  Time
+and consing overhead will be charged to the dynamically innermost (most
+recent) call to a profiled function.  So profiling a subfunction of a
+profiled function will cause the reported time for the outer function to
+decrease.  However if an inner function has a large number of calls, some
+of the profiling overhead may "leak" into the reported time for the outer
+function.  In general, be wary of profiling short functions that are called
+many times.
+]#
+
+#[ Clock resolution
+
+Unless you are very lucky, the length of your machine's clock "tick" is
+probably much longer than the time it takes a simple function to run.  For
+example, on the IBM RT, the clock resolution is 1/50 second.  This means that
+if a function is only called a few times, then only the first couple decimal
+places are really meaningful.
+
+Note however, that if a function is called many times, then the statistical
+averaging across all calls should result in increased resolution.  For example,
+on the IBM RT, if a function is called a thousand times, then a resolution of
+tens of microseconds can be expected.
+]#
+
+#[ Profiling overhead
+
+The added profiling code takes time to run every time that the profiled
+function is called, which can disrupt the attempt to collect timing
+information.  In order to avoid serious inflation of the times for functions
+that take little time to run, an estimate of the overhead due to profiling is
+subtracted from the times reported for each function.
+
+Although this correction works fairly well, it is not totally accurate,
+resulting in times that become increasingly meaningless for functions with
+short runtimes.  This is only a concern when the estimated profiling overhead
+is many times larger than reported total CPU time.
+
+The estimated profiling overhead is not represented in the reported total CPU
+time.  The sum of total CPU time and the estimated profiling overhead should be
+close to the total CPU time for the entire profiling run (as determined by the
+`time' macro.)  Time unaccounted for is probably being used by functions that
+you forgot to profile.
+]#
+
+#[ Benchmarking Techniques
+\cindex{benchmarking techniques}
+
+Given these imperfect timing tools, how do should you do benchmarking?  The
+answer depends on whether you are trying to measure improvements in the
+performance of a single program on the same hardware, or if you are trying
+to compare the performance of different programs and/or different hardware.
+
+For the first use (measuring the effect of program modifications with
+constant hardware), you should look at both system+user and real time to
+understand what effect the change had on CPU use, and on I/O (including
+paging.)  If you are working on a CPU intensive program, the change in
+system+user time will give you a moderately reproducible measure of
+performance across a fairly wide range of system conditions.  For a CPU
+intensive program, you can think of system+user as "how long it would have
+taken to run if I had my own machine."  So in the case of comparing CPU
+intensive programs, system+user time is relatively real, and reasonable to
+use.
+
+For programs that spend a substantial amount of their time paging, you
+really can't predict elapsed time under a given operating condition without
+benchmarking in that condition.  User or system+user time may be fairly
+reproducible, but it is also relatively meaningless, since in a paging or
+I/O intensive program, the program is spending its time waiting, not
+running, and system time and user time are both measures of run time.  A
+change that reduces run time might increase real time by increasing paging.
+
+Another common use for benchmarking is comparing the performance of the
+same program on different hardware.  You want to know which machine to run
+your program on.  For comparing different machines (operating systems,
+etc.), the only way to compare that makes sense is to set up the machines
+in \var{exactly} the way that they will \var{normally} be run, and then
+measure \var{real} time.  If the program will normally be run along with X,
+then run X.  If the program will normally be run on a dedicated
+workstation, then be sure nobody else is on the benchmarking machine.  If
+the program will normally be run on a machine with three other Lisp jobs,
+then run three other Lisp jobs.  If the program will normally be run on a
+machine with 8meg of memory, then run with 8meg.  Here, "normal" means
+"normal for that machine".  If you have the choice of an unloaded RT or a
+heavily loaded PMAX, do your benchmarking on an unloaded RT and a heavily
+loaded PMAX.
+
+If you have a program you believe to be CPU intensive, then you might be
+tempted to compare "run" times across systems, hoping to get a meaningful
+result even if the benchmarking isn't done under the expected running
+condition.  Don't to this, for two reasons:
+
+  * The operating systems might not compute run time in the same way.
+
+  * Under the real running condition, the program might not be CPU
+    intensive after all.
+
+In the end, only real time means anything -- it is the amount of time you
+have to wait for the result.  The only valid uses for run time are:
+
+  * To develop insight into the program.  For example, if run time is much
+    less than elapsed time, then you are probably spending lots of time paging.
+
+  * To evaluate the relative performance of CPU intensive programs in the
+    same environment.
+]#
+
+
 ;;;; Implementation dependent interfaces.
 
 (defconstant quick-time-units-per-second internal-time-units-per-second)
@@ -60,7 +206,7 @@
 ;;;; Global data structures.
 
 (defvar *timed-functions* ()
-  "List of functions that are currently being timed.")
+  "A list of all functions that are currently being profiled.")
 
 ;;; We associate a PROFILE-INFO structure with each profiled function name.
 ;;; This holds the functions that we call to manipulate the closure which
@@ -256,9 +402,19 @@
 
 ;;;; Interfaces.
 
+#[ Profile Interface
+
+{variable:profile:*timed-functions*}
+
+{function:profile:profile}
+{function:profile:unprofile}
+{function:profile:report-time}
+{function:profile:reset-time}
+]#
+
 ;;; PROFILE-1-FUNCTION  --  Internal
 ;;;
-;;;    Profile the function Name.  If already profiled, unprofile first.
+;;; Profile the function Name.  If already profiled, unprofile first.
 ;;;
 (defun profile-1-function (name callers-p)
   (cond ((fboundp name)
@@ -281,13 +437,17 @@
 ;;; PROFILE  --  Public
 ;;;
 (defmacro profile (&rest names)
-  "PROFILE Name*
-   Wraps profiling code around the named functions.  As in TRACE, the names are
-   not evaluated.  If a function is already profiled, then unprofile and
-   reprofile (useful to notice function redefinition.)  If a name is undefined,
-   then we give a warning and ignore it.  If :CALLERS T appears, subsequent
-   names have counts of the most common calling functions recorded.
-   See also UNPROFILE, REPORT-TIME and RESET-TIME."
+  "profile name*
+
+   Wraps profiling code around the named functions.  As in `trace', the
+   names are not evaluated.  If a function is already profiled, then
+   unprofile and reprofile (useful to notice function redefinition).  If a
+   name is undefined, then give a warning and ignore it.
+
+   If :callers #t appears, subsequent names have counts of the most common
+   calling functions recorded.
+
+   See also `unprofile', `report-time' and `reset-time'."
   (let ((names names)
 	(callers nil)
 	(res ()))
@@ -306,14 +466,16 @@
 ;;; Add profiling to all symbols in the given package.
 ;;;
 (defun profile-all (&key (package *package*) (callers-p nil))
-  "PROFILE-ALL
+  "Wrap profiling code around all functions in $package.  If a function is
+   already profiled, then unprofile and reprofile (useful to notice
+   function redefinition).
 
- Wraps profiling code around all functions in PACKAGE, which defaults
- to *PACKAGE*. If a function is already profiled, then unprofile and
- reprofile (useful to notice function redefinition.)  If a name is
- undefined, then we give a warning and ignore it.  If CALLERS-P is T
- names have counts of the most common calling functions recorded. See
- also UNPROFILE, REPORT-TIME and RESET-TIME. "
+   If a name is undefined, then give a warning and ignore it.
+
+   If $callers-p is #t names have counts of the most common calling
+   functions recorded.
+
+   See also `unprofile', `report-time' and `reset-time'. "
   (let ((package (if (packagep package)
 		     package
 		     (find-package package))))
@@ -325,8 +487,8 @@
 ;;; UNPROFILE  --  Public
 ;;;
 (defmacro unprofile (&rest names)
-  "Unwraps the profiling code around the named functions.  Names defaults to
-  the list of all currently profiled functions."
+  "Unwrap the profiling code around the named functions.  If $names is ()
+   unprofile all currently profiled functions."
   `(dolist (name ,(if names `',names '*timed-functions*) (values))
      (unprofile-1-function name)))
 
@@ -344,8 +506,23 @@
 	      name))))
 
 (defmacro report-time (&rest names)
-  "Reports the time spent in the named functions.  Names defaults to the list of
-  all currently profiled functions."
+  "report-time name*
+
+   Print a report of the following information for each named function:
+
+    * The total CPU time used in that function for all calls,
+
+    * the total number of bytes consed in that function for all calls,
+
+    * the total number of calls,
+
+    * the average amount of CPU time per call.
+
+   Summary totals of the CPU time, consing and calls columns are printed.
+   An estimate of the profiling overhead is also printed (see below).
+
+   If $names is (), then print the times for all currently profiled
+   functions."
   `(%report-times ,(if names `',names '*timed-functions*)))
 
 (defstruct (time-info
@@ -456,8 +633,10 @@
     (values)))
 
 (defmacro reset-time (&rest names)
-  "Resets the time counter for the named functions.  Names defaults to the list
-  of all currently profiled functions."
+  "reset-time name*
+
+   Reset the profiling counters associated with the named functions.  If
+   $names is (), then reset all currently profiled functions."
   `(%reset-time ,(if names `',names '*timed-functions*)))
 
 (defun %reset-time (names)

@@ -1,20 +1,6 @@
-;;; -*- Package: MIPS; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/subprim.lisp,v 1.22 1994/10/31 04:44:16 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    Linkage information for standard static functions, and random vops.
-;;;
-;;; Written by William Lott.
-;;; 
-(in-package "MIPS")
+;;; Linkage information for standard static functions, and random vops.
 
+(in-package "MIPS")
 
 
 ;;;; Length
@@ -34,29 +20,25 @@
   (:generator 50
     (move ptr object)
     (move count zero-tn)
-    
+
     LOOP
-    
+
     (inst beq ptr null-tn done)
     (inst nop)
-    
+
     (inst and temp ptr lowtag-mask)
     (inst xor temp list-pointer-type)
     (inst bne temp zero-tn not-list)
     (inst nop)
-    
+
     (loadw ptr ptr cons-cdr-slot list-pointer-type)
     (inst b loop)
     (inst addu count count (fixnum 1))
-    
+
     NOT-LIST
     (cerror-call vop done object-not-list-error ptr)
-    
+
     DONE
     (move result count)))
-       
 
 (define-static-function length (object) :translate length)
-
-
-

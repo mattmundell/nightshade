@@ -146,7 +146,7 @@ void seg_force_resident(struct segment *seg,
 
     if(prot!=0){
 	os_vm_address_t end=addr+len, touch=addr;
-		
+
 	while(touch<end){
 	    int contents=(*(char *)touch);
 	    if(prot&OS_VM_PROT_WRITE)
@@ -183,7 +183,7 @@ int mapped_fd;
 	    max_segments-=GROW_MAX_SEGS;
 	    return NULL;
 	}
-	    
+
 	segments=new_segs;
     }
 
@@ -357,7 +357,7 @@ int mapped_fd;
     return seg;
 }
 
-/* 
+/*
  * Change the attributes of the given range of an existing segment, and return
  * a segment corresponding to the new bit.
  */
@@ -378,17 +378,17 @@ int mapped_fd;
        || file_offset!=ADJ_OFFSET(seg->file_offset,addr-seg->start))
     {
 	os_vm_size_t old_len=seg->length, seg_offset=(addr-seg->start);
-	
+
 	if(old_len<len+seg_offset){
 	    struct segment *next=seg+1;
-	    
+
 #ifdef DEBUG
 	    fprintf(stderr,
 		    ";;; seg_change_range: region 0x%08x[0x%08x] overflows 0x%08x[0x%08x]\n",
 		    addr,len,
 		    seg->start,old_len);
 #endif
-	    
+
 	    while(!seg_last_p(seg) && next->start+next->length<=end){
 #ifdef DEBUG
 		fprintf(stderr,
@@ -398,14 +398,14 @@ int mapped_fd;
 #endif
 		seg_destroy(next);
 	    }
-	    
+
 	    if(!seg_last_p(seg) && next->start<end){
 		next->length-=end-next->start;
 		next->start=end;
 		old_len=next->start-seg->start;
 	    }else
 		old_len=len+seg_offset;
-	    
+
 #ifdef DEBUG
 	    fprintf(stderr,
 		    ";;; seg_change_range: extended first seg to 0x%08x[0x%08x]\n",
@@ -507,7 +507,7 @@ int is_readable;
 	addr=os_round_up_to_page(real);
 	if(addr!=real)
 	    munmap((caddr_t)real,addr-real);
-	
+
 	overflow=real_page_size_difference-(addr-real);
 	if(overflow!=0)
 	    munmap((caddr_t)(addr+len-real_page_size_difference),overflow);
@@ -627,26 +627,6 @@ os_vm_size_t length;
 	if (kr != KERN_SUCCESS)
 		mach_error("Could not flush the instruction cache", kr);
 #endif
-#ifdef SOLARIS /* also SunOS ?? */
-	static int flushit = -1;
-	/*
-	 * On some systems, iflush needs to be emulated in the kernel
-	 * On those systems, it isn't necessary
-	 * Call getenv() only once.
-	 */
-	if (flushit == -1)
-		flushit = getenv("CMUCL_NO_SPARC_IFLUSH") == 0;
-
-	if (flushit) {
-		static int traceit = -1;
-		if (traceit == -1)
-			traceit = getenv("CMUCL_TRACE_SPARC_IFLUSH") != 0;
-
-		if (traceit)
-			fprintf(stderr,";;;iflush %p - %x\n", address,length);
-		flush_icache(address,length);
-	}
-#endif
 }
 
 void os_protect(addr, len, prot)
@@ -720,7 +700,7 @@ static boolean maybe_gc(HANDLER_ARGS)
 }
 
 /*
- * The primary point of catching segmentation violations is to allow 
+ * The primary point of catching segmentation violations is to allow
  * read only memory to be re-mapped with more permissions when a write
  * is attempted.  this greatly decreases the residency of the program
  * in swap space since read only areas don't take up room
@@ -867,7 +847,6 @@ char *	dlerror(void) { return "no dynamic linking"; }
 
 /* For now we put in some porting functions */
 
-#ifndef SOLARIS25
 int
 getdtablesize(void)
 {
@@ -951,7 +930,6 @@ killpg(int pgrp, int sig)
     }
     return kill(-pgrp, sig);
 }
-#endif
 
 int
 sigblock(int mask)
@@ -966,7 +944,6 @@ sigblock(int mask)
     return old.__sigbits[0];
 }
 
-#ifndef SOLARIS25
 int
 wait3(int *status, int options, struct rusage *rp)
 {
@@ -974,7 +951,6 @@ wait3(int *status, int options, struct rusage *rp)
 	memset(rp, 0, sizeof(struct rusage));
     return waitpid(-1, status, options);
 }
-#endif
 
 int
 sigsetmask(int mask)
@@ -989,7 +965,6 @@ sigsetmask(int mask)
     return old.__sigbits[0];
 
 }
-
 #endif /* SOLARIS */
 
 os_vm_address_t
@@ -1005,20 +980,20 @@ round_up_sparse_size(os_vm_address_t addr)
  */
 static os_vm_address_t spaces[] =
 {
-  READ_ONLY_SPACE_START, STATIC_SPACE_START, 
+  READ_ONLY_SPACE_START, STATIC_SPACE_START,
   BINDING_STACK_START, CONTROL_STACK_START
 };
 
 /*
-  
+
  * The corresponding array for the size of each space.  Be sure that
  * the spaces and holes don't overlap!  The sizes MUST be on
  * SPARSE_BLOCK_SIZE boundaries.
- 
+
  */
-static unsigned long space_size[] = 
+static unsigned long space_size[] =
 {
-  READ_ONLY_SPACE_SIZE, STATIC_SPACE_SIZE, 
+  READ_ONLY_SPACE_SIZE, STATIC_SPACE_SIZE,
   BINDING_STACK_SIZE, CONTROL_STACK_SIZE
 };
 
@@ -1033,14 +1008,14 @@ void make_holes(void)
 {
   int k;
   os_vm_address_t hole;
-  
+
   /* Make holes of the appropriate size for desired spaces */
-  
+
   for (k = 0; k < sizeof(spaces)/sizeof(spaces[0]); ++k)
     {
 
       hole = spaces[k] + space_size[k];
-    
+
       if (os_validate(hole, HOLE_SIZE) == NULL) {
         fprintf(stderr,
                 "ensure_space: Failed to validate hole of %ld bytes at 0x%08X\n",
@@ -1054,10 +1029,10 @@ void make_holes(void)
 
   /* Round up the dynamic_space_size to the nearest SPARSE_BLOCK_SIZE */
   dynamic_space_size = round_up_sparse_size(dynamic_space_size);
-  
+
   /* Now make a hole for the dynamic spaces */
   hole = dynamic_space_size + (os_vm_address_t) dynamic_0_space;
-  
+
   if (os_validate(hole, HOLE_SIZE) == NULL)
     {
       fprintf(stderr,

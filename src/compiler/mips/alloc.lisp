@@ -1,18 +1,4 @@
-;;; -*- Package: MIPS -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/alloc.lisp,v 1.28 1994/10/31 04:44:16 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Allocation VOPs for the MIPS port.
-;;;
-;;; Written by William Lott.
-;;; 
 
 (in-package "MIPS")
 
@@ -115,7 +101,7 @@
     (inst and unboxed ndescr)
     (inst sll ndescr boxed (- type-bits word-shift))
     (inst or ndescr code-header-type)
-    
+
     (pseudo-atomic (pa-flag)
       (inst or result alloc-tn other-pointer-type)
       (storew ndescr result 0 other-pointer-type)
@@ -189,7 +175,7 @@
     (error "MAKE-CLOSURE vop used in gengc system?")))
 
 ;;; The compiler likes to be able to directly make value cells.
-;;; 
+;;;
 (define-vop (make-value-cell)
   (:args (value :to :save :scs (descriptor-reg any-reg null zero)))
   (:temporary (:scs (non-descriptor-reg)) temp)

@@ -1,30 +1,8 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/x86/float.lisp,v 1.6.2.6 2000/06/26 15:57:49 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains floating point support for the x86.
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;;
-;;; Rewrite, enhancements, complex-float and long-float support by
-;;; Douglas Crosher, 1996, 1997, 1998, 1999, 2000.
-;;;
+;;; Floating point support for the x86.
 
-(in-package :x86)
+(in-package "X86")
 
 
-
 ;;; Popping the FP stack.
 ;;;
 ;;; The default is to use a store and pop, fstp fr0.
@@ -134,7 +112,7 @@
    (inst fldl ea))
 
 
-;;;; Move functions:
+;;;; Move functions.
 
 ;;; x is source, y is destination
 (define-move-function (load-single 2) (vop x y)
@@ -211,7 +189,7 @@
 	    (t (warn "Ignoring bogus i387 Constant ~a" value))))))
 
 
-;;;; Complex float move functions
+;;;; Complex float move functions.
 
 (defun complex-single-reg-real-tn (x)
   (make-random-tn :kind :normal :sc (sc-or-lose 'single-reg *backend*)
@@ -309,9 +287,8 @@
     (inst fxch imag-tn)))
 
 
-;;;; Move VOPs:
+;;;; Move VOPs.
 
-;;;
 ;;; Float register to register moves.
 ;;;
 (define-vop (float-move)
@@ -346,7 +323,6 @@
 #+long-float
 (define-move-vop long-move :move (long-reg) (long-reg))
 
-;;;
 ;;; Complex float register to register moves.
 ;;;
 (define-vop (complex-float-move)
@@ -397,9 +373,8 @@
   (complex-long-reg) (complex-long-reg))
 
 
-;;;
-;;; Move from float to a descriptor reg. allocating a new float
-;;; object in the process.
+;;; Move from float to a descriptor reg. allocating a new float object in
+;;; the process.
 ;;;
 (define-vop (move-from-single)
   (:args (x :scs (single-reg) :to :save))
@@ -467,7 +442,6 @@
 (define-move-vop move-from-fp-constant :move
   (fp-constant) (descriptor-reg))
 
-;;;
 ;;; Move from a descriptor to a float register
 ;;;
 (define-vop (move-to-single)
@@ -500,7 +474,6 @@
 (define-move-vop move-to-long :move (descriptor-reg) (long-reg))
 
 
-;;;
 ;;; Move from complex float to a descriptor reg. allocating a new
 ;;; complex float object in the process.
 ;;;
@@ -557,7 +530,6 @@
 (define-move-vop move-from-complex-long :move
   (complex-long-reg) (descriptor-reg))
 
-;;;
 ;;; Move from a descriptor to a complex float register
 ;;;
 (macrolet ((frob (name sc format)
@@ -588,8 +560,7 @@
 	  (frob move-to-complex-double complex-long-reg :long))
 
 
-;;;
-;;; The move argument vops.
+;;;; The move argument vops.
 ;;;
 ;;; Note these are also used to stuff fp numbers onto the c-call stack
 ;;; so the order is different than the lisp-stack.
@@ -634,7 +605,7 @@
 							    (:long 3)))
 						  vm:word-bytes)))))
 			     (with-tn@fp-top(x)
-			       ,@(ecase format 
+			       ,@(ecase format
 				    (:single '((inst fst  ea)))
 				    (:double '((inst fstd ea)))
 				    #+long-float
@@ -730,10 +701,10 @@
   (descriptor-reg))
 
 
-;;;; Arithmetic VOPs:
+;;;; Arithmetic VOPs.
 
-;;; dtc: The floating point arithmetic vops.
-;;; 
+;;; The floating point arithmetic vops.
+;;;
 ;;; Note: Although these can accept x and y on the stack or pointed to
 ;;; from a descriptor register, they will work with register loading
 ;;; without these.  Same deal with the result - it need only be a
@@ -746,7 +717,7 @@
 ;;;
 ;;; It may also be useful to handle constant args?
 ;;;
-;;; 22-Jul-97: descriptor args lose in some simple cases when
+;;; FIX 22-Jul-97: descriptor args lose in some simple cases when
 ;;; a function result computed in a loop. Then Python insists
 ;;; on consing the intermediate values! For example
 #|
@@ -912,7 +883,7 @@
 			 (inst fst r))))
 		 (single-stack
 		  (inst fst (ea-for-sf-stack r))))))))
-	       
+
 	 (define-vop (,dname)
 	   (:translate ,op)
 	   (:args (x :scs (double-reg double-stack #+nil descriptor-reg)
@@ -942,7 +913,7 @@
 		      ;; XX the source register will not be valid.
 		      (note-next-instruction vop :internal-error)
 		      (inst fxch r))))
-	      
+
 	      ;; x and r are the same register.
 	      ((and (sc-is x double-reg) (location= x r))
 	       (cond ((zerop (tn-offset r))
@@ -1087,7 +1058,7 @@
 		      ;; XX the source register will not be valid.
 		      (note-next-instruction vop :internal-error)
 		      (inst fxch r))))
-	      
+
 	      ;; x and r are the same register.
 	      ((location= x r)
 	       (cond ((zerop (tn-offset r))
@@ -1145,7 +1116,7 @@
 			(inst wait)))
 		     (t
 		      (inst fst r))))))))))
-    
+
     (frob + fadd-sti fadd-sti
 	  fadd fadd +/single-float 2
 	  faddd faddd +/double-float 2
@@ -1198,7 +1169,7 @@
   (frob %negate/long-float fchs %negate long-reg long-float))
 
 
-;;;; Comparison:
+;;;; Comparison.
 
 #+long-float
 (deftransform eql ((x y) (long-float long-float))
@@ -1556,17 +1527,16 @@
   (frob = #x40))
 
 
-
 ;;;; Enhanced Pentium Pro floating point comparisons.
 
-;;; These comparisions use the faster sequences bases upon FCOMI and FUCOMI,
-;;; which write to the condition codes.  However, correct IEEE handling of
-;;; unordered arguments requires the comparision of multiple flags which is
-;;; only possible for the comparison (> ST0 operand) in which case the :b and
-;;; :be tests can check that both ZF and CF are zero, or either is one
-;;; respectively. For the opposite comparision (< ST0 operand), the arguments
-;;; may be swapped and the > comparision used, but for equality the slower
-;;; FNSTSW variation must be used.
+;;; These comparisions use the faster sequences bases upon FCOMI and
+;;; FUCOMI, which write to the condition codes.  However, correct IEEE
+;;; handling of unordered arguments requires the comparision of multiple
+;;; flags which is only possible for the comparison (> ST0 operand) in
+;;; which case the :b and :be tests can check that both ZF and CF are zero,
+;;; or either is one respectively. For the opposite comparision (< ST0
+;;; operand), the arguments may be swapped and the > comparision used, but
+;;; for equality the slower FNSTSW variation must be used.
 
 (define-vop (ppro-</float)
   (:args (x) (y))
@@ -1649,7 +1619,7 @@
   #+long-float (frob long-float long-reg))
 
 
-;;;; Conversion:
+;;;; Conversion.
 
 (macrolet ((frob (name translate to-sc to-type)
 	     `(define-vop (,name)
@@ -1718,7 +1688,7 @@
 	       (:generator 2
 		(note-this-location vop :internal-error)
 		(unless (location= x y)
-		  (cond 
+		  (cond
 		   ((zerop (tn-offset x))
 		    ;; x is in ST0, y is in another reg. not ST0
 		    (inst fst  y))
@@ -1731,7 +1701,7 @@
 		    (inst fxch x)
 		    (inst fst  y)
 		    (inst fxch x))))))))
-  
+
   (frob %single-float/double-float %single-float double-reg
 	double-float single-reg single-float)
   #+long-float
@@ -1748,8 +1718,6 @@
   #+long-float
   (frob %long-float/double-float %long-float double-reg double-float
 	long-reg long-float))
-
-
 
 (macrolet ((frob (trans from-sc from-type round-p)
 	     `(define-vop (,(symbolicate trans "/" from-type))
@@ -1843,7 +1811,6 @@
   (frob %unary-round double-reg double-float t)
   #+long-float
   (frob %unary-round long-reg long-float t))
-
 
 (define-vop (make-single-float)
   (:args (bits :scs (signed-reg) :target res
@@ -2081,7 +2048,7 @@
 	       vm:other-pointer-type)))))
 
 
-;;;; Float mode hackery:
+;;;; Float mode hackery.
 
 (deftype float-modes () '(unsigned-byte 32)) ; really only 16
 (defknown floating-point-modes () float-modes (flushable))
@@ -2135,14 +2102,13 @@
    (move res new)))
 
 
-
 #-long-float
 (progn
 
 ;;; Lets use some of the 80387 special functions.
 ;;;
-;;; These defs will not take effect unless code/irrat.lisp is modified
-;;; to remove the inlined alien routine def.
+;;; These defs will not take effect unless code/irrat.lisp is modified to
+;;; remove the inlined alien routine def.
 
 (macrolet ((frob (func trans op)
 	     `(define-vop (,func)
@@ -2199,7 +2165,7 @@
   (:generator 5
     (note-this-location vop :internal-error)
     (case (tn-offset x)
-       (0 
+       (0
 	(inst fstp fr1))
        (1
 	(fp-pop))
@@ -2218,7 +2184,7 @@
        (t
 	(inst fxch fr1)
 	(inst fstd y)))))
-	     
+
 ;;; These versions of fsin, fcos, and ftan try to use argument
 ;;; reduction but to do this accurately requires greater precision and
 ;;; it is hopelessly inaccurate.
@@ -2267,7 +2233,7 @@
 			  (inst fstd y))))))
 	  (frob fsin  %sin fsin)
 	  (frob fcos  %cos fcos))
-	     
+
 #+nil
 (define-vop (ftan)
   (:translate %tan)
@@ -2289,7 +2255,7 @@
   (:generator 5
     (note-this-location vop :internal-error)
     (case (tn-offset x)
-       (0 
+       (0
 	(inst fstp fr1))
        (1
 	(fp-pop))
@@ -2361,7 +2327,7 @@
 			  (inst fstd y))))))
 	  (frob fsin  %sin fsin)
 	  (frob fcos  %cos fcos))
-	     
+
 (define-vop (ftan)
   (:translate %tan)
   (:args (x :scs (double-reg) :target fr0))
@@ -2383,7 +2349,7 @@
   (:generator 5
     (note-this-location vop :internal-error)
     (case (tn-offset x)
-       (0 
+       (0
 	(inst fstp fr1))
        (1
 	(fp-pop))
@@ -2700,7 +2666,7 @@
   (:generator 5
      (note-this-location vop :internal-error)
      ;; Setup x in fr0 and y in fr1
-     (cond 
+     (cond
       ;; x in fr0; y in fr1
       ((and (sc-is x double-reg) (zerop (tn-offset x))
 	    (sc-is y double-reg) (= 1 (tn-offset y))))
@@ -2780,7 +2746,7 @@
 	   (inst fldd (ea-for-df-stack x)))
 	  (descriptor-reg
 	   (inst fldd (ea-for-df-desc x))))))
-      
+
      ;; Now have x at fr0; and y at fr1
      (inst fyl2x)
      ;; Now fr0=y log2(x)
@@ -2881,7 +2847,7 @@
   (:generator 5
      (note-this-location vop :internal-error)
      ;; Setup x in fr0 and y in fr1
-     (cond 
+     (cond
       ;; x in fr0; y in fr1
       ((and (sc-is x double-reg) (zerop (tn-offset x))
 	    (sc-is y double-reg) (= 1 (tn-offset y))))
@@ -2961,7 +2927,7 @@
 	   (inst fldd (ea-for-df-stack x)))
 	  (descriptor-reg
 	   (inst fldd (ea-for-df-desc x))))))
-      
+
      ;; Now have x at fr0; and y at fr1
      (inst fscale)
      (unless (zerop (tn-offset r))
@@ -3137,7 +3103,7 @@
   (:generator 5
      (note-this-location vop :internal-error)
      ;; Setup x in fr1 and 1.0 in fr0
-     (cond 
+     (cond
       ;; x in fr0
       ((and (sc-is x double-reg) (zerop (tn-offset x)))
        (inst fstp fr1))
@@ -3184,7 +3150,7 @@
   (:generator 5
      (note-this-location vop :internal-error)
      ;; Setup x in fr1 and y in fr0
-     (cond 
+     (cond
       ;; y in fr0; x in fr1
       ((and (sc-is y double-reg) (zerop (tn-offset y))
 	    (sc-is x double-reg) (= 1 (tn-offset x))))
@@ -3264,7 +3230,7 @@
 	   (inst fldd (ea-for-df-stack y)))
 	  (descriptor-reg
 	   (inst fldd (ea-for-df-desc y))))))
-      
+
      ;; Now have y at fr0; and x at fr1
      (inst fpatan)
      (inst fld fr0)
@@ -3339,7 +3305,7 @@
   (:generator 5
     (note-this-location vop :internal-error)
     (case (tn-offset x)
-       (0 
+       (0
 	(inst fstp fr1))
        (1
 	(fp-pop))
@@ -3358,7 +3324,7 @@
        (t
 	(inst fxch fr1)
 	(inst fstd y)))))
-	     
+
 ;;; These versions of fsin, fcos, and ftan try to use argument
 ;;; reduction but to do this accurately requires greater precision and
 ;;; it is hopelessly inaccurate.
@@ -3407,7 +3373,7 @@
 			  (inst fstd y))))))
 	  (frob fsin  %sin fsin)
 	  (frob fcos  %cos fcos))
-	     
+
 #+nil
 (define-vop (ftan)
   (:translate %tan)
@@ -3429,7 +3395,7 @@
   (:generator 5
     (note-this-location vop :internal-error)
     (case (tn-offset x)
-       (0 
+       (0
 	(inst fstp fr1))
        (1
 	(fp-pop))
@@ -3501,7 +3467,7 @@
 			  (inst fstd y))))))
 	  (frob fsin  %sin fsin)
 	  (frob fcos  %cos fcos))
-	     
+
 (define-vop (ftan)
   (:translate %tan)
   (:args (x :scs (long-reg) :target fr0))
@@ -3523,7 +3489,7 @@
   (:generator 5
     (note-this-location vop :internal-error)
     (case (tn-offset x)
-       (0 
+       (0
 	(inst fstp fr1))
        (1
 	(fp-pop))
@@ -3789,7 +3755,7 @@
   (:generator 5
      (note-this-location vop :internal-error)
      ;; Setup x in fr0 and y in fr1
-     (cond 
+     (cond
       ;; x in fr0; y in fr1
       ((and (sc-is x long-reg) (zerop (tn-offset x))
 	    (sc-is y long-reg) (= 1 (tn-offset y))))
@@ -3869,7 +3835,7 @@
 	   (inst fldl (ea-for-lf-stack x)))
 	  (descriptor-reg
 	   (inst fldl (ea-for-lf-desc x))))))
-      
+
      ;; Now have x at fr0; and y at fr1
      (inst fyl2x)
      ;; Now fr0=y log2(x)
@@ -3970,7 +3936,7 @@
   (:generator 5
      (note-this-location vop :internal-error)
      ;; Setup x in fr0 and y in fr1
-     (cond 
+     (cond
       ;; x in fr0; y in fr1
       ((and (sc-is x long-reg) (zerop (tn-offset x))
 	    (sc-is y long-reg) (= 1 (tn-offset y))))
@@ -4050,7 +4016,7 @@
 	   (inst fldl (ea-for-lf-stack x)))
 	  (descriptor-reg
 	   (inst fldl (ea-for-lf-desc x))))))
-      
+
      ;; Now have x at fr0; and y at fr1
      (inst fscale)
      (unless (zerop (tn-offset r))
@@ -4223,7 +4189,7 @@
   (:generator 5
      (note-this-location vop :internal-error)
      ;; Setup x in fr1 and 1.0 in fr0
-     (cond 
+     (cond
       ;; x in fr0
       ((and (sc-is x long-reg) (zerop (tn-offset x)))
        (inst fstp fr1))
@@ -4270,7 +4236,7 @@
   (:generator 5
      (note-this-location vop :internal-error)
      ;; Setup x in fr1 and y in fr0
-     (cond 
+     (cond
       ;; y in fr0; x in fr1
       ((and (sc-is y long-reg) (zerop (tn-offset y))
 	    (sc-is x long-reg) (= 1 (tn-offset x))))
@@ -4350,7 +4316,7 @@
 	   (inst fldl (ea-for-lf-stack y)))
 	  (descriptor-reg
 	   (inst fldl (ea-for-lf-desc y))))))
-      
+
      ;; Now have y at fr0; and x at fr1
      (inst fpatan)
      (inst fld fr0)
@@ -4495,7 +4461,6 @@
        (inst fxch imag)
        (store-long-float (ea-for-clf-imag-stack r))
        (inst fxch imag)))))
-
 
 (define-vop (complex-float-value)
   (:args (x :target r))

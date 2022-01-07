@@ -1,24 +1,6 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/sparc/arith.lisp,v 1.10.2.3 2000/09/26 15:16:03 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the VM definition arithmetic VOPs for the SPARC.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Converted by William Lott.
-;;;
-;;; Enhancements/debugging by Raymond Toy 1999, 2000
+;;; The VM definition arithmetic VOPs for the SPARC.
 
 (in-package "SPARC")
-
 
 
 ;;;; Unary operations.
@@ -27,7 +9,6 @@
   (:policy :fast-safe)
   (:effects)
   (:affected))
-
 
 (define-vop (fixnum-unop fast-safe-arith-op)
   (:args (x :scs (any-reg)))
@@ -63,7 +44,6 @@
   (:generator 1
     (inst not res x)))
 
-
 
 ;;;; Binary fixnum operations.
 
@@ -93,7 +73,6 @@
   (:result-types signed-num)
   (:note "inline (signed-byte 32) arithmetic"))
 
-
 (define-vop (fast-fixnum-binop-c fast-safe-arith-op)
   (:args (x :target r :scs (any-reg zero)))
   (:info y)
@@ -120,7 +99,6 @@
   (:results (r :scs (signed-reg)))
   (:result-types signed-num)
   (:note "inline (signed-byte 32) arithmetic"))
-
 
 (eval-when (compile load eval)
 
@@ -181,7 +159,7 @@
     (:args (x :target r :scs (unsigned-reg))
 	   (y :scs (signed-reg signed-stack)))
   (:arg-types unsigned-num signed-num))
-    
+
 ;;; Special case fixnum + and - that trap on overflow.  Useful when we
 ;;; don't know that the output type is a fixnum.
 
@@ -321,7 +299,7 @@
       (inst nop)
       (inst nop)
       (inst nop)
-      
+
       (inst udiv q x y)
       ;; Compute remainder
       (inst umul r q y)
@@ -525,8 +503,6 @@
       (immediate
        (inst sra temp number (tn-value amount))))
     (inst andn result temp 3)))
-    
-
 
 
 (define-vop (signed-byte-32-len)
@@ -549,7 +525,7 @@
 
       (emit-label loop)
       (inst add res (fixnum 1))
-      
+
       (emit-label test)
       (inst cmp shift)
       (inst b :ne loop)
@@ -579,7 +555,6 @@
 	  (inst srl res shift)
 	  (inst and res mask)
 	  (inst add res temp)))))
-
 
 ;;; Multiply and Divide.
 
@@ -686,7 +661,6 @@
   (:arg-types unsigned-num (:constant (unsigned-byte 12)))
   (:info target not-p y))
 
-
 (defmacro define-conditional-vop (tran cond unsigned not-cond not-unsigned)
   `(progn
      ,@(mapcar #'(lambda (suffix cost signed)
@@ -724,7 +698,6 @@
 ;;; the first arg and a higher cost.  The reason for doing this is to prevent
 ;;; fixnum specific operations from being used on word integers, spuriously
 ;;; consing the argument.
-;;;
 
 (define-vop (fast-eql/fixnum fast-conditional)
   (:args (x :scs (any-reg descriptor-reg zero))
@@ -779,7 +752,6 @@
       (inst or res temp)
       (emit-label done)
       (move result res))))
-
 
 (define-vop (32bit-logical)
   (:args (x :scs (unsigned-reg zero))
@@ -859,8 +831,6 @@
   (:generator 1
     (inst srl r num amount)))
 
-
-
 
 ;;;; Bignum stuff.
 
@@ -930,7 +900,6 @@
     (inst movr result null-tn digit :lz)
     (inst movr result temp digit :gez)))
 
-
 (define-vop (add-w/carry)
   (:translate bignum::%add-with-carry)
   (:policy :fast-safe)
@@ -964,7 +933,7 @@
 
 ;;; EMIT-MULTIPLY -- This is used both for bignum stuff and in assembly
 ;;; routines.
-;;; 
+;;;
 (defun emit-multiply (multiplier multiplicand result-high result-low)
   "Emit code to multiply MULTIPLIER with MULTIPLICAND, putting the result
   in RESULT-HIGH and RESULT-LOW.  KIND is either :signed or :unsigned.
@@ -980,7 +949,7 @@
 	 ;; unsigned 64-bit numbers.
 	 (inst srl multiplier 0)
 	 (inst srl multiplicand 0)
-	 
+
 	 ;; Multiply the two numbers and put the result in
 	 ;; result-high.  Copy the low 32-bits to result-low.  Then
 	 ;; shift result-high so the high 32-bits end up in the low
@@ -1147,7 +1116,7 @@
   (:result-types unsigned-num unsigned-num)
   (:guard (backend-featurep :sparc-64))
   (:generator 5
-    ;; Set dividend to be div-high and div-low	      
+    ;; Set dividend to be div-high and div-low
     (inst sllx dividend div-high 32)
     (inst add dividend div-low)
     ;; Compute quotient
@@ -1169,7 +1138,6 @@
        (inst sll res digit 2))
       (signed-reg
        (move res digit)))))
-
 
 (define-vop (digit-ashr)
   (:translate bignum::%ashr)
@@ -1252,6 +1220,7 @@
     (inst fcmpd x y :fcc1)
     (inst cfmovd :le result x :fcc1)
     (inst cfmovd :g result y :Fcc1)))
+
 
 ;; Need these so constant folding works with the deftransform.
 
@@ -1297,4 +1266,3 @@
 		 (sparc::ash-right-unsigned num (- shift)))))
 	  (t
 	   (give-up)))))
-

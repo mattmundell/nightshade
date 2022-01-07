@@ -3,7 +3,6 @@
 
 (in-package "EDI")
 
-
 ;;; The IBM RT keyboard has X11 keysyms defined for the following modifier
 ;;; keys, but we leave them mapped to nil indicating that they are non-events
 ;;; to be ignored:
@@ -15,6 +14,87 @@
 ;;;    lock		65509
 ;;;
 
+#[ Editor Key-events
+
+The canonical representation of editor input is a key-event.  When you type
+on the keyboard, the editor receives key-events.  Key-events have names for
+their basic form, and we refer to this name as a keysym.  This manual
+displays keysyms in a Bold font.  For example, a and b are the keys that
+normally cause the editor to insert the characters a and b.
+
+Key-events have modifiers or bits indicating a special interpretation of
+the root key-event.  Although the keyboard places limitations on what
+key-events you can actually type, the editor understands arbitrary
+combinations of the following modifiers: Control, Meta, Super, Hyper,
+Shift, and Lock.  This manual represents the bits in a key-event by
+prefixing the keysym with combinations of C-, M-, S-, H-, Shift-, and Lock.
+For example, a with both the control and meta bits set appears as C-M-a.
+In general, ignore the shift and lock modifiers since this manual never
+talks about keysyms that explicitly have these bits set; that is, it may
+talk about the key-event A, but it would never mention Shift-a.  These are
+actually distinct key-events, but typical input coercion turns presents the
+editor with the former, not the latter.
+
+Key-event modifiers are totally independent of the keysym.  This may be new
+to you if you are used to thinking in terms of ASCII character codes.  For
+example, with key-events you can distinctly identify both uppercase and
+lowercase keysyms with the control bit set; therefore, C-a and C-A may have
+different meanings to the editor.
+
+Some keysyms' names consist of more than a single character, and these
+usually correspond to the legend on the keyboard.  For example, some
+keyboards let you enter Home, Return, F9, etc.
+
+In addition to a keyboard, you may have a mouse or pointer device.
+Key-events also represent this kind of input.  For example, the down and up
+transitions of the left button correspond to the Leftdown and Leftup
+keysyms.
+
+See sections [ Key Bindings ], [ Using X ] and [ Using Terminals ].
+]#
+
+#[ Editor Input
+
+The canonical representation of editor input is a key-event structure.
+Users can bind commands to keys (see section refkey-bindings), which are
+non-zero length sequences of key-events.  A key-event consists of an
+identifying token known as a keysym and a field of bits representing
+modifiers.  Users define keysyms, integers between 0 and 65535 inclusively,
+by supplying names that reflect the legends on their keyboard's keys.
+Users define modifier names similarly, but the system chooses the bit and
+mask for recognizing the modifier.  You can use keysym and modifier names
+to textually specify key-events and editor keys in a #k syntax.  The
+following are some examples:
+
+    #k"C-u"
+    #k"Control-u"
+    #k"c-m-z"
+    #k"control-x meta-d"
+    #k"a"
+    #k"A"
+    #k"Linefeed"
+
+This is convenient for use within code and in init files containing
+bind-key calls.
+
+The #k syntax is delimited by double quotes, but the system parses the
+contents rather than reading it as a Lisp string.  Within the double
+quotes, spaces separate multiple key-events.  A single key-event optionally
+starts with modifier names terminated by hyphens.  Modifier names are
+alphabetic sequences of characters which the system uses
+case-insensitively.  Following modifiers is a keysym name, which is
+case-insensitive if it consists of multiple characters, but if the name
+consists of only a single character, then it is case-sensitive.
+
+You can escape special characters -- hyphen, double quote, open angle
+bracket, close angle bracket, and space -- with a backslash, and you can
+specify a backslash by using two contiguously.  You can use angle brackets to
+enclose a keysym name with many special characters in it.  Between angle
+brackets appearing in a keysym name position, there are only two special
+characters, the closing angle bracket and backslash.
+
+The [Editor Key-events] section details key-events.
+]#
 
 ;;; Function keys for the RT.
 ;;;
@@ -175,6 +255,12 @@
 (ext::define-mouse-keysym 3 25605 "Rightdown" "Super" :button-press)
 (ext::define-mouse-keysym 3 25606 "Rightup" "Super" :button-release)
 
+(ext::define-mouse-keysym 4 25607 "Fourdown" "Super" :button-press)
+(ext::define-mouse-keysym 4 25608 "Fourup" "Super" :button-release)
+
+(ext::define-mouse-keysym 5 25609 "Fivedown" "Super" :button-press)
+(ext::define-mouse-keysym 5 25610 "Fiveup" "Super" :button-release)
+
 ;;; Sun keyboard.
 ;;;
 (ext:define-keysym 65387 "break")			;alternate (Sun).
@@ -184,20 +270,19 @@
 
 ;;;; SETFs of KEY-EVENT-CHAR and CHAR-KEY-EVENT.
 
-;;; Converting ASCII control characters to Common Lisp control characters:
-;;; ASCII control character codes are separated from the codes of the
+;;; Converting ASCII control characters to Lisp control characters: ASCII
+;;; control character codes are separated from the codes of the
 ;;; "non-controlified" characters by the code of atsign.  The ASCII control
 ;;; character codes range from ^@ (0) through ^_ (one less than the code of
 ;;; space).  We iterate over this range adding the ASCII code of atsign to
 ;;; get the "non-controlified" character code.  With each of these, we turn
-;;; the code into a Common Lisp character and set its :control bit.  Certain
-;;; ASCII control characters have to be translated to special Common Lisp
-;;; characters outside of the loop.
-;;;    With the advent of the editor running under X, and all the key bindings
-;;; changing, we also downcase each Common Lisp character (where normally
-;;; control characters come in upcased) in an effort to obtain normal command
-;;; bindings.  Commands bound to uppercase modified characters will not be
-;;; accessible to terminal interaction.
+;;; the code into a Lisp character and set its :control bit.  Certain ASCII
+;;; control characters have to be translated to special Lisp characters
+;;; outside of the loop.  With the advent of the editor running under X,
+;;; and all the key bindings changing, we also downcase each Lisp character
+;;; (where normally control characters come in upcased) in an effort to
+;;; obtain normal command bindings.  Commands bound to uppercase modified
+;;; characters will not be accessible to terminal interaction.
 ;;;
 (let ((@-code (char-code #\@)))
   (dotimes (i (char-code #\space))
@@ -210,7 +295,7 @@
 (setf (ext:char-key-event (code-char 27)) (ext::make-key-event #k"Alt"))
 (setf (ext:char-key-event (code-char 8)) (ext::make-key-event #k"Backspace"))
 ;;;
-;;; Other ASCII codes are exactly the same as the Common Lisp codes.
+;;; Other ASCII codes are exactly the same as the Lisp codes.
 ;;;
 (do ((i (char-code #\space) (1+ i)))
     ((= i 128))

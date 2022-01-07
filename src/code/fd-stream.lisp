@@ -1,8 +1,9 @@
-;;; Streams for UNIX file descriptors.
+;;; Streams for Unix file descriptors.
 
 (in-package "LISP")
 
-(export '(file-stream file-string-length stream-external-format))
+(export '(file-stream file-string-length stream-external-format
+	  fd-stream-read-n-bytes))
 (deftype file-stream () 'fd-stream)
 
 (in-package "SYSTEM")
@@ -18,11 +19,24 @@
 (in-package "LISP")
 
 
+#[ File Descriptor Streams
+
+Many of the Unix system calls return file descriptors.  fdstreams exist for
+creating stream around file descriptors, which is easier than using other
+Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
+(described in [Stream Extensions]) may be useful with such streams.
+
+{function:system:make-fd-stream}
+{function:system:fd-stream-p}
+{function:system:fd-stream-fd}
+]#
+
+
 ;;;; Buffer manipulation routines.
 
 (defvar *available-buffers* ()
-  "List of available buffers.  Each buffer is an sap pointing to
-  bytes-per-buffer of memory.")
+  "List of available buffers.  Each buffer is a sap pointing to
+   bytes-per-buffer of memory.")
 
 (defconstant bytes-per-buffer (* 4 1024)
   "Number of bytes per buffer.")
@@ -55,7 +69,7 @@
   (original nil :type (or simple-string null))
   (delete-original nil)	      ; for :if-exists :rename-and-delete
   ;;
-  ;;; Number of bytes per element.
+  ;; Number of bytes per element.
   (element-size 1 :type index)
   (element-type 'base-char)   ; The type of element being transfered.
   (fd -1 :type fixnum)	      ; The file descriptor
@@ -75,12 +89,12 @@
   (ibuf-length nil :type (or index null))
   (ibuf-head 0 :type index)
   (ibuf-tail 0 :type index)
-
+  ;;
   ;; The output buffer.
   (obuf-sap nil :type (or system-area-pointer null))
   (obuf-length nil :type (or index null))
   (obuf-tail 0 :type index)
-
+  ;;
   ;; Output flushed, but not written due to non-blocking io.
   (output-later nil)
   (handler nil)
@@ -88,8 +102,16 @@
   ;; Timeout specified for this stream, or NIL if none.
   (timeout nil :type (or index null))
   ;;
-  ;; Pathname of the file this stream is opened to (returned by PATHNAME.)
+  ;; Pathname of the file this stream is opened to (returned by
+  ;; `pathname'.)
   (pathname nil :type (or pathname null)))
+
+(setf (documentation 'fd-stream-p 'function)
+  "Return true if $x is an fd-stream, else ().  Replaced by (typep $x
+   'file-stream).")
+
+(setf (documentation 'fd-stream-fd 'function)
+  "Return the file descriptor associated with $stream.")
 
 (defun %print-fd-stream (fd-stream stream depth)
   (declare (ignore depth) (stream stream))
@@ -115,7 +137,7 @@
 
 ;;; DO-OUTPUT-LATER -- internal
 ;;;
-;;;   Called by the server when we can write to the given file descriptor.
+;;; Called by the server when we can write to the given file descriptor.
 ;;; Attemt to write the data again. If it worked, remove the data from the
 ;;; output-later list. If it didn't work, something is wrong.
 ;;;
@@ -152,7 +174,7 @@
 
 ;;; OUTPUT-LATER -- internal
 ;;;
-;;;   Arange to output the string when we can write on the file descriptor.
+;;; Arange to output the string when we can write on the file descriptor.
 ;;;
 (defun output-later (stream base start end reuse-sap)
   (cond ((null (fd-stream-output-later stream))
@@ -174,9 +196,9 @@
 
 ;;; DO-OUTPUT -- internal
 ;;;
-;;;   Output the given noise. Check to see if there are any pending writes. If
-;;; so, just queue this one. Otherwise, try to write it. If this would block,
-;;; queue it.
+;;; Output the given noise. Check to see if there are any pending writes.
+;;; If so, just queue this one. Otherwise, try to write it. If this would
+;;; block, queue it.
 ;;;
 (defun do-output (stream base start end reuse-sap)
   (declare (type fd-stream stream)
@@ -202,7 +224,7 @@
 
 ;;; FLUSH-OUTPUT-BUFFER -- internal
 ;;;
-;;;   Flush any data in the output buffer.
+;;; Flush any data in the output buffer.
 ;;;
 (defun flush-output-buffer (stream)
   (let ((length (fd-stream-obuf-tail stream)))
@@ -212,7 +234,7 @@
 
 ;;; DEF-OUTPUT-ROUTINES -- internal
 ;;;
-;;;   Define output routines that output numbers size bytes long for the
+;;; Define output routines that output numbers size bytes long for the
 ;;; given bufferings. Use body to do the actual output.
 ;;;
 (defmacro def-output-routines ((name size &rest bufferings) &body body)
@@ -310,7 +332,7 @@
 
 ;;; OUTPUT-RAW-BYTES -- public
 ;;;
-;;;   Does the actual output. If there is space to buffer the string, buffer
+;;; Does the actual output. If there is space to buffer the string, buffer
 ;;; it. If the string would normally fit in the buffer, but doesn't because
 ;;; of other stuff in the buffer, flush the old noise out of the buffer and
 ;;; put the string in it. Otherwise we have a very long string, so just
@@ -328,8 +350,8 @@
 	   (bytes (- end start))
 	   (newtail (+ tail bytes)))
       (cond ((minusp bytes) ; Error case
-	     (cerror "Just go on as if nothing happened..."
-		     "~S called with :END before :START!"
+	     (cerror "Go on anyway..."
+		     "~S called with :end before :start."
 		     'output-raw-bytes))
 	    ((zerop bytes)) ; Easy case
 	    ((<= bytes space)
@@ -367,14 +389,14 @@
 
 ;;; FD-SOUT -- internal
 ;;;
-;;;   Routine to use to output a string. If the stream is unbuffered, slam
+;;; Routine to use to output a string. If the stream is unbuffered, slam
 ;;; the string down the file descriptor, otherwise use OUTPUT-RAW-BYTES to
-;;; buffer the string. Update charpos by checking to see where the last newline
-;;; was.
+;;; buffer the string.  Update charpos by checking to see where the last
+;;; newline was.
 ;;;
-;;;   Note: some bozos (the FASL dumper) call write-string with things other
-;;; than strings. Therefore, we must make sure we have a string before calling
-;;; position on it.
+;;; Note: some bozos (the FASL dumper) call write-string with things other
+;;; than strings. Therefore, we must make sure we have a string before
+;;; calling position on it.
 ;;;
 (defun fd-sout (stream thing start end)
   (let ((start (or start 0))
@@ -409,9 +431,9 @@
 
 ;;; PICK-OUTPUT-ROUTINE -- internal
 ;;;
-;;;   Find an output routine to use given the type and buffering. Return as
-;;; multiple values the routine, the real type transfered, and the number of
-;;; bytes per element.
+;;; Find an output routine to use given the type and buffering. Return as
+;;; multiple values the routine, the real type transfered, and the number
+;;; of bytes per element.
 ;;;
 (defun pick-output-routine (type buffering)
   (dolist (entry *output-routines*)
@@ -430,7 +452,7 @@
 
 ;;; DO-INPUT -- internal
 ;;;
-;;;   Fills the input buffer, and returns the first character. Throws to
+;;; Fills the input buffer, and returns the first character. Throws to
 ;;; eof-input-catcher if the eof was reached. Drops into system:server if
 ;;; necessary.
 ;;;
@@ -494,7 +516,7 @@
 
 ;;; INPUT-AT-LEAST -- internal
 ;;;
-;;;   Makes sure there are at least ``bytes'' number of bytes in the input
+;;; Makes sure there are at least ``bytes'' number of bytes in the input
 ;;; buffer. Keeps calling do-input until that condition is met.
 ;;;
 (defmacro input-at-least (stream bytes)
@@ -511,7 +533,7 @@
 
 ;;; INPUT-WRAPPER -- intenal
 ;;;
-;;;   Macro to wrap around all input routines to handle eof-error noise.
+;;; Macro to wrap around all input routines to handle eof-error noise.
 ;;;
 (defmacro input-wrapper ((stream bytes eof-error eof-value) &body read-forms)
   (let ((stream-var (gensym))
@@ -534,7 +556,7 @@
 
 ;;; DEF-INPUT-ROUTINE -- internal
 ;;;
-;;;   Defines an input routine.
+;;; Defines an input routine.
 ;;;
 (defmacro def-input-routine (name
 			     (type size sap head)
@@ -551,7 +573,7 @@
 
 ;;; INPUT-CHARACTER -- internal
 ;;;
-;;;   Routine to use in stream-in slot for reading string chars.
+;;; Routine to use in stream-in slot for reading string chars.
 ;;;
 (def-input-routine input-character
 		   (character 1 sap head)
@@ -559,7 +581,7 @@
 
 ;;; INPUT-UNSIGNED-8BIT-BYTE -- internal
 ;;;
-;;;   Routine to read in an unsigned 8 bit number.
+;;; Routine to read in an unsigned 8 bit number.
 ;;;
 (def-input-routine input-unsigned-8bit-byte
 		   ((unsigned-byte 8) 1 sap head)
@@ -567,7 +589,7 @@
 
 ;;; INPUT-SIGNED-8BIT-BYTE -- internal
 ;;;
-;;;   Routine to read in a signed 8 bit number.
+;;; Routine to read in a signed 8 bit number.
 ;;;
 (def-input-routine input-signed-8bit-number
 		   ((signed-byte 8) 1 sap head)
@@ -575,7 +597,7 @@
 
 ;;; INPUT-UNSIGNED-16BIT-BYTE -- internal
 ;;;
-;;;   Routine to read in an unsigned 16 bit number.
+;;; Routine to read in an unsigned 16 bit number.
 ;;;
 (def-input-routine input-unsigned-16bit-byte
 		   ((unsigned-byte 16) 2 sap head)
@@ -583,7 +605,7 @@
 
 ;;; INPUT-SIGNED-16BIT-BYTE -- internal
 ;;;
-;;;   Routine to read in a signed 16 bit number.
+;;; Routine to read in a signed 16 bit number.
 ;;;
 (def-input-routine input-signed-16bit-byte
 		   ((signed-byte 16) 2 sap head)
@@ -591,7 +613,7 @@
 
 ;;; INPUT-UNSIGNED-32BIT-BYTE -- internal
 ;;;
-;;;   Routine to read in a unsigned 32 bit number.
+;;; Routine to read in a unsigned 32 bit number.
 ;;;
 (def-input-routine input-unsigned-32bit-byte
 		   ((unsigned-byte 32) 4 sap head)
@@ -599,7 +621,7 @@
 
 ;;; INPUT-SIGNED-32BIT-BYTE -- internal
 ;;;
-;;;   Routine to read in a signed 32 bit number.
+;;; Routine to read in a signed 32 bit number.
 ;;;
 (def-input-routine input-signed-32bit-byte
 		   ((signed-byte 32) 4 sap head)
@@ -607,8 +629,9 @@
 
 ;;; PICK-INPUT-ROUTINE -- internal
 ;;;
-;;;   Find an input routine to use given the type. Return as multiple values
-;;; the routine, the real type transfered, and the number of bytes per element.
+;;; Find an input routine to use given the type. Return as multiple values
+;;; the routine, the real type transfered, and the number of bytes per
+;;; element.
 ;;;
 (defun pick-input-routine (type)
   (dolist (entry *input-routines*)
@@ -619,7 +642,7 @@
 
 ;;; STRING-FROM-SAP -- internal
 ;;;
-;;;   Returns a string constructed from the sap, start, and end.
+;;; Returns a string constructed from the sap, start, and end.
 ;;;
 (defun string-from-sap (sap start end)
   (declare (type index start end))
@@ -629,6 +652,11 @@
 			   string (* vm:vector-data-offset vm:word-bits)
 			   (* length vm:byte-bits))
     string))
+
+#[ Stream Extensions
+
+{function:lisp:fd-stream-read-n-bytes}
+]#
 
 #|
 ;;; FD-STREAM-READ-N-BYTES -- internal
@@ -675,23 +703,37 @@
 
 ;;; FD-STREAM-READ-N-BYTES -- internal
 ;;;
-;;;    The N-Bin method for FD-STREAMs.  This doesn't use the SERVER; it blocks
-;;; in UNIX-READ.  This allows the method to be used to implementing reading
-;;; for CLX.  It is generally used where there is a definite amount of reading
-;;; to be done, so blocking isn't too problematical.
+;;; The N-Bin method for FD-STREAMs.  This doesn't use the SERVER; it
+;;; blocks in UNIX-READ.  This allows the method to be used to implementing
+;;; reading for CLX.  It is generally used where there is a definite amount
+;;; of reading to be done, so blocking isn't too problematical.
 ;;;
-;;;    We copy buffered data into the buffer.  If there is enough, just return.
-;;; Otherwise, we see if the amount of additional data needed will fit in the
-;;; stream buffer.  If not, inhibit GCing (so we can have a SAP into the Buffer
-;;; argument), and read directly into the user supplied buffer.  Otherwise,
-;;; read a buffer-full into the stream buffer and then copy the amount we need
-;;; out.
+;;; We copy buffered data into the buffer.  If there is enough, just
+;;; return.  Otherwise, we see if the amount of additional data needed will
+;;; fit in the stream buffer.  If not, inhibit GCing (so we can have a SAP
+;;; into the Buffer argument), and read directly into the user supplied
+;;; buffer.  Otherwise, read a buffer-full into the stream buffer and then
+;;; copy the amount we need out.
 ;;;
-;;;    We loop doing the reads until we either get enough bytes or hit EOF.  We
-;;; must loop when eof-errorp is T because some streams (like pipes) may return
-;;; a partial amount without hitting EOF.
+;;; We loop doing the reads until we either get enough bytes or hit EOF.
+;;; We must loop when eof-errorp is T because some streams (like pipes) may
+;;; return a partial amount without hitting EOF.
 ;;;
 (defun fd-stream-read-n-bytes (stream buffer start requested eof-error-p)
+  "On streams that support it, read multiple bytes of data into a $buffer.
+   $buffer must be a simple-string or (simple-array (unsigned-byte 8) (*)).
+   The argument $nbytes specifies the desired number of bytes.  Return the
+   number of bytes actually read.
+
+     * If $eof-error-p is true, signal an end-of-file condition if
+       end-of-file is encountered before $requested bytes have been read.
+
+     * If $eof-error-p is false, read as much data as is currently
+       available (up to $requested bytes).  On pipes or similar devices,
+       return as soon as any data is available, even if the amount read is
+       less than $requested and [FIX] eof has not been hit.
+
+   Related to `make-fd-stream'."
   (declare (type stream stream) (type index start requested))
   (let* ((sap (fd-stream-ibuf-sap stream))
 	 (offset start)
@@ -789,13 +831,13 @@
 		(incf offset copy)))))))))))
 
 
-;;;; Utility functions (misc routines, etc)
+;;;; Utility functions (misc routines, etc).
 
 ;;; SET-ROUTINES -- internal
 ;;;
-;;;   Fill in the various routine slots for the given type. Input-p and
-;;; output-p indicate what slots to fill. The buffering slot must be set prior
-;;; to calling this routine.
+;;; Fill in the various routine slots for the given type. Input-p and
+;;; output-p indicate what slots to fill. The buffering slot must be set
+;;; prior to calling this routine.
 ;;;
 (defun set-routines (stream type input-p output-p buffer-p)
   (let ((target-type (case type
@@ -821,8 +863,8 @@
       (multiple-value-bind
 	  (routine type size)
 	  (pick-input-routine target-type)
-	(unless routine
-	  (error "Could not find any input routine for ~S" target-type))
+	(or routine
+	    (error "Failed to find an input routine for ~S" target-type))
 	(setf (fd-stream-ibuf-sap stream) (next-available-buffer))
 	(setf (fd-stream-ibuf-length stream) bytes-per-buffer)
 	(setf (fd-stream-ibuf-tail stream) 0)
@@ -892,7 +934,7 @@
 
 ;;; FD-STREAM-MISC-ROUTINE -- input
 ;;;
-;;;   Handle the various misc operations on fd-stream.
+;;; Handle the various misc operations on fd-stream.
 ;;;
 (defun fd-stream-misc-routine (stream operation &optional arg1 arg2)
   (declare (ignore arg2))
@@ -1024,8 +1066,8 @@
   (declare (type fd-stream stream)
 	   (type (or (integer 0) (member nil :start :end)) newpos))
   (if (null newpos)
-      (system:without-interrupts
-	;; First, find the position of the UNIX file descriptor in the file.
+      (system:block-interrupts
+	;; First, find the position of the Unix file descriptor in the file.
 	(multiple-value-bind
 	      (posn errno)
 	    (unix:unix-lseek (fd-stream-fd stream) 0 unix:l_incr)
@@ -1041,7 +1083,7 @@
 				 (the index (cadr later)))))
 		 (incf posn (fd-stream-obuf-tail stream))
 		 ;; Adjust for unread input:
-		 ;;  If there is any input read from UNIX but not supplied to
+		 ;;  If there is any input read from Unix but not supplied to
 		 ;; the user of the stream, the *real* file position will
 		 ;; smaller than reported, because we want to look like the
 		 ;; unread stuff is still available.
@@ -1100,11 +1142,11 @@
 			(unix:get-unix-error-msg errno))))))))
 
 
-;;;; Creation routines (MAKE-FD-STREAM and OPEN)
+;;;; Creation routines (`make-fd-stream' and `open').
 
 ;;; MAKE-FD-STREAM -- Public.
 ;;;
-;;; Returns a FD-STREAM on the given file.
+;;; Return an FD-STREAM on the given file.
 ;;;
 (defun make-fd-stream (fd
 		       &key
@@ -1124,16 +1166,34 @@
 		       auto-close)
   (declare (type index fd) (type (or index null) timeout)
 	   (type (member :none :line :full) buffering))
-  "Create a stream for the given unix file descriptor.
-   If input is non-nil, allow input operations.
-   If output is non-nil, allow output operations.
-   If neither input nor output are specified, default to allowing input.
-   Element-type indicates the element type to use (as for open).
-   Buffering indicates the kind of buffering to use.
-   Timeout (if true) is the number of seconds to wait for input.  If NIL (the
-   default), then wait forever.  When we time out, we signal IO-TIMEOUT.
-   File is the name of the file (will be returned by PATHNAME).
-   Name is used to identify the stream when printed."
+  "Create a file descriptor stream from $descriptor.  If $input is true,
+   input operations are allowed.  If $output is true, output operations are
+   allowed.  The fallback is input only.
+
+   Keywords:
+
+     $element-type     the element type to use (as for `open').
+     $buffering        the kind of buffering to use:
+			  :none   immediate write
+			  :line   buffering up to each newline
+			  :full   full buffering.
+     $timeout          the number of seconds to wait for input.  If (),
+                       then wait forever.
+     $file             the name of the file (will be returned by `pathname').
+     $original         the name of a backup file containing the original
+                       contents of $file.
+     $name             a name which identifies the stream when printed.  Falls
+                       back to a string containing FILE or DESCRIPTOR, in that
+                       order.
+     $delete-original  if true and $original is supplied, normal `close'
+                       removes $original.
+     $auto-close       if true then close $descriptor when garbage collecting
+                       the stream.
+
+   If a read times out, system:io-timeout is signalled.
+
+   When both $file and $original are supplied and `close' is passed true as
+   the second argument then `close' renames $original to $file."
   (cond ((not (or input-p output-p))
 	 (setf input t))
 	((not (or input output))
@@ -1194,13 +1254,13 @@
 
 ;;; DO-OLD-RENAME  --  Internal
 ;;;
-;;;    Rename Namestring to Original.  First, check if we have write access,
-;;; since we don't want to trash unwritable files even if we technically can.
-;;; We return true if we suceed in renaming.
+;;; Rename Namestring to Original.  First, check if we have write access,
+;;; since we don't want to trash unwritable files even if we technically
+;;; can.  We return true if we suceed in renaming.
 ;;;
 (defun do-old-rename (namestring original)
-  (unless (unix:unix-access namestring unix:w_ok)
-    (cerror "Try to rename it anyway." "File ~S is not writable." namestring))
+  (or (unix:unix-access namestring unix:w_ok)
+      (cerror "Try to rename it anyway." "File ~S is not writable." namestring))
   (multiple-value-bind
       (okay err)
       (unix:unix-rename namestring original)
@@ -1215,8 +1275,6 @@
 
 ;;; OPEN -- public
 ;;;
-;;;   Open the given file.
-;;;
 (defun open (filename
 	     &key
 	     (direction :input)
@@ -1228,14 +1286,18 @@
 	     (direction direction)
 	     (if-does-not-exist if-does-not-exist)
 	     (if-exists if-exists))
-  "Return a stream which reads from or writes to Filename.
-  Defined keywords:
-   :direction - one of :input, :output, :io, or :probe
-   :element-type - Type of object to read or write, default BASE-CHAR
-   :if-exists - one of :error, :new-version, :rename, :rename-and-delete,
-                       :overwrite, :append, :supersede or nil
-   :if-does-not-exist - one of :error, :create or nil
-  FIX See the manual for details."
+  "Return a stream which reads from or writes to $filename.
+
+   Keywords:
+
+    $direction - one of :input, :output, :io, or :probe
+    $element-type - Type of object to read or write
+    $if-exists - one of :error, :new-version, :rename, :rename-and-delete,
+			:overwrite, :append, :supersede or nil
+    $if-does-not-exist - one of :error, :create or nil
+
+   FIX See the manual for details.
+           permission of created files"
   (declare (ignore external-format))
 
   ;; First, make sure that DIRECTION is valid.  Allow it to be changed if not.
@@ -1255,16 +1317,16 @@
     (declare (type index mask))
     (let* ((pathname (pathname filename))
 	   (namestring
-	    (cond ((unix-namestring pathname input))
+	    (cond ((os-namestring pathname input))
 		  ((and input (eq if-does-not-exist :create))
-		   (unix-namestring pathname nil)))))
+		   (os-namestring pathname nil)))))
       ;; Process if-exists argument if we are doing any output.
       (cond (output
-	     (unless if-exists-given
-	       (setf if-exists
-		     (if (eq (pathname-version pathname) :newest)
-			 :new-version
-			 :error)))
+	     (or if-exists-given
+		 (setf if-exists
+		       (if (eq (pathname-version pathname) :newest)
+			   :new-version
+			   :error)))
 	     (setf if-exists
 		   (assure-one-of if-exists
 				  '(:error :new-version :rename
@@ -1283,16 +1345,16 @@
 	    (t
 	     (setf if-exists :ignore-this-arg)))
 
-      (unless if-does-not-exist-given
-	(setf if-does-not-exist
-	      (cond ((eq direction :input) :error)
-		    ((and output
-			  (member if-exists '(:overwrite :append)))
-		     :error)
-		    ((eq direction :probe)
-		     nil)
-		    (t
-		     :create))))
+      (or if-does-not-exist-given
+	  (setf if-does-not-exist
+		(cond ((eq direction :input) :error)
+		      ((and output
+			    (member if-exists '(:overwrite :append)))
+		       :error)
+		      ((eq direction :probe)
+		       nil)
+		      (t
+		       :create))))
       (setf if-does-not-exist
 	    (assure-one-of if-does-not-exist
 			   '(:error :create nil)
@@ -1338,8 +1400,8 @@
 	      ;; to make sure unix:o_creat corresponds to
 	      ;; if-does-not-exist.  unix:o_creat was set
 	      ;; before because of if-exists being :rename.
-	      (unless (eq if-does-not-exist :create)
-		(setf mask (logior (logandc2 mask unix:o_creat) unix:o_trunc)))
+	      (or (eq if-does-not-exist :create)
+		  (setf mask (logior (logandc2 mask unix:o_creat) unix:o_trunc)))
 	      (setf if-exists :supersede))))
 
 	;; Okay, now we can try the actual open.
@@ -1404,8 +1466,23 @@
 			   pathname
 			   (unix:get-unix-error-msg errno))
 		   (return nil)))))))))
+
 
 ;;;; Initialization.
+
+#[ Useful Variables
+
+\defvar{stdin}[system]
+\defvarx{stdout}[system]
+\defvarx{stderr}[system]
+Streams connected to the standard input, output and error file
+descriptors.
+\enddefvar
+
+\defvar{tty}[system]
+A stream connected to \file{/dev/tty}.
+\enddefvar
+]#
 
 (defvar *tty* nil
   "The stream connected to the controlling terminal or NIL if there is none.")
@@ -1449,7 +1526,7 @@
 		  (unix:unix-open "/dev/tty" unix:o_rdwr #o666))))
     (setf *tty*
 	  (if tty
-	      (make-fd-stream tty :name "the Terminal" :input t :output t
+	      (make-fd-stream tty :name "The Terminal" :input t :output t
 			      :buffering :line :auto-close t)
 	      (make-two-way-stream *stdin* *stdout*))))
   nil)
@@ -1470,21 +1547,21 @@
 
 ;;; File-Name  --  internal interface
 ;;;
-;;;    Kind of like File-Position, but is an internal hack used by the filesys
-;;; stuff to get and set the file name.
+;;; Kind of like File-Position, but is an internal hack used by the filesys
+;;; stuff to get and set the file name.  FIX setf better?
 ;;;
 (defun file-name (stream &optional new-name)
   (when (typep stream 'fd-stream)
       (cond (new-name
 	     (setf (fd-stream-pathname stream) new-name)
 	     (setf (fd-stream-file stream)
-		   (unix-namestring new-name nil))
+		   (os-namestring new-name nil))
 	     t)
 	    (t
 	     (fd-stream-pathname stream)))))
 
 
-;;;; Degenerate international character support:
+;;;; Degenerate international character support.
 
 (defun file-string-length (stream object)
   (declare (type (or string character) object) (type file-stream stream))
@@ -1498,5 +1575,5 @@
 
 (defun stream-external-format (stream)
   (declare (type file-stream stream) (ignore stream))
-  "Returns :DEFAULT."
+  "Return :default."
   :default)

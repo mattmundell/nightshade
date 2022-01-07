@@ -1,27 +1,15 @@
-;;; -*- Mode: Lisp; Package: System -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/tools/config.lisp,v 1.4.2.1 2000/06/06 10:08:25 dtc Exp $")
-;;;
-;;; **********************************************************************
+;;; -*- Package: System -*-
 ;;;
 ;;; Utility to load subsystems and save a new core.
-;;;
-(in-package "USER")
 
+(in-package "USER")
 
 (block abort
   (let ((output-file #p"library:lisp.core")
 	(load-gray-streams t)
 	(load-clm t)
 	(load-clx t)
-	(load-hemlock t)
+	(load-editor t)
 	(other ()))
     (loop
       (fresh-line)
@@ -37,10 +25,10 @@
 		 currently ~:[dis~;en~]abled.~
 		 ~:[~%    (would force loading of CLX.)~;~]~%"
 	      load-clm load-clx)
-      (format t " 5: toggle loading the Hemlock editor, currently ~
+      (format t " 5: toggle loading the editor, currently ~
 		 ~:[dis~;en~]abled.~
 		 ~:[~%    (would force loading of CLX.)~;~]~%"
-	      load-hemlock load-clx)
+	      load-editor load-clx)
       (format t " 6: specify some site-specific file to load.~@
 		 ~@[    Current files:~%~{      ~S~%~}~]"
 	      (mapcar #'namestring other))
@@ -59,13 +47,13 @@
 	    (2
 	     (setq load-gray-streams (not load-gray-streams)))
 	    (3
-	     (unless (setq load-clx (not load-clx))
-	       (setq load-hemlock nil)))
+	     (or (setq load-clx (not load-clx))
+		 (setq load-editor nil)))
 	    (4
 	     (when (setq load-clm (not load-clm))
 	       (setq load-clx t)))
 	    (5
-	     (when (setq load-hemlock (not load-hemlock))
+	     (when (setq load-editor (not load-editor))
 	       (setq load-clx t)))
 	    (6
 	     (setq other
@@ -86,8 +74,8 @@
     (when load-clm
       (setf *features* (delete :no-clm *features* :test #'eq))
       (load "library:subsystems/clm-library"))
-    (when load-hemlock
-      (setf *features* (delete :no-hemlock *features* :test #'eq))
+    (when load-editor
+      (setf *features* (delete :no-editor *features* :test #'eq))
       (load "library:subsystems/ed-library"))
     (dolist (f other) (load f))
 
@@ -110,7 +98,7 @@
     ;; Enable the garbage collector.  But first fake it into thinking that
     ;; we don't need to garbage collect.  The save-lisp is going to call
     ;; purify so any garbage will be collected then.
-    (setf lisp::*need-to-collect-garbage* nil)
+    (setf lisp::*need-to-collect-garbage* ())
     (gc-on)
     ;;
     ;; Save the lisp.

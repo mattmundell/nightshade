@@ -1,19 +1,5 @@
-;;; -*- Package: VM -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/generic/objdef.lisp,v 1.38.2.2 2000/05/23 16:37:33 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the machine independent aspects of the object
-;;; representation.
-;;;
-;;; Written by William Lott.
-;;;
+;;; Machine independent aspects of the object representation.
+
 (in-package "VM")
 
 (export '(lowtag-bits lowtag-mask lowtag-limit type-bits type-mask
@@ -61,7 +47,7 @@
 (in-package "VM")
 
 
-;;;; Type based constants:
+;;;; Type based constants.
 
 (eval-when (compile eval load)
 
@@ -70,10 +56,9 @@
 
 (defconstant lowtag-mask (1- (ash 1 lowtag-bits))
   "Mask to extract the low tag bits from a pointer.")
-  
+
 (defconstant lowtag-limit (ash 1 lowtag-bits)
-  "Exclusive upper bound on the value of the low tag bits from a
-  pointer.")
+  "Exclusive upper bound on the value of the low tag bits from a pointer.")
 
 (defconstant type-bits 8
   "Number of bits used in the header word of a data block for typeing.")
@@ -83,19 +68,17 @@
 
 ); eval-when
 
-
 (defparameter target-most-positive-fixnum (1- (ash 1 29))
   "most-positive-fixnum in the target architecture.")
 
 (defparameter target-most-negative-fixnum (ash -1 29)
   "most-negative-fixnum in the target architecture.")
 
-
-;;; The main types.  These types are represented by the low three bits of the
-;;; pointer or immeditate object.
-;;; 
+;;; The main types.  These types are represented by the low three bits of
+;;; the pointer or immediate object.
+;;;
 (defenum (:suffix -type)
-  even-fixnum
+  even-fixnum               ; FIX explain each? somewhere?
   function-pointer
   other-immediate-0
   list-pointer
@@ -106,7 +89,7 @@
 
 ;;; The heap types.  Each of these types is in the header of objects in
 ;;; the heap.
-;;; 
+;;;
 (defenum (:suffix -type
 	  :start (+ (ash 1 lowtag-bits) other-immediate-0-type)
 	  :step (ash 1 (1- lowtag-bits)))
@@ -119,7 +102,7 @@
   complex-single-float
   complex-double-float
   #+long-float complex-long-float
-  
+
   simple-array
   simple-string
   simple-bit-vector
@@ -143,7 +126,7 @@
   complex-bit-vector
   complex-vector
   complex-array
-  
+
   code-header
   function-header
   closure-header
@@ -165,9 +148,8 @@
   #+(or gengc gencgc) scavenger-hook
   )
 
-
 ;;; The different vector subtypes.
-;;; 
+;;;
 (defenum (:prefix vector- :suffix -subtype)
   normal
   unused
@@ -451,9 +433,8 @@
   (storebuf-end :c-type "lispobj **")
   (words-consed :c-type "unsigned long"))
 
-
 
-;;;; Symbols
+;;;; Symbols.
 
 #+gengc
 (defknown %make-symbol (index simple-string) symbol

@@ -1,12 +1,5 @@
-;;; -*- Package: User -*-
-;;;
-;;; **********************************************************************
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/tools/comcom.lisp,v 1.48.2.2 2000/05/23 16:39:06 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
+;;; Compile the compiler.
+
 (in-package "USER")
 
 #+bootstrap
@@ -154,10 +147,10 @@
     (when *load-stuff*
       (load (vmdir "target:compiler/macros")))
     )
-  
+
 (comf "target:compiler/generic/primtype")
 (comf (vmdir "target:assembly/support")
-       :byte-compile #+bootstrap t #-bootstrap nil) ; pw
+      :byte-compile #+bootstrap t #-bootstrap nil)
 (when *load-stuff*
   (load (vmdir "target:assembly/support")))
 (comf (vmdir "target:compiler/move"))
@@ -229,5 +222,7 @@
 (comf "target:compiler/eval-comp")
 (comf "target:compiler/eval")
 (comf "target:compiler/byte-comp")
+
+(comf "target:compiler/glossary")
 
 ); with-compiler-error-log

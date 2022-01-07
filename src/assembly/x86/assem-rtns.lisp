@@ -1,24 +1,5 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/assembly/x86/assem-rtns.lisp,v 1.1.2.1 1998/06/23 11:21:18 pw Exp $")
-;;;
-;;; **********************************************************************
-;;; 
-;;; This file contains the machine specific support routines needed by
-;;; the file assembler.
-;;;
-;;; Written by William Lott
-;;;
-;;; Debugged by Paul F. Werkowski -- Spring/Summer 1995.
-;;; Enhancements/debugging by Douglas T. Crosher 1997.
-;;;
+;;; Machine specific support routines needed by the file assembler.
+
 (in-package :x86)
 
 
@@ -40,7 +21,7 @@
      ;; These we need as temporaries.
      (:temp edx unsigned-reg edx-offset)
      (:temp edi unsigned-reg edi-offset))
-     
+
   ;; Pick off the cases where everything fits in register args.
   (inst jecxz zero-values)
   (inst cmp ecx (fixnum 1))
@@ -108,7 +89,6 @@
   (inst lea esp-tn (make-ea :dword :base ebx :disp (* -3 word-bytes)))
   (inst jmp eax))
 
-
 
 ;;;; tail-call-variable.
 
@@ -122,7 +102,7 @@
 ;;; the second stack slot, so we have to push it to make it look like
 ;;; we actually called.  We also have to compute ECX from the difference
 ;;; between ESI and the stack top.
-;;; 
+;;;
 #+assembler ;; no vop for this one either.
 (define-assembly-routine
     (tail-call-variable
@@ -177,7 +157,7 @@
   (inst push ebx)
 
   ;; And jump into the function.
-    (inst jmp 
+    (inst jmp
 	  (make-ea :byte :base eax
 		   :disp (- (* closure-function-slot word-bytes)
 			    function-pointer-type)))
@@ -208,26 +188,26 @@
 			  (:arg start any-reg ebx-offset)
 			  (:arg count any-reg ecx-offset)
 			  (:temp catch any-reg eax-offset))
-  
+
   (declare (ignore start count))
 
   (load-symbol-value catch lisp::*current-catch-block*)
-  
+
   LOOP
-  
+
   (let ((error (generate-error-code nil unseen-throw-tag-error target)))
     (inst or catch catch)		; check for NULL pointer
     (inst jmp :z error))
-  
+
   (inst cmp target (make-ea-for-object-slot catch catch-block-tag-slot 0))
   (inst jmp :e exit)
-  
+
   (loadw catch catch catch-block-previous-catch-slot)
   (inst jmp loop)
-  
+
   EXIT
-  
-  ;; Hear EAX points to catch block containing symbol pointed to by EDX.
+
+  ;; Here EAX points to catch block containing symbol pointed to by EDX.
   (inst jmp (make-fixup 'unwind :assembly-routine)))
 
 ;;;; Non-local exit noise.
@@ -245,7 +225,7 @@
   (let ((error (generate-error-code nil invalid-unwind-error)))
     (inst or block block)		; check for NULL pointer
     (inst jmp :z error))
-  
+
   (load-symbol-value uwp lisp::*current-unwind-protect-block*)
 
   ;; Does *cuwpb* match value stored in argument cuwp slot?
@@ -261,11 +241,11 @@
   ;; Set next unwind protect context.
   (loadw uwp uwp unwind-block-current-uwp-slot)
   (store-symbol-value uwp lisp::*current-unwind-protect-block*)
-  
+
   DO-EXIT
-  
+
   (loadw ebp-tn block unwind-block-current-cont-slot)
-  
+
   ;; Uwp-entry expects some things in known locations so that they can
   ;; be saved on the stack: the block in edx-tn; start in ebx-tn; and
   ;; count in ecx-tn

@@ -7,8 +7,27 @@
 (in-package "EXTENSIONS")
 (export '(print-herald *herald-items* save-lisp *before-save-initializations*
 	  *after-save-initializations* *environment-list* *editor-lisp-p*))
+
 (in-package "LISP")
 
+
+#[ Saving a Core Image
+
+A mechanism exists to save a running Lisp core image and later restore it.
+This is more convenient than loading several files into a Lisp on startup.
+The main problem is the large size of saved Lisp images, typically at least
+20 megabytes.
+
+{function:ext:save-lisp}
+
+To resume a saved file, type:
+
+    lisp -core file
+
+{function:purify}
+]#
+
+
 (defvar *before-save-initializations* nil
   "This is a list of functions which are called before creating a saved
    core image.  These functions are executed in the child process which has
@@ -31,7 +50,7 @@
 
 ;;; PARSE-UNIX-SEARCH-LIST  --  Internal
 ;;;
-;;; Returns a list of the directories that are in the specified Unix
+;;; Return a list of the directories that are in the specified Unix
 ;;; environment variable.  Return NIL if the variable is undefined.
 ;;;
 (defun parse-unix-search-list (var)
@@ -43,18 +62,16 @@
 	    (pl ()))
 	   ((null p)
 	    (let ((s (subseq path i)))
-	      (if (string= s "")
-		  (push "default:" pl)
+	      (fi (string= s "")
 		  (push (concatenate 'simple-string s "/") pl)))
 	    (nreverse pl))
 	(let ((s (subseq path i p)))
-	  (if (string= s "")
-	      (push "default:" pl)
+	  (fi (string= s "")
 	      (push (concatenate 'simple-string s "/") pl)))))))
 
 ;;; ENVIRONMENT-INIT  --  Internal
 ;;;
-;;;    Parse the LISP-ENVIRONMENT-LIST into a keyword alist.  Set up default
+;;; Parse the LISP-ENVIRONMENT-LIST into a keyword alist.  Set up default
 ;;; search lists.
 ;;;
 (defun environment-init ()
@@ -66,16 +83,17 @@
 			    *keyword-package*)
 		    (subseq ele (1+ =pos)))
 	      *environment-list*))))
-  (setf (search-list "default:") (list (default-directory)))
+  (setq *current-directory* (current-unix-directory))
   (setf (search-list "path:") (parse-unix-search-list :path))
   (setf (search-list "home:")
 	(or (parse-unix-search-list :home)
-	    (list (default-directory))))
+	    (list (current-unix-directory))))
+  (setf (search-list ":") "home:")
 
   (setf (search-list "library:")
 	(or (parse-unix-search-list :nightshadelib)
 	    '(#+mach  "/usr/misc/.nightshade/lib/"
-	      #+linux "/usr/lib/nightshade/"
+	      #+linux "/usr/local/lib/nightshade/"
 	      #-(or mach linux) "/usr/local/lib/nightshade/lib/"))))
 
 
@@ -94,44 +112,51 @@
 				 (site-init "library:site-init")
 				 (print-herald t)
 				 (process-command-line t))
-  "Saves a core image in the file of the specified name.  The
-   following keywords are defined:
+  "Save a core image in the file named $core-file-name.  The following
+   keywords are defined:
 
-  :purify
-      If true (the default), do a purifying GC which moves all dynamically
-  allocated objects into static space so that they stay pure.  This takes
-  somewhat longer than the normal GC which is otherwise done, but GC's will
-  done less often and take less time in the resulting core file.  See
-  EXT:PURIFY.
+     $purify
+         If true, do a purifying GC, which moves all dynamically allocated
+         objects into static space so that they stay pure.  This takes
+         somewhat longer than the normal GC and reduces the amount of work
+         the garbage collector must do when the resulting core image runs.
+         Also, if more than one Lisp is running on the same machine, this
+         maximizes the amount of memory that can be shared between the two
+         processes.  Use `ext:purify' to do the purifying GC.
 
-  :root-structures
-      This should be a list of the main entry points in any newly loaded
-  systems.  This need not be supplied, but locality and/or GC performance
-  will be better if they are.  Meaningless if :purify is NIL.  See EXT:PURIFY.
+     $root-structures
+         A list of the main entry points in any newly loaded systems.  This
+         may be supplied to improve locality and/or GC performance.  Only
+         meaningful if :purify is true.  Related to `ext:purify'.
 
-  :environment-name
-      Also passed to EXT:PURIFY when :PURIFY is T.  Rarely used.
+     $environment-name
+         Also passed to `ext:purify' when :purify is true.
 
-  :init-function
-      This is the function that starts running when the created core file is
-  resumed.  The default function simply invokes the top level
-  read-eval-print loop.  If the function returns the lisp will exit.
+     $init-function
+         The function that starts running when the created core file is
+         resumed.  The function `%top-level' simply invokes the top level
+         read-eval-print loop.  If the function returns the lisp exits.
 
-  :load-init-file
-      If true, then look for an init.lisp or init.fasl file when the core
-  file is resumed.
+     $load-init-file
+         If true, then look for an init file to load into the resumed
+	 core; either the one specified on the command line,
+	 home:nightshade.fasl or home:nightshade.lisp.
 
-  :site-init
-      If true, then the name of the site init file to load.  The default is
-  library:site-init.  No error if this does not exist.
+     $site-init
+         If true, then the name of the site init file to load.  The default
+	 is library:site-init.  The existence of this file is optional.
 
-  :print-herald
-      If true (the default), print out the lisp system herald when starting."
+     $print-herald
+         If true, print out the system herald when starting.
+
+     $process-command-line
+         If true, process the command line switches and perform the
+         appropriate actions."
   #+mp (mp::shutdown-multi-processing)
-  (when (fboundp 'eval:flush-interpreted-function-cache)
-    (eval:flush-interpreted-function-cache))
-  (when (fboundp 'cancel-finalization)
-    (cancel-finalization sys:*tty*))
+  (if (fboundp 'eval:flush-interpreted-function-cache)
+      (eval:flush-interpreted-function-cache))
+  (if (fboundp 'cancel-finalization)
+      (cancel-finalization sys:*tty*))
   (if purify
       (purify :root-structures root-structures
 	      :environment-name environment-name)
@@ -139,86 +164,110 @@
   (dolist (f *before-save-initializations*) (funcall f))
   (labels
       ((%restart-lisp ()
-	 (with-simple-restart (abort "Skip remaining initializations.")
-	   (catch 'top-level-catcher
-	     (reinit)
-	     (environment-init)
-	     (dolist (f *after-save-initializations*) (funcall f))
-	     (when process-command-line
-	       (ext::process-command-strings))
-	     (setf *editor-lisp-p* nil)
-	     (macrolet ((find-switch (name)
-			  `(find ,name *command-line-switches*
-				 :key #'cmd-switch-name
-				 :test #'(lambda (x y)
-					   (declare (simple-string x y))
-					   (string-equal x y)))))
-	       (when site-init
-		 (load site-init :if-does-not-exist nil :verbose nil))
-	       (when (and process-command-line (find-switch "edit"))
-		 (setf *editor-lisp-p* t))
-	       (when (and load-init-file
-			  (not (and process-command-line
-				    (find-switch "noinit"))))
-		 (let* ((cl-switch (find-switch "init"))
-			(name (and cl-switch
-				   (or (cmd-switch-value cl-switch)
-				       (car (cmd-switch-words cl-switch))))))
-		   (if name
-		       (load (merge-pathnames name #p"home:")
-			     :if-does-not-exist nil)
-		       (or (load "home:init" :if-does-not-exist nil)
-			   (load "home:.nightshade"
-				 :if-does-not-exist nil))))))
-	     (when process-command-line
-	       (ext::invoke-switch-demons *command-line-switches*
-					  *command-switch-demons*))
-	     (when print-herald
-	       (print-herald))))
-	 (funcall init-function))
+	 (let (*script-mode*)
+	   (with-simple-restart (abort "Exit Nightshade.")
+	     (catch 'top-level-catcher
+	       (reinit)
+	       (environment-init)
+	       (dolist (f *after-save-initializations*) (funcall f))
+	       (if process-command-line (ext::process-command-strings))
+	       (setf *editor-lisp-p* nil)
+	       (macrolet ((find-switch (name)
+			    `(find ,name *command-line-switches*
+				   :key #'cmd-switch-name
+				   :test #'(lambda (x y)
+					     (declare (simple-string x y))
+					     (string-equal x y)))))
+		 (let ((lib (assoc :nightshadelib ext:*environment-list*)))
+		   (if lib (setf (search-list "library:") (cdr lib))))
+		 (if site-init
+		     (load site-init :if-does-not-exist nil :verbose nil))
+		 (and process-command-line
+		      (find-switch "edit")
+		      (setf *editor-lisp-p* t))
+		 (and load-init-file
+		      (or (and process-command-line (find-switch "noinit"))
+			  (let* ((cl-switch (find-switch "init"))
+				 (name (and cl-switch
+					    (or (cmd-switch-value cl-switch)
+						(car (cmd-switch-words cl-switch))))))
+			    (if name
+				(load (merge-pathnames name #p"home:")
+				      :if-does-not-exist ())
+				(load (config:config-pathname "lisp")
+				      :if-does-not-exist () :verbose ())))))
+		 (if process-command-line
+		     (ext::invoke-switch-demons *command-line-switches*
+						*command-switch-demons*))
+		 (or *editor-lisp-p*
+		     (find-switch "slave")
+		     *batch-mode*
+		     (when (stringp (car *command-line-words*))
+		       (setq *script-mode* t)))
+		 (or *script-mode* (if print-herald (print-herald)))))
+	     (if *editor-lisp-p*
+		 (restart-case
+		     (catch 'top-level-catcher
+		       (let ((initp (fi (ext:get-command-line-switch "noinit"))))
+			 (if (stringp (car ext:*command-line-words*))
+			     (ed (car ext:*command-line-words*) :init initp)
+			     (ed () :init initp))))
+		   (top () :report "Exit to the Top-Level.")))
+	     (or *script-mode* *batch-mode* (funcall init-function)))
+	   (when (or *script-mode* *batch-mode*)
+	     (if *script-mode* (ext::quiet-switch-demon :dummy))
+	     (handler-bind
+		 ((error #'(lambda (condition)
+			     (format *error-output*
+				     "Error in ~:[script~;batch~] processing:~%~A~%"
+				     *batch-mode*
+				     condition)
+			     (backtrace 200 *error-output*)
+			     (throw '%end-of-the-world 1))))
+	       (catch 'top-level-catcher
+		 ;; Load any files that were given as arguments.
+		 (loop for word in ext:*command-line-words* while (stringp word) do
+		   (load word :verbose () :restart-p ()))
+		 (if *batch-mode* (funcall init-function))))))
+	 0)
        (restart-lisp ()
 	 (unix:unix-exit
 	  (catch '%end-of-the-world
 	    (unwind-protect
-		(if *batch-mode*
-		    (handler-case
-			(%restart-lisp)
-		      (error (cond)
-			(format *error-output* "Error in batch processing:~%~A~%"
-				cond)
-			(throw '%end-of-the-world 1)))
-		    (%restart-lisp))
+		(%restart-lisp)
 	      (finish-standard-output-streams))))))
 
     (let ((initial-function (get-lisp-obj-address #'restart-lisp)))
       (without-gcing
-	(save (unix-namestring core-file-name nil) initial-function))))
-  nil)
+	(save (os-namestring core-file-name nil) initial-function))))
+  ())
 
 
 ;;;; PRINT-HERALD support.
 
 (defvar *herald-items* ()
-  "Determines what PRINT-HERALD prints (the system startup banner.)  This is a
-   database which can be augmented by each loaded system.  The format is a
-   property list which maps from subsystem names to the banner information for
-   that system.  This list can be manipulated with GETF -- entries are printed
-   in, reverse order, so the newest entry is printed last.  Usually the system
-   feature keyword is used as the system name.  A given banner is a list of
-   strings and functions (or function names).  Strings are printed, and
-   functions are called with an output stream argument.")
+  "Determines what PRINT-HERALD prints (the system startup banner.)  This
+   is a database which can be augmented by each loaded system.  The format
+   is a property list which maps from subsystem names to the banner
+   information for that system.  This list can be manipulated with GETF --
+   entries are printed in reverse order, so the newest entry is printed
+   last.  Usually the system feature keyword is used as the system name.  A
+   given banner is a list of strings and functions (or function names).
+   Strings are printed, and functions are called with an output stream
+   argument.")
 
 (setf (getf *herald-items* :nightshade)
       `("Nightshade "
-	,#'(lambda (stream)
-	     (write-string (lisp-implementation-version) stream))
+	,#'(lambda (stream) (write-string (version) stream))
 	", running on "
 	,#'(lambda (stream) (write-string (machine-instance) stream))
 	"."))
 
+(setf (getf *herald-items* :help)
+      '(terpri "(quit) to exit, (help) for help."))
+
 (setf (getf *herald-items* :subsystems)
-      '(terpri
-	"Loaded subsystems:"))
+      '(terpri "Loaded subsystems:"))
 
 ;;; PRINT-HERALD  --  Public
 ;;;
@@ -226,8 +275,8 @@
   "Print some descriptive information about the Lisp system version and
    configuration."
   (let ((res ()))
-    (do ((item *herald-items* (cddr item)))
-	((null item))
+    (while ((item *herald-items* (cddr item)))
+	   (item)
       (push (second item) res))
 
     (fresh-line stream)
@@ -241,7 +290,8 @@
 	   (funcall (fdefinition thing) stream))
 	  (t
 	   (error "Unrecognized *HERALD-ITEMS* entry: ~S." thing))))
-      (fresh-line stream)))
+      (fresh-line stream))
+    (terpri stream))
 
   (values))
 
@@ -254,8 +304,8 @@
 
 ;;; MAYBE-BYTE-LOAD  --  Interface
 ;;;
-;;;    If Name has been byte-compiled, and :runtime is a feature, then load the
-;;; byte-compiled version, otherwise just do normal load.
+;;; If Name has been byte-compiled, and :runtime is a feature, then load
+;;; the byte-compiled version, otherwise just do normal load.
 ;;;
 (defun maybe-byte-load (name &optional (load-native t))
   (let ((bname (make-pathname
@@ -269,8 +319,8 @@
 
 ;;; BYTE-LOAD-OVER  --  Interface
 ;;;
-;;;    Replace a cold-loaded native object file with a byte-compiled one, if it
-;;; exists.
+;;; Replace a cold-loaded native object file with a byte-compiled one, if
+;;; it exists.
 ;;;
 (defun byte-load-over (name)
   (load (make-pathname

@@ -27,10 +27,10 @@
 ;;; *GC-VERBOSE* -- interface
 ;;;
 (defvar *gc-verbose* t
-  "When non-NIL, causes the functions bound to *GC-NOTIFY-BEFORE* and
-  *GC-NOTIFY-AFTER* to be called before and after a garbage collection
-  occurs respectively.  If :BEEP, causes the default notify functions to beep
-  annoyingly.")
+  "When true, causes the functions bound to *GC-NOTIFY-BEFORE* and
+   *GC-NOTIFY-AFTER* to be called before and after a garbage collection
+   occurs respectively.  If :BEEP, causes the default notify functions to
+   beep annoyingly.")
 
 (defun default-gc-notify-before (bytes-in-use)
   (when (eq *gc-verbose* :beep)

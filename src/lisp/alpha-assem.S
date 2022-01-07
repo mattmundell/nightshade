@@ -43,7 +43,7 @@ call_into_lisp:
 	ldil	reg_LRA,0
 	ldil	reg_L0,0
 	ldil	reg_L1,0
-	
+
 
 	/* Establish NIL. */
 	ldil	reg_NULL,NIL
@@ -60,9 +60,9 @@ call_into_lisp:
 	ldl	reg_OCFP,current_control_frame_pointer
 	mov	a1,reg_CFP
 
-#ifndef __linux__	
+#ifndef __linux__
 	.set	noat
-#endif	
+#endif
 	ldil	reg_L2,0
 	/* End of pseudo-atomic. */
 
@@ -87,7 +87,7 @@ call_into_lisp:
 	.set noreorder
 	.align	3
 	.globl	call_into_lisp_LRA
-call_into_lisp_LRA:	
+call_into_lisp_LRA:
 
 	.long	type_ReturnPcHeader
 
@@ -109,7 +109,7 @@ call_into_lisp_LRA:
 	stl	reg_CSP,foreign_function_call_active
 
 	/* Turn off pseudo-atomic and check for traps. */
-	
+
 	/* Restore C regs */
 	ldq	ra, framesize-8*8(sp)
 	ldq	s0, framesize-8*7(sp)
@@ -199,7 +199,7 @@ call_into_c:
 	/* Restore ALLOC, preserving pseudo-atomic-atomic */
 	ldl	reg_NL0,current_dynamic_space_free_pointer
 	addq	reg_ALLOC,reg_NL0,reg_ALLOC
-	
+
 	/* Check for interrupt */
 	subq	reg_ALLOC,1,reg_ALLOC
 	stl	reg_ZERO,0(reg_ALLOC)

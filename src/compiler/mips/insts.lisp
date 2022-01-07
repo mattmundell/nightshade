@@ -1,18 +1,5 @@
-;;; -*- Package: MIPS -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/insts.lisp,v 1.50.2.2 2000/05/23 16:37:40 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Description of the MIPS architecture.
-;;;
-;;; Written by William Lott
-;;;
+
 (in-package "MIPS")
 
 (use-package "NEW-ASSEM")
@@ -90,7 +77,7 @@
 		  dstate))))
 
 (defparameter float-reg-symbols
-  (coerce 
+  (coerce
    (loop for n from 0 to 31 collect (make-symbol (format nil "$F~d" n)))
    'vector))
 
@@ -172,7 +159,6 @@
 (disassem:define-argument-type float-operation
   :printer float-operation-names)
 
-
 
 ;;;; Constants used by instruction emitters.
 
@@ -182,7 +168,6 @@
 (defconstant cop1-op #b010001)
 (defconstant cop2-op #b010010)
 (defconstant cop3-op #b010011)
-
 
 
 ;;;; dissassem:define-instruction-formats
@@ -309,7 +294,6 @@
 (define-emitter emit-float-inst 32
   (byte 6 26) (byte 1 25) (byte 4 21) (byte 5 16)
   (byte 5 11) (byte 5 6) (byte 6 0))
-
 
 
 ;;;; Math instructions.
@@ -572,7 +556,7 @@
    (emit-float-inst segment cop1-op 1 (float-format-value format)
 		    0 (fp-reg-tn-encoding src) (fp-reg-tn-encoding dst)
 		    #b000111)))
-  
+
 (define-instruction fcvt (segment format1 format2 dst src)
   (:declare (type float-format format1 format2) (type tn dst src))
   (:printer float-aux ((funct #b10) (sub-funct nil :type 'float-format))
@@ -593,7 +577,7 @@
   (:dependencies (reads fs) (reads ft) (writes :float-status))
   (:delay 1)
   (:emitter
-   (emit-float-inst segment cop1-op 1 (float-format-value format) 
+   (emit-float-inst segment cop1-op 1 (float-format-value format)
 		    (fp-reg-tn-encoding ft) (fp-reg-tn-encoding fs) 0
 		    (logior #b110000 (compare-kind operation)))))
 
@@ -634,7 +618,6 @@
   (:delay 1)
   (:emitter
    (emit-relative-branch segment bcond-op 0 #b10001 target)))
-
 
 (define-instruction beq (segment r1 r2-or-target &optional target)
   (:declare (type tn r1)
@@ -793,7 +776,6 @@
   (:emitter
    (emit-relative-branch segment cop1-op #b01000 #b00001 target)))
 
-
 
 ;;;; Random movement instructions.
 
@@ -886,7 +868,7 @@
     (fixup
      (inst lui reg value)
      (inst addu reg value))))
-  
+
 (define-instruction-macro li (reg value)
   `(%li ,reg ,value))
 
@@ -963,9 +945,8 @@
    (emit-register-inst segment cop1-op #b00110 (reg-tn-encoding reg)
 		       cr 0 0)))
 
-
 
-;;;; Random system hackery and other noise
+;;;; Random system hackery and other noise.
 
 (define-instruction-macro entry-point ()
   nil)
@@ -1084,7 +1065,6 @@
   (:emitter
    (emit-byte segment byte)))
 
-
 (defun emit-header-data (segment type)
   (emit-back-patch
    segment 4
@@ -1108,7 +1088,6 @@
   (:delay 0)
   (:emitter
    (emit-header-data segment return-pc-header-type)))
-
 
 (defun emit-compute-inst (segment vop dst src label temp calc)
   (emit-chooser
@@ -1200,7 +1179,7 @@
 			     other-pointer-type)))))
 
 
-;;;; Loads and Stores
+;;;; Loads and Stores.
 
 (defun emit-load/store-inst (segment opcode reg base index
                                      &optional (oddhack 0))
@@ -1333,7 +1312,6 @@
   (:emitter
    (emit-load/store-inst segment #b101110 base reg index)))
 
-
 (defun emit-fp-load/store-inst (segment opcode reg odd base index)
   (when (fixup-p index)
     (note-fixup segment :addi index)
@@ -1375,7 +1353,7 @@
   (:emitter
    (emit-fp-load/store-inst segment #b111001 reg 1 base index)))
 
-#+gengc 
+#+gengc
 (defun sw-and-maybe-remember (segment vop reg base index slot-p)
   (assemble (segment vop)
     (sc-case reg

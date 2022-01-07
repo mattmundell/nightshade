@@ -2,6 +2,7 @@
 
 (in-package "LISP")
 
+;; FIX is there a dochars?  doseq?  every?
 (export '(char schar string
 	  string= string-equal string< string> string<= string>= string/=
 	  string-lessp string-greaterp string-not-lessp string-not-greaterp
@@ -13,21 +14,50 @@
 	  nstring-capitalize
 	  concat))
 
-;; FIX should this kind of conversion be automatic?
-(defun string (X)
-  "Coerces X into a string.  If X is a string, X is returned.  If X is a
-   symbol, X's pname is returned.  If X is a character then a one element
-   string containing that character is returned.  If X is a number or
-   keyword then X is printed to a string (as with prin1).  Otherwise an
-   error occurs."
-  (cond ((stringp x) x)
-	((symbolp x) (symbol-name x))
-	((characterp x)
-	 (let ((res (make-string 1)))
-	   (setf (schar res 0) x) res))
-	((or (numberp x) (keywordp x)) (prin1-to-string x))
+;; FIX + equivs of strspn,strcspn?
+
+(defun quick-integer-to-string (n)
+  (declare (type integer n))
+  (cond ((not (fixnump n))
+	 (write-to-string n :base 10 :radix nil))
+	((zerop n) "0")
+	((eql n 1) "1")
+	((minusp n)
+	 (concatenate 'simple-string "-"
+		      (the simple-string (quick-integer-to-string (- n)))))
 	(t
-	 (error "~S cannot be coerced to a string." x))))
+	 (do* ((len (1+ (truncate (integer-length n) 3)))
+	       (res (make-string len))
+	       (i (1- len) (1- i))
+	       (q n)
+	       (r 0))
+	      ((zerop q)
+	       (incf i)
+	       (replace res res :start2 i :end2 len)
+	       (shrink-vector res (- len i)))
+	   (declare (simple-string res)
+		    (fixnum len i r q))
+	   (multiple-value-setq (q r) (truncate q 10))
+	   (setf (schar res i) (schar "0123456789" r))))))
+
+;; FIX should this [kind of] conversion be automatic?
+(defun string (x)
+  "Try coerce $x into a string.  If $x is a string, return $x.  If $x is a
+   symbol, return $x's pname.  If $x is a character then return a one
+   element string containing that character.  If $x is a number or keyword
+   then print $x to a string (as with prin1) and return the string.  If $x
+   is a pathname then return the namestring of $x.  Otherwise signal an
+   error."
+  (cond ((stringp x)        x)
+	((symbolp x)        (symbol-name x))
+	((characterp x)     (let ((res (make-string 1)))
+			      (setf (schar res 0) x) res))
+	((integerp x)       (quick-integer-to-string x))
+	((or (numberp x)
+	     (keywordp x))  (prin1-to-string x))
+	((pathnamep x)      (namestring x))
+	(t
+	 (error "Failed to coerce ~S into a string." x))))
 
 ;;; With-One-String is used to set up some string hacking things.  The keywords
 ;;; are parsed, and the string is hacked into a simple-string.
@@ -515,9 +545,8 @@
       (declare (fixnum index)))))
 
 (defun string-trim (char-bag string)
-  "Given a set of characters (a list or string) and a string, returns a
-   copy of the string with the characters in the set removed from both
-   ends."
+  "Given a set of characters (a list or string) and a string, return a copy
+   of the string with the characters in the set removed from both ends."
   (with-string string
     (let* ((left-end (do ((index start (1+ index)))
 			 ((or (= index (the fixnum end))
@@ -534,4 +563,4 @@
 (declaim (inline concat))
 (defun concat (&rest strings)
   "Return a concatenation of the given Strings."
-  (apply #'concatenate 'simple-string strings))
+  (apply #'concatenate 'string strings))

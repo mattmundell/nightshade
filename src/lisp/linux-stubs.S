@@ -56,6 +56,7 @@ PVE_stub_ ## fct: ;\
  doe(fstat)
  doe(fsync)
  doe(ftruncate)
+ doe(getdomainname)
  doe(getdtablesize)
  doe(getegid)
  doe(getgid)
@@ -380,8 +381,8 @@ PVE_stub_ ## fct: ;\
 /*  doe(getprotoent) */
 /*  doe(getpw) */
 /*  doe(getpwent) */
-/*  doe(getpwnam) */
-/*  doe(getpwuid) */
+doe(getpwnam)
+doe(getpwuid)
 /*  doe(getrpcbyname) */
 /*  doe(getrpcbynumber) */
 /*  doe(getrpcent) */
@@ -545,6 +546,7 @@ PVE_stub_ ## fct: ;\
 /*  doe(open) */
 /*  doe(opendir) */
 /*  doe(openlog) */
+doe(openpty)
 /*  doe(optarg) */
 /*  doe(opterr) */
 /*  doe(optind) */
@@ -584,6 +586,7 @@ PVE_stub_ ## fct: ;\
 /*  doe(printf) */
 /*  doe(psignal) */
 /*  doe(ptrace) */
+doe(ptsname)
 /*  doe(putc) */
 /*  doe(putchar) */
 /*  doe(putenv) */
@@ -731,7 +734,8 @@ PVE_stub_ ## fct: ;\
 /*  doe(sigpause) */
 /*  doe(sigpending) */
 /*  doe(sigprocmask) */
-/*  doe(sigreturn) */
+// FIX mgm
+doe(sigreturn)
 /*  doe(sigsetmask) */
 /*  doe(sigsuspend) */
 /*  doe(sin) */
@@ -818,7 +822,8 @@ PVE_stub_ ## fct: ;\
 /*  doe(sys_errlist) */
 /*  doe(sys_nerr) */
 /*  doe(sys_siglist) */
-/*  doe(syscall) */
+// FIX mgm
+doe(syscall)
 /*  doe(syscall_flock) */
 /*  doe(syscall_readv) */
 /*  doe(syscall_writev) */
@@ -866,6 +871,7 @@ PVE_stub_ ## fct: ;\
 /*  doe(uname) */
 /*  doe(ungetc) */
 /*  doe(unlink) */
+doe(unlockpt)
 /*  doe(unsetenv) */
 /*  doe(uselib) */
 /*  doe(usleep) */
@@ -911,3 +917,117 @@ PVE_stub_ ## fct: ;\
 /*  doe(yp_unbind) */
 /*  doe(yperr_string) */
 /*  doe(ypprot_err) */
+
+/* Xlib symbols. FIX maybe should be in xlib.c */
+
+doe(XAllocClassHint)
+doe(XAllocColor)
+doe(XAllocSizeHints)
+doe(XBell)
+doe(XBitmapPad)
+doe(XBitmapUnit)
+doe(XBlackPixelOfScreen)
+doe(XChangeGC)
+doe(XChangeProperty)
+doe(XCheckMaskEvent)
+doe(XCheckTypedWindowEvent)
+doe(XClearArea)
+doe(XClearWindow)
+doe(XCloseDisplay)
+doe(XConnectionNumber)
+doe(XConvertSelection)
+doe(XCopyArea)
+doe(XCreateFontCursor)
+doe(XCreateGC)
+doe(XCreateImage)
+doe(XCreatePixmap)
+doe(XCreatePixmapCursor)
+doe(XCreateSimpleWindow)
+doe(XCreateWindow)
+doe(XDefaultColormapOfScreen)
+doe(XDefaultDepthOfScreen)
+doe(XDefaultScreenOfDisplay)
+doe(XDefaultVisualOfScreen)
+doe(XDefineCursor)
+doe(XDeleteProperty)
+doe(XDestroyImage)
+doe(XDestroyWindow)
+doe(XDisplayOfScreen)
+doe(XDrawImageString)
+doe(XDrawLine)
+doe(XDrawPoint)
+doe(XDrawRectangle)
+doe(XEventMaskOfScreen)
+doe(XFetchBytes)
+doe(XFetchBuffer)
+doe(XFetchName)
+doe(XFillRectangle)
+doe(XFree)
+doe(XFreeCursor)
+doe(XFreeFont)
+doe(XFreeFontPath)
+doe(XFreeFontNames)
+doe(XFreeGC)
+doe(XFreePixmap)
+doe(XGetAtomName)
+doe(XGetClassHint)
+doe(XGetFontPath)
+doe(XGetGCValues)
+doe(XGetGeometry)
+doe(XGetImage)
+doe(XGetSelectionOwner)
+doe(XGetTextProperty)
+doe(XGetWMHints)
+doe(XGetWMName)
+doe(XGetWMNormalHints)
+doe(XGetWindowAttributes)
+doe(XGetWindowProperty)
+doe(XInternAtom)
+doe(XInternAtoms)
+doe(XKeycodeToKeysym)
+doe(XListFonts)
+doe(XListProperties)
+doe(XLoadQueryFont)
+doe(XLowerWindow)
+doe(XMapWindow)
+doe(XMoveResizeWindow)
+doe(XNextEvent)
+doe(XOpenDisplay)
+doe(XPeekEvent)
+doe(XPending)
+doe(XPutBackEvent)
+doe(XPutImage)
+doe(XQueryFont)
+doe(XQueryTree)
+doe(XRaiseWindow)
+doe(XReadBitmapFile)
+doe(XReadBitmapFileData)
+doe(XRootWindowOfScreen)
+doe(XScreenCount)
+doe(XScreenOfDisplay)
+doe(XSelectInput)
+doe(XSendEvent)
+doe(XSetErrorHandler)
+doe(XSetFontPath)
+doe(XSetIconName)
+doe(XSetSelectionOwner)
+doe(XSetTextProperty)
+doe(XSetWMHints)
+doe(XSetWMName)
+doe(XSetWMNormalHints)
+doe(XSetWMProperties)
+doe(XSetWindowBackground)
+doe(XSetWindowBorder)
+doe(XSetWindowBorderPixmap)
+doe(XStoreBuffer)
+doe(XStoreBytes)
+doe(XStringListToTextProperty)
+doe(XSync)
+doe(XSynchronize)
+doe(XTextPropertyToStringList)
+doe(XTranslateCoordinates)
+doe(XUnmapWindow)
+doe(XWhitePixelOfScreen)
+doe(XWidthOfScreen)
+doe(XWindowEvent)
+doe(XWriteBitmapFile)

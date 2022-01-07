@@ -1,21 +1,9 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/ir1util.lisp,v 1.77.2.4 2000/07/07 09:34:24 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains random utilities used for manipulating the IR1
-;;; representation.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; Random utilities used for manipulating the IR1 representation.
+
 (in-package "C")
+
 (export '(*compiler-notification-function*))
+
 (in-package "EXTENSIONS")
 (export '(*error-print-level* *error-print-length* *error-print-lines*
 	  def-source-context *undefined-warning-limit*
@@ -24,14 +12,13 @@
 (in-package "C")
 
 
-;;;; Cleanup hackery:
-
+;;;; Cleanup hackery.
 
 ;;; Node-Enclosing-Cleanup  --  Interface
 ;;;
-;;;    Return the innermost cleanup enclosing Node, or NIL if there is none in
-;;; its function.  If Node has no cleanup, but is in a let, then we must still
-;;; check the environment that the call is in.
+;;; Return the innermost cleanup enclosing Node, or NIL if there is none in
+;;; its function.  If Node has no cleanup, but is in a let, then we must
+;;; still check the environment that the call is in.
 ;;;
 (defun node-enclosing-cleanup (node)
   (declare (type node node))
@@ -41,15 +28,14 @@
     (let ((cup (lexenv-cleanup lexenv)))
       (when cup (return cup)))))
 
-
 ;;; Insert-Cleanup-Code  --  Interface
 ;;;
-;;;    Convert the Form in a block inserted between Block1 and Block2 as an
-;;; implicit MV-Prog1.  The inserted block is returned.  Node is used for IR1
-;;; context when converting the form.  Note that the block is not assigned a
-;;; number, and is linked into the DFO at the beginning.  We indicate that we
-;;; have trashed the DFO by setting Component-Reanalyze.  If Cleanup is
-;;; supplied, then convert with that cleanup.
+;;; Convert the Form in a block inserted between Block1 and Block2 as an
+;;; implicit MV-Prog1.  The inserted block is returned.  Node is used for
+;;; IR1 context when converting the form.  Note that the block is not
+;;; assigned a number, and is linked into the DFO at the beginning.  We
+;;; indicate that we have trashed the DFO by setting Component-Reanalyze.
+;;; If Cleanup is supplied, then convert with that cleanup.
 ;;;
 (defun insert-cleanup-code (block1 block2 node form &optional cleanup)
   (declare (type cblock block1 block2) (type node node)
@@ -70,11 +56,11 @@
       block)))
 
 
-;;;; Continuation use hacking:
+;;;; Continuation use hacking.
 
 ;;; Find-Uses  --  Interface
 ;;;
-;;;    Return a list of all the nodes which use Cont.
+;;; Return a list of all the nodes which use Cont.
 ;;;
 (defun find-uses (cont)
   (declare (type continuation cont) (values list))
@@ -85,12 +71,12 @@
     (:unused nil)
     (:deleted nil)))
 
-
 ;;; Delete-Continuation-Use  --  Interface
 ;;;
-;;;    Update continuation use information so that Node is no longer a use of
-;;; its Cont.  If the old continuation doesn't start its block, then we don't
-;;; update the Block-Start-Uses, since it will be deleted when we are done.
+;;; Update continuation use information so that Node is no longer a use of
+;;; its Cont.  If the old continuation doesn't start its block, then we
+;;; don't update the Block-Start-Uses, since it will be deleted when we are
+;;; done.
 ;;;
 ;;; Note: if you call this function, you may have to do a
 ;;; REOPTIMIZE-CONTINUATION to inform IR1 optimization that something has
@@ -114,11 +100,11 @@
        (setf (continuation-next cont) nil)))
     (setf (node-cont node) nil)))
 
-
 ;;; Add-Continuation-Use  --  Interface
 ;;;
-;;;    Update continuation use information so that Node uses Cont.  If Cont is
-;;; :Unused, then we set its block to Node's Node-Block (which must be set.)
+;;; Update continuation use information so that Node uses Cont.  If Cont is
+;;; :Unused, then we set its block to Node's Node-Block (which must be
+;;; set.)
 ;;;
 ;;; Note: if you call this function, you may have to do a
 ;;; REOPTIMIZE-CONTINUATION to inform IR1 optimization that something has
@@ -144,11 +130,10 @@
 	       (if (cdr uses) nil (car uses)))))))
   (setf (node-cont node) cont))
 
-
 ;;; Immediately-Used-P  --  Interface
 ;;;
-;;;    Return true if Cont is the Node-Cont for Node and Cont is transferred to
-;;; immediately after the evaluation of Node.
+;;; Return true if Cont is the Node-Cont for Node and Cont is transferred
+;;; to immediately after the evaluation of Node.
 ;;;
 (defun immediately-used-p (cont node)
   (declare (type continuation cont) (type node node))
@@ -162,13 +147,13 @@
 		    (eq (first succ) cblock)))))))
 
 
-;;;; Continuation substitution:
+;;;; Continuation substitution.
 
 ;;; Substitute-Continuation  --  Interface
 ;;;
-;;;    In Old's Dest, replace Old with New.  New's Dest must initially be NIL.
-;;; When we are done, we call Flush-Dest on Old to clear its Dest and to note
-;;; potential optimization opportunities.
+;;; In Old's Dest, replace Old with New.  New's Dest must initially be NIL.
+;;; When we are done, we call Flush-Dest on Old to clear its Dest and to
+;;; note potential optimization opportunities.
 ;;;
 (defun substitute-continuation (new old)
   (declare (type continuation old new))
@@ -192,9 +177,9 @@
 
 ;;; Substitute-Continuation-Uses  --  Interface
 ;;;
-;;;    Replace all uses of Old with uses of New, where New has an arbitary
-;;; number of uses.  If New will end up with more than one use, then we must
-;;; arrange for it to start a block if it doesn't already.
+;;; Replace all uses of Old with uses of New, where New has an arbitary
+;;; number of uses.  If New will end up with more than one use, then we
+;;; must arrange for it to start a block if it doesn't already.
 ;;;
 (defun substitute-continuation-uses (new old)
   (declare (type continuation old new))
@@ -213,17 +198,17 @@
   (undefined-value))
 
 
-;;;; Block starting/creation:
+;;;; Block starting/creation.
 
 ;;; Continuation-Starts-Block  --  Interface
 ;;;
-;;;    Return the block that Continuation is the start of, making a block if
-;;; necessary.  This function is called by IR1 translators which may cause a
-;;; continuation to be used more than once.  Every continuation which may be
-;;; used more than once must start a block by the time that anyone does a
-;;; Use-Continuation on it.
+;;; Return the block that Continuation is the start of, making a block if
+;;; necessary.  This function is called by IR1 translators which may cause
+;;; a continuation to be used more than once.  Every continuation which may
+;;; be used more than once must start a block by the time that anyone does
+;;; a Use-Continuation on it.
 ;;;
-;;;    We also throw the block into the next/prev list for the
+;;; We also throw the block into the next/prev list for the
 ;;; *current-component* so that we keep track of which blocks we have made.
 ;;;
 (defun continuation-starts-block (cont)
@@ -247,7 +232,7 @@
 
 ;;; Ensure-Block-Start  --  Interface
 ;;;
-;;;    Ensure that Cont is the start of a block (or deleted) so that the use
+;;; Ensure that Cont is the start of a block (or deleted) so that the use
 ;;; set can be freely manipulated.
 ;;; -- If the continuation is :Unused or is :Inside-Block and the Cont of Last
 ;;;    in its block, then we make it the start of a new deleted block.
@@ -273,13 +258,14 @@
   (undefined-value))
 
 
-;;;; Misc shortand functions:
+;;;; Misc shortand functions.
 
 ;;; NODE-HOME-LAMBDA  --  Interface
 ;;;
-;;;    Return the home (i.e. enclosing non-let) lambda for Node.  Since the
+;;; Return the home (i.e. enclosing non-let) lambda for Node.  Since the
 ;;; LEXENV-LAMBDA may be deleted, we must chain up the LAMBDA-CALL-LEXENV
-;;; thread until we find a lambda that isn't deleted, and then return its home.
+;;; thread until we find a lambda that isn't deleted, and then return its
+;;; home.
 ;;;
 (declaim (maybe-inline node-home-lambda))
 (defun node-home-lambda (node)
@@ -303,10 +289,9 @@
   (declare (type node node) (inline node-home-lambda))
   (the environment (lambda-environment (node-home-lambda node))))
 
-
 ;;; BLOCK-xxx-CLEANUP  --  Interface
 ;;;
-;;;    Return the enclosing cleanup for environment of the first or last node
+;;; Return the enclosing cleanup for environment of the first or last node
 ;;; in Block.
 ;;;
 (defun block-start-cleanup (block)
@@ -317,69 +302,62 @@
   (declare (type cblock block))
   (node-enclosing-cleanup (block-last block)))
 
-
 ;;; BLOCK-HOME-LAMBDA  --  Interface
 ;;;
-;;;    Return the non-let lambda that holds Block's code.
+;;; Return the non-let lambda that holds Block's code.
 ;;;
 (defun block-home-lambda (block)
   (declare (type cblock block) (inline node-home-lambda))
   (node-home-lambda (block-last block)))
 
-
 ;;; BLOCK-ENVIRONMENT  --  Interface
 ;;;
-;;;    Return the IR1 environment for Block.
+;;; Return the IR1 environment for Block.
 ;;;
 (defun block-environment (block)
   (declare (type cblock block) (inline node-home-lambda))
   (lambda-environment (node-home-lambda (block-last block))))
 
-
 ;;; SOURCE-PATH-TLF-NUMBER  --  Interface
 ;;;
-;;;    Return the Top Level Form number of path, i.e. the ordinal number of
+;;; Return the Top Level Form number of path, i.e. the ordinal number of
 ;;; its orignal source's top-level form in its compilation unit.
 ;;;
 (defun source-path-tlf-number (path)
   (declare (list path))
   (car (last path)))
 
-
 ;;; SOURCE-PATH-ORIGINAL-SOURCE  --  Interface
 ;;;
-;;;    Return the (reversed) list for the path in the orignal source (with the
+;;; Return the (reversed) list for the path in the orignal source (with the
 ;;; TLF number last.)
 ;;;
 (defun source-path-original-source (path)
   (declare (list path) (inline member))
   (cddr (member 'original-source-start path :test #'eq)))
 
-
 ;;; SOURCE-PATH-FORM-NUMBER  --  Interface
 ;;;
-;;;    Return the Form Number of Path's orignal source inside the Top Level
-;;; Form that contains it.  This is determined by the order that we walk the
-;;; subforms of the top level source form.
+;;; Return the Form Number of Path's orignal source inside the Top Level
+;;; Form that contains it.  This is determined by the order that we walk
+;;; the subforms of the top level source form.
 ;;;
 (defun source-path-form-number (path)
   (declare (list path) (inline member))
   (cadr (member 'original-source-start path :test #'eq)))
 
-
 ;;; SOURCE-PATH-FORMS  --  Interface
 ;;;
-;;;    Return a list of all the enclosing forms not in the original source that
-;;; converted to get to this form, with the immediate source for node at the
-;;; start of the list.
+;;; Return a list of all the enclosing forms not in the original source
+;;; that converted to get to this form, with the immediate source for node
+;;; at the start of the list.
 ;;;
 (defun source-path-forms (path)
   (subseq path 0 (position 'original-source-start path)))
 
-
 ;;; NODE-SOURCE-FORM  --  Interface
 ;;;
-;;;    Return the innermost source form for Node.
+;;; Return the innermost source form for Node.
 ;;;
 (defun node-source-form (node)
   (declare (type node node))
@@ -389,10 +367,9 @@
 	(first forms)
 	(values (find-original-source path)))))
 
-
 ;;; CONTINUATION-SOURCE-FORM  --  Interface
 ;;;
-;;;    Return NODE-SOURCE-FORM, T if continuation has a single use, otherwise
+;;; Return NODE-SOURCE-FORM, T if continuation has a single use, otherwise
 ;;; NIL, NIL.
 ;;;
 (defun continuation-source (cont)
@@ -404,9 +381,9 @@
 
 ;;; MAKE-LEXENV  --  Interface
 ;;;
-;;;    Return a new LEXENV just like Default except for the specified slot
-;;; values.  Values for the alist slots are NCONC'ed to the beginning of the
-;;; current value, rather than replacing it entirely.
+;;; Return a new LEXENV just like Default except for the specified slot
+;;; values.  Values for the alist slots are NCONC'ed to the beginning of
+;;; the current value, rather than replacing it entirely.
 ;;;
 (defun make-lexenv (&key (default *lexical-environment*)
 			 functions variables blocks tags type-restrictions
@@ -429,10 +406,9 @@
      lambda cleanup cookie interface-cookie
      (frob options lexenv-options))))
 
-
 ;;; MAKE-INTERFACE-COOKIE  --  Interface
 ;;;
-;;;    Return a cookie that defaults any unsupplied optimize qualities in the
+;;; Return a cookie that defaults any unsupplied optimize qualities in the
 ;;; Interface-Cookie with the corresponding ones from the Cookie.
 ;;;
 (defun make-interface-cookie (lexenv)
@@ -448,11 +424,11 @@
      :debug (or (cookie-debug icookie) (cookie-debug cookie)))))
 
 
-;;;; Flow/DFO/Component hackery:
+;;;; Flow/DFO/Component hackery.
 
 ;;; Link-Blocks  --  Interface
 ;;;
-;;;    Join Block1 and Block2.
+;;; Join Block1 and Block2.
 ;;;
 (declaim (inline link-blocks))
 (defun link-blocks (block1 block2)
@@ -470,10 +446,9 @@
     (assert (not (member block2 succ1 :test #'eq)))
     (cons block2 succ1)))
 
-
 ;;; UNLINK-BLOCKS  --  Interface
 ;;;
-;;;    Like LINK-BLOCKS, but we separate BLOCK1 and BLOCK2.  If this leaves a
+;;; Like LINK-BLOCKS, but we separate BLOCK1 and BLOCK2.  If this leaves a
 ;;; successor with a single predecessor that ends in an IF, then set
 ;;; BLOCK-TEST-MODIFIED so that any test constraint will now be able to be
 ;;; propagated to the successor.
@@ -497,14 +472,13 @@
 	  (setf (block-test-modified pred-block) t)))))
   (undefined-value))
 
-
 ;;; Change-Block-Successor  --  Internal
 ;;;
-;;;    Swing the succ/pred link between Block and Old to be between Block and
+;;; Swing the succ/pred link between Block and Old to be between Block and
 ;;; New.  If Block ends in an IF, then we have to fix up the
 ;;; consequent/alternative blocks to point to New.  We also set
-;;; BLOCK-TEST-MODIFIED so that any test constraint will be applied to the new
-;;; successor.
+;;; BLOCK-TEST-MODIFIED so that any test constraint will be applied to the
+;;; new successor.
 ;;;
 (defun change-block-successor (block old new)
   (declare (type cblock new old block) (inline member))
@@ -533,10 +507,9 @@
 
   (undefined-value))
 
-
 ;;; Remove-From-DFO  --  Interface
 ;;;
-;;;    Unlink a block from the next/prev chain.  We also null out the
+;;; Unlink a block from the next/prev chain.  We also null out the
 ;;; Component.
 ;;;
 (declaim (inline remove-from-dfo))
@@ -550,7 +523,7 @@
 
 ;;; Add-To-DFO  --  Interface
 ;;;
-;;;    Add Block to the next/prev chain following After.  We also set the
+;;; Add Block to the next/prev chain following After.  We also set the
 ;;; Component to be the same as for After.
 ;;;
 (declaim (inline add-to-dfo))
@@ -566,11 +539,10 @@
     (setf (block-prev next) block))
   (undefined-value))
 
-
 ;;; Clear-Flags  --  Interface
 ;;;
-;;;    Set the Flag for all the blocks in Component to NIL, except for the head
-;;; and tail which are set to T.
+;;; Set the Flag for all the blocks in Component to NIL, except for the
+;;; head and tail which are set to T.
 ;;;
 (defun clear-flags (component)
   (declare (type component component))
@@ -581,11 +553,10 @@
     (do-blocks (block component)
       (setf (block-flag block) nil))))
 
-
 ;;; Make-Empty-Component  --  Interface
 ;;;
-;;;    Make a component with no blocks in it.  The Block-Flag is initially true
-;;; in the head and tail blocks.
+;;; Make a component with no blocks in it.  The Block-Flag is initially
+;;; true in the head and tail blocks.
 ;;;
 (defun make-empty-component ()
   (declare (values component))
@@ -600,11 +571,11 @@
     (setf (block-prev tail) head)
     res))
 
-
 ;;; Node-Ends-Block  --  Interface
 ;;;
-;;;    Makes Node the Last node in its block, splitting the block if necessary.
-;;; The new block is added to the DFO immediately following Node's block.
+;;; Makes Node the Last node in its block, splitting the block if
+;;; necessary.  The new block is added to the DFO immediately following
+;;; Node's block.
 ;;;
 (defun node-ends-block (node)
   (declare (type node node))
@@ -643,22 +614,23 @@
   (undefined-value))
 
 
-;;;; Deleting stuff:
+;;;; Deleting stuff.
 
 (declaim (start-block delete-ref delete-functional flush-dest
 		      delete-continuation delete-block))
 
 ;;; Delete-Lambda-Var  --  Internal
 ;;;
-;;;    Deal with deleting the last (read) reference to a lambda-var.  We
-;;; iterate over all local calls flushing the corresponding argument, allowing
-;;; the computation of the argument to be deleted.  We also mark the let for
-;;; reoptimization, since it may be that we have deleted the last variable.
+;;; Deal with deleting the last (read) reference to a lambda-var.  We
+;;; iterate over all local calls flushing the corresponding argument,
+;;; allowing the computation of the argument to be deleted.  We also mark
+;;; the let for reoptimization, since it may be that we have deleted the
+;;; last variable.
 ;;;
-;;;    The lambda-var may still have some sets, but this doesn't cause too much
-;;; difficulty, since we can efficiently implement write-only variables.  We
-;;; iterate over the sets, marking their blocks for dead code flushing, since
-;;; we can delete sets whose value is unused.
+;;; The lambda-var may still have some sets, but this doesn't cause too
+;;; much difficulty, since we can efficiently implement write-only
+;;; variables.  We iterate over the sets, marking their blocks for dead
+;;; code flushing, since we can delete sets whose value is unused.
 ;;;
 (defun delete-lambda-var (leaf)
   (declare (type lambda-var leaf))
@@ -681,12 +653,11 @@
 
   (undefined-value))
 
-
 ;;; REOPTIMIZE-LAMBDA-VAR  --  Internal
 ;;;
-;;;    Note that something interesting has happened to Var.  We only deal with
-;;; LET variables, marking the corresponding initial value arg as needing to be
-;;; reoptimized.
+;;; Note that something interesting has happened to Var.  We only deal with
+;;; LET variables, marking the corresponding initial value arg as needing
+;;; to be reoptimized.
 ;;;
 (defun reoptimize-lambda-var (var)
   (declare (type lambda-var var))
@@ -703,12 +674,11 @@
 	   (reoptimize-continuation (car args))))))
   (undefined-value))
 
-
 ;;; DELETE-FUNCTIONAL  --  Interface
 ;;;
-;;;    This function deletes functions that have no references.  This need only
-;;; be called on functions that never had any references, since otherwise
-;;; DELETE-REF will handle the deletion.
+;;; This function deletes functions that have no references.  This need
+;;; only be called on functions that never had any references, since
+;;; otherwise DELETE-REF will handle the deletion.
 ;;;
 (defun delete-functional (fun)
   (assert (and (null (leaf-refs fun))
@@ -718,22 +688,21 @@
     (clambda (delete-lambda fun)))
   (undefined-value))
 
-
 ;;; Delete-Lambda  --  Internal
 ;;;
-;;;    Deal with deleting the last reference to a lambda.  Since there is only
-;;; one way into a lambda, deleting the last reference to a lambda ensures that
-;;; there is no way to reach any of the code in it.  So we just set the
-;;; Functional-Kind for Fun and its Lets to :Deleted, causing IR1 optimization
-;;; to delete blocks in that lambda.
+;;; Deal with deleting the last reference to a lambda.  Since there is only
+;;; one way into a lambda, deleting the last reference to a lambda ensures
+;;; that there is no way to reach any of the code in it.  So we just set
+;;; the Functional-Kind for Fun and its Lets to :Deleted, causing IR1
+;;; optimization to delete blocks in that lambda.
 ;;;
-;;;    If the function isn't a Let, we unlink the function head and tail from
-;;; the component head and tail to indicate that the code is unreachable.  We
-;;; also delete the function from Component-Lambdas (it won't be there before
-;;; local call analysis, but no matter.)  If the lambda was never referenced,
-;;; we give a note.
+;;; If the function isn't a Let, we unlink the function head and tail from
+;;; the component head and tail to indicate that the code is unreachable.
+;;; We also delete the function from Component-Lambdas (it won't be there
+;;; before local call analysis, but no matter.)  If the lambda was never
+;;; referenced, we give a note.
 ;;;
-;;;    If the lambda is an XEP, then we null out the Entry-Function in its
+;;; If the lambda is an XEP, then we null out the Entry-Function in its
 ;;; Entry-Function so that people will know that it is not an entry point
 ;;; anymore.
 ;;;
@@ -778,22 +747,21 @@
 
   (undefined-value))
 
-
 ;;; Delete-Optional-Dispatch  --  Internal
 ;;;
-;;;    Deal with deleting the last reference to an Optional-Dispatch.  We have
-;;; to be a bit more careful than with lambdas, since Delete-Ref is used both
-;;; before and after local call analysis.  Afterward, all references to
-;;; still-existing optional-dispatches have been moved to the XEP, leaving it
-;;; with no references at all.  So we look at the XEP to see if an
-;;; optional-dispatch is still really being used.  But before local call
+;;; Deal with deleting the last reference to an Optional-Dispatch.  We have
+;;; to be a bit more careful than with lambdas, since Delete-Ref is used
+;;; both before and after local call analysis.  Afterward, all references
+;;; to still-existing optional-dispatches have been moved to the XEP,
+;;; leaving it with no references at all.  So we look at the XEP to see if
+;;; an optional-dispatch is still really being used.  But before local call
 ;;; analysis, there are no XEPs, and all references are direct.
 ;;;
-;;;    When we do delete the optional-dispatch, we grovel all of its
+;;; When we do delete the optional-dispatch, we grovel all of its
 ;;; entry-points, making them be normal lambdas, and then deleting the ones
-;;; with no references.  This deletes any e-p lambdas that were either never
-;;; referenced, or couldn't be deleted when the last deference was deleted (due
-;;; to their :Optional kind.)
+;;; with no references.  This deletes any e-p lambdas that were either
+;;; never referenced, or couldn't be deleted when the last deference was
+;;; deleted (due to their :Optional kind.)
 ;;;
 ;;; Note that the last optional ep may alias the main entry, so when we process
 ;;; the main entry, its kind may have been changed to NIL or even converted to
@@ -829,10 +797,9 @@
 
   (undefined-value))
 
-
 ;;; Delete-Ref  --  Interface
 ;;;
-;;;    Do stuff to delete the semantic attachments of a Ref node.  When this
+;;; Do stuff to delete the semantic attachments of a Ref node.  When this
 ;;; leaves zero or one reference, we do a type dispatch off of the leaf to
 ;;; determine if a special action is appropriate.
 ;;;
@@ -867,22 +834,19 @@
 
   (undefined-value))
 
-
-
-
 ;;; Flush-Dest  --  Interface
 ;;;
-;;;    This function is called by people who delete nodes; it provides a way to
-;;; indicate that the value of a continuation is no longer used.  We null out
-;;; the Continuation-Dest, set Flush-P in the blocks containing uses of Cont
-;;; and set Component-Reoptimize.  If the Prev of the use is deleted, then we
-;;; blow off reoptimization.
+;;; This function is called by people who delete nodes; it provides a way
+;;; to indicate that the value of a continuation is no longer used.  We
+;;; null out the Continuation-Dest, set Flush-P in the blocks containing
+;;; uses of Cont and set Component-Reoptimize.  If the Prev of the use is
+;;; deleted, then we blow off reoptimization.
 ;;;
-;;;    If the continuation is :Deleted, then we don't do anything, since all
+;;; If the continuation is :Deleted, then we don't do anything, since all
 ;;; semantics have already been flushed.  :Deleted-Block-Start start
-;;; continuations are treated just like :Block-Start; it is possible that the
-;;; continuation may be given a new dest (e.g. by SUBSTITUTE-CONTINUATION), so
-;;; we don't want to delete it.
+;;; continuations are treated just like :Block-Start; it is possible that
+;;; the continuation may be given a new dest (e.g. by
+;;; SUBSTITUTE-CONTINUATION), so we don't want to delete it.
 ;;;
 (defun flush-dest (cont)
   (declare (type continuation cont))
@@ -902,11 +866,10 @@
 
   (undefined-value))
 
-
 ;;; MARK-FOR-DELETION  --  Internal
 ;;;
-;;;    Do a graph walk backward from Block, marking all predecessor blocks with
-;;; the DELETE-P flag.
+;;; Do a graph walk backward from Block, marking all predecessor blocks
+;;; with the DELETE-P flag.
 ;;;
 (defun mark-for-deletion (block)
   (declare (type cblock block))
@@ -917,18 +880,18 @@
       (mark-for-deletion pred)))
   (undefined-value))
 
-
 ;;; DELETE-CONTINUATION  --  Interface
 ;;;
-;;;    Delete Cont, eliminating both control and value semantics.  We set
-;;; FLUSH-P and COMPONENT-REOPTIMIZE similarly to in FLUSH-DEST.  Here we must
-;;; get the component from the use block, since the continuation may be a
-;;; :DELETED-BLOCK-START.
+;;; Delete Cont, eliminating both control and value semantics.  We set
+;;; FLUSH-P and COMPONENT-REOPTIMIZE similarly to in FLUSH-DEST.  Here we
+;;; must get the component from the use block, since the continuation may
+;;; be a :DELETED-BLOCK-START.
 ;;;
-;;;    If Cont has DEST, then it must be the case that the DEST is unreachable,
-;;; since we can't compute the value desired.  In this case, we call
-;;; MARK-FOR-DELETION to cause the DEST block and its predecessors to tell
-;;; people to ignore them, and to cause them to be deleted eventually.
+;;; If Cont has DEST, then it must be the case that the DEST is
+;;; unreachable, since we can't compute the value desired.  In this case,
+;;; we call MARK-FOR-DELETION to cause the DEST block and its predecessors
+;;; to tell people to ignore them, and to cause them to be deleted
+;;; eventually.
 ;;;
 (defun delete-continuation (cont)
   (declare (type continuation cont))
@@ -963,16 +926,16 @@
 
   (undefined-value))
 
-
 ;;; Delete-Block  --  Interface
 ;;;
-;;;    This function does what is necessary to eliminate the code in it from
-;;; the IR1 representation.  This involves unlinking it from its predecessors
-;;; and successors and deleting various node-specific semantic information.
+;;; This function does what is necessary to eliminate the code in it from
+;;; the IR1 representation.  This involves unlinking it from its
+;;; predecessors and successors and deleting various node-specific semantic
+;;; information.
 ;;;
-;;;    We mark the Start as has having no next and remove the last node from
-;;; its Cont's uses.  We also flush the DEST for all continuations whose values
-;;; are received by nodes in the block.
+;;; We mark the Start as has having no next and remove the last node from
+;;; its Cont's uses.  We also flush the DEST for all continuations whose
+;;; values are received by nodes in the block.
 ;;;
 (defun delete-block (block)
   (declare (type cblock block))
@@ -1045,11 +1008,10 @@
 
 (declaim (end-block))
 
-
 ;;; Delete-Return  --  Interface
 ;;;
-;;;    Do stuff to indicate that the return node Node is being deleted.  We set
-;;; the RETURN to NIL.
+;;; Do stuff to indicate that the return node Node is being deleted.  We
+;;; set the RETURN to NIL.
 ;;;
 (defun delete-return (node)
   (declare (type creturn node))
@@ -1058,10 +1020,9 @@
     (setf (lambda-return fun) nil))
   (undefined-value))
 
-
 ;;; NOTE-UNREFERENCED-VARS  --  Interface
 ;;;
-;;;    If any of the Vars in fun were never referenced and was not declared
+;;; If any of the Vars in fun was never referenced and was not declared
 ;;; IGNORE, then complain.
 ;;;
 (defun note-unreferenced-vars (fun)
@@ -1076,15 +1037,15 @@
 	(setf (leaf-ever-used var) t))))
   (undefined-value))
 
-
 (defvar *deletion-ignored-objects* '(t nil))
 
 ;;; PRESENT-IN-FORM  --  Internal
 ;;;
-;;;    Return true if we can find Obj in Form, NIL otherwise.  We bound our
-;;; recursion so that we don't get lost in circular structures.  We ignore the
-;;; car of forms if they are a symbol (to prevent confusing function
-;;; referencess with variables), and we also ignore anything inside ' or #'.
+;;; Return true if we can find Obj in Form, NIL otherwise.  We bound our
+;;; recursion so that we don't get lost in circular structures.  We ignore
+;;; the car of forms if they are a symbol (to prevent confusing function
+;;; referencess with variables), and we also ignore anything inside ' or
+;;; #'.
 ;;;
 (defun present-in-form (obj form depth)
   (declare (type (integer 0 20) depth))
@@ -1106,19 +1067,19 @@
 		     (when (present-in-form obj (car l) depth)
 		       (return t)))))))))
 
-
 ;;; NOTE-BLOCK-DELETION  --  Internal
 ;;;
-;;;    This function is called on a block immediately before we delete it.  We
+;;; This function is called on a block immediately before we delete it.  We
 ;;; check to see if any of the code about to die appeared in the original
 ;;; source, and emit a note if so.
 ;;;
-;;;    If the block was in a lambda is now deleted, then we ignore the whole
+;;; If the block was in a lambda is now deleted, then we ignore the whole
 ;;; block, since this case is picked off in DELETE-LAMBDA.  We also ignore
 ;;; the deletion of CRETURN nodes, since it is somewhat reasonable for a
-;;; function to not return, and there is a different note for that case anyway.
+;;; function to not return, and there is a different note for that case
+;;; anyway.
 ;;;
-;;;    If the actual source is an atom, then we use a bunch of heuristics to
+;;; If the actual source is an atom, then we use a bunch of heuristics to
 ;;; guess whether this reference really appeared in the original source:
 ;;; -- If a symbol, it must be interned and not a keyword.
 ;;; -- It must not be an easily introduced constant (T or NIL, a fixnum or a
@@ -1151,22 +1112,21 @@
 	    (return))))))
   (undefined-value))
 
-
 ;;; Unlink-Node  --  Interface
 ;;;
-;;;    Delete a node from a block, deleting the block if there are no nodes
-;;; left.  We remove the node from the uses of its CONT, but we don't deal with
-;;; cleaning up any type-specific semantic attachments.  If the CONT is :UNUSED
-;;; after deleting this use, then we delete CONT.  (Note :UNUSED is not the
-;;; same as no uses.  A continuation will only become :UNUSED if it was
-;;; :INSIDE-BLOCK before.)
+;;; Delete a node from a block, deleting the block if there are no nodes
+;;; left.  We remove the node from the uses of its CONT, but we don't deal
+;;; with cleaning up any type-specific semantic attachments.  If the CONT
+;;; is :UNUSED after deleting this use, then we delete CONT.  (Note :UNUSED
+;;; is not the same as no uses.  A continuation will only become :UNUSED if
+;;; it was :INSIDE-BLOCK before.)
 ;;;
-;;;    If the node is the last node, there must be exactly one successor.  We
+;;; If the node is the last node, there must be exactly one successor.  We
 ;;; link all of our precedessors to the successor and unlink the block.  In
-;;; this case, we return T, otherwise NIL.  If no nodes are left, and the block
-;;; is a successor of itself, then we replace the only node with a degenerate
-;;; exit node.  This provides a way to represent the bodyless infinite loop,
-;;; given the prohibition on empty blocks in IR1.
+;;; this case, we return T, otherwise NIL.  If no nodes are left, and the
+;;; block is a successor of itself, then we replace the only node with a
+;;; degenerate exit node.  This provides a way to represent the bodyless
+;;; infinite loop, given the prohibition on empty blocks in IR1.
 ;;;
 (defun unlink-node (node)
   (declare (type node node))
@@ -1229,10 +1189,9 @@
 	       (setf (node-prev node) nil)
 	       t)))))))
 
-
 ;;; NODE-DELETED  --  Interface
 ;;;
-;;;    Return true if NODE has been deleted, false if it is still a valid part
+;;; Return true if NODE has been deleted, false if it is still a valid part
 ;;; of IR1.
 ;;;
 (defun node-deleted (node)
@@ -1244,12 +1203,11 @@
 		(and (block-component block)
 		     (not (block-delete-p block))))))))
 
-
 ;;; DELETE-COMPONENT  --  Interface
 ;;;
-;;;    Delete all the blocks and functions in Component.  We scan first marking
-;;; the blocks as delete-p to prevent weird stuff from being triggered by
-;;; deletion.
+;;; Delete all the blocks and functions in Component.  We scan first
+;;; marking the blocks as delete-p to prevent weird stuff from being
+;;; triggered by deletion.
 ;;;
 (defun delete-component (component)
   (declare (type component component))
@@ -1266,15 +1224,14 @@
     (delete-block block))
   (undefined-value))
 
-
 ;;; EXTRACT-FUNCTION-ARGS -- interface
 ;;;
 ;;; Convert code of the form (foo ... (fun ...) ...) to (foo ... ... ...).
-;;; In other words, replace the function combination fun by it's arguments.
+;;; In other words, replace the function combination fun by its arguments.
 ;;; If there are any problems with doing this, use GIVE-UP to blow out of
-;;; whatever transform called this.  Note, as the number of arguments changes,
-;;; the transform must be prepared to return a lambda with a new lambda-list
-;;; with the correct number of arguments.
+;;; whatever transform called this.  Note, as the number of arguments
+;;; changes, the transform must be prepared to return a lambda with a new
+;;; lambda-list with the correct number of arguments.
 ;;;
 (defun extract-function-args (cont fun num-args)
   "If CONT is a call to FUN with NUM-ARGS args, change those arguments
@@ -1311,13 +1268,12 @@
 	  (setf (continuation-asserted-type cont) *wild-type*)
 	  (undefined-value))))))
 
-
 
-;;;; Leaf hackery:
+;;;; Leaf hackery.
 
 ;;; Change-Ref-Leaf  --  Interface
 ;;;
-;;;    Change the Leaf that a Ref refers to.
+;;; Change the Leaf that a Ref refers to.
 ;;;
 (defun change-ref-leaf (ref leaf)
   (declare (type ref ref) (type leaf leaf))
@@ -1332,10 +1288,9 @@
     (reoptimize-continuation (node-cont ref)))
   (undefined-value))
 
-
 ;;; Substitute-Leaf  --  Interface
 ;;;
-;;;    Change all Refs for Old-Leaf to New-Leaf.
+;;; Change all Refs for Old-Leaf to New-Leaf.
 ;;;
 (defun substitute-leaf (new-leaf old-leaf)
   (declare (type leaf new-leaf old-leaf))
@@ -1345,7 +1300,7 @@
 
 ;;; SUBSTITUTE-LEAF-IF  --  Interface
 ;;;
-;;;    Like SUBSITIUTE-LEAF, only there is a predicate on the Ref to tell
+;;; Like SUBSITIUTE-LEAF, only there is a predicate on the Ref to tell
 ;;; whether to substitute.
 ;;;
 (defun substitute-leaf-if (test new-leaf old-leaf)
@@ -1357,7 +1312,7 @@
 
 ;;; Find-Constant  --  Interface
 ;;;
-;;;    Return a Leaf which represents the specified constant object.  If the
+;;; Return a Leaf which represents the specified constant object.  If the
 ;;; object is not in *constants*, then we create a new constant Leaf and
 ;;; enter it.
 ;;;
@@ -1377,7 +1332,7 @@
 
 ;;;; Find-NLX-Info  --  Interface
 ;;;
-;;;    If there is a non-local exit noted in Entry's environment that exits to
+;;; If there is a non-local exit noted in Entry's environment that exits to
 ;;; Cont in that entry, then return it, otherwise return NIL.
 ;;;
 (defun find-nlx-info (entry cont)
@@ -1389,11 +1344,11 @@
 	(return nlx)))))
 
 
-;;;; Functional hackery:
+;;;; Functional hackery.
 
 ;;; Main-Entry  --  Interface
 ;;;
-;;;    If Functional is a Lambda, just return it; if it is an
+;;; If Functional is a Lambda, just return it; if it is an
 ;;; optional-dispatch, return the main-entry.
 ;;;
 (defun main-entry (functional)
@@ -1405,9 +1360,9 @@
 
 ;;; Looks-Like-An-MV-Bind  --  Interface
 ;;;
-;;;    Returns true if Functional is a thing that can be treated like MV-Bind
-;;; when it appears in an MV-Call.  All fixed arguments must be optional with
-;;; null default and no supplied-p.  There must be a rest arg with no
+;;; Returns true if Functional is a thing that can be treated like MV-Bind
+;;; when it appears in an MV-Call.  All fixed arguments must be optional
+;;; with null default and no supplied-p.  There must be a rest arg with no
 ;;; references.
 ;;;
 (defun looks-like-an-mv-bind (functional)
@@ -1428,7 +1383,7 @@
 
 ;;; External-Entry-Point-P  --  Interface
 ;;;
-;;;    Return true if function is an XEP.  This is true of normal XEPs
+;;; Return true if function is an XEP.  This is true of normal XEPs
 ;;; (:External kind) and top-level lambdas (:Top-Level kind.)
 ;;;
 (declaim (inline external-entry-point-p))
@@ -1436,12 +1391,11 @@
   (declare (type functional fun))
   (not (null (member (functional-kind fun) '(:external :top-level)))))
 
-
 ;;; Continuation-Function-Name  --  Interface
 ;;;
-;;;    If Cont's only use is a non-notinline global function reference, then
-;;; return the referenced symbol, otherwise NIL.  If Notinline-OK is true, then
-;;; we don't care if the leaf is notinline.
+;;; If Cont's only use is a non-notinline global function reference, then
+;;; return the referenced symbol, otherwise NIL.  If Notinline-OK is true,
+;;; then we don't care if the leaf is notinline.
 ;;;
 (defun continuation-function-name (cont &optional notinline-ok)
   (declare (type continuation cont))
@@ -1457,20 +1411,19 @@
 	      nil))
 	nil)))
 
-
 ;;; LET-COMBINATION  --  Interface
 ;;;
-;;;    Return the COMBINATION node that is the call to the let Fun.
+;;; Return the COMBINATION node that is the call to the let Fun.
 ;;;
 (defun let-combination (fun)
   (declare (type clambda fun))
   (assert (member (functional-kind fun) '(:let :mv-let)))
   (continuation-dest (node-cont (first (leaf-refs fun)))))
 
-
 ;;; LET-VAR-INITIAL-VALUE  --  Interface
 ;;;
-;;;    Return the initial value continuation for a let variable or NIL if none.
+;;; Return the initial value continuation for a let variable or NIL if
+;;; none.
 ;;;
 (defun let-var-initial-value (var)
   (declare (type lambda-var var))
@@ -1478,10 +1431,9 @@
     (elt (combination-args (let-combination fun))
 	 (eposition var (lambda-vars fun)))))
 
-
 ;;; COMBINATION-LAMBDA  --  Interface
 ;;;
-;;;    Return the LAMBDA that is called by the local Call.
+;;; Return the LAMBDA that is called by the local Call.
 ;;;
 (declaim (inline combination-lambda))
 (defun combination-lambda (call)
@@ -1489,15 +1441,13 @@
   (assert (eq (basic-combination-kind call) :local))
   (ref-leaf (continuation-use (basic-combination-fun call))))
 
-
 (defvar *inline-expansion-limit* 200
   "An upper limit on the number of inline function calls that will be expanded
    in any given code object (single function or block compilation.)")
 
-
 ;;; INLINE-EXPANSION-OK  --  Interface
 ;;;
-;;;    Check if Node's component has exceeded its inline expansion limit, and
+;;; Check if Node's component has exceeded its inline expansion limit, and
 ;;; warn if so, returning NIL.
 ;;;
 (defun inline-expansion-ok (node)
@@ -1515,34 +1465,41 @@
 	  (t t))))
 
 
-;;;; Compiler error context determination:
+;;;; Compiler error context determination.
 
 (proclaim '(special *current-path*))
 
-
-;;; We bind print level and length when printing out messages so that we don't
-;;; dump huge amounts of garbage.
+;;; We bind print level and length when printing out messages so that we
+;;; don't dump huge amounts of garbage.
 ;;;
 (proclaim '(type (or unsigned-byte null) *error-print-level*
 		 *error-print-length* *error-print-lines*))
 
 (defvar *error-print-level* 3
-  "The value for *Print-Level* when printing compiler error messages.")
+  "The value for *print-level* when printing compiler error messages.  If
+   (), the global value of *print-level* is used.")
 (defvar *error-print-length* 5
-  "The value for *Print-Length* when printing compiler error messages.")
+  "The value for *print-length* when printing compiler error messages.  If
+   (), the global value of *print-length* is used.")
 (defvar *error-print-lines* 5
-  "The value for *Print-Lines* when printing compiler error messages.")
+  "The value for *print-lines* when printing compiler error messages.  If
+   (), the global value of *print-lines* is used.")
 
 (defvar *enclosing-source-cutoff* 1
-  "The maximum number of enclosing non-original source forms (i.e. from
-  macroexpansion) that we print in full.  For additional enclosing forms, we
-  print only the CAR.")
+  "The number of enclosing actual source forms that are printed in full,
+   rather than in the abbreviated processing path format.  Increasing the
+   value shows more of the guts of the macroexpanded source, which is
+   useful when inspecting macro execution.
+
+   FIX The maximum number of enclosing non-original source forms (i.e. from
+   macroexpansion) that we print in full.  For additional enclosing forms,
+   we print only the CAR.")
 (proclaim '(type unsigned-byte *enclosing-source-cutoff*))
 
-
-;;; We separate the determination of compiler error contexts from the actual
-;;; signalling of those errors by objectifying the error context.  This allows
-;;; postponement of the determination of how (and if) to signal the error.
+;;; We separate the determination of compiler error contexts from the
+;;; actual signalling of those errors by objectifying the error context.
+;;; This allows postponement of the determination of how (and if) to signal
+;;; the error.
 ;;;
 ;;; We take care not to reference any of the IR1 so that pending potential
 ;;; error messages won't prevent the IR1 from being GC'd.  To this end, we
@@ -1555,8 +1512,8 @@
 	       (declare (ignore s d))
 	       (format stream "#<Compiler-Error-Context>"))))
   ;;
-  ;; A list of the stringified CARs of the enclosing non-original source forms
-  ;; exceeding the *enclosing-source-cutoff*.
+  ;; A list of the stringified CARs of the enclosing non-original source
+  ;; forms exceeding the *enclosing-source-cutoff*.
   (enclosing-source nil :type list)
   ;;
   ;; A list of stringified enclosing non-original source forms.
@@ -1578,14 +1535,12 @@
   ;; The original source part of the source path.
   (original-source-path nil :type list))
 
-
 ;;; If true, this is the node which is used as context in compiler warning
 ;;; messages.
 ;;;
 (proclaim '(type (or null compiler-error-context node)
 		 *compiler-error-context*))
 (defvar *compiler-error-context* nil)
-
 
 ;;; Hashtable mapping macro names to source context parsers.  Each parser
 ;;; function returns the source-context list for that form.
@@ -1594,16 +1549,22 @@
 
 ;;; DEF-SOURCE-CONTEXT  --  Public
 ;;;
-(defmacro def-source-context (name ll &body body)
-  "DEF-SOURCE-CONTEXT Name Lambda-List Form*
+(defmacro def-source-context (name lambda-list &body body)
+  "def-source-context name lambda-list form*
+
    This macro defines how to extract an abbreviated source context from the
-   Named form when it appears in the compiler input.  Lambda-List is a DEFMACRO
-   style lambda-list used to parse the arguments.  The Body should return a
-   list of subforms suitable for a \"~{~S ~}\" format string."
+   Named form when it appears in the compiler input.  $lambda-list is a
+   `defmacro' style lambda-list used to parse the arguments.  $body should
+   return a list of subforms suitable for a \"~{~S ~}\" format string.
+
+   There are predefined methods for `defstruct', `defmethod', etc.  If no
+   method is defined, then the first two subforms are returned.  Note that
+   this facility implicitly determines the string name associated with
+   anonymous functions."
   (let ((n-whole (gensym)))
     `(setf (gethash ',name *source-context-methods*)
 	   #'(lambda (,n-whole)
-	       (destructuring-bind ,ll ,n-whole ,@body)))))
+	       (destructuring-bind ,lambda-list ,n-whole ,@body)))))
 
 (def-source-context defstruct (name-or-options &rest slots)
   (declare (ignore slots))
@@ -1616,10 +1577,9 @@
       `(lambda ,(second thing))
       `(function ,thing)))
 
-
 ;;; SOURCE-FORM-CONTEXT  --  Internal
 ;;;
-;;;    Return the first two elements of Form if Form is a list.  Take the car
+;;; Return the first two elements of Form if Form is a list.  Take the car
 ;;; of the second form if appropriate.
 ;;;
 (defun source-form-context (form)
@@ -1633,13 +1593,12 @@
 	(t
 	 form)))
 
-
 ;;; Find-Original-Source  --  Internal
 ;;;
-;;;    Given a source path, return the original source form and a description
+;;; Given a source path, return the original source form and a description
 ;;; of the interesting aspects of the context in which it appeared.  The
-;;; context is a list of lists, one sublist per context form.  The sublist is a
-;;; list of some of the initial subforms of the context form.
+;;; context is a list of lists, one sublist per context form.  The sublist
+;;; is a list of some of the initial subforms of the context form.
 ;;;
 ;;; For now, we use the first two subforms of each interesting form.  A form is
 ;;; interesting if the first element is a symbol beginning with "DEF" and it is
@@ -1677,10 +1636,9 @@
 	       (values '(unable to locate source)
 		       '((some strange place)))))))))
 
-
 ;;; STRINGIFY-FORM  --  Internal
 ;;;
-;;;    Convert a source form to a string, formatted suitably for use in
+;;; Convert a source form to a string, formatted suitably for use in
 ;;; compiler warnings.
 ;;;
 (defun stringify-form (form &optional (pretty t))
@@ -1692,13 +1650,12 @@
 	(format nil "  ~S~%" form)
 	(prin1-to-string form))))
 
-
 ;;; FIND-ERROR-CONTEXT  --  Interface
 ;;;
-;;;    Return a COMPILER-ERROR-CONTEXT structure describing the current error
-;;; context, or NIL if we can't figure anything out.  Args is a list of things
-;;; that are going to be printed out in the error message, and can thus be
-;;; blown off when they appear in the source context.
+;;; Return a COMPILER-ERROR-CONTEXT structure describing the current error
+;;; context, or NIL if we can't figure anything out.  Args is a list of
+;;; things that are going to be printed out in the error message, and can
+;;; thus be blown off when they appear in the source context.
 ;;;
 (defun find-error-context (args)
   (let ((context *compiler-error-context*))
@@ -1743,7 +1700,7 @@
 		   (source-path-original-source path))))))))))
 
 
-;;;; Printing error messages:
+;;;; Printing error messages.
 
 ;;; A function that is called to unwind out of Compiler-Error.
 ;;;
@@ -1783,10 +1740,9 @@
    severity is one of :note, :warning, or :error.  Except for the severity, all
    of these can be NIL if unavailable or inapplicable.")
 
-
 ;;; COMPILER-NOTIFICATION  --  Internal
 ;;;
-;;;    Call any defined notification function.
+;;; Call any defined notification function.
 ;;;
 (defun compiler-notification (severity context)
   (declare (type (member :note :warning :error) severity)
@@ -1804,12 +1760,11 @@
 	(funcall *compiler-notification-function* severity nil nil nil)))
   (undefined-value))
 
-
 ;;; Note-Message-Repeats  --  Internal
 ;;;
-;;;    If the last message was given more than once, then print out an
-;;; indication of how many times it was repeated.  We reset the message count
-;;; when we are done.
+;;; If the last message was given more than once, then print out an
+;;; indication of how many times it was repeated.  We reset the message
+;;; count when we are done.
 ;;;
 (defun note-message-repeats (&optional (terpri t))
   (cond ((= *last-message-count* 1)
@@ -1819,16 +1774,15 @@
 		 *last-message-count*)))
   (setq *last-message-count* 0))
 
-
 ;;; Print-Error-Message  --  Internal
 ;;;
-;;;    Print out the message, with appropriate context if we can find it.  If
+;;; Print out the message, with appropriate context if we can find it.  If
 ;;; If the context is different from the context of the last message we
-;;; printed, then we print the context.  If the original source is different
-;;; from the source we are working on, then we print the current source in
-;;; addition to the original source.
+;;; printed, then we print the context.  If the original source is
+;;; different from the source we are working on, then we print the current
+;;; source in addition to the original source.
 ;;;
-;;;    We suppress printing of messages identical to the previous, but record
+;;; We suppress printing of messages identical to the previous, but record
 ;;; the number of times that the message is repeated.
 ;;;
 (defun print-error-message (what condition)
@@ -1913,10 +1867,10 @@
 
 ;;; Compiler-Mumble  --  Interface
 ;;;
-;;;    The politically correct way to print out random progress messages and
+;;; The politically correct way to print out random progress messages and
 ;;; such like.  We clear the current error context so that we know that it
-;;; needs to be reprinted, and we also Force-Output so that the message gets
-;;; seen right away.
+;;; needs to be reprinted, and we also Force-Output so that the message
+;;; gets seen right away.
 ;;;
 (defun compiler-mumble (format-string &rest format-args)
   (declare (string format-string))
@@ -1925,10 +1879,9 @@
   (apply #'format *compiler-error-output* format-string format-args)
   (force-output *compiler-error-output*))
 
-
 ;;; Find-Component-Name  --  Interface
 ;;;
-;;;    Return a string that somehow names the code in Component.  We use the
+;;; Return a string that somehow names the code in Component.  We use the
 ;;; source path for the bind node for an arbitrary entry point to find the
 ;;; source context, then return that as a string.
 ;;;
@@ -1946,7 +1899,7 @@
 	(format nil "~{~{~S~^ ~}~^ => ~}" context)))))
 
 
-;;;; Condition system interface:
+;;;; Condition system interface.
 
 ;;; Keep track of how many times each kind of warning happens.
 ;;;
@@ -1964,9 +1917,9 @@
 
 ;;; COMPILER-{ERROR,WARNING,STYLE-WARNING}-HANDLER  --  Interface
 ;;;
-;;;    Condition handlers established by the compiler.  We re-signal the
-;;; condition, if it is not handled, we increment our warning counter and print
-;;; the error message.
+;;; Condition handlers established by the compiler.  We re-signal the
+;;; condition, if it is not handled, we increment our warning counter and
+;;; print the error message.
 ;;;
 (defun compiler-error-handler (condition)
   (signal condition)
@@ -1986,14 +1939,13 @@
   (print-error-message :note condition)
   (muffle-warning condition))
 
-
 ;;; Compiler-Error, ...  --  Interface
 ;;;
-;;;    Signal the appropriate condition.  Compiler-Note signals a
-;;; simple-style-warning, inhibited if brevity is 3.  anything when Brevity is
-;;; 3.  Compiler-Error calls the bailout function so that it never returns.
-;;; Compiler-Error-Message returns like Compiler-Warning, but signals a
-;;; Compiler-Error.
+;;; Signal the appropriate condition.  Compiler-Note signals a
+;;; simple-style-warning, inhibited if brevity is 3.  anything when Brevity
+;;; is 3.  Compiler-Error calls the bailout function so that it never
+;;; returns.  Compiler-Error-Message returns like Compiler-Warning, but
+;;; signals a Compiler-Error.
 ;;;
 (defun compiler-error (format-string &rest format-args)
   (declare (string format-string))
@@ -2020,25 +1972,61 @@
 	  :format-arguments format-args)))
 
 
-;;;; Undefined warnings:
+;;;; Undefined warnings.
 
+#[ Undefined Warnings
+
+\cindex{undefined warnings}
+Warnings about undefined variables, functions and types are delayed until
+the end of the current compilation unit.  The compiler entry functions
+(`compile', etc.) implicitly use `with-compilation-unit', so undefined
+warnings will be printed at the end of the compilation unless there is an
+enclosing `with-compilation-unit'.  In order the gain the benefit of this
+mechanism, you should wrap a single `with-compilation-unit' around the
+calls to `compile-file', i.e.:
+
+    (with-compilation-unit ()
+      (compile-file "file1")
+      (compile-file "file2")
+      ...)
+
+Unlike for functions and types, undefined warnings for variables are not
+suppressed when a definition (e.g. `defvar'}) appears after the reference
+(but in the same compilation unit.)  This is because doing special
+declarations out of order just doesn't work -- although early references
+will be compiled as special, bindings will be done lexically.
+
+Undefined warnings are printed with full source context
+(\pxlref{error-messages}), which tremendously simplifies the problem of
+finding undefined references that resulted from macroexpansion.  After
+printing detailed information about the undefined uses of each name,
+`with-compilation-unit' also prints summary listings of the names of all
+the undefined functions, types and variables.
+
+{variable:ext:*undefined-warning-limit*}
+]#
 
 (defvar *undefined-warning-limit* 3
-  "If non-null, then an upper limit on the number of unknown function or type
-  warnings that the compiler will print for any given name in a single
-  compilation.  This prevents excessive amounts of output when there really is
-  a missing definition (as opposed to a typo in the use.)")
+  "The number of undefined warnings for each distinct name that are printed
+   when the compilation unit ends.  If there are more undefined references
+   than this, then they are condensed into a single warning:
 
+       Warning: \var{count} more uses of undefined function \var{name}.
+
+   When 0, then only the summary listing of undefined names is printed.
+
+   When (), print all warnings.")
 
 ;;; NOTE-UNDEFINED-REFERENCE  --  Interface
 ;;;
-;;;    Make an entry in the *UNDEFINED-WARNINGS* describing a reference to Name
-;;; of the specified Kind.  If we have exceeded the warning limit, then just
-;;; increment the count, otherwise note the current error context.
+;;; Make an entry in the *UNDEFINED-WARNINGS* describing a reference to
+;;; Name of the specified Kind.  If we have exceeded the warning limit,
+;;; then just increment the count, otherwise note the current error
+;;; context.
 ;;;
-;;; Undefined types are noted by a condition handler in WITH-COMPILATION-UNIT,
-;;; which can potentially be invoked outside the compiler, hence the BOUNDP
-;;; check.
+;;; Undefined types are noted by a condition handler in
+;;; WITH-COMPILATION-UNIT, which can potentially be invoked outside the
+;;; compiler, hence the BOUNDP check.
 ;;;
 (defun note-undefined-reference (name kind)
   (unless (and (boundp '*lexical-environment*) (policy nil (= brevity 3)))
@@ -2057,15 +2045,16 @@
   (undefined-value))
 
 
-;;;; Careful call:
+;;;; Careful call.
 
 ;;; Careful-Call  --  Interface
 ;;;
-;;;    Apply a function to some arguments, returning a list of the values
+;;; Apply a function to some arguments, returning a list of the values
 ;;; resulting of the evaulation.  If an error is signalled during the
-;;; application, then we print a warning message and return NIL as our second
-;;; value to indicate this.  Node is used as the error context for any error
-;;; message, and Context is a string that is spliced into the warning.
+;;; application, then we print a warning message and return NIL as our
+;;; second value to indicate this.  Node is used as the error context for
+;;; any error message, and Context is a string that is spliced into the
+;;; warning.
 ;;;
 (defun careful-call (function args node context)
   (declare (type (or symbol function) function) (list args) (type node node)
@@ -2080,15 +2069,15 @@
    t))
 
 
-;;;; Utilities used at run-time for parsing keyword args in IR1:
+;;;; Utilities used at run-time for parsing keyword args in IR1.
 
 ;;; Find-Keyword-Continuation  --  Internal
 ;;;
-;;;    This function is used by the result of Parse-Deftransform to find the
+;;; This function is used by the result of Parse-Deftransform to find the
 ;;; continuation for the value of the keyword argument Key in the list of
-;;; continuations Args.  It returns the continuation if the keyword is present,
-;;; or NIL otherwise.  The legality and constantness of the keywords should
-;;; already have been checked.
+;;; continuations Args.  It returns the continuation if the keyword is
+;;; present, or NIL otherwise.  The legality and constantness of the
+;;; keywords should already have been checked.
 ;;;
 (defun find-keyword-continuation (args key)
   (declare (list args) (type keyword key))
@@ -2097,12 +2086,11 @@
     (when (eq (continuation-value (first arg)) key)
       (return (second arg)))))
 
-
 ;;; Check-Keywords-Constant  --  Internal
 ;;;
-;;;    This function is used by the result of Parse-Deftransform to verify that
-;;; alternating continuations in Args are constant and that there is an even
-;;; number of args.
+;;; This function is used by the result of Parse-Deftransform to verify
+;;; that alternating continuations in Args are constant and that there is
+;;; an even number of args.
 ;;;
 (defun check-keywords-constant (args)
   (declare (list args) (values boolean))
@@ -2112,12 +2100,11 @@
 		 (constant-continuation-p (first arg)))
       (return nil))))
 
-
 ;;; Check-Transform-Keys  --  Internal
 ;;;
-;;;    This function is used by the result of Parse-Deftransform to verify that
-;;; the list of continuations Args is a well-formed keyword arglist and that
-;;; only keywords present in the list Keys are supplied.
+;;; This function is used by the result of Parse-Deftransform to verify
+;;; that the list of continuations Args is a well-formed keyword arglist
+;;; and that only keywords present in the list Keys are supplied.
 ;;;
 (defun check-transform-keys (args keys)
   (declare (list args keys) (values boolean))
@@ -2130,7 +2117,7 @@
 
 ;;; %EVENT  --  Interface
 ;;;
-;;;    Called by the expansion of the EVENT macro.
+;;; Called by the expansion of the EVENT macro.
 ;;;
 (defun %event (info node)
   (declare (type event-info info) (type (or node null) node))

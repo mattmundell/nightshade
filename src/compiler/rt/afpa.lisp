@@ -1,23 +1,12 @@
-;;; -*- Package: RT -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/afpa.lisp,v 1.5 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; The following code is to support the AFPA on the EAPC card and the
 ;;; accessory AFPA for the APC card.  There isn't heavy use of AFPA features;
 ;;; other than the size of the register set, and the DMA use, this would work
 ;;; on the FPA (supposing anyone still has one of those.)  This is adapted from
 ;;; the 68881 support, and from the MIPS support.
 ;;;
-;;; See section 4 in Vol 1 of the RT technical manual.  In particular DMA is
-;;; described on 4-96 to 4-98.
-;;;
+;;; FIX See section 4 in Vol 1 of the RT technical manual.  In particular
+;;; DMA is described on 4-96 to 4-98.
+
 (in-package "RT")
 
 ;;;; Status register formats.
@@ -59,16 +48,16 @@
 (defconstant float-fast-bit 0)
 
 
-;;;; Move functions:
+;;;; Move functions.
 ;;;
-;;;    Since moving between memory and a FP register reqires *two* temporaries,
-;;; we need a special temporary to form the magic address we store to do a
-;;; floating point operation.  We get this temp by always spilling NL0 on the
-;;; number stack.  See WITH-FP-TEMP in the 68881 support.
+;;; Since moving between memory and a FP register reqires *two*
+;;; temporaries, we need a special temporary to form the magic address we
+;;; store to do a floating point operation.  We get this temp by always
+;;; spilling NL0 on the number stack.  See WITH-FP-TEMP in the 68881
+;;; support.
 ;;;
 ;;; We also use LIP to form the address of the data location that we are
 ;;; reading or writing.
-
 
 (define-move-function (load-afpa-single 7) (vop x y)
   ((single-stack) (afpa-single-reg))
@@ -99,8 +88,7 @@
     (inst afpa-noop temp)))
 
 
-;;;; Move VOPs:
-
+;;;; Move VOPs.
 
 (macrolet ((frob (vop sc inst)
 	     `(progn
@@ -119,8 +107,6 @@
   (frob afpa-single-move afpa-single-reg :cops)
   (frob afpa-double-move afpa-double-reg :copl))
 
-
-
 (macrolet ((frob (name format data sc)
 	     `(progn
 		(define-vop (,name)
@@ -137,8 +123,6 @@
     afpa-single-reg)
   (frob move-to-afpa-double :double vm:double-float-value-slot
     afpa-double-reg))
-
-
 
 (macrolet ((frob (name sc format size type data)
 	     `(progn
@@ -192,7 +176,7 @@
   (afpa-single-reg afpa-double-reg) (descriptor-reg))
 
 
-;;;; Arithmetic VOPs:
+;;;; Arithmetic VOPs.
 
 (define-vop (afpa-op)
   (:args (x) (y))
@@ -248,7 +232,6 @@
   (frob afpa-single-float-unop afpa-single-reg afpa-single-float)
   (frob afpa-double-float-unop afpa-double-reg afpa-double-float))
 
-
 (macrolet ((frob (op sinst sname dinst dname)
 	     `(progn
 		(define-vop (,sname afpa-single-float-unop)
@@ -261,7 +244,7 @@
   (frob %negate :negs %negate/single-float :negl %negate/double-float))
 
 
-;;;; Comparison:
+;;;; Comparison.
 
 (define-vop (afpa-compare)
   (:args (x) (y))
@@ -288,7 +271,6 @@
 	(inst bnc :eq target)
 	(inst bc :eq target))))
 
-
 (macrolet ((frob (name sc ptype)
 	     `(define-vop (,name afpa-compare)
 		(:args (x :scs (,sc))
@@ -310,7 +292,7 @@
   (frob eql afpa-eql/single-float afpa-eql/double-float afpa-compare-eql))
 
 
-;;;; Conversion:
+;;;; Conversion.
 
 (macrolet ((frob (name translate
 		       from-sc from-type
@@ -380,7 +362,6 @@
   (frob %unary-truncate %unary-truncate/afpa-double-float
     afpa-double-reg afpa-double-float :tlw))
 
-
 (define-vop (make-afpa-single-float)
   (:args (bits :scs (signed-reg)))
   (:results (res :scs (afpa-single-reg)))
@@ -444,7 +425,7 @@
     (inst afpa-get-float-odd lo-bits float temp)))
 
 
-;;;; Float mode hackery:
+;;;; Float mode hackery.
 
 (deftype float-modes () '(unsigned-byte 32))
 (defknown floating-point-modes () float-modes (flushable))

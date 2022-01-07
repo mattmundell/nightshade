@@ -1,28 +1,56 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/ir1final.lisp,v 1.20.2.1 2000/07/09 16:05:34 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file implements the IR1 finalize phase, which checks for various
-;;; semantic errors.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; The IR1 finalize phase, which checks for various semantic errors.
+
 (in-package "C")
 
+#[ ICR finalize
+
+    This phase is run after all components have been compiled.  It scans
+    the global variable references, looking for references to undefined
+    variables and incompatible function redefinitions.
+
+Phase position: 8/23 (front)
+
+Presence: mandatory
+
+Files: ir1final, main
+
+Entry functions: `ir1-finalize'
+
+Call sequences:
+
+    ir1-finalize
+      finalize-xep-definition
+      note-failed-optimization
+      note-assumed-types
+
+
+This pass looks for interesting things in the ICR so that we can forget about
+them.  Used and not defined things are flamed about.
+
+We postpone these checks until now because the ICR optimizations may discover
+errors that are not initially obvious.  We also emit efficiency notes about
+optimizations that we were unable to do.  We can't emit the notes immediately,
+since we don't know for sure whether a repeated attempt at optimization will
+succeed.
+
+We examine all references to unknown global function variables and update
+the approximate type accordingly.  We also record the names of the unknown
+functions so that they can be flamed about if they are never defined.
+Unknown normal variables have been flamed about already during ICR
+conversion.
+
+We check each newly defined global function for compatibility with previously
+recorded type information.  If there is no :defined or :declared type, then we
+check for compatibility with any approximate function type inferred from
+previous uses.
+]#
 
 ;;; Note-Failed-Optimization  --  Internal
 ;;;
-;;;    Give the user grief about optimizations that we weren't able to do.  It
-;;; is assumed that they want to hear, or there wouldn't be any entries in the
-;;; table.  If the node has been deleted or is no longer a known call, then do
-;;; nothing; some other optimization must have gotten to it.
+;;; Give the user grief about optimizations that we weren't able to do.  It
+;;; is assumed that they want to hear, or there wouldn't be any entries in
+;;; the table.  If the node has been deleted or is no longer a known call,
+;;; then do nothing; some other optimization must have gotten to it.
 ;;;
 (defun note-failed-optimization (node failures)
   (declare (type combination node) (list failures))
@@ -46,14 +74,14 @@
 		(valid-function-use node what
 				    :warning-function #'frob
 				    :error-function #'frob))
-	      
+
 	      (compiler-note "Unable to ~A due to type uncertainty:~@
 	                      ~{~6T~?~^~&~}"
 			     note (messages))))))))))
 
-
 ;;; FINALIZE-XEP-DEFINITION  --  Internal
 ;;;
+;;; FIX looping done in `ir1-finalize'
 ;;; For each named function with an XEP, note the definition of that name, and
 ;;; add derived type information to the info environment.  We also delete the
 ;;; FUNCTIONAL from *FREE-FUNCTIONS* to eliminate the possibility that new
@@ -99,10 +127,9 @@
 	     (setf (info function type name) dtype)))))))
   (undefined-value))
 
-
 ;;; NOTE-ASSUMED-TYPES  --  Internal
 ;;;
-;;;    Find all calls in Component to assumed functions and update the assumed
+;;; Find all calls in Component to assumed functions and update the assumed
 ;;; type information.  This is delayed until now so that we have the best
 ;;; possible information about the actual argument types.
 ;;;
@@ -121,16 +148,15 @@
 	    (setq atype (note-function-use dest atype)))))
       (setf (info function assumed-type name) atype))))
 
-
 ;;; IR1-FINALIZE  --  Interface
 ;;;
-;;;    Do miscellaneous things that we want to do once all optimization has
+;;; Do miscellaneous things that we want to do once all optimization has
 ;;; been done:
 ;;;  -- Record the derived result type before the back-end trashes the
 ;;;     flow graph.
 ;;;  -- Note definition of any entry points.
 ;;;  -- Note any failed optimizations.
-;;; 
+;;;
 (defun ir1-finalize (component)
   (declare (type component component))
   (dolist (fun (component-lambdas component))
@@ -139,10 +165,10 @@
        (finalize-xep-definition fun))
       ((nil)
        (setf (leaf-type fun) (definition-type fun)))))
-  
+
   (maphash #'note-failed-optimization
 	   (component-failed-optimizations component))
-  
+
   (maphash #'(lambda (k v)
 	       (note-assumed-types component k v))
 	   *free-functions*)

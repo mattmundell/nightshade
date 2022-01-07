@@ -1,18 +1,5 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/hppa/array.lisp,v 1.5 1994/10/31 04:56:18 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the support routines for arrays and vectors.
-;;;
-;;; Written by William Lott.
-;;;
+;;; Support routines for arrays and vectors.
+
 (in-package "HPPA")
 
 (define-assembly-routine
@@ -26,7 +13,7 @@
      (:arg length any-reg a1-offset)
      (:arg words any-reg a2-offset)
      (:res result descriptor-reg a0-offset)
-     
+
      (:temp ndescr non-descriptor-reg nl0-offset)
      (:temp vector descriptor-reg a3-offset))
   (pseudo-atomic ()
@@ -39,7 +26,6 @@
     (storew ndescr vector 0 other-pointer-type)
     (storew length vector vector-length-slot other-pointer-type))
   (move vector result))
-
 
 
 ;;;; Hash primitives
@@ -72,7 +58,7 @@
      (:policy :fast-safe)
      (:arg-types * positive-fixnum)
      (:result-types positive-fixnum))
-    
+
     ((:arg string descriptor-reg a0-offset)
      (:arg length any-reg a1-offset)
      (:res result any-reg a0-offset)

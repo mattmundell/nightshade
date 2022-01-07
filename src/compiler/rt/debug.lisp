@@ -1,24 +1,6 @@
-;;; -*- Package: RT; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/debug.lisp,v 1.5 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/rt/debug.lisp,v 1.5 1994/10/31 04:45:41 ram Exp $
-;;;
-;;; Compiler support for the new whizzy debugger.
-;;;
-;;; Written by William Lott.
-;;; Converted to RT by Bill Chiles.
-;;;
+;;; Compiler support for the debugger.
 
 (in-package "RT")
-
 
 (defknown di::current-sp () system-area-pointer (movable flushable))
 (defknown di::current-fp () system-area-pointer (movable flushable))
@@ -44,7 +26,6 @@
   (:result-types system-area-pointer)
   (:generator 1
     (move res cfp-tn)))
-
 
 (define-vop (read-control-stack-c)
   (:policy :fast-safe)
@@ -99,7 +80,6 @@
     (inst cas base base offset)
     (inst st data base 0)
     (move result data)))
-
 
 (define-vop (code-from-mumble)
   (:policy :fast-safe)

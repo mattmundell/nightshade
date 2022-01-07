@@ -35,7 +35,7 @@ os_vm_size_t length;
 	bzero((char *)addr,block_start-addr);
     if(block_size<length)
 	bzero((char *)block_start+block_size,length-block_size);
-    
+
     if (block_size != 0) {
 	/* Now deallocate and allocate the block so that it */
 	/* faults in  zero-filled. */
@@ -91,7 +91,7 @@ os_vm_address_t os_reallocate(os_vm_address_t addr, os_vm_size_t old_len,
 		bcopy(addr,new,old_len);
 		os_invalidate(addr,old_len);
 		}
-		
+
 	      addr=new;
 	    }
 	}

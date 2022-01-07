@@ -1,27 +1,6 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/cell.lisp,v 1.2.2.3 2000/08/20 14:44:06 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the VM definition of various primitive memory access
-;;; VOPs for the x86.
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; Enhancements/debugging by Douglas T. Crosher 1996,1997,1999.
-;;; 
+;;; The VM definition of various primitive memory access VOPs for the x86.
 
-(in-package :x86)
-
+(in-package "X86")
 
 
 ;;;; Data object ref/set stuff.
@@ -63,11 +42,8 @@
        ;; Else, value not immediate.
        (storew value object offset lowtag))))
 
-
 
-;;;; Symbol hacking VOPs:
-
-;;; these next two cf the sparc version, by jrd.
+;;;; Symbol hacking VOPs.
 
 ;;; The compiler likes to be able to directly SET symbols.
 ;;;
@@ -83,8 +59,6 @@
   (:vop-var vop)
   (:save-p :compute-only)
   (:temporary (:sc descriptor-reg :from (:argument 0)) obj-temp))
-
-
 
 ;;; With Symbol-Value, we check that the value isn't the trap object.  So
 ;;; Symbol-Value of NIL is NIL.
@@ -197,7 +171,6 @@
 	    fdefn fdefn-raw-addr-slot other-pointer-type)
     (move result fdefn)))
 
-
 
 ;;;; Binding and Unbinding.
 
@@ -231,7 +204,6 @@
     (inst sub bsp (* binding-size word-bytes))
     (store-symbol-value bsp *binding-stack-pointer*)))
 
-
 (define-vop (unbind-to-here)
   (:args (where :scs (descriptor-reg any-reg)))
   (:temporary (:sc descriptor-reg) symbol value)
@@ -257,7 +229,6 @@
 
     DONE))
 
-
 
 ;;;; Closure indexing.
 
@@ -282,7 +253,6 @@
 (define-vop (closure-init slot-set)
   (:variant closure-info-offset function-pointer-type))
 
-
 
 ;;;; Value Cell hackery.
 
@@ -293,7 +263,7 @@
   (:variant value-cell-value-slot other-pointer-type))
 
 
-;;;; Structure hackery:
+;;;; Structure hackery.
 
 (define-vop (instance-length)
   (:policy :fast-safe)

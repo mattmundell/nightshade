@@ -21,7 +21,7 @@ os_protect: Only called on an entire region when giving permissions and only
 os_zero: Only ever zeroed from some point in a segment to the end of the
 	 segment.
 os_allocate_at: Calls to here are disjoint from those around it (the others
-	in os-common.c) since it calls os_validate and the others (in 
+	in os-common.c) since it calls os_validate and the others (in
 	os-common.c) use malloc, etc.
 Note that os_validate does not actually allocate memory until it has to map
 the particular section in.
@@ -44,7 +44,7 @@ the particular section in.
 os_vm_size_t os_vm_page_size=(-1);
 
 #define MAX_SEGMENTS 20
-#define ALLOC_SIZE 0x10000   
+#define ALLOC_SIZE 0x10000
 static struct segment {
   os_vm_address_t base;
   os_vm_size_t len;
@@ -73,7 +73,7 @@ os_validate(os_vm_address_t addr, os_vm_size_t len)
 
 #ifdef DEBUG
   printf("os_validate: addr: 0x%X, len: 0x%X, end: 0x%X\n",addr,len,addr+len);
-#endif  
+#endif
   assert(addr!=NULL);
   assert(len!=0);
 
@@ -204,7 +204,7 @@ segv_handler(int signal, int code, struct sigcontext *context)
 #endif
 
     if(mmap(segments[i].valid,nvalid-segments[i].valid,
-	    OS_VM_PROT_ALL,MAP_ANONYMOUS|MAP_FIXED|MAP_PRIVATE,-1,0) == 
+	    OS_VM_PROT_ALL,MAP_ANONYMOUS|MAP_FIXED|MAP_PRIVATE,-1,0) ==
        (os_vm_address_t)-1) {
       perror("mmap");
       printf("segments[i].base: 0x%X\n",segments[i].base);
@@ -258,13 +258,13 @@ os_zero(os_vm_address_t addr,os_vm_size_t length)
       bzero((char *)addr,block_start-addr);
     if(block_size<length)
       assert(FALSE);
-    
+
     if (block_size != 0) {
 	/* Now deallocate and allocate the block so that it */
 	/* faults in  zero-filled. */
 
         for(i=0;i<MAX_SEGMENTS;i++)
-          if(segments[i].base<=block_start && 
+          if(segments[i].base<=block_start &&
              block_start<segments[i].base+segments[i].len)
             break;
         assert(i!=MAX_SEGMENTS);

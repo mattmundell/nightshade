@@ -2,21 +2,20 @@
 
 (in-package "EDI")
 
-;;;    The code in here is factored out in this way because it is more
-;;; or less implementation dependant.  The reason this code is
-;;; implementation dependant is not because it is not written in
-;;; Common Lisp per se, but because it uses this thing called
-;;; %SP-Find-Character-With-Attribute to find any characters that
-;;; are to be displayed on the line which do not print as themselves.
-;;; This permits us to have an arbitrary string or even string-valued
-;;; function to as the representation for such a "Funny" character
-;;; with minimal penalty for the normal case.  This function can be written
-;;; in lisp, and is included commented-out below, but if this function
-;;; is not real fast then redisplay performance will suffer.
+;;; The code in here is factored out in this way because it is more or less
+;;; implementation dependant.  The reason this code is implementation
+;;; dependant is not because it is not written in Common Lisp per se, but
+;;; because it uses this thing called %SP-Find-Character-With-Attribute to
+;;; find any characters that are to be displayed on the line which do not
+;;; print as themselves.  This permits us to have an arbitrary string or
+;;; even string-valued function to as the representation for such a "Funny"
+;;; character with minimal penalty for the normal case.  This function can
+;;; be written in lisp, and is included commented-out below, but if this
+;;; function is not real fast then redisplay performance will suffer.
 ;;;
-;;;    Theres also code in here that special-cases "Buffered" lines,
-;;; which is not exactly Common Lisp, but if you aren't on a perq,
-;;; you won't have to worry about it.
+;;; Theres also code in here that special-cases "Buffered" lines, which is
+;;; not exactly Common Lisp, but if you aren't on a perq, you won't have to
+;;; worry about it.
 ;;;
 ;(defun %sp-find-character-with-attribute (string start end table mask)
 ;  (declare (type (simple-array (mod 256) char-code-max) table))
@@ -69,10 +68,10 @@
 
 ;;; %init-line-image  --  Internal
 ;;;
-;;;    Set up the print-representations for funny chars.  We make the
-;;; attribute vector by hand and do funny stuff so that chars > 127
-;;; will have a losing print-representation, so redisplay will not
-;;; die if you visit a binary file or do something stupid like that.
+;;; Set up the print-representations for funny chars.  We make the
+;;; attribute vector by hand and do funny stuff so that chars > 127 will
+;;; have a losing print-representation, so redisplay will not die if you
+;;; visit a binary file or do something stupid like that.
 ;;;
 (defun %init-line-image ()
   (defattribute "Print Representation"
@@ -110,7 +109,7 @@
 
 ;;; redis-set-char-attribute-hook-fun
 ;;;
-;;;    Keep track of which characters have funny representations.
+;;; Keep track of which characters have funny representations.
 ;;;
 (defun redis-set-char-attribute-hook-fun (attribute char new-value)
   (when (eq attribute :print-representation)
@@ -127,7 +126,7 @@
 
 ;;; redis-tab-display-fun
 ;;;
-;;;    This function is initially the :print-representation for tab.
+;;; This function is initially the :print-representation for tab.
 ;;;
 ; (defun redis-tab-display-fun (xpos)
 ;   (svref '#("        "
@@ -152,15 +151,16 @@
 (eval-when (compile eval)
 ;;; display-some-chars  --  internal
 ;;;
-;;;    Put some characters into a window.  Characters from src-start
-;;; to src-end in src are are put in the window's dis-line's.  Lines
-;;; are wrapped as necessary.  dst is the dis-line-chars of the dis-line
-;;; currently being written.  Dis-lines is the window's vector of dis-lines.
-;;; dis-line is the dis-line currently being written.  Line is the index
-;;; into dis-lines of the current dis-line.  dst-start is the index to
-;;; start writing chars at.  Height and width are the height and width of the
-;;; window.  src-start, dst, dst-start, line and dis-line are updated.
-;;; Done-P indicates whether there are more characters after this sequence.
+;;; Put some characters into a window.  Characters from src-start to
+;;; src-end in src are are put in the window's dis-line's.  Lines are
+;;; wrapped as necessary.  dst is the dis-line-chars of the dis-line
+;;; currently being written.  Dis-lines is the window's vector of
+;;; dis-lines.  dis-line is the dis-line currently being written.  Line is
+;;; the index into dis-lines of the current dis-line.  dst-start is the
+;;; index to start writing chars at.  Height and width are the height and
+;;; width of the window.  src-start, dst, dst-start, line and dis-line are
+;;; updated.  Done-P indicates whether there are more characters after this
+;;; sequence.
 ;;;
 (defmacro display-some-chars (src src-start src-end dst dst-start width done-p)
   `(let ((dst-end (+ ,dst-start (- ,src-end ,src-start))))
@@ -191,8 +191,8 @@
 
 ;;; display-losing-chars  --  Internal
 ;;;
-;;;    This macro is called by the compute-line-image functions to
-;;; display a group of losing characters.
+;;; This macro is called by the compute-line-image functions to display a
+;;; group of losing characters.
 ;;;
 (defmacro display-losing-chars (line-chars index end dest xpos width
 					   string underhang access-fun
@@ -225,12 +225,12 @@
 
 ;;; compute-normal-line-image  --  Internal
 ;;;
-;;;    Compute the screen representation of Line starting at Start
-;;; putting it in Dis-Line beginning at Xpos.  Width is the width of the
-;;; window we are displaying in.  If the line will wrap then we display
-;;; as many chars as we can then put in *line-wrap-char*.  The values
-;;; returned are described in Compute-Line-Image, which tail-recursively
-;;; returns them.  The length slot in Dis-Line is updated.
+;;; Compute the screen representation of Line starting at Start putting it
+;;; in Dis-Line beginning at Xpos.  Width is the width of the window we are
+;;; displaying in.  If the line will wrap then we display as many chars as
+;;; we can then put in *line-wrap-char*.  The values returned are described
+;;; in Compute-Line-Image, which tail-recursively returns them.  The length
+;;; slot in Dis-Line is updated.
 ;;;
 ;;; We use the *losing-character-mask* to break the line to be displayed
 ;;; up into chunks of characters with normal print representation and
@@ -277,9 +277,9 @@
 
 ;;; compute-buffered-line-image  --  Internal
 ;;;
-;;;    Compute the line image for a "Buffered" line, that is, one whose
+;;; Compute the line image for a "Buffered" line, that is, one whose
 ;;; chars have not been consed yet.
-
+;;;
 (defun compute-buffered-line-image (line start dis-line xpos width)
   (declare (fixnum start width) (type (or fixnum null) xpos))
   (do* ((index start)
@@ -321,7 +321,7 @@
 
 ;;; compute-cached-line-image  --  Internal
 ;;;
-;;;    Like compute-normal-line-image, only works on the cached line.
+;;; Like compute-normal-line-image, only works on the cached line.
 ;;;
 (defun compute-cached-line-image (index dis-line xpos width)
   (declare (fixnum index width) (type (or fixnum null) xpos))
@@ -387,7 +387,7 @@
 (defvar *free-font-changes* (make-some-font-changes)
   "Font-Change structures that nobody's using at the moment.")
 
-(defmacro alloc-font-change (x font mark)
+(defmacro alloc-font-change (x font fore-color back-color mark)
   `(progn
     (unless *free-font-changes*
       (setq *free-font-changes* (make-some-font-changes)))
@@ -395,6 +395,8 @@
       (setq *free-font-changes* (font-change-next new-fc))
       (setf (font-change-x new-fc) ,x
 	    (font-change-font new-fc) ,font
+	    (font-change-fore-color new-fc) ,fore-color
+	    (font-change-back-color new-fc) ,back-color
 	    (font-change-next new-fc) nil
 	    (font-change-mark new-fc) ,mark)
       new-fc)))
@@ -402,9 +404,8 @@
 ;;;
 ;;; compute-line-image  --  Internal
 ;;;
-;;;    This function builds a full line image from some characters in
-;;; a line and from some characters which may be left over from the previous
-;;; line.
+;;; This function builds a full line image from some characters in a line
+;;; and from some characters which may be left over from the previous line.
 ;;;
 ;;; Parameters:
 ;;;    String - This is the string which contains the characters left over
@@ -453,7 +454,11 @@
 		(when (and (< charpos offset) (> charpos max))
 		  (setq max charpos  max-mark m)))))
 	  (when max-mark
-	    (setq prev (alloc-font-change 0 (font-mark-font max-mark) max-mark))
+	    (setq prev (alloc-font-change 0
+					  (font-mark-font max-mark)
+					  (font-mark-fore-color max-mark)
+					  (font-mark-back-color max-mark)
+					  max-mark))
 	    (setf (dis-line-font-changes dis-line) prev)))
 	;;
 	;; Repeatedly scan through marks, adding a font-change for the
@@ -468,7 +473,7 @@
 	      (let ((charpos (mark-charpos m)))
 		(when (and (> charpos bound) (< charpos min))
 		  (setq min charpos  min-mark m)))))
-	  (unless min-mark (return nil))
+	  (or min-mark (return nil))
 	  (let ((len (if (eq line open-line)
 			 (cached-real-line-length line 10000 offset min)
 			 (real-line-length line 10000 offset min))))
@@ -479,6 +484,8 @@
 				 (- (length (the simple-string string)) underhang)
 				 0))
 			  (font-mark-font min-mark)
+			  (font-mark-fore-color min-mark)
+			  (font-mark-back-color min-mark)
 			  min-mark)))
 		(if prev
 		    (setf (font-change-next prev) new)

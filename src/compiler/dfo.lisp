@@ -1,25 +1,74 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/dfo.lisp,v 1.25.2.1 2000/07/07 09:34:21 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;     This file contains the code that finds the initial components and DFO,
+;;; Code that finds the initial components and depth first ordering (DFO),
 ;;; and recomputes the DFO if it is invalidated.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+
 (in-package "C")
 
+#[ Find Components
+
+    Find flow graph components and compute depth-first ordering.  Separate
+    top-level code from run-time code, and determine which components are
+    top-level components.
+
+Phase position: 3/23 (front)
+
+Presence: mandatory
+
+Files: dfo
+
+Entry functions: `find-initial-dfo', `find-dfo'
+
+Call sequences:
+
+    find-initial-dfo
+      dfo-walk-call-graph
+        join-components
+      link-blocks
+      find-top-level-components
+
+    find-dfo
+      find-dfo-aux
+        join-components
+        remove-from-dfo
+        add-to-dfo
+      delete-block
+
+This is a post-pass to ICR conversion that massages the flow graph into the
+shape subsequent phases expect.  Things done:
+  Compute the depth-first ordering (DFO) for the flow graph.
+  Find the components (disconnected parts) of the flow graph.
+
+This pass need only be redone when newly converted code has been added to the
+flow graph.  The reanalyze flag in the component structure should be set by
+people who mess things up.
+
+We create the initial DFO using a variant of the basic algorithm.  The initial
+DFO computation breaks the ICR up into components, which are parts that can be
+compiled independently.  This is done to increase the efficiency of large block
+compilations.  In addition to improving locality of reference and reducing the
+size of flow analysis problems, this allows back-end data structures to be
+reclaimed after the compilation of each component.
+
+ICR optimization can change the connectivity of the flow graph by discovering
+new calls or eliminating dead code.  Initial DFO determination splits up the
+flow graph into separate components, but does so conservatively, ensuring that
+parts that might become joined (due to local call conversion) are joined from
+the start.  Initial DFO computation also guarantees that all code which shares
+a lexical environment is in the same component so that environment analysis
+needs to operate only on a single component at a time.
+
+; This can get a bit hairy, since code seemingly reachable from the
+; environment entry may be reachable from a NLX into that environment.  Also,
+; function references must be considered as links joining components even though
+; the flow graph doesn't represent these.
+
+After initial DFO determination, components are neither split nor joined.  The
+standard DFO computation doesn't attempt to split components that have been
+disconnected.
+]#
 
 ;;; Find-DFO  --  Interface
 ;;;
-;;;    Find the DFO for a component, deleting any unreached blocks and merging
+;;; Find the DFO for a component, deleting any unreached blocks and merging
 ;;; any other components we reach.  We repeatedly iterate over the entry
 ;;; points, since new ones may show up during the walk.
 ;;;
@@ -44,13 +93,13 @@
       (unless (block-flag block)
 	(delete-block block)))))
 
-
 ;;; Join-Components  --  Interface
 ;;;
-;;;    Move all the code and entry points from Old to New.  The code in Old is
+;;; Move all the code and entry points from Old to New.  The code in Old is
 ;;; inserted at the head of New.  This is also called during let conversion
-;;; when we are about in insert the body of a let in a different component.  [A
-;;; local call can be to a different component before FIND-INITIAL-DFO runs.]
+;;; when we are about in insert the body of a let in a different component.
+;;; [A local call can be to a different component before FIND-INITIAL-DFO
+;;; runs.]
 ;;;
 (defun join-components (new old)
   (declare (type component new old))
@@ -59,21 +108,21 @@
 	(old-tail (component-tail old))
 	(head (component-head new))
 	(tail (component-tail new)))
-    
+
     (do-blocks (block old)
       (setf (block-flag block) nil)
       (setf (block-component block) new))
-    
+
     (let ((old-next (block-next old-head))
 	  (old-last (block-prev old-tail))
 	  (next (block-next head)))
       (unless (eq old-next old-tail)
 	(setf (block-next head) old-next)
 	(setf (block-prev old-next) head)
-	
+
 	(setf (block-prev next) old-last)
 	(setf (block-next old-last) next))
-      
+
       (setf (block-next old-head) old-tail)
       (setf (block-prev old-tail) old-head))
 
@@ -91,18 +140,17 @@
       (unlink-blocks old-head ep)
       (link-blocks head ep))))
 
-
 ;;; Find-DFO-Aux  --  Internal
 ;;;
-;;;    Do a depth-first walk from Block, inserting ourself in the DFO after
-;;; Head.  If we somehow find ourselves in another component, then we join that
-;;; component to our component.
+;;; Do a depth-first walk from Block, inserting ourself in the DFO after
+;;; Head.  If we somehow find ourselves in another component, then we join
+;;; that component to our component.
 ;;;
 (defun find-dfo-aux (block head component)
   (declare (type cblock block head) (type component component))
   (unless (eq (block-component block) component)
     (join-components component (block-component block)))
-	
+
   (unless (block-flag block)
     (setf (block-flag block) t)
     (dolist (succ (block-succ block))
@@ -111,20 +159,18 @@
     (remove-from-dfo block)
     (add-to-dfo block head)))
 
-
 ;;; Walk-Home-Call-Graph  --  Internal
 ;;;
-;;;    This function is called on each block by Find-Initial-DFO-Aux before it
-;;; walks the successors.  It looks at the home lambda's bind block to see if
-;;; that block is in some other component:
-;;; -- If the block is in the initial component, then do DFO-Walk-Call-Graph on
-;;;    the home function to move it into component.
-;;; -- If the block is in some other component, join Component into it and
-;;;    return that component.
-;;; -- If the home function is deleted, do nothing.  Block must eventually be
-;;;    discovered to be unreachable as well.  This can happen when we have a
-;;;    NLX into a function with no references.  The escape function still has
-;;;    refs (in the deleted function).
+;;; This function is called on each block by Find-Initial-DFO-Aux before it
+;;; walks the successors.  It looks at the home lambda's bind block to see
+;;; if that block is in some other component: -- If the block is in the
+;;; initial component, then do DFO-Walk-Call-Graph on the home function to
+;;; move it into component.  -- If the block is in some other component,
+;;; join Component into it and return that component.  -- If the home
+;;; function is deleted, do nothing.  Block must eventually be discovered
+;;; to be unreachable as well.  This can happen when we have a NLX into a
+;;; function with no references.  The escape function still has refs (in
+;;; the deleted function).
 ;;;
 ;;; This ensures that all the blocks in a given environment will be in the same
 ;;; component, even when they might not seem reachable from the environment
@@ -146,18 +192,17 @@
 		 (join-components home-component component)
 		 home-component))))))
 
-
 ;;; Find-Initial-DFO-Aux  --  Internal
 ;;;
-;;;    Somewhat similar to Find-DFO-Aux, except that it merges the current
+;;; Somewhat similar to Find-DFO-Aux, except that it merges the current
 ;;; component with any strange component, rather than the other way around.
 ;;; This is more efficient in the common case where the current component
 ;;; doesn't have much stuff in it.
 ;;;
-;;;    We return the current component as a result, allowing the caller to
+;;; We return the current component as a result, allowing the caller to
 ;;; detect when the old current component has been merged with another.
 ;;;
-;;;    We walk blocks in initial components as though they were already in the
+;;; We walk blocks in initial components as though they were already in the
 ;;; current component, moving them to the current component in the process.
 ;;; The blocks are inserted at the head of the current component.
 ;;;
@@ -175,26 +220,25 @@
       (let ((current (walk-home-call-graph block component)))
 	(dolist (succ (block-succ block))
 	  (setq current (find-initial-dfo-aux succ current)))
-	
+
 	(remove-from-dfo block)
 	(add-to-dfo block (component-head current))
 	current)))))
 
-
 ;;; Find-Reference-Functions  --  Internal
 ;;;
-;;;    Return a list of all the home lambdas that reference Fun (may contain
+;;; Return a list of all the home lambdas that reference Fun (may contain
 ;;; duplications).
 ;;;
-;;;    References to functions which local call analysis could not (or were
-;;; chosen not) to local call convert will appear as references to XEP lambdas.
-;;; We can ignore references to XEPs that appear in :TOP-LEVEL components,
-;;; since environment analysis goes to special effort to allow closing over of
-;;; values from a separate top-level component.  All other references must
-;;; cause components to be joined. 
+;;; References to functions which local call analysis could not (or were
+;;; chosen not) to local call convert will appear as references to XEP
+;;; lambdas.  We can ignore references to XEPs that appear in :TOP-LEVEL
+;;; components, since environment analysis goes to special effort to allow
+;;; closing over of values from a separate top-level component.  All other
+;;; references must cause components to be joined.
 ;;;
-;;;   References in deleted functions are also ignored, since this code will be
-;;; deleted eventually.
+;;; References in deleted functions are also ignored, since this code will
+;;; be deleted eventually.
 ;;;
 (defun find-reference-functions (fun)
   (collect ((res))
@@ -207,34 +251,33 @@
 	  (res home))))
     (res)))
 
-
 ;;; DFO-Walk-Call-Graph  --  Internal
 ;;;
-;;;    Move the code for Fun and all functions called by it into Component.  If
-;;; Fun is already in Component, then we just return that component.
+;;; Move the code for Fun and all functions called by it into Component.
+;;; If Fun is already in Component, then we just return that component.
 ;;;
-;;;    If the function is in an initial component, then we move its head and
+;;; If the function is in an initial component, then we move its head and
 ;;; tail to Component and add it to Component's lambdas.  It is harmless to
-;;; move the tail (even though the return might be unreachable) because if the
-;;; return is unreachable it (and its successor link) will be deleted in the
-;;; post-deletion pass.
+;;; move the tail (even though the return might be unreachable) because if
+;;; the return is unreachable it (and its successor link) will be deleted
+;;; in the post-deletion pass.
 ;;;
-;;;    We then do a Find-DFO-Aux starting at the head of Fun.  If this
-;;; flow-graph walk encounters another component (which can only happen due to
-;;; a non-local exit), then we move code into that component instead.  We then
-;;; recurse on all functions called from Fun, moving code into whichever
-;;; component the preceding call returned.
+;;; We then do a Find-DFO-Aux starting at the head of Fun.  If this
+;;; flow-graph walk encounters another component (which can only happen due
+;;; to a non-local exit), then we move code into that component instead.
+;;; We then recurse on all functions called from Fun, moving code into
+;;; whichever component the preceding call returned.
 ;;;
-;;;    If Fun is in the initial component, but the Block-Flag is set in the
+;;; If Fun is in the initial component, but the Block-Flag is set in the
 ;;; bind block, then we just return Component, since we must have already
-;;; reached this function in the current walk (or the component would have been
-;;; changed).
+;;; reached this function in the current walk (or the component would have
+;;; been changed).
 ;;;
-;;;    If the function is an XEP, then we also walk all functions that contain
-;;; references to the XEP.  This is done so that environment analysis doesn't
-;;; need to cross component boundries.  This also ensures that conversion of a
-;;; full call to a local call won't result in a need to join components, since
-;;; the components will already be one.
+;;; If the function is an XEP, then we also walk all functions that contain
+;;; references to the XEP.  This is done so that environment analysis
+;;; doesn't need to cross component boundries.  This also ensures that
+;;; conversion of a full call to a local call won't result in a need to
+;;; join components, since the components will already be one.
 ;;;
 (defun dfo-walk-call-graph (fun component)
   (declare (type clambda fun) (type component component))
@@ -268,10 +311,10 @@
 	    ((null funs) res)
 	  (declare (type component res))))))))
 
-
 ;;; HAS-XEP-OR-NLX  --  Internal
 ;;;
-;;;    Return true if Fun is either an XEP or has EXITS to some of its ENTRIES.
+;;; Return true if Fun is either an XEP or has EXITS to some of its
+;;; ENTRIES.
 ;;;
 (defun has-xep-or-nlx (fun)
   (declare (type clambda fun))
@@ -280,15 +323,14 @@
 	(and entries
 	     (find-if #'entry-exits entries)))))
 
-
 ;;; FIND-TOP-LEVEL-COMPONENTS  --  Internal
 ;;;
-;;;    Compute the result of FIND-INITIAL-DFO given the list of all resulting
+;;; Compute the result of FIND-INITIAL-DFO given the list of all resulting
 ;;; components.  Components with a :TOP-LEVEL lambda, but no normal XEPs or
 ;;; potential non-local exits are marked as :TOP-LEVEL.  If there is a
-;;; :TOP-LEVEL lambda, and also a normal XEP, then we treat the component as
-;;; normal, but also return such components in a list as the third value.
-;;; Components with no entry of any sort are deleted.
+;;; :TOP-LEVEL lambda, and also a normal XEP, then we treat the component
+;;; as normal, but also return such components in a list as the third
+;;; value.  Components with no entry of any sort are deleted.
 ;;;
 (defun find-top-level-components (components)
   (declare (list components))
@@ -306,7 +348,7 @@
 		 (when has-top
 		   (setf (component-kind com) :complex-top-level)
 		   (real-top com)))
-		(has-top 
+		(has-top
 		 (setf (component-kind com) :top-level)
 		 (setf (component-name com) "Top-Level Form")
 		 (top com))
@@ -315,27 +357,27 @@
 
     (values (real) (top) (real-top))))
 
-
 ;;; Find-Initial-DFO  --  Interface
 ;;;
-;;;    Given a list of top-level lambdas, return three lists of components
+;;; Given a list of top-level lambdas, return three lists of components
 ;;; representing the actual component division:
 ;;;  1] the non-top-level components,
-;;;  2] and the second is the top-level components, and
+;;;  2] the top-level components, and
 ;;;  3] Components in [1] that also have a top-level lambda.
 ;;;
-;;; We assign the DFO for each component, and delete any unreachable blocks.
-;;; We assume that the Flags have already been cleared.
+;;; Assign the DFO for each component, and delete any unreachable blocks.
+;;; Assume that the Flags have already been cleared.
 ;;;
-;;;     We iterate over the lambdas in each initial component, trying to put
-;;; each function in its own component, but joining it to an existing component
-;;; if we find that there are references between them.  Any code that is left
-;;; in an initial component must be unreachable, so we can delete it.  Stray
-;;; links to the initial component tail (due NIL function terminated blocks)
-;;; are moved to the appropriate newc component tail.
+;;; We iterate over the lambdas in each initial component, trying to put
+;;; each function in its own component, but joining it to an existing
+;;; component if we find that there are references between them.  Any code
+;;; that is left in an initial component must be unreachable, so we can
+;;; delete it.  Stray links to the initial component tail (due (FIX to?)
+;;; NIL function terminated blocks) are moved to the appropriate new
+;;; component tail.
 ;;;
-;;;    When we are done, we assign DFNs and call FIND-TOP-LEVEL-COMPONENTS to
-;;; pull out top-level code.
+;;; When we are done, we assign Depth First Numbers (DFNs) and call
+;;; FIND-TOP-LEVEL-COMPONENTS to pull out top-level code.
 ;;;
 (defun find-initial-dfo (lambdas)
   (declare (list lambdas))
@@ -372,7 +414,7 @@
 
 ;;; MERGE-1-TL-LAMBDA  --  Internal
 ;;;
-;;;    Insert the code in LAMBDA at the end of RESULT-LAMBDA.
+;;; Insert the code in LAMBDA at the end of RESULT-LAMBDA.
 ;;;
 (defun merge-1-tl-lambda (result-lambda lambda)
   (declare (type clambda result-lambda lambda))
@@ -386,7 +428,7 @@
   (setf (lambda-entries result-lambda)
 	(nconc (lambda-entries result-lambda)
 	       (lambda-entries lambda)))
-  
+
   (let* ((bind (lambda-bind lambda))
 	 (bind-block (node-block bind))
 	 (component (block-component bind-block))
@@ -396,7 +438,7 @@
     ;;
     ;; Move blocks into the new component, and move any nodes directly in
     ;; the old lambda into the new one (lets implicitly moved by changing
-    ;; their home.) 
+    ;; their home.)
     (do-blocks (block component)
       (do-nodes (node cont block)
 	(let ((lexenv (node-lexenv node)))
@@ -424,7 +466,7 @@
 	  (unless (return-p last)
 	    (assert (basic-combination-p last))
 	    (link-blocks pred (component-tail result-component))))))
-    
+
     (let ((lambdas (component-lambdas component)))
       (assert (and (null (rest lambdas))
 		   (eq (first lambdas) lambda))))
@@ -448,13 +490,12 @@
 	  (delete-continuation result)
 	  (link-blocks return-block result-return-block))))))
 
-
 ;;; MERGE-TOP-LEVEL-LAMBDAS  --  Interface
 ;;;
-;;;    Given a non-empty list of top-level lambdas, smash them into a top-level
-;;; lambda and component, returning these as values.  We use the first lambda
-;;; and its component, putting the other code in that component and deleting
-;;; the other lambdas.
+;;; Given a non-empty list of top-level lambdas, smash them into a
+;;; top-level lambda and component, returning these as values.  We use the
+;;; first lambda and its component, putting the other code in that
+;;; component and deleting the other lambdas.
 ;;;
 (defun merge-top-level-lambdas (lambdas)
   (declare (cons lambdas))
@@ -474,7 +515,7 @@
 	  (let ((new (make-continuation)))
 	    (delete-continuation-use use)
 	    (add-continuation-use use new))))
-      
+
       (dolist (lambda (rest lambdas))
 	(merge-1-tl-lambda result-lambda lambda)))
      (t
@@ -483,6 +524,6 @@
 	(delete-component
 	 (block-component
 	  (node-block (lambda-bind lambda)))))))
-      
+
     (values (block-component (node-block (lambda-bind result-lambda)))
 	    result-lambda)))

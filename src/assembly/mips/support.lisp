@@ -1,17 +1,5 @@
-;;; -*- Package: MIPS -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/mips/support.lisp,v 1.15 1994/10/31 04:56:40 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the machine specific support routines needed by
-;;; the file assembler.
-;;;
+;;; Machine specific support routines needed by the file assembler.
+
 (in-package "MIPS")
 
 (def-vm-support-routine generate-call-sequence (name style vop)
@@ -71,7 +59,6 @@
       `((inst j (make-fixup ',name :assembly-routine))
 	(inst nop))
       nil))))
-
 
 (def-vm-support-routine generate-return-sequence (style)
   (ecase style

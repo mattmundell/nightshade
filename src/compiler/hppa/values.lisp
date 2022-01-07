@@ -1,18 +1,4 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/values.lisp,v 1.5 1994/10/31 04:42:45 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the implementation of unknown-values VOPs.
-;;;
-;;; Written by William Lott.
-;;; 
+;;; The implementation of unknown-values VOPs.
 
 (in-package "HPPA")
 
@@ -20,7 +6,6 @@
   (:args (ptr :scs (any-reg)))
   (:generator 1
     (move ptr csp-tn)))
-
 
 ;;; Push some values onto the stack, returning the start and number of values
 ;;; pushed as results.  It is assumed that the Vals are wired to the standard
@@ -51,7 +36,6 @@
 	   (load-stack-tn temp tn)
 	   (storew temp start i)))))
     (inst li (fixnum nvals) count)))
-
 
 ;;; Push a list of values on the stack, returning Start and Count as used in
 ;;; unknown values continuations.
@@ -84,7 +68,6 @@
 
     DONE
     (inst sub csp-tn start count)))
-
 
 ;;; Copy the more arg block to the top of the stack so we can use them
 ;;; as function arguments.

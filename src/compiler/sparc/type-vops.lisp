@@ -1,27 +1,11 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/sparc/type-vops.lisp,v 1.16.2.2 2000/05/23 16:37:48 pw Exp $")
-;;;
-;;; **********************************************************************
-;;; 
-;;; This file contains the VM definition of type testing and checking VOPs
-;;; for the SPARC.
-;;;
-;;; Written by William Lott.
-;;; Signed-array support by Douglas Crosher 1997.
-;;; Complex-float and long-float support by Douglas Crosher 1998.
-;;;
+;;; The VM definition of type testing and checking VOPs for the SPARC.
+
 (in-package "SPARC")
 
 
-;;;; Simple type checking and testing:
+;;;; Simple type checking and testing.
 ;;;
-;;;    These types are represented by a single type code, so are easily
+;;; These types are represented by a single type code, so are easily
 ;;; open-coded as a mask and compare.
 
 (define-vop (check-type)
@@ -71,7 +55,6 @@
   (:generator 1
     (inst taddcctv result value zero-tn)))
 (primitive-type-vop check-fixnum (:check) fixnum)
-
 
 (def-type-vops functionp check-function function
   object-not-function-error vm:function-pointer-type)
@@ -341,8 +324,8 @@
 
 ;;;; Other integer ranges.
 
-;;; A (signed-byte 32) can be represented with either fixnum or a bignum with
-;;; exactly one digit.
+;;; A (signed-byte 32) can be represented with either fixnum or a bignum
+;;; with exactly one digit.
 
 (define-vop (signed-byte-32-p type-predicate)
   (:translate signed-byte-32-p)
@@ -376,7 +359,6 @@
       (inst nop)
       (emit-label yep)
       (move result value))))
-
 
 ;;; An (unsigned-byte 32) can be represented with either a positive fixnum, a
 ;;; bignum with exactly one positive digit, or a bignum with exactly two digits
@@ -417,7 +399,7 @@
 	;; Otherwise, it isn't.
 	(inst b nope)
 	(inst nop)
-	
+
 	(emit-label single-word)
 	;; Get the single digit.
 	(loadw temp value vm:bignum-digits-offset vm:other-pointer-type)
@@ -428,7 +410,7 @@
 	(inst b (if not-p :lt :ge) target)
 	(inst nop)
 
-	(emit-label not-target)))))	  
+	(emit-label not-target)))))
 
 (define-vop (check-unsigned-byte-32 check-type)
   (:generator 45
@@ -460,25 +442,23 @@
       ;; Otherwise, it isn't.
       (inst b :ne nope)
       (inst nop)
-      
+
       (emit-label single-word)
       ;; Get the single digit.
       (loadw temp value vm:bignum-digits-offset vm:other-pointer-type)
       ;; positive implies (unsigned-byte 32).
       (inst cmp temp)
-      
+
       (emit-label fixnum)
       (inst b :lt nope)
       (inst nop)
-      
+
       (emit-label yep)
       (move result value))))
 
-
-
 
-;;;; List/symbol types:
-;;; 
+;;;; List/symbol types.
+;;;
 ;;; symbolp (or symbol (eq nil))
 ;;; consp (and list (not (eq nil)))
 
@@ -501,7 +481,7 @@
       (test-type value temp error t vm:symbol-header-type)
       (emit-label drop-thru)
       (move result value))))
-  
+
 (define-vop (consp type-predicate)
   (:translate consp)
   (:generator 8
@@ -519,4 +499,3 @@
       (inst b :eq error)
       (test-type value temp error t vm:list-pointer-type)
       (move result value))))
-

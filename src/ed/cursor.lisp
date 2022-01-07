@@ -5,6 +5,19 @@
 (export '(mark-to-cursorpos center-window displayed-p scroll-window
 	  mark-column cursorpos-to-mark move-to-column))
 
+#[ Cursor Positions
+
+A cursor position is an absolute position within a window's coordinate
+system.  The origin is in the upper-left-hand corner and the unit is
+character positions.
+
+{function:ed:mark-to-cursorpos}
+{function:ed:cursorpos-to-mark}
+{function:ed:last-key-event-cursorpos}
+{function:ed:mark-column}
+{function:ed:move-to-column}
+{function:ed:show-mark}
+]#
 
 
 ;;;; Mark-To-Cursorpos
@@ -30,13 +43,12 @@
 (eval-when (compile eval)
 ;;; find-line
 ;;;
-;;;    Find a dis-line which line is displayed on which starts before
-;;; charpos, setting ypos and dis-line to the dis-line and it's index.
-;;; Offset is expected to be the mark-charpos of the display-start for
-;;; the window initially, and is set to offset within line that
-;;; Dis-Line begins.  Charpos is the mark-charpos of the mark we want
-;;; to find.  Check if same as *redisplay-favorite-line* and then scan
-;;; if not.
+;;; Find a dis-line which line is displayed on which starts before charpos,
+;;; setting ypos and dis-line to the dis-line and it's index.  Offset is
+;;; expected to be the mark-charpos of the display-start for the window
+;;; initially, and is set to offset within line that Dis-Line begins.
+;;; Charpos is the mark-charpos of the mark we want to find.  Check if same
+;;; as *redisplay-favorite-line* and then scan if not.
 ;;;
 (defmacro find-line (line offset charpos ypos dis-lines dis-line)
   (declare (ignore charpos))
@@ -54,11 +66,11 @@
 	 (setq ,dis-line l  ,ypos (dis-line-position (car l)) ,offset 0)
 	 (return t))))
     (t
-     (error "Horrible flaming lossage, Sorry Man."))))
+     (error "Horrible flaming lossage, sorry man."))))
 
 ;;; find-last
 ;;;
-;;;    Find the last dis-line on which line is displayed, set ypos and
+;;; Find the last dis-line on which line is displayed, set ypos and
 ;;; dis-line.
 ;;;
 (defmacro find-last (line ypos dis-line)
@@ -69,7 +81,7 @@
 
 ;;; find-charpos
 ;;;
-;;;    Special-Case mark at end of line, if not punt out to real-line-length
+;;; Special-Case mark at end of line, if not punt out to real-line-length
 ;;; function.  Return the correct values.
 ;;;
 (defmacro find-charpos (line offset charpos length ypos dis-line width
@@ -94,11 +106,11 @@
 
 ;;; real-line-length
 ;;;
-;;;    Return as values the X position and the number of times wrapped if
-;;; one to display the characters from Start to End of Line starting at an
-;;; X position of 0 wrapping Width wide.
-;;; %SP-Find-Character-With-Attribute is used to find charaters
-;;; with funny representation much as in Compute-Line-Image.
+;;; Return as values the X position and the number of times wrapped if one
+;;; to display the characters from Start to End of Line starting at an X
+;;; position of 0 wrapping Width wide.  %SP-Find-Character-With-Attribute
+;;; is used to find charaters with funny representation much as in
+;;; Compute-Line-Image.
 ;;;
 (defun real-line-length (line width start end)
   (declare (fixnum width start end))
@@ -127,9 +139,8 @@
 
 ;;; cached-real-line-length
 ;;;
-;;;    The same as Real-Line-Length, except does it for the cached line.
-;;; the line argument is ignored, but present to make the arglists the
-;;; same.
+;;; The same as Real-Line-Length, except does it for the cached line.  the
+;;; line argument is ignored, but present to make the arglists the same.
 ;;;
 (defun cached-real-line-length (line width start end)
   (declare (fixnum width start end) (ignore line))
@@ -176,12 +187,9 @@
 
 ;;; mark-to-cursorpos  --  Public
 ;;;
-;;;    Return as multiple values the x and y position within window of
-;;; mark.  NIL is returned if the mark is not displayed in the window given
-;;;
-;;;
 (defun mark-to-cursorpos (mark window)
-  "Return the (x, y) position of mark within window, or NIL if not displayed."
+  "Return as multiple values the X and Y position on which $mark is being
+   displayed in $window.  Return () if $mark is out of view on the window."
   (maybe-update-window-image window)
   (let* ((line (mark-line mark))
 	 (number (line-number line))
@@ -218,10 +226,10 @@
 
 ;;; Dis-Line-Offset-Guess  --  Internal
 ;;;
-;;;    Move Mark by Offset display lines.  The mark is assumed to be at the
-;;; beginning of a display line, and we attempt to leave it at one.  We assume
-;;; all characters print one wide.  Width is the width of the window we are
-;;; displaying in.
+;;; Move Mark by Offset display lines.  The mark is assumed to be at the
+;;; beginning of a display line, and we attempt to leave it at one.  We
+;;; assume all characters print one wide.  Width is the width of the window
+;;; we are displaying in.
 ;;;
 (defun dis-line-offset-guess (mark offset width)
   (let ((w (1- width)))
@@ -231,7 +239,7 @@
 	    (if (>= pos w)
 		(character-offset mark (- w))
 		(let ((prev (line-previous (mark-line mark))))
-		  (unless prev (return nil))
+		  (or prev (return nil))
 		  (multiple-value-bind
 		      (lines chars)
 		      (truncate (line-length prev) w)
@@ -247,42 +255,38 @@
 			 (mark-charpos mark))))
 	    (if (> left width)
 		(character-offset mark w)
-		(unless (line-offset mark 1 0)
-		  (return nil))))))))
+		(or (line-offset mark 1 0)
+		    (return nil))))))))
 
 ;;; maybe-recenter-window  --  Internal
 ;;;
-;;;     Update the dis-lines for Window and recenter if the point is off
-;;; the screen.
-;;;
 (defun maybe-recenter-window (window)
+  "Update the dis-lines for WINDOW and recenter if the point is off the
+   screen."
   (unless (%displayed-p (buffer-point (window-buffer window)) window)
     (center-window window (buffer-point (window-buffer window)))
     t))
 
 ;;; center-window  --  Public
 ;;;
-;;;    Try to move the start of window so that Mark is on a line in the
-;;; center.
-;;;
 (defun center-window (window mark)
-  "Adjust the start of Window so that Mark is displayed on the center line."
+  "Attempt to adjust $window's display start so the that $mark is
+   vertically centered within $window."
   (let ((height (window-height window))
 	(start (window-display-start window)))
     (move-mark start mark)
-    (unless (dis-line-offset-guess start (- (truncate height 2))
-				   (window-width window))
-      (move-mark start (buffer-start-mark (window-buffer window))))
+    (or (dis-line-offset-guess start (- (truncate height 2))
+			       (window-width window))
+	(move-mark start (buffer-start-mark (window-buffer window))))
     (update-window-image window)
     ;; If that doesn't work, panic and make the start the point.
     (unless (%displayed-p mark window)
       (move-mark start mark)
       (update-window-image window))))
 
-
 ;;; %Displayed-P  --  Internal
 ;;;
-;;;    If Mark is within the displayed bounds in Window, then return true,
+;;; If Mark is within the displayed bounds in Window, then return true,
 ;;; otherwise false.  We assume the window image is up to date.
 ;;;
 (defun %displayed-p (mark window)
@@ -294,56 +298,64 @@
 		   (and ch (char/= ch #\newline)))
 		 nil)))))
 
-
 ;;; Displayed-p  --  Public
 ;;;
-;;;    Update the window image and then check if the mark is displayed.
+;;; Update the window image and then check if the mark is displayed.
 ;;;
 (defun displayed-p (mark window)
-  "Return true if Mark is displayed on Window, false otherwise."
+  "Return true if either the character before or the character after $mark
+   is being displayed in $window, else return ()."
   (maybe-update-window-image window)
   (%displayed-p mark window))
 
-
 ;;; scroll-window  --  Public
 ;;;
-;;;    This is not really right, since it uses dis-line-offset-guess.
-;;; Probably if there is any screen overlap then we figure it out
-;;; exactly.
+;;; This is not really right, since it uses dis-line-offset-guess.
+;;; Probably if there is any screen overlap then we figure it out exactly.
 ;;;
 (defun scroll-window (window n)
-  "Scroll Window down N lines, up if negative."
-  (let ((start (window-display-start window))
-	(point (window-point window))
-	(width (window-width window))
-	(height (window-height window)))
-    (cond ((dis-line-offset-guess start n width))
-	  ((minusp n)
-	   (buffer-start start))
+  "Scroll $window down $n display lines; if $n is negative scroll up.
+   Leave the cursor at the same text position.  If the cursor moves off the
+   screen move the cursor to the end of the window closest to its old
+   position."
+  (let* ((start (window-display-start window))
+	 (buffer (line-buffer (mark-line start))))
+    (cond ((and (minusp n)
+		(mark= (buffer-start-mark buffer) start))
+	   (buffer-start (buffer-point buffer)))
+	  ((and (plusp n)
+		(mark= (window-display-end (current-window))
+		       (buffer-end-mark (current-buffer))))
+	   (buffer-end (buffer-point buffer)))
 	  (t
-	   (buffer-end start)
-	   (let ((fraction (- (truncate height 3) height)))
-	     (dis-line-offset-guess start fraction width))))
-    (update-window-image window)
-    (let ((iscurrent (eq window *current-window*))
-	  (bpoint (buffer-point (window-buffer window))))
-      (when iscurrent (move-mark point bpoint))
-      (unless (%displayed-p point window)
-	(move-mark point start)
-	(dis-line-offset-guess point (truncate (window-height window) 2)
-			       width)
-      (when iscurrent (move-mark bpoint point)))))
+	   (let ((point (window-point window))
+		 (width (window-width window))
+		 (height (window-height window)))
+	     (cond ((dis-line-offset-guess start n width))
+		   ((minusp n)
+		    (buffer-start start))
+		   (t
+		    (buffer-end start)
+		    (let ((fraction (- (truncate height 3) height)))
+		      (dis-line-offset-guess start fraction width))))
+	     (update-window-image window)
+	     (let ((iscurrent (eq window *current-window*))
+		   (bpoint (buffer-point (window-buffer window))))
+	       (when iscurrent (move-mark point bpoint))
+	       (unless (%displayed-p point window)
+		 (move-mark point start)
+		 (dis-line-offset-guess point (truncate (window-height window) 2)
+					width)
+		 (when iscurrent (move-mark bpoint point))))))))
   t)
+
 
 ;;; Mark-Column  --  Public
 ;;;
-;;;    Find the X position of a mark supposing that it were displayed
-;;; in an infinitely wide screen.
-;;;
 (defun mark-column (mark)
-  "Find the X position at which Mark would be displayed if it were on
-  an infinitely wide screen.  This takes into account tabs and control
-  characters."
+  "Return the X position at which $mark would be displayed, supposing its
+   line was displayed on an single screen line.  Take into consideration
+   tabs and control characters."
   (let ((charpos (mark-charpos mark))
 	(line (mark-line mark)))
     (if (eq line open-line)
@@ -352,9 +364,9 @@
 
 ;;; Find-Position  --  Internal
 ;;;
-;;;    Return the charpos which corresponds to the specified X position
-;;; within Line.  If there is no such position between Start and End then
-;;; return NIL.
+;;; Return the charpos which corresponds to the specified X position within
+;;; Line.  If there is no such position between Start and End then return
+;;; NIL.
 ;;;
 (defun find-position (line position start end width)
   (do* ((cached (eq line open-line))
@@ -372,10 +384,13 @@
 
 ;;; Cursorpos-To-Mark  --  Public
 ;;;
-;;;    Find the right dis-line, then zero in on the correct position
-;;; using real-line-length.
+;;; Find the right dis-line, then zero in on the correct position using
+;;; real-line-length.
 ;;;
 (defun cursorpos-to-mark (x y window)
+  "Return as a mark the text position which corresponds to the ($x, $y)
+   position within $window, or () if that position is out of view on
+   window."
   (check-type window window)
   (let ((width (window-width window))
 	(first (window-first-line window)))
@@ -395,16 +410,16 @@
 
 ;;; Move-To-Column  --  Public
 ;;;
-;;;    Just look up the charpos using find-position...
+;;; Just look up the charpos using find-position...
 ;;;
 (defun move-to-column (mark column &optional (line (mark-line mark)))
-  "Move Mark to the specified Column on Line.  This function is analogous
-  to Move-To-Position, but it deals with the physical screen position
-  as returned by Mark-Column; the mark is moved to before the character
-  which would be displayed in Column if the line were displayed on
-  an infinitely wide screen.  If the column specified is greater than
-  the column of the last character, then Nil is returned and the mark
-  is not modified."
+  "Move $mark to the position on $line which corresponds to $column.
+   Analogous to `move-to-position'.
+
+   If the line would is shorter than the specified column then simply
+   return ().  Since a character may be displayed on more than one column
+   on the screen, several values of column may cause mark to be moved to
+   the same position."
   (let ((res (find-position line column 0 (line-length line) 10000)))
     (if res
 	(move-to-position mark res line))))

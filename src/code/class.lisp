@@ -42,10 +42,13 @@
 ;;;
 (defvar *forward-referenced-layouts*)
 (defvar lisp::*initial-layouts*)
+(defvar lisp::*pre-doc*)
 (defvar *layout-hash-inits*)
 (cold-load-init
   (setq *forward-referenced-layouts* (make-hash-table :test #'equal))
   (setq *layout-hash-inits* ())
+  ;; FIX
+  (setq lisp::*pre-doc* ())
   (dolist (x lisp::*initial-layouts*)
     (setf (gethash (car x) *forward-referenced-layouts*) (cdr x))
     (push (cdr x) *layout-hash-inits*))
@@ -881,15 +884,14 @@
 		(dolist (code codes)
 		  (setf (svref res code) layout))))))))
 
-
 ;;; LAYOUT-OF  --  Exported
 ;;;
-;;;    Return the layout for an object.  This is the basic operation for
+;;; Return the layout for an object.  This is the basic operation for
 ;;; finding out the "type" of an object, and is used for generic function
-;;; dispatch.  The standard doesn't seem to say as much as it should about what
-;;; this returns for built-in objects.  For example, it seems that we must
-;;; return NULL rather than LIST when X is NIL so that GF's can specialize on
-;;; NULL.
+;;; dispatch.  The standard doesn't seem to say as much as it should about
+;;; what this returns for built-in objects.  For example, it seems that we
+;;; must return NULL rather than LIST when X is NIL so that GF's can
+;;; specialize on NULL.
 ;;;
 (declaim (inline layout-of))
 (defun layout-of (x)
@@ -898,7 +900,6 @@
 	((funcallable-instance-p x) (%funcallable-instance-layout x))
 	((null x) '#.(class-layout (find-class 'null)))
 	(t (svref built-in-class-codes (get-type x)))))
-
 
 ;;; CLASS-OF  --  Public
 ;;;
@@ -913,7 +914,7 @@
 
 ;;; MODIFY-CLASS  --  Internal
 ;;;
-;;;    Called whenever we are altering a class.  Clear type system caches and
+;;; Called whenever we are altering a class.  Clear type system caches and
 ;;; warn if read-only.
 ;;;
 (defun modify-class (class)
@@ -923,12 +924,11 @@
 	  (class-state class) (class-name class))
     (setf (class-state class) nil)))
 
-
 ;;; INVALIDATE-LAYOUT  --  Internal
 ;;;
-;;;    Mark a layout as invalid.  Depth -1 causes unsafe structure type tests
-;;; to fail.  Remove class from all superclasses (might not be registered, so
-;;; might not be in subclasses of the nominal superclasses.)
+;;; Mark a layout as invalid.  Depth -1 causes unsafe structure type tests
+;;; to fail.  Remove class from all superclasses (might not be registered,
+;;; so might not be in subclasses of the nominal superclasses.)
 ;;;
 (defun invalidate-layout (layout)
   (declare (type layout layout))
@@ -944,18 +944,16 @@
 	  (remhash class subs)))))
   (undefined-value))
 
-
 ;;; REGISTER-LAYOUT  --  Interface
 ;;;
-;;;    Record Layout as the layout for its class, adding it as a subtype of all
-;;; superclasses.  This is the operation that "installs" a layout for a class
-;;; in the type system, clobbering any old layout.  However, this does not
-;;; modify the class namespace; that is a separate operation (think anonymous
-;;; classes.)
-;;; -- If INVALIDATE, then all the layouts for any old definition
-;;;    and subclasses are invalidated, and the SUBCLASSES slot is cleared.
-;;; -- If DESTRUCT-LAYOUT, then this is some old layout, and is to be
-;;;    destructively modified to hold the same type information.
+;;; Record Layout as the layout for its class, adding it as a subtype of
+;;; all superclasses.  This is the operation that "installs" a layout for a
+;;; class in the type system, clobbering any old layout.  However, this
+;;; does not modify the class namespace; that is a separate operation
+;;; (think anonymous classes.)  -- If INVALIDATE, then all the layouts for
+;;; any old definition and subclasses are invalidated, and the SUBCLASSES
+;;; slot is cleared.  -- If DESTRUCT-LAYOUT, then this is some old layout,
+;;; and is to be destructively modified to hold the same type information.
 ;;;
 (defun register-layout (layout &key (invalidate t) destruct-layout)
   (declare (type layout layout) (type (or layout null) destruct-layout))
@@ -1001,16 +999,14 @@
 
     (undefined-value))
 
-
 ;;; LAYOUT-PROPER-NAME  --  Internal
 ;;;
 (defun layout-proper-name (layout)
   (class-proper-name (layout-class layout)))
 
-
 ;;; REDEFINE-LAYOUT-WARNING  --  Interface
 ;;;
-;;;    If layouts Old and New differ in any interesting way, then give a
+;;; If layouts Old and New differ in any interesting way, then give a
 ;;; warning and return T.
 ;;;
 (defun redefine-layout-warning (old old-context new new-context)
@@ -1056,19 +1052,20 @@
 		name old-context new-context)
 	  t))))
 
-
 ;;; FIND-LAYOUT  --  Interface
 ;;;
-;;;    Used by the loader to forward-reference layouts for classes whose
+;;; Used by the loader to forward-reference layouts for classes whose
 ;;; definitions may not have been loaded yet.  This allows type tests to be
-;;; loaded when the type definition hasn't been loaded yet.  Name is the class
-;;; name, Length is the length of instances, Inherits is a simple-vector of the
-;;; layouts for the classes it inherits, and Depth is the Inheritance-Depth.
+;;; loaded when the type definition hasn't been loaded yet.  Name is the
+;;; class name, Length is the length of instances, Inherits is a
+;;; simple-vector of the layouts for the classes it inherits, and Depth is
+;;; the Inheritance-Depth.
 ;;;
-;;;    If we can't find any existing layout, then we create a new one with the
-;;; supplied information, storing it in *FORWARD-REFERENCED-LAYOUTS*.  If we
-;;; can find the layout, then return it, after checking for compatibility.  If
-;;; incompatible, we allow the layout to be replaced, altered or left alone.
+;;; If we can't find any existing layout, then we create a new one with the
+;;; supplied information, storing it in *FORWARD-REFERENCED-LAYOUTS*.  If
+;;; we can find the layout, then return it, after checking for
+;;; compatibility.  If incompatible, we allow the layout to be replaced,
+;;; altered or left alone.
 ;;;
 (defun find-layout (name length inherits depth)
   (declare (type index length) (simple-vector inherits)
@@ -1170,7 +1167,6 @@
 		(setf free-objs (remove obj free-objs))
 		(next-result obj))))))))
 
-
 ;;; std-compute-class-precedence-list  --  Internal.
 ;;;
 ;;; Standard class precedence list computation.
@@ -1201,7 +1197,7 @@
       (topological-sort classes constraints #'std-cpl-tie-breaker))))
 
 
-;;; FIX PCL stuff:
+;;; FIX PCL stuff.
 
 (defstruct (std-class (:include class)))
 (defstruct (standard-class (:include std-class)))

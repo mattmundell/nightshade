@@ -1,25 +1,6 @@
-;;; -*- Package: MIPS; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/arith.lisp,v 1.52.2.2 2000/05/23 16:37:38 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/mips/arith.lisp,v 1.52.2.2 2000/05/23 16:37:38 pw Exp $
-;;;
-;;;    This file contains the VM definition arithmetic VOPs for the MIPS.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Converted by William Lott.
-;;; 
+;;; The VM definition arithmetic VOPs for the MIPS.
 
 (in-package "MIPS")
-
 
 
 ;;;; Unary operations.
@@ -63,11 +44,10 @@
   (:generator 1
     (inst nor res x zero-tn)))
 
-
 
 ;;;; Binary fixnum operations.
 
-;;; Assume that any constant operand is the second arg...
+;;; Assume that any constant operand is the second arg.
 
 (define-vop (fast-fixnum-binop)
   (:args (x :target r :scs (any-reg))
@@ -203,7 +183,6 @@
   (:generator 3
     (inst sub r x (fixnum y))))
 
-
 ;;; Shifting
 
 (define-vop (fast-ash/unsigned=>unsigned)
@@ -257,7 +236,6 @@
     (inst sll result number amount)
 
     DONE))
-
 
 (define-vop (fast-ash-c/unsigned=>unsigned)
   (:policy :fast-safe)
@@ -319,7 +297,7 @@
 
       (emit-label loop)
       (inst add res (fixnum 1))
-      
+
       (emit-label test)
       (inst bne shift loop)
       (inst srl shift 1))))
@@ -362,7 +340,6 @@
     (inst and temp mask)
     (inst addu res num temp)))
 
-
 ;;; Multiply and Divide.
 
 (define-vop (fast-*/fixnum=>fixnum fast-fixnum-binop)
@@ -384,8 +361,6 @@
   (:generator 3
     (inst multu x y)
     (inst mflo r)))
-
-
 
 (define-vop (fast-truncate/fixnum fast-fixnum-binop)
   (:translate truncate)
@@ -434,9 +409,8 @@
     (inst mflo q)
     (inst mfhi r)))
 
-
 
-;;;; Binary conditional VOPs:
+;;;; Binary conditional VOPs.
 
 (define-vop (fast-conditional)
   (:conditional)
@@ -487,7 +461,6 @@
   (:arg-types unsigned-num (:constant (and (integer-with-a-bite-out 16 1)
 					   unsigned-byte)))
   (:info target not-p y))
-
 
 (defmacro define-conditional-vop (translate &rest generator)
   `(progn
@@ -603,9 +576,9 @@
   (:args (x :scs (any-reg descriptor-reg)))
   (:arg-types * (:constant (signed-byte 14)))
   (:variant-cost 6))
-  
+
 
-;;;; 32-bit logical operations
+;;;; 32-bit logical operations.
 
 (define-vop (merge-bits)
   (:translate merge-bits)
@@ -627,7 +600,6 @@
       (inst or res res temp)
       (emit-label done)
       (move result res))))
-
 
 (define-vop (32bit-logical)
   (:args (x :scs (unsigned-reg))
@@ -682,7 +654,6 @@
 (deftransform 32bit-logical-orc2 ((x y) (* *))
   '(32bit-logical-or x (32bit-logical-not y)))
 
-
 (define-vop (shift-towards-someplace)
   (:policy :fast-safe)
   (:args (num :scs (unsigned-reg))
@@ -710,7 +681,6 @@
        (inst srl r num amount))
       (:little-endian
        (inst sll r num amount)))))
-
 
 
 ;;;; Bignum stuff.
@@ -922,7 +892,6 @@
        (inst sll res digit 2))
       (signed-reg
        (move res digit)))))
-
 
 (define-vop (digit-ashr)
   (:translate bignum::%ashr)

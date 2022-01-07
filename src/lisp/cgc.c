@@ -1979,7 +1979,7 @@ void gc_init(void)
 }
 void collect_garbage()
 {
-  /* SUB-GC wraps without-interrupt around call, but this
+  /* SUB-GC wraps block-interrupt around call, but this
    * is going to absolutely block SIGINT.
    */
   /* #define REALLY_SAFE */

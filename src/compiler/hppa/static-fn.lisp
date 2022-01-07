@@ -1,21 +1,6 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/static-fn.lisp,v 1.2 1994/10/31 04:42:45 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the VOPs and macro magic necessary to call static
-;;; functions.
-;;;
-;;; Written by William Lott.
-;;;
-(in-package "HPPA")
+;;; The VOPs and macro magic necessary to call static functions.
 
+(in-package "HPPA")
 
 (define-vop (static-function-template)
   (:save-p t)
@@ -30,13 +15,11 @@
   (:temporary (:sc any-reg :offset ocfp-offset) old-fp)
   (:temporary (:sc control-stack :offset nfp-save-offset) nfp-save))
 
-
 (eval-when (compile load eval)
 
 (defun static-function-template-name (num-args num-results)
   (intern (format nil "~:@(~R-arg-~R-result-static-function~)"
 		  num-args num-results)))
-
 
 (defun moves (src dst)
   (collect ((moves))

@@ -179,14 +179,15 @@
 
 ;;; EXPT  --  Public
 ;;;
-;;;    If an integer power of a rational, use INTEXP above.  Otherwise, do
+;;; If an integer power of a rational, use INTEXP above.  Otherwise, do
 ;;; floating point stuff.  If both args are real, we try %POW right off,
 ;;; assuming it will return 0 if the result may be complex.  If so, we call
-;;; COMPLEX-POW which directly computes the complex result.  We also separate
-;;; the complex-real and real-complex cases from the general complex case.
+;;; COMPLEX-POW which directly computes the complex result.  We also
+;;; separate the complex-real and real-complex cases from the general
+;;; complex case.
 ;;;
 (defun expt (base power)
-  "Returns BASE raised to the POWER."
+  "Return $base raised to $power."
   (if (zerop power)
       (1+ (* base power))
     (labels (;; determine if the double float is an integer.

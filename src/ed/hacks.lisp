@@ -8,13 +8,3 @@
 (defun lisp::%sp-make-fixnum (x) (%primitive make-fixnum x))
 (defun lisp::fast-char-upcase (x) (char-upcase x))
 
-;;; prepare-window-for-redisplay  --  Internal
-;;;
-;;;    Called by make-window to do whatever redisplay wants to set up
-;;; a new window.
-;;;
-(defun prepare-window-for-redisplay (window)
-  (setf (window-old-lines window) 0))
-
-(defun reverse-video-hook-fun (&rest foo)
-  (declare (ignore foo)))

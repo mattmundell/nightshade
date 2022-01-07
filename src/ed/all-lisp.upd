@@ -26,6 +26,7 @@ dired.lisp
 diredcoms.lisp
 display.lisp
 doccoms.lisp
+doc-diff.lisp
 dylan.lisp
 echo.lisp
 echocoms.lisp
@@ -56,6 +57,7 @@ icom.lisp
 indent.lisp
 info.lisp
 input.lisp
+inspect.lisp
 interp.lisp
 kbdmac.lisp
 key-event.lisp
@@ -65,7 +67,6 @@ keytrandefs.lisp
 killcoms.lisp
 line.lisp
 linimage.lisp
-lisp-lib.lisp
 lispbuf.lisp
 lispeval.lisp
 lispmode.lisp
@@ -95,6 +96,7 @@ scribe.lisp
 search1.lisp
 search2.lisp
 searchcoms.lisp
+sgml.lisp
 shell-script.lisp
 shell.lisp
 sort.lisp

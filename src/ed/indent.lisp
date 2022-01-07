@@ -4,103 +4,53 @@
 
 (export '(delete-horizontal-space indent-region indent-region-for-commands))
 
+#[ Indenting Text
+
+{evariable:Indent Function}
+{evariable:Indent with Tabs}
+{evariable:Spaces per Tab}
+{function:ed:indent-region}
+{function:ed:indent-region-for-commands}
+{function:ed:delete-horizontal-space}
+]#
+
+(defun tab-to-tab-stop (mark)
+  (insert-character mark #\tab))
+
+(defevar "Indent Function"
+  "Indentation function invoked by the `Indent' command.  The function
+   takes a :left-inserting mark that may be moved, and indents the line
+   that the mark is on."
+  :value #'tab-to-tab-stop)
+
 (defun update-spaces-per-tab (&optional name kind where value)
-  "Update display to a new Value of Spaces per Tab."
+  "Update display to a new Value of *Spaces per Tab*."
   (declare (ignore name kind where value))
   ;; FIX change only takes effect when buffer is switched
   (when edi::*in-the-editor*
     (setq edi::*screen-image-trashed* t)
     (redisplay-all)))
 
-(defhvar "Spaces per Tab"
+(defevar "Spaces per Tab"
   "The number of spaces a tab is equivalent to."
   :value 8
   :hooks '(update-spaces-per-tab))
 
 (defun indent-using-tabs (mark column)
-  "Inserts at mark a maximum number of tabs and a minimum number of spaces to
-   move mark to column.  This assumes mark is at the beginning of a line."
+  "Inserts at MARK a maximum number of tabs and a minimum number of spaces to
+   move mark to COLUMN.  This assumes MARK is at the beginning of a line."
   (multiple-value-bind (tabs spaces) (floor column (value spaces-per-tab))
     (dotimes (i tabs) (insert-character mark #\tab))
     (dotimes (i spaces) (insert-character mark #\space))))
 
-(defhvar "Indent with Tabs"
-  "Function that takes a mark and a number of spaces and inserts tabs and spaces
-   to indent that number of spaces using \"Spaces per Tab\"."
+(defevar "Indent with Tabs"
+  "A function that takes a mark and a number of columns.  The function
+   inserts a maximum number of tabs and a minimum number of spaces at the
+   mark to move the mark the specified number of columns."
   :value #'indent-using-tabs)
 
-
-(defun tab-to-tab-stop (mark)
-  (insert-character mark #\tab))
-
-(defhvar "Indent Function"
-  "Indentation function which is invoked by \"Indent\" command.
-   It takes a :left-inserting mark that may be moved."
-  :value #'tab-to-tab-stop)
-
-
-(defun generic-indent (mark)
-  (let* ((line (mark-line mark))
-	 (prev (do ((line (line-previous line) (line-previous line)))
-		   ((or (null line) (not (blank-line-p line))) line))))
-    (unless prev (editor-error))
-    (line-start mark prev)
-    (find-attribute mark :space #'zerop)
-    (let ((indentation (mark-column mark)))
-      (line-start mark line)
-      (delete-horizontal-space mark)
-      (funcall (value indent-with-tabs) mark indentation))))
-
-
-(defcommand "Indent New Line" (p)
-  "Moves point to a new blank line and indents it.
-   Any whitespace before point is deleted.  The value of \"Indent Function\"
-   is used for indentation unless there is a Fill Prefix, in which case it is
-   used.  Any argument is passed onto \"New Line\"."
-  "Moves point to a new blank line and indents it.
-   Any whitespace before point is deleted.  The value of \"Indent Function\"
-   is used for indentation unless there is a Fill Prefix, in which case it is
-   used.  Any argument is passed onto \"New Line\"."
-  (let ((point (current-point))
-	(prefix (value fill-prefix)))
-    (delete-horizontal-space point)
-    (new-line-command p)
-    (if prefix
-	(insert-string point prefix)
-	(funcall (value indent-function) point))))
-
-
-(defcommand "Indent" (p)
-  "Invokes function held by the editor variable \"Indent Function\", moving
-   point past region if called with argument."
-  "Invokes function held by the editor variable \"Indent Function\" moving
-   point past region if called with argument."
-  (let ((point (current-point)))
-    (with-mark ((mark point :left-inserting))
-      (cond ((or (not p) (zerop p))
-	     (funcall (value indent-function) mark))
-	    (t
-	     (if (plusp p)
-		 (unless (line-offset point (1- p))
-		   (buffer-end point))
-		 (unless (line-offset mark (1+ p))
-		   (buffer-start mark)))
-	     (indent-region-for-commands (region mark point))
-	     (find-attribute (line-start point) :whitespace #'zerop))))))
-
-(defcommand "Indent Region" (p)
-  "Invokes function held by editor variable \"Indent Function\" on every
-   line between point and mark, inclusively."
-  "Invokes function held by editor variable \"Indent Function\" on every
-   line between point and mark, inclusively."
-  (declare (ignore p))
-  (let ((region (current-region)))
-    (with-mark ((start (region-start region) :left-inserting)
-		(end (region-end region) :left-inserting))
-      (indent-region-for-commands (region start end)))))
-
 (defun indent-region-for-commands (region)
-  "Indents region undoably with INDENT-REGION."
+  "Invoke the function in *Indent Function* on every line in $region."
   (let* ((start (region-start region))
 	 (end (region-end region))
 	 (undo-region (copy-region (region (line-start start) (line-end end)))))
@@ -111,8 +61,7 @@
 		      undo-region)))
 
 (defun indent-region (region)
-  "Invokes function held by editor variable \"Indent Function\" on every
-   line of region."
+  "Invoke the function in *Indent Function* on every line of $region."
   (let ((indent-function (value indent-function)))
     (with-mark ((start (region-start region) :left-inserting)
 		(end (region-end region)))
@@ -124,10 +73,97 @@
 	    (funcall indent-function start)
 	    (line-offset start 1 0)))))
 
+(defun generic-indent (mark)
+  (let* ((line (mark-line mark))
+	 (prev (do ((line (line-previous line) (line-previous line)))
+		   ((or (null line) (not (blank-line-p line))) line))))
+    (or prev (editor-error "First line with text."))
+    (line-start mark prev)
+    (find-attribute mark :space #'zerop)
+    (let ((indentation (mark-column mark)))
+      (line-start mark line)
+      (delete-horizontal-space mark)
+      (funcall (value indent-with-tabs) mark indentation))))
+
+(defattribute "Space"
+  "This attribute is used by the indentation commands to determine which
+  characters are treated as space."
+  '(mod 2) 0)
+
+(setf (character-attribute :space #\space) 1)
+(setf (character-attribute :space #\tab) 1)
+
+(defun delete-horizontal-space (mark)
+  "Delete all characters with a :space attribute of 1 (as in [System
+   Defined Character Attributes]) on either side of $mark."
+  (with-mark ((start mark))
+    (reverse-find-attribute start :space #'zerop)
+    (find-attribute mark :space #'zerop)
+    (delete-region (region start mark))))
+
+#[ Indentation
+
+Nearly all programming languages have conventions for indentation or
+leading whitespace at the beginning of lines.  The editor indentation
+facility is integrated into the command set so that it interacts well with
+other features such as filling and commenting.
+
+{evariable:Indent Function}
+{command:Indent}
+{command:Indent New Line}
+{command:Indent Region}
+{command:Back to Indentation}
+{command:Delete Indentation}
+{command:Quote Tab}
+{command:Indent Rigidly}
+{command:Center Line}
+{evariable:Indent with Tabs}
+{evariable:Spaces per Tab}
+]#
+
+(defcommand "Indent New Line" (p)
+  "Start a new indented line.  Flush any whitespace before the point and
+   inserts indentation on a blank line.  The effect of this is similar to
+   Return followed by Tab.  The prefix argument is passed to `New Line',
+   which is used to insert the blank line.  If there is a Fill Prefix then
+   it is used for indentation, otherwise, the function in \"Indent
+   Function\" is called to do the indenting."
+  (let ((point (current-point))
+	(prefix (value fill-prefix)))
+    (delete-horizontal-space point)
+    (new-line-command p)
+    (if prefix
+	(insert-string point prefix)
+	(funcall (value indent-function) point))))
+
+(defcommand "Indent" (p)
+  "Invoke the function held in the editor variable *Indent Function*,
+   moving point past the region if the prefix is set."
+  (let ((point (current-point)))
+    (with-mark ((mark point :left-inserting))
+      (cond ((or (not p) (zerop p))
+	     (funcall (value indent-function) mark))
+	    (t
+	     (if (plusp p)
+		 (or (line-offset point (1- p))
+		     (buffer-end point))
+		 (or (line-offset mark (1+ p))
+		     (buffer-start mark)))
+	     (indent-region-for-commands (region mark point))
+	     (find-attribute (line-start point) :whitespace #'zerop))))))
+
+(defcommand "Indent Region" ()
+  "Invokes function held by editor variable *Indent Function* on every line
+   between point and mark, inclusively."
+  (let ((region (current-region)))
+    (with-mark ((start (region-start region) :left-inserting)
+		(end (region-end region) :left-inserting))
+      (indent-region-for-commands (region start end)))))
+
 (defcommand "Center Line" (p)
-  "Centers current line using \"Fill Column\".  If an argument is supplied,
-   it is used instead of the \"Fill Column\"."
-  "Centers current line using fill-column."
+  "Indent the current line so that it is centered between the left margin
+   and Fill Column.  With a prefix use the prefix as the width instead of
+   `Fill Column'."
   (let* ((indent-function (value indent-with-tabs))
 	 (region (if (region-active-p)
 		     (current-region)
@@ -146,36 +182,33 @@
 	  (unless (line-offset temp 1) (return))
 	  (line-start temp))))))
 
-
 (defcommand "Quote Tab" (p)
-  "Insert tab character."
-  "Insert tab character."
+  "Insert a tab character."
   (if (and p (> p 1))
       (insert-string (current-point) (make-string p :initial-element #\tab))
       (insert-character (current-point) #\tab)))
 
-
 (defcommand "Open Line" (p)
-  "Inserts a newline into the buffer without moving the point."
-  "Inserts a newline into the buffer without moving the point.
-  With argument, inserts p newlines."
+  "Insert a newline into the current buffer, leaving point in place.  With
+   a prefix argument, insert that many newlines."
+  "Insert a newline into the current buffer, leaving point in place.  If $p
+   is true then insert that many newlines."
   (let ((point (current-point))
 	(count (if p p 1)))
-    (if (not (minusp count))
+    (if (minusp count)
+	(editor-error "Negative argument given to `Open Line'.")
 	(dotimes (i count)
 	  (insert-character point #\newline)
-	  (mark-before point))
-	(editor-error))))
-
+	  (mark-before point)))))
 
 (defcommand "New Line" (p)
-  "Moves the point to a new blank line.
-  A newline is inserted if the next two lines are not already blank.
-  With an argument, repeats p times."
+  "Moves the point to a new blank line.  A newline is inserted if either of
+   the next two lines contain text.  With an argument, repeats p times."
   "Moves the point to a new blank line."
   (let ((point (current-point))
 	(count (if p p 1)))
-    (if (not (minusp count))
+    (if (minusp count)
+	(editor-error "Negative argument given to `New Line'.")
 	(do* ((next (line-next (mark-line point))
 		    (line-next (mark-line point)))
 	      (i 1 (1+ i)))
@@ -189,15 +222,24 @@
 		   (unless (zerop len)
 		     (delete-characters point len))))
 		(t
-		 (insert-character point #\newline))))
-	(editor-error))))
+		 (insert-character point #\newline)))))))
 
+
+#[ Whitespace Manipulation
+
+These commands change the amount of space between words.  See also the
+indentation commands in section [ indentation ].
+
+{command:Just One Space}
+{command:Delete Horizontal Space}
+{command:Delete Blank Lines}
+]#
 
 (defcommand "Tabs to Spaces" (p)
   "Convert tabs to spaces.  With a prefix insert prefix spaces per tab,
-   else insert \"Spaces per Tab\" spaces per tab."
-  "Convert tabs to spaces.  If P is true insert P spaces per tab, else
-   insert \"Spaces per Tab\" spaces per tab."
+   else insert *Spaces per Tab* spaces per tab."
+  "Convert tabs to spaces.  If $p is true insert $p spaces per tab, else
+   insert *Spaces per Tab* spaces per tab."
   (let ((p (or p (value spaces-per-tab)))
 	(region (current-region)))
     (with-mark ((start (region-start region) :left-inserting)
@@ -211,31 +253,13 @@
 		(insert-character start #\ )))
 	    (mark-after start))))))
 
-(defattribute "Space"
-  "This attribute is used by the indentation commands to determine which
-  characters are treated as space."
-  '(mod 2) 0)
-
-(setf (character-attribute :space #\space) 1)
-(setf (character-attribute :space #\tab) 1)
-
-(defun delete-horizontal-space (mark)
-  "Deletes all :space characters on either side of mark."
-  (with-mark ((start mark))
-    (reverse-find-attribute start :space #'zerop)
-    (find-attribute mark :space #'zerop)
-    (delete-region (region start mark))))
-
-
-
 (defcommand "Delete Indentation" (p)
-  "Join current line with the previous one, deleting excess whitespace.
-  All whitespace is replaced with a single space, unless it is at the beginning
-  of a line, immmediately following a \"(\", or immediately preceding a \")\",
-  in which case the whitespace is merely deleted.  If the preceeding character
-  is a sentence terminator, two spaces are left instead of one.  If a prefix
-  argument is given, the following line is joined with the current line."
-  "Join current line with the previous one, deleting excess whitespace."
+  "Join current line with the previous one, flushing any excess whitespace.
+   Usually replace all whitespace with a single space. At the beginning of
+   a line, immmediately following a \"(\", or immediately preceding a
+   \")\", flush all whitespace.  If the preceeding character is a sentence
+   terminator, leave two spaces instead of one.  If a prefix argument is
+   given, join the following line with the current line."
   (with-mark ((m (current-point) :right-inserting))
     (when p (line-offset m 1))
     (line-start m)
@@ -250,36 +274,30 @@
 			    :close-paren)))
 	       (insert-character m #\space)))))))
 
-
-(defcommand "Delete Horizontal Space" (p)
-  "Delete spaces and tabs surrounding the point."
-  "Delete spaces and tabs surrounding the point."
-  (declare (ignore p))
+(defcommand "Delete Horizontal Space" ()
+  "Flush all spaces and tabs surrounding the point."
   (delete-horizontal-space (current-point)))
 
 (defcommand "Just One Space" (p)
-  "Leave one space.
-  Surrounding space is deleted, and then one space is inserted.
-  with prefix argument insert that number of spaces."
-  "Delete surrounding space and insert P spaces."
+  "Flush all whitespace characters before and after the point and then
+   insert one space.  With a prefix argument, insert that number of
+   spaces."
+  "Flush surrounding space and insert $p spaces, or 1 space if $p is ().."
   (let ((point (current-point)))
     (delete-horizontal-space point)
     (dotimes (i (or p 1)) (insert-character point #\space))))
 
-(defcommand "Back to Indentation" (p)
-  "Move point to the first non-whitespace character on the line."
-  "Move point to the first non-whitespace character on the line."
-  (declare (ignore p))
+(defcommand "Back to Indentation" ()
+  "Move point past all leading whitespace characters on the current line."
   (let ((point (current-point)))
     (line-start point)
     (find-attribute point :whitespace #'zerop)))
 
 (defcommand "Indent Rigidly" (p)
-  "Indent the region rigidly by p spaces.
-   Each line in the region is moved p spaces to the right (left if p is
-   negative).  When moving a line to the left, tabs are converted to spaces."
-  "Indent the region rigidly p spaces to the right (left if p is negative)."
-  (let ((p (or p (value spaces-per-tab)))
+  "Indent the region rigidly by $p spaces.  Move each line in the region $p
+   spaces to the right (left if $p is negative).  When moving a line to the
+   left, convert tabs to spaces."
+  (let ((p (or p 1))
 	(region (current-region)))
     (with-mark ((mark1 (region-start region) :left-inserting)
 		(mark2 (region-end region) :left-inserting))

@@ -1,5 +1,5 @@
 /*
- * Linux-os.c. 
+ * Linux-os.c.
  * From FreeBSD-os.c
  * From osf1-os.c,v 1.1 94/03/27 15:30:51 hallgren Exp $
  *
@@ -131,9 +131,9 @@ os_vm_address_t os_validate(os_vm_address_t addr, os_vm_size_t len)
 
   addr = mmap(addr, len, OS_VM_PROT_ALL, flags, -1, 0);
 
-  if(addr == (os_vm_address_t) -1)
+  if (addr == (os_vm_address_t) -1)
     {
-      perror("mmap");
+      perror("mmap (addr ");
       return NULL;
     }
 
@@ -272,7 +272,7 @@ static void sigbus_handler(HANDLER_ARGS)
   interrupt_handle_now(signal, contextstruct);
 #else
   interrupt_handle_now(signal, code, context);
-#endif  
+#endif
 }
 
 void os_install_interrupt_handlers(void)

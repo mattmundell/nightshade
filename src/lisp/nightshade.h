@@ -46,7 +46,7 @@ typedef u32 lispobj;
 #define SetSymbolValue(sym,val) \
     (((struct symbol *)((sym)-type_OtherPointer))->value = (val))
 
-/* This only words for static symbols. */
+/* This only works for static symbols. */
 #define SymbolFunction(sym) \
     (((struct fdefn *)(SymbolValue(sym)-type_OtherPointer))->function)
 

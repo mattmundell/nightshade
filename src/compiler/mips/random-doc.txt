@@ -1,7 +1,5 @@
 -*- Mode: Text, Fill -*-
 
-$Header: /home/CVS-cmucl/src/compiler/mips/random-doc.txt,v 1.3 1990/03/02 17:40:56 ch Exp $
-
 DEFINE-STORAGE-BASE
 
   Define-Storage-Base Name Kind {Key Value}*
@@ -30,7 +28,7 @@ DEFINE-STORAGE-CLASS
       If the SB is :Finite, then this is a list of the offsets within the SB
       that are in this SC.
 
-  
+
 DEFINE-MOVE-COSTS
 
   Define-Move-Costs {((Source-SC*) {(Cost Dest-SC*)}*)}*
@@ -73,7 +71,7 @@ DEF-BOOLEAN-ATTRIBUTE
 
   Define a new class of boolean attributes, with the attributes havin the
   specified Attribute-Names.  Name is the name of the class, which is used to
-  generate some macros to manipulate sets of the attributes: 
+  generate some macros to manipulate sets of the attributes:
 
     NAME-attributep attributes attribute-name*
       Return true if one of the named attributes is present, false otherwise.
@@ -100,14 +98,14 @@ PRIMITIVE-TYPE-VOP
       checking that the value is of this type in the process.
 
 DEFINE-VOP
- 
+
   Define-VOP (Name [Inherits]) Spec*
 
   Define the symbol Name to be a Virtual OPeration in the compiler.  If
   specified, Inherits is the name of a VOP that we default unspecified
   information from.  Each Spec is a list beginning with a keyword indicating
   the interpretation of the other forms in the Spec:
-  
+
   :Args {(Name {Key Value}*)}*
   :Results {(Name {Key Value}*)}*
       The Args and Results are specifications of the operand TNs passed to the
@@ -128,17 +126,17 @@ DEFINE-VOP
       :Target Operand
 	  This operand is targeted to the named operand, indicating a desire to
 	  pack in the same location.  Not legal for results.
-  
+
   :Conditional
       This is used in place of :Results with conditional branch VOPs.  There
       are no result values: the result is a transfer of control.  The
       consequent and alternative continuations are passed as the first and
       second :Info arguments.  A side-effect is to set the Predicate attribute
       for functions in the :Translate option.
-  
+
   :Temporary ({Key Value}*) Name*
       Allocate a temporary TN for each Name, binding that variable to the TN
-      within the body of the generators.  In addition to :Target (which is 
+      within the body of the generators.  In addition to :Target (which is
       is the same as for operands), the following options are
       defined:
 
@@ -161,7 +159,7 @@ DEFINE-VOP
 	  intervening phases are :Argument, :Eval and :Result.  Non-zero
 	  sub-phases can be specified by a list, e.g. the second argument's
 	  life ends at (:Argument 1).
-  
+
   :Generator Cost Form*
       Specifies the translation into assembly code. Cost is the estimated cost
       of the code emitted by this generator. The body is arbitrary Lisp code
@@ -169,12 +167,12 @@ DEFINE-VOP
       form is wrapped around the body, so code may be emitted by using the
       local Inst macro.  During the evaluation of the body, the names of the
       operands and temporaries are bound to the actual TNs.
-  
+
   :Effects Effect*
   :Affected Effect*
       Specifies the side effects that this VOP has and the side effects that
       effect its execution.  If unspecified, these default to the worst case.
-  
+
   :Info Name*
       Define some magic arguments that are passed directly to the code
       generator.  The corresponding trailing arguments to VOP or %Primitive are
@@ -205,8 +203,8 @@ DEFINE-VOP
   :Arg-Types Type*
   :Result-Types Type*
       Specify the template type restrictions used for automatic translation.
-      If there is a :More operand, the last type is the more type. 
-  
+      If there is a :More operand, the last type is the more type.
+
   :Translate Name*
       This option causes the VOP template to be entered as an IR2 translation
       for the named functions.
@@ -264,23 +262,23 @@ DEF-SOURCE-TRANSFORM
   Def-Source-Transform Name Lambda-List Form*
 
   Define a macro-like source-to-source transformation for the function Name.
-  A source transform may "pass" by returning a non-nil second value.  If the
+  A source transform may "pass" by returning a true second value.  If the
   transform passes, then the form is converted as a normal function call.  If
   the supplied arguments are not compatible with the specified lambda-list,
   then the transform automatically passes.
-  
+
   Source-Transforms may only be defined for functions.  Source transformation
   is not attempted if the function is declared Notinline.  Source transforms
   should not examine their arguments.  If it matters how the function is used,
   then Deftransform should be used to define an IR1 transformation.
-  
+
   If the desirability of the transformation depends on the current Optimize
   parameters, then the Policy macro should be used to determine when to pass.
 
 
 DEFKNOWN
 
-  Defknown Name Arg-Types Result-Type [Attributes] {Key Value}* 
+  Defknown Name Arg-Types Result-Type [Attributes] {Key Value}*
 
   Declare the function Name to be a known function.  We construct a type
   specifier for the function by wrapping (FUNCTION ...) around the Arg-Types
@@ -290,26 +288,26 @@ DEFKNOWN
          May call functions that are passed as arguments.  In order to determine
          what other effects are present, we must find the effects of all arguments
          that may be functions.
-        
+
       unsafe
          May incorporate arguments in the result or somehow pass them upward.
-        
+
       unwind
          May fail to return during correct execution.  Errors are O.K.
-        
+
       any
          The (default) worst case.  Includes all the other bad things, plus any
          other possible bad thing.
-        
+
       foldable
          May be constant-folded.  The function has no side effects, but may be
          affected by side effects on the arguments.  e.g. SVREF, MAPC.
-        
+
       flushable
          May be eliminated if value is unused.  The function has no side effects
          except possibly CONS.  If a function is defined to signal errors, then
          it is not flushable even if it is movable or foldable.
-        
+
       movable
          May be moved with impunity.  Has no side effects except possibly CONS,
          and is affected only by its arguments.

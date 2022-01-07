@@ -1,23 +1,10 @@
-;;; -*- Mode: Lisp; Package: C; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/float-tran.lisp,v 1.30.2.6 2000/07/06 06:56:21 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains floating-point specific transforms, and may be somewhat
-;;; implementation dependent in its assumptions of what the formats are.
-;;;
-;;; Author: Rob MacLachlan
-;;; 
+;;; Floating-point specific transforms.  May be somewhat implementation
+;;; dependent in its assumptions of what the formats are.
+
 (in-package "C")
 
 
-;;;; Coercions:
+;;;; Coercions.
 
 (defknown %single-float (real) single-float (movable foldable flushable))
 (defknown %double-float (real) double-float (movable foldable flushable))
@@ -40,8 +27,8 @@
     (give-up))
   `(the ,(continuation-value type)
 	,(let ( (tspec (specifier-type (continuation-value type))) )
-	   (cond ((csubtypep tspec (specifier-type 'double-float))	
-		  '(%double-float n))	
+	   (cond ((csubtypep tspec (specifier-type 'double-float))
+		  '(%double-float n))
 		 ((csubtypep tspec (specifier-type 'float))
 		  '(%single-float n))
 		 (t
@@ -92,8 +79,7 @@
 	(values (1+ tru) (- rem divisor))
 	(values tru rem))))
 
-
-;;; Random:
+;;; Random.
 ;;;
 (macrolet ((frob (fun type)
 	     `(deftransform random ((num &optional state)
@@ -146,7 +132,7 @@
 		 #-x86 '(rem (random-chunk (or state *random-state*)) num)
 		 #+x86
 		 ;; Use multiplication which is faster.
-		 '(values (bignum::%multiply 
+		 '(values (bignum::%multiply
 			   (random-chunk (or state *random-state*))
 			   num)))))
 	  ((> num-high random-fixnum-max)
@@ -159,7 +145,7 @@
 	   '(rem (random-chunk (or state *random-state*)) num)))))
 
 
-;;;; Float accessors:
+;;;; Float accessors.
 
 (defknown make-single-float ((signed-byte 32)) single-float
   (movable foldable flushable))
@@ -193,11 +179,10 @@
       '(if (minusp (double-float-high-bits float)) -1d0 1d0)))
 
 
-;;;; DECODE-FLOAT, INTEGER-DECODE-FLOAT, SCALE-FLOAT:
+;;;; DECODE-FLOAT, INTEGER-DECODE-FLOAT, SCALE-FLOAT.
 ;;;
-;;;    Convert these operations to format specific versions when the format is
+;;; Convert these operations to format specific versions when the format is
 ;;; known.
-;;;
 
 (deftype single-float-exponent ()
   `(integer ,(- vm:single-float-normal-exponent-min vm:single-float-bias
@@ -208,7 +193,6 @@
   `(integer ,(- vm:double-float-normal-exponent-min vm:double-float-bias
 		vm:double-float-digits)
 	    ,(- vm:double-float-normal-exponent-max vm:double-float-bias)))
-
 
 (deftype single-float-int-exponent ()
   `(integer ,(- vm:single-float-normal-exponent-min vm:single-float-bias
@@ -277,8 +261,6 @@
       '(%scalbn f ex)
       '(scale-double-float f ex)))
 
-;;; toy@rtp.ericsson.se:
-;;;
 ;;; Optimizers for scale-float.  If the float has bounds, new bounds
 ;;; are computed for the result, if possible.
 
@@ -320,13 +302,11 @@
 (defoptimizer (scale-double-float derive-type) ((f ex))
   (two-arg-derive-type f ex #'scale-float-derive-type-aux
 		       #'scale-double-float t))
-	     
-;;; toy@rtp.ericsson.se:
-;;;
+
 ;;; Defoptimizers for %single-float and %double-float.  This makes the
-;;; FLOAT function return the correct ranges if the input has some
-;;; defined range.  Quite useful if we want to convert some type of
-;;; bounded integer into a float.
+;;; FLOAT function return the correct ranges if the input has some defined
+;;; range.  Quite useful if we want to convert some type of bounded integer
+;;; into a float.
 
 (macrolet
     ((frob (fun type)
@@ -342,15 +322,15 @@
 					(coerce x ',type))
 				    (numeric-type-high num))))
 	       (specifier-type `(,',type ,(or lo '*) ,(or hi '*)))))
-	   
+
 	   (defoptimizer (,fun derive-type) ((num))
 	     (one-arg-derive-type num #',aux-name #',fun))))))
   (frob %single-float single-float)
   (frob %double-float double-float))
-) ; end progn  
+) ; end progn
 
 
-;;;; Float contagion:
+;;;; Float contagion.
 
 ;;; FLOAT-CONTAGION-ARG1, ARG2  --  Internal
 ;;;
@@ -376,7 +356,6 @@
   (%deftransform x '(function (double-float single-float) *)
 		 #'float-contagion-arg2))
 
-
 ;;; Prevent zerop, plusp, minusp from losing horribly.  We can't in general
 ;;; float rational args to comparison, since Common Lisp semantics says we are
 ;;; supposed to compare as rationals, but we can do it for any rational that
@@ -396,7 +375,7 @@
   (frob =))
 
 
-;;;; Irrational derive-type methods:
+;;;; Irrational derive-type methods.
 
 ;;; Derive the result to be float for argument types in the appropriate domain.
 ;;;
@@ -426,7 +405,7 @@
     (specifier-type 'float)))
 
 
-;;;; Irrational transforms:
+;;;; Irrational transforms.
 
 (defknown (%tan %sinh %asinh %atanh %log %logb %log10 %tan-quick)
 	  (double-float) double-float
@@ -439,11 +418,11 @@
 (defknown (%asin %atan)
     (double-float) (double-float #.(- (/ pi 2)) #.(/ pi 2))
     (movable foldable flushable))
-    
+
 (defknown (%acos)
     (double-float) (double-float 0.0d0 #.pi)
     (movable foldable flushable))
-    
+
 (defknown (%cosh)
     (double-float) (double-float 1.0d0)
     (movable foldable flushable))
@@ -513,7 +492,7 @@
 					      (#.(expt 2f0 64)))))
 		 `(coerce (,prim-quick (coerce x 'double-float))
 		   'single-float))
-		(t 
+		(t
 		 (compiler-note
 		  "Unable to avoid inline argument range check~@
                       because the argument range (~s) was not within 2^64"
@@ -527,7 +506,7 @@
 					      (#.(- (expt 2d0 64)))
 					      (#.(expt 2d0 64)))))
 		 `(,prim-quick x))
-		(t 
+		(t
 		 (compiler-note
 		  "Unable to avoid inline argument range check~@
                    because the argument range (~s) was not within 2^64"
@@ -557,8 +536,8 @@
   '(if (zerop y) y (/ (log x) (log y))))
 
 
-;;; Handle some simple transformations
-  
+;;; Handle some simple transformations.
+
 (deftransform abs ((x) ((complex double-float)) double-float :when :both)
   '(%hypot (realpart x) (imagpart x)))
 
@@ -660,7 +639,7 @@
       (setq arg-hi -0l0 arg-hi-val -0l0))
     (flet ((fp-neg-zero-p (f)	; Is F -0.0?
 	     (and (floatp f) (zerop f) (minusp (float-sign f))))
-	   (fp-pos-zero-p (f)	; Is F +0.0? 
+	   (fp-pos-zero-p (f)	; Is F +0.0?
 	     (and (floatp f) (zerop f) (plusp (float-sign f)))))
       (and (or (null domain-low)
 	       (and arg-lo (>= arg-lo-val domain-low)
@@ -672,7 +651,7 @@
 			      (fp-pos-zero-p arg-hi)))))))))
 
 ;;; Elfun-Derive-Type-Simple
-;;; 
+;;;
 ;;; Handle monotonic functions of a single variable whose domain is
 ;;; possibly part of the real line.  ARG is the variable, FCN is the
 ;;; function, and DOMAIN is a specifier that gives the (real) domain
@@ -720,7 +699,7 @@
 				  ((integer rational) 'single-float)
 				  (t (numeric-type-format arg))))
 			(bound-type (or format 'float))
-			(result-type 
+			(result-type
 			 (make-numeric-type
 			  :class 'float
 			  :format format
@@ -762,7 +741,7 @@
   (frob asinh nil nil nil nil)
 
   ;; These functions are only defined for part of the real line.  The
-  ;; condition selects the desired part of the line.  
+  ;; condition selects the desired part of the line.
   (frob asin -1d0 1d0 (- (/ pi 2)) (/ pi 2))
   ;; Acos is monotonic decreasing, so we need to swap the function
   ;; values at the lower and upper bounds of the input domain.
@@ -772,11 +751,11 @@
   ;; Kahan says that (sqrt -0.0) is -0.0, so use a specifier that
   ;; includes -0.0.
   (frob sqrt -0d0 nil 0 nil))
- 
+
 ;;; Compute bounds for (expt x y).  This should be easy since (expt x
 ;;; y) = (exp (* y (log x))).  However, computations done this way
 ;;; have too much roundoff.  Thus we have to do it the hard way.
-;;;  
+;;;
 (defun safe-expt (x y)
   (handler-case
       (expt x y)
@@ -972,7 +951,7 @@
 	(t
 	 ;; A number to some power is a number.
 	 (specifier-type 'number))))
-  
+
 (defun merged-interval-expt (x y)
   (let* ((x-int (numeric-type->interval x))
 	 (y-int (numeric-type->interval y)))
@@ -1003,7 +982,6 @@
 
 (defoptimizer (expt derive-type) ((x y))
   (two-arg-derive-type x y #'expt-derive-type-aux #'expt))
-
 
 ;;; Note must assume that a type including 0.0 may also include -0.0
 ;;; and thus the result may be complex -infinity + i*pi.
@@ -1069,7 +1047,6 @@
 
 (defoptimizer (cosh derive-type) ((num))
   (one-arg-derive-type num #'cosh-derive-type-aux #'cosh))
-
 
 (defun phase-derive-type-aux (arg)
   (let* ((format (case (numeric-type-class arg)
@@ -1195,7 +1172,7 @@
 	   (numeric-type-p im-type))
       ;; Need to check to make sure numeric-contagion returns the
       ;; right type for what we want here.
-      
+
       ;; Also, what about rational canonicalization, like (complex 5 0)
       ;; is 5?  So, if the result must be complex, we make it so.
       ;; If the result might be complex, which happens only if the
@@ -1207,7 +1184,7 @@
 	(if rat-result-p
 	    (make-union-type
 	     (list element-type
-		   (specifier-type 
+		   (specifier-type
 		    `(complex ,(numeric-type-class element-type)))))
 	    (make-numeric-type :class (numeric-type-class element-type)
 			       :format (numeric-type-format element-type)
@@ -1220,7 +1197,6 @@
   (if im
       (two-arg-derive-type re im #'complex-derive-type-aux-2 #'complex)
       (one-arg-derive-type re #'complex-derive-type-aux-1 #'complex)))
-
 
 ;;; Define some transforms for complex operations.  We do this in lieu
 ;;; of complex operation VOPs.  Some architectures have vops, though.
@@ -1370,7 +1346,7 @@
 	#'sin
 	-1 1))
    #'sin))
-       
+
 (defoptimizer (cos derive-type) ((num))
   (one-arg-derive-type
    num
@@ -1394,7 +1370,7 @@
 			     nil nil))
    #'tan))
 
-;;; conjugate always returns the same type as the input type  
+;;; conjugate always returns the same type as the input type
 (defoptimizer (conjugate derive-type) ((num))
   (continuation-type num))
 

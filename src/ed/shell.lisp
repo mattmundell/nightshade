@@ -2,26 +2,59 @@
 
 (in-package "ED")
 
+(file-comment "Test file comment for e:shell.lisp.")
+
+#[ Process Mode
+
+`Process' mode allows the user to execute a Unix process within an editor
+buffer.  These commands and default bindings cater to running Unix shells
+yin buffers.  For example, `Stop Buffer Subprocess' is bound to H-z to stop
+the process you are running in the shell instead of binding `Stop Main
+Process' to this key which would stop the shell itself.
+
+{command:Shell}
+{evariable:Shell Utility}
+{evariable:Shell Utility Switches}
+{evariable:Current Shell}
+{evariable:Ask about Old Shells}
+{command:Shell Command Line in Buffer}
+{command:Saving Shell Command Line in Buffer}
+{command:Set Current Shell}
+{command:Stop Main Process}
+{command:Continue Main Process}
+{command:Kill Main Process}
+{evariable:Kill Process Confirm}
+{command:Stop Buffer Subprocess}
+{command:Kill Buffer Subprocess}
+{command:Interrupt Buffer Subprocess}
+{command:Quit Buffer Subprocess}
+{command:Send EOF to Process}
+{command:Confirm Process Input}
+
+The user may edit process input using commands that are shared with
+`Typescript' mode, as described in [typescripts].
+]#
+
 (defun setup-process-buffer (buffer)
   (let ((mark (copy-mark (buffer-point buffer) :right-inserting)))
-    (defhvar "Buffer Input Mark"
+    (defevar "Buffer Input Mark"
       "The buffer input mark for this buffer."
       :buffer buffer
       :value mark)
-    (defhvar "Process Output Stream"
+    (defevar "Process Output Stream"
       "The process structure for this buffer."
       :buffer buffer
-      :value (make-hemlock-output-stream mark :full))
-    (defhvar "Interactive History"
+      :value (make-editor-output-stream mark :full))
+    (defevar "Interactive History"
       "A ring of the regions input to an interactive mode (Eval or Typescript)."
       :buffer buffer
       :value (make-ring (value interactive-history-length)))
-    (defhvar "Interactive Pointer"
-      "Pointer into \"Interactive History\"."
+    (defevar "Interactive Pointer"
+      "Pointer into *Interactive History*."
       :buffer buffer
       :value 0)
-    (defhvar "Searching Interactive Pointer"
-      "Pointer into \"Interactive History\"."
+    (defevar "Searching Interactive Pointer"
+      "Pointer into *Interactive History*."
       :buffer buffer
       :value 0)
     (fi (buffer-modeline-field-p buffer :process-status)
@@ -32,19 +65,12 @@
 
 (defmode "Process" :major-p nil :setup-function #'setup-process-buffer)
 
-(defcommand "Process Mode" (p)
-  "Put the current buffer into Process mode.  With a prefix turn off
-   process mode."
-  "Put the current buffer into Process mode.  If P is true turn off process
-   mode."
-  (setf (buffer-minor-mode (current-buffer) "Process") (eq p ())))
-
 
 ;;;; Shell-filter streams.
 
 ;;; We use shell-filter-streams to capture text going from the shell
 ;;; process to an editor output stream.  They pass character and misc
-;;; operations through to the attached hemlock-output-stream.  The string
+;;; operations through to the attached editor-output-stream.  The string
 ;;; output function scans the string for ^A_____^B, denoting a change of
 ;;; directory.
 ;;;
@@ -62,12 +88,11 @@
 		      (:misc #'shell-filter-output-misc))
 	    (:print-function print-shell-filter-stream)
 	    (:constructor
-	     make-shell-filter-stream (buffer hemlock-stream)))
+	     make-shell-filter-stream (buffer editor-stream)))
   ;; The buffer where output will be going
   buffer
   ;; The editor stream to which output will be directed
-  hemlock-stream)
-
+  editor-stream)
 
 ;;; PRINT-SHELL-FILTER-STREAM  -- Internal
 ;;;
@@ -77,27 +102,24 @@
   (declare (ignore d s))
   (write-string "#<Shell filter stream>" stream))
 
-
 ;;; SHELL-FILTER-OUT -- Internal
 ;;;
 ;;; This is the character-out handler for the shell-filter-stream.
 ;;; It writes the character it is given to the underlying
-;;; hemlock-output-stream.
+;;; editor-output-stream.
 ;;;
 (defun shell-filter-out (stream character)
-  (write-char character (shell-filter-stream-hemlock-stream stream)))
-
+  (write-char character (shell-filter-stream-editor-stream stream)))
 
 ;;; SHELL-FILTER-OUTPUT-MISC -- Internal
 ;;;
-;;; This will also simply pass the output request on the the
-;;; attached hemlock-output-stream.
+;;; This will also simply pass the output request on the attached
+;;; editor-output-stream.
 ;;;
 (defun shell-filter-output-misc (stream operation &optional arg1 arg2)
-  (let ((hemlock-stream (shell-filter-stream-hemlock-stream stream)))
-    (funcall (edi::hemlock-output-stream-misc hemlock-stream)
-	     hemlock-stream operation arg1 arg2)))
-
+  (let ((editor-stream (shell-filter-stream-editor-stream stream)))
+    (funcall (edi::editor-output-stream-misc editor-stream)
+	     editor-stream operation arg1 arg2)))
 
 ;;; CATCH-CD-STRING -- Internal
 ;;;
@@ -125,18 +147,17 @@
 ;;;
 (defun shell-filter-string-out (stream string start end)
   (declare (simple-string string))
-  (let ((hemlock-stream (shell-filter-stream-hemlock-stream stream))
+  (let ((editor-stream (shell-filter-stream-editor-stream stream))
 	(buffer (shell-filter-stream-buffer stream)))
 
     (multiple-value-bind (start1 end1 start2 end2)
 			 (catch-cd-string string start end)
-      (write-string string hemlock-stream :start start1 :end end1)
+      (write-string string editor-stream :start start1 :end end1)
       (when start2
-	(write-string string hemlock-stream :start (+ 2 start2) :end end2)
+	(write-string string editor-stream :start (+ 2 start2) :end end2)
 	(let ((cd-string (subseq string (1+ end1) start2)))
 	  (setf (variable-value 'current-working-directory :buffer buffer)
 		(pathname cd-string)))))))
-
 
 ;;; FILTER-TILDES -- Internal
 ;;;
@@ -144,6 +165,7 @@
 ;;; this function expands them to a full path name.
 ;;;
 ;;; FIX correctly deal with cases like "~ram/"
+;;;
 (defun filter-tildes (name)
   (declare (type (or simple-string null) name))
   (if (and name
@@ -157,7 +179,6 @@
 		 (subseq name 1))
       name))
 
-
 
 ;;;; Support for handling input before the prompt in process buffers.
 
@@ -166,52 +187,52 @@
   (deliver-signal-to-process :SIGINT (value process))
   (editor-error "Aborted."))
 
-(defhvar "Unwedge Interactive Input Fun"
+(defevar "Unwedge Interactive Input Fun"
   "Function to call when input is confirmed, but the point is not past the
    input mark."
   :value #'unwedge-process-buffer
   :mode "Process")
 
-(defhvar "Unwedge Interactive Input String"
+(defevar "Unwedge Interactive Input String"
   "String to add to \"Point not past input mark.  \" explaining what will
    happen if the the user chooses to be unwedged."
   :value "Interrupt and throw to end of buffer? "
   :mode "Process")
 
-
 
 ;;;; Some Global Variables.
 
-(defhvar "Current Shell"
-  "The shell to which \"Select Shell\" goes."
-  :value nil)
+(defevar "Current Shell"
+  "The shell to which `Select Shell' goes.")
 
-(defhvar "Ask about Old Shells"
-  "When set (the default), the editor prompts for an existing shell buffer
-   in preference to making a new one when there is no \"Current Shell\"."
+(defevar "Ask about Old Shells"
+  "When set, prompt for an existing shell buffer in preference to making a
+   new one when *Current Shell* is empty."
   :value t)
 
-(defhvar "Prompt for Shell Buffer Names"
-  "When true buffer names for shell commands are prompted, otherwise names
-   are generated."
+(defevar "Prompt for Shell Buffer Names"
+  "When true prompt for buffer names for shell commands, otherwise generate
+   name.")
+
+(defevar "Clear Shell Buffers"
+  "When true clear the destination buffer before running a shell command."
   :value t)
 
-(defhvar "Kill Process Confirm"
+(defevar "Kill Process Confirm"
   "When set, the editor prompts for confirmation before killing a buffer's
    process."
   :value t)
 
-(defhvar "Shell Utility"
-  "The \"Shell\" command uses this as the default command line."
+(defevar "Shell Utility"
+  "The `Shell' command uses this as the default command line."
   :value "/bin/csh")
 
-(defhvar "Shell Utility Switches"
+(defevar "Shell Utility Switches"
   "This is a string containing the default command line arguments to the
-   utility in \"Shell Utility\".  This is a string since the utility is
+   utility in *Shell Utility*.  This is a string since the utility is
    typically \"/bin/csh\", and this string can contain I/O redirection and
    other shell directives."
   :value "")
-
 
 
 ;;;; The Shell, New Shell, and Set Current Shell Commands.
@@ -220,10 +241,8 @@
   "A string-table of the string-name of all process buffers and corresponding
    buffer structures.")
 
-(defcommand "Set Current Shell" (p)
-  "Sets the value of \"Current Shell\", which the \"Shell\" command uses."
-  "Sets the value of \"Current Shell\", which the \"Shell\" command uses."
-  (declare (ignore p))
+(defcommand "Set Current Shell" ()
+  "Set the value of *Current Shell*, which the `Shell' command uses."
   (set-current-shell))
 
 ;;; SET-CURRENT-SHELL -- Internal.
@@ -236,8 +255,9 @@
 	(first-old-shell (do-strings (var val *shell-names* nil)
 			   (declare (ignore val))
 			   (return var))))
-    (when (and (not old-buffer) (not first-old-shell))
-      (editor-error "Nothing to set current shell to."))
+    (or old-buffer
+	first-old-shell
+	(editor-error "Need something to set current shell to."))
     (let ((default-shell (if old-buffer
 			     (buffer-name old-buffer)
 			     first-old-shell)))
@@ -253,30 +273,29 @@
 	(setf (value current-shell) new-buffer)))))
 
 (defcommand "Shell" (p)
-  "This spawns a shell in a buffer.  If there already is a \"Current Shell\",
-   this goes to that buffer.  If there is no \"Current Shell\", there are
-   shell buffers, and \"Ask about Old Shells\" is set, this prompts for one
-   of them, setting \"Current Shell\" to that shell.  Supplying an argument
-   forces the creation of a new shell buffer."
-  "This spawns a shell in a buffer.  If there already is a \"Current Shell\",
-   this goes to that buffer.  If there is no \"Current Shell\", there are
-   shell buffers, and \"Ask about Old Shells\" is set, this prompts for one
-   of them, setting \"Current Shell\" to that shell.  Supplying an argument
-   forces the creation of a new shell buffer."
+  "Switch to a shell, spawning one if required.
+
+   `Current Shell' holds the current shell buffer.
+
+   If `Current Shell' is set, go to that buffer.  Otherwise if there are
+   shell buffers prompt for one of them make current.  Otherwise spawn the
+   program in `Shell Utility' passing it `Shell Utility Switches' in a new
+   buffer named \"Shell N\" where N is some distinguishing integer.
+
+   With an argument create a new shell buffer in any case."
   (let ((shell (value current-shell))
 	(no-shells-p (do-strings (var val *shell-names* t)
 		       (declare (ignore var val))
-		       (return nil))))
-    (cond (p (make-new-shell nil no-shells-p))
+		       (return ()))))
+    (cond (p (make-new-shell () no-shells-p))
 	  (shell (change-to-buffer shell))
-	  ((and (value ask-about-old-shells) (not no-shells-p))
+	  ((and (value ask-about-old-shells) (fi no-shells-p))
 	   (set-current-shell)
 	   (change-to-buffer (value current-shell)))
-	  (t (make-new-shell nil)))))
+	  (t (make-new-shell ())))))
 
 (defvar *shell-command-in-buffer-history* (make-ring 350)
-  "This ring-buffer contains shell commands previously put into Shell
-   Command Line in Buffer.")
+  "Shell commands previously put into Shell Command Line in Buffer.")
 
 (defvar *shell-command-in-buffer-history-pointer* 0
   "Current position during a historical exploration.")
@@ -285,20 +304,25 @@
   "Run a prompted shell command.  Prompt for a buffer for the output if
    Prompt for Shell Buffer Names is true.  With a prefix clear the
    destination buffer before running the command."
-  "Run a prompted shell command.  Prompt for a buffer for the output if
-   Prompt for Shell Buffer Names is true.  With a prefix clear the
-   destination buffer before running the command."
-  (make-new-shell t nil nil :clear-buffer p))
+  (make-new-shell t () () :clear-buffer (if (value clear-shell-buffers)
+					    (fi p) p)))
+
+(defcommand "Saving Shell Command Line in Buffer" (p)
+  "Save all files, then run a prompted shell command.  Prompt for a buffer
+   for the output if Prompt for Shell Buffer Names is true.  With a prefix
+   clear the destination buffer before running the command."
+  (elet ((save-all-files-confirm ()))
+    (save-all-files-command))
+  (shell-command-line-in-buffer-command p))
 
 ;;; MAKE-NEW-SHELL -- Internal.
 ;;;
-;;; This makes new shells for us dealing with prompting for various things and
-;;; setting "Current Shell" according to user documentation.
-;;;
 (defun make-new-shell (prompt-for-command-p &optional (set-current-shell-p t)
-		       (command-line (get-command-line) clp)
-		       &key (clear-buffer nil) (proposed-command nil))
-  (let* ((command (or (and clp command-line)
+		       (command-line (get-command-line))
+		       &key clear-buffer proposed-command)
+  "Make a new shell, dealing with prompting for various things and setting
+   *Current Shell*."
+  (let* ((command (or command-line
 		      (if prompt-for-command-p
 			  (prompt-for-string
 			   :default (or command-line proposed-command)
@@ -310,7 +334,15 @@
 			   '*shell-command-in-buffer-history-pointer*)
 			  command-line)))
 	 (buffer-name (if prompt-for-command-p
-			  (let ((name (new-process-buffer-name command)))
+			  (let ((name (new-process-buffer-name command
+#|
+				       (if (> (length command) 30)
+					   (concatenate 'simple-string
+							(subseq command 0 26)
+							"...")
+					   command)
+|#
+				       )))
 			    (if (value prompt-for-shell-buffer-names)
 				(prompt-for-string
 				 :default name
@@ -337,40 +369,51 @@
 	 (stream (variable-value 'process-output-stream :buffer buffer))
 	 (output-stream
 	  ;; If we re-used an old shell buffer, this isn't necessary.
-	  (if (hemlock-output-stream-p stream)
+	  (if (editor-output-stream-p stream)
 	      (setf (variable-value 'process-output-stream :buffer buffer)
 		    (make-shell-filter-stream buffer stream))
 	      stream)))
-    (if clear-buffer
-	(delete-region (buffer-region buffer)))
+    (if clear-buffer (delete-region (buffer-region buffer)))
     (buffer-end (buffer-point buffer))
-    (let ((dir-name (setf (buffer-pathname buffer)
-			  (directory-namestring
-			   (if (editor-bound-p 'dired-information)
-			       (truename (dired-info-pathname (value dired-information)))
-			       (or (buffer-pathname (current-buffer))
-				   (value pathname-defaults)))))))
-      (multiple-value-bind (win dir)
-			   (unix:unix-current-directory)
-	(or win (editor-error "Failed to get current directory: ~A." dir))
-	(unwind-protect
-	    (progn
-	      (unix:unix-chdir dir-name)
-	      (defhvar "Process"
-		"The process for Shell and Process buffers."
-		:buffer buffer
-		:value (ext::run-program "/bin/sh" (list "-c" command)
-					 :wait nil
- 					 :pty output-stream
-					 :env (frob-environment-list
-					       (car (buffer-windows buffer))
-					       (directory-namestring
-						(buffer-pathname buffer)))
-					 :status-hook #'(lambda (process)
-							  (declare (ignore process))
-							  (update-process-buffer buffer))
-					 :input t :output t)))
-	  (unix:unix-chdir dir))))
+    ;; Check that the current directory matches the buffer directory.
+    (or (let ((buffer-file
+	       (if (editor-bound-p 'dired-information)
+		   (dired-info-pathname (value dired-information))
+		   (directory-namestring
+		    (or (buffer-pathname (current-buffer))
+			(value pathname-defaults))))))
+	  (and (probe-file buffer-file)
+	       (string= (namestring (truename (current-directory)))
+			(namestring (truename buffer-file)))))
+	(editor-error
+	 "Safety assertion failed: Current directory: ~A~%                         Buffer directory : ~A"
+	 (truename (current-directory))
+	 (if (editor-bound-p 'dired-information)
+	     (dired-info-pathname (value dired-information))
+	     (directory-namestring
+	      (or (buffer-pathname (current-buffer))
+		  (value pathname-defaults))))))
+    (in-directory (setf (buffer-pathname buffer)
+			(directory-namestring
+			 (or (current-directory)
+			     (value pathname-defaults))))
+      (defevar "Update Process Buffer Quietly"
+	"If true suppress messages in `update-process-buffer'."
+	:buffer buffer)
+      (defevar "Process"
+	"The process for Shell and Process buffers."
+	:buffer buffer
+	:value (ext::run-program "/bin/sh" (list "-c" command)
+				 :wait nil
+				 :pty output-stream
+				 :env (frob-environment-list
+				       (car (buffer-windows buffer))
+				       (directory-namestring
+					(buffer-pathname buffer)))
+				 :status-hook #'(lambda (process)
+						  (declare (ignore process))
+						  (update-process-buffer buffer))
+				 :input t :output t)))
     (let ((exp `(ext::run-program "/bin/sh" ',(list "-c" command)
 				  :wait nil
 				  :pty ,output-stream
@@ -384,34 +427,32 @@
 				  :input t :output t)))
       (if (editor-bound-p 'process-start-expression)
 	  (setv process-start-expression exp)
-	  (defhvar "Process Start Expression"
+	  (defevar "Process Start Expression"
 	    "The expression called to start the process."
 	    :buffer buffer
 	    :value exp)))
-    (defhvar "Current Working Directory"
+    (defevar "Current Working Directory"
       "The pathname of the current working directory for this buffer."
       :buffer buffer
       :value (buffer-pathname buffer))
     (update-process-buffer buffer)
     (setf (getstring buffer-name *shell-names*) buffer)
-    (when (and (not (value current-shell)) set-current-shell-p)
-      (setf (value current-shell) buffer))
+    (or (value current-shell)
+	(if set-current-shell-p (setf (value current-shell) buffer)))
     (change-to-buffer buffer)))
 
 ;;; GET-COMMAND-LINE -- Internal.
 ;;;
-;;; This just conses up a string to feed to the shell.
-;;;
 (defun get-command-line ()
+  "Cons up a string to feed to the shell."
   (concatenate 'simple-string (value shell-utility) " "
 	       (value shell-utility-switches)))
 
 ;;; FROB-ENVIRONMENT-LIST -- Internal.
 ;;;
-;;; This sets some environment variables so the shell will be in the proper
-;;; state when it comes up.
-;;;
 (defun frob-environment-list (window pwd)
+  "Set up some environment variables so the shell will be in the proper
+   state when it comes up."
   (let ((l
 	 (list* (cons :termcap  (concatenate 'simple-string
 				      "emacs:co#"
@@ -420,7 +461,8 @@
 					   (window-width window))
 					  "")
 				      ":tc=unkown:"))
-		(cons :emacs "t") (cons :term "emacs")
+;		(cons :emacs "t") (cons :term "emacs")
+		(cons :term "dumb")
 		(remove-if #'(lambda (keyword)
 			(member keyword '(:termcap :emacs :term)
 				:test #'(lambda (cons keyword)
@@ -431,7 +473,6 @@
 
 (defvar l '((a . b) (c . d)))
 (setf (cdr (assoc 'a l)) 'e)
-
 
 ;;; NEW-SHELL-NAME -- Internal.
 ;;;
@@ -447,14 +488,17 @@
     (let ((buffer-name (format nil "Shell ~D" (incf *process-number*))))
       (unless (getstring buffer-name *buffer-names*) (return buffer-name)))))
 
+;; FIX much like ~unique-buffer-name
 (defun new-process-buffer-name (buffer-name &optional (number 0))
-  "Return the first available process buffer name starting Buffer-name."
+  "Return the name of the first available process buffer where the name
+   starts with $buffer-name."
   (if (getstring buffer-name *buffer-names*)
       (let ((buffer (getstring buffer-name *buffer-names*)))
 	(if (and (buffer-minor-mode buffer "Process")
+		 (editor-bound-p 'process :buffer buffer)
 		 (let ((process (variable-value 'process :buffer buffer)))
 		   (eq (ext:process-status process) :running)))
-	    (new-process-buffer-name (format nil "~A ~D" buffer-name (1+ number)))
+	    (new-process-buffer-name (format () "~A ~D" buffer-name (1+ number)))
 	    buffer-name))
       buffer-name))
 
@@ -473,40 +517,64 @@
 	(:exited (format nil "exited with status ~D"
 			 (ext:process-exit-code process)))))))
 
-
 (make-modeline-field :name :process-status :replace t
 		     :function #'modeline-process-status)
 
+(defvar *update-process-buffer-quietly* ()
+  "If t suppress messages in `update-process-buffer'.")
+
 (defun update-process-buffer (buffer)
-  (when (buffer-modeline-field-p buffer :process-status)
-    (dolist (window (buffer-windows buffer))
-      (update-modeline-field buffer window :process-status)))
-  (let ((process (variable-value 'process :buffer buffer)))
-    (unless (ext:process-alive-p process)
-      (let ((code (process-exit-code process)))
-	(case code
-	  (0 (message "~A finished." (buffer-name buffer)))
-	  (t (message "~A exited with status ~A."
-		      (buffer-name buffer)
-		      code))))
-      (ext:process-close process)
-      (when (eq (value current-shell) buffer)
-	(setf (value current-shell) nil)))))
+  (if (buffer-modeline-field-p buffer :process-status)
+      (dolist (window (buffer-windows buffer))
+	(update-modeline-field buffer window :process-status)))
+  (if (editor-bound-p 'process :buffer buffer)
+      (let ((process (variable-value 'process :buffer buffer)))
+	(unless (ext:process-alive-p process)
+	  (or (variable-value 'update-process-buffer-quietly
+			      :buffer buffer)
+	      (let ((code (process-exit-code process)))
+		(case code
+		  (0 (message "~A finished." (buffer-name buffer)))
+		  (t (message "~A exited with status ~A."
+			      (buffer-name buffer)
+			      code)))))
+	  (ext:process-close process)
+	  (when (eq (value current-shell) buffer)
+	    (setf (value current-shell) ()))))))
 
 
 ;;;; Supporting Commands.
 
-(defcommand "Confirm Process Input" (p)
-  "Evaluate Process Mode input between the point and last prompt."
-  "Evaluate Process Mode input between the point and last prompt."
-  (declare (ignore p))
+(defun update-shell-buffer (buffer &optional quiet)
+  "Rerun the shell command running in $buffer."
+  (delete-region (buffer-region buffer))
+  (in-directory (buffer-pathname buffer)
+    (setf (variable-value 'process :buffer buffer)
+	  (eval (variable-value 'process-start-expression
+				:buffer buffer)))))
+
+(defcommand "Update Shell Buffer" ()
+  "Update a `Process Mode' buffer."
+  (let ((buffer (current-buffer)))
+    (or (editor-bound-p 'process :buffer buffer)
+	(editor-error "Current buffer must be in Process mode."))
+    (when (prompt-for-y-or-n
+	   :prompt (format nil "Rerun command? ")
+	   :help "Y to turn rerun the compile."
+	   :default ())
+      (update-shell-buffer buffer))))
+
+(defcommand "Confirm Process Input" ()
+  "Send the text at the end of a process buffer (between the point and the
+   last prompt) to the process in that buffer.  Insert the resulting output
+   at the end of the process buffer."
   (or (editor-bound-p 'process :buffer (current-buffer))
       (editor-error "Must be in a process buffer."))
   (let* ((process (value process))
 	 (stream (ext:process-pty process)))
     (case (ext:process-status process)
       (:running)
-      (:stopped (editor-error "The process has been stopped."))
+      (:stopped (editor-error "The process has stopped."))
       (t (editor-error "The process has ended.")))
     (let ((input-region (get-interactive-input)))
       (write-line (region-to-string input-region) stream)
@@ -515,43 +583,34 @@
       ;; Move "Buffer Input Mark" to end of buffer.
       (move-mark (region-start input-region) (region-end input-region)))))
 
-(defcommand "Shell Complete Filename" (p)
-  "Attempts to complete the filename immediately preceding the point.
-   It will beep if the result of completion is not unique."
-  "Attempts to complete the filename immediately preceding the point.
-   It will beep if the result of completion is not unique."
-  (declare (ignore p))
-  (unless (editor-bound-p 'current-working-directory)
-    (editor-error "Shell filename completion only works in shells."))
+(defcommand "Shell Complete Filename" ()
+  "Attempt to complete the filename immediately preceding the point.  Beep
+   if the result of completion is ambiguous."
+  (or (editor-bound-p 'current-working-directory)
+      (editor-error "Shell filename completion only works in shells."))
   (let ((point (current-point)))
     (with-mark ((start point))
       (pre-command-parse-check start)
-      (unless (form-offset start -1) (editor-error "Can't grab filename."))
+      (or (form-offset start -1) (editor-error "Can't grab filename."))
       (when (member (next-character start) '(#\" #\' #\< #\>))
 	(mark-after start))
       (let* ((name-region (region start point))
 	     (fragment (filter-tildes (region-to-string name-region)))
-	     (dir (default-directory))
 	     (shell-dir (value current-working-directory)))
 	(multiple-value-bind (filename unique)
-			     (unwind-protect
-				 (progn
-				   (setf (default-directory) shell-dir)
-				   (complete-file fragment :defaults shell-dir))
-			       (setf (default-directory) dir))
+			     (in-directory shell-dir
+			       (complete-file fragment :directory shell-dir))
 	  (cond (filename
 		 (delete-region name-region)
 		 (insert-string point (namestring filename))
-		 (when (not unique)
-		   (editor-error)))
+		 (fi unique (editor-error "Ambiguous prefix.")))
 		(t (editor-error "No such file exists."))))))))
 
-(defcommand "Kill Main Process" (p)
-  "Kills the process in the current buffer."
-  "Kills the process in the current buffer."
-  (declare (ignore p))
-  (unless (editor-bound-p 'process :buffer (current-buffer))
-    (editor-error "Not in a process buffer."))
+(defcommand "Kill Main Process" ()
+  "Prompt for confirmation and kills the process running in the current
+   buffer."
+  (or (editor-bound-p 'process :buffer (current-buffer))
+      (editor-error "Must be in a process buffer."))
   (when (or (not (value kill-process-confirm))
 	    (prompt-for-y-or-n :default nil
 			       :prompt "Really blow away shell? "
@@ -560,71 +619,62 @@
     (kill-process (value process))))
 
 (defcommand "Stop Main Process" (p)
-  "Stops the process in the current buffer.  With an argument use :SIGSTOP
-   instead of :SIGTSTP."
-  "Stops the process in the current buffer.  With an argument use :SIGSTOP
-  instead of :SIGTSTP."
-  (unless (editor-bound-p 'process :buffer (current-buffer))
-    (editor-error "Not in a process buffer."))
+  "Stop the process running in the current buffer by sending a :SIGTSTP to
+   that process.  With an argument, stops the process using :SIGSTOP."
+  (or (editor-bound-p 'process :buffer (current-buffer))
+      (editor-error "Must be in a process buffer."))
   (deliver-signal-to-process (if p :SIGSTOP :SIGTSTP) (value process)))
 
-(defcommand "Continue Main Process" (p)
-  "Continues the process in the current buffer."
-  "Continues the process in the current buffer."
-  (declare (ignore p))
-  (unless (editor-bound-p 'process :buffer (current-buffer))
-    (editor-error "Not in a process buffer."))
+(defcommand "Continue Main Process" ()
+  "If the process in the current buffer is stopped, continue it."
+  (or (editor-bound-p 'process :buffer (current-buffer))
+      (editor-error "Must be in a process buffer."))
   (deliver-signal-to-process :SIGCONT (value process)))
 
 (defun kill-process (process)
-  "Self-explanatory."
+  "Kill $process."
   (deliver-signal-to-process :SIGKILL process))
 
 (defun deliver-signal-to-process (signal process)
-  "Delivers a signal to a process."
+  "Deliver $signal to $process."
   (ext:process-kill process signal :process-group))
 
-(defcommand "Send EOF to Process" (p)
-  "Sends a Ctrl-D to the process in the current buffer."
-  "Sends a Ctrl-D to the process in the current buffer."
-  (declare (ignore p))
-  (unless (editor-bound-p 'process :buffer (current-buffer))
-    (editor-error "Not in a process buffer."))
+(defcommand "Send EOF to Process" ()
+  "Send the end of file character to the process in the current buffer,
+   similar to the effect of Control-D in a shell."
+  (or (editor-bound-p 'process :buffer (current-buffer))
+      (editor-error "Must be in a process buffer."))
   (let ((stream (ext:process-pty (value process))))
     (write-char (code-char 4) stream)
     (force-output stream)))
 
-(defcommand "Interrupt Buffer Subprocess" (p)
-  "Stop the subprocess currently executing in this shell."
-  "Stop the subprocess currently executing in this shell."
-  (declare (ignore p))
-  (unless (editor-bound-p 'process :buffer (current-buffer))
-    (editor-error "Not in a process buffer."))
+(defcommand "Interrupt Buffer Subprocess" ()
+  "Interrupt the foreground subprocess of the process in the current
+   buffer, similar to the effect of C-C in a shell."
+  (or (editor-bound-p 'process :buffer (current-buffer))
+      (editor-error "Must be in a process buffer."))
   (buffer-end (current-point))
   (buffer-end (value buffer-input-mark))
   (deliver-signal-to-subprocess :SIGINT (value process)))
 
-(defcommand "Kill Buffer Subprocess" (p)
-  "Kill the subprocess currently executing in this shell."
-  "Kill the subprocess currently executing in this shell."
-  (declare (ignore p))
-  (unless (editor-bound-p 'process :buffer (current-buffer))
-    (editor-error "Not in a process buffer."))
+(defcommand "Kill Buffer Subprocess" ()
+  "Kill the foreground subprocess of the process in the current buffer."
+  (or (editor-bound-p 'process :buffer (current-buffer))
+      (editor-error "Must be in a process buffer."))
   (deliver-signal-to-subprocess :SIGKILL (value process)))
 
-(defcommand "Quit Buffer Subprocess" (p)
-  "Quit the subprocess currently executing int his shell."
-  "Quit the subprocess currently executing int his shell."
-  (declare (ignore p))
-  (unless (editor-bound-p 'process :buffer (current-buffer))
-    (editor-error "Not in a process buffer."))
+(defcommand "Quit Buffer Subprocess" ()
+  "Dump the core of the foreground subprocess of the processs in the
+   current buffer, similar to the effect of C-\ in a shell."
+  (or (editor-bound-p 'process :buffer (current-buffer))
+      (editor-error "Must be in a process buffer."))
   (deliver-signal-to-subprocess :SIGQUIT (value process)))
 
 (defcommand "Stop Buffer Subprocess" (p)
-  "Stop the subprocess currently executing in this shell."
-  "Stop the subprocess currently executing in this shell."
-  (unless (editor-bound-p 'process :buffer (current-buffer))
-    (editor-error "Not in a process buffer."))
+  "Stop the foreground subprocess of the process in the current buffer,
+   similar to the effect of C-Z in a shell."
+  (or (editor-bound-p 'process :buffer (current-buffer))
+      (editor-error "Must be in a process buffer."))
   (deliver-signal-to-subprocess (if p :SIGSTOP :SIGTSTP) (value process)))
 
 (defun deliver-signal-to-subprocess (signal process)
@@ -636,7 +686,7 @@
 
 (defun active-processes-p ()
   (do-processes (process buffer)
-    (or (eq (process-status process) :exited)
+    (if (process-alive-p process)
 	(return-from active-processes-p t))))
 
 (defun list-processes (stream)
@@ -651,27 +701,23 @@
   "Return t if Buffer has an active process."
   (if (buffer-minor-mode buffer "Process")
       (let ((process (variable-value 'ed::process :buffer buffer)))
-	(eq () (eq (process-status process) :exited)))))
+	(and process (process-alive-p process)))))
 
 (defun list-active-processes (stream)
   (format stream "PID    Buffer~%")
   (do-processes (process buffer)
-    (or (eq (process-status process) :exited)
+    (if (process-alive-p process)
 	(format stream "~6A ~A~%"
 		(process-pid process)
 		(buffer-name buffer)))))
 
-(defcommand "List Processes" (p)
+(defcommand "List Processes" ()
   "List all processes started in the editor."
-  "List all processes started in the editor."
-  (declare (ignore p))
   (with-pop-up-display (stream)
     (list-processes stream)))
 
-(defcommand "List Active Processes" (p)
+(defcommand "List Active Processes" ()
   "List all active processes started in the editor."
-  "List all active processes started in the editor."
-  (declare (ignore p))
   (with-pop-up-display (stream)
     (list-active-processes stream)))
 
@@ -682,13 +728,13 @@
 
 (defun check-for-active-processes ()
   (when (active-processes-p)
-    (with-pop-up-window (buffer :buffer-name "Active Processes")
+    (with-pop-up-window (buffer window :buffer-name "Active Processes")
       (with-output-to-mark (stream (buffer-mark buffer))
 	(list-active-processes stream))
       (or (prompt-for-y-or-n
 	   :default nil
 	   :prompt "End active process(es) and exit? ")
-	  (editor-error))
+	  (editor-error "Exit cancelled."))
       (end-active-processes))))
 
 (add-hook exit-hook 'check-for-active-processes)

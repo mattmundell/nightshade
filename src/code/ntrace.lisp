@@ -15,19 +15,19 @@
    :PRINT-AFTER forms.")
 
 (defvar *max-trace-indentation* 40
-  "If the trace indentation exceeds this value, then indentation restarts at
-   0.")
+  "The maximum number of spaces which should be used to indent trace
+   printout.  If the trace indentation exceeds this value, then indentation
+   restarts at 0.")
 
 (defvar *trace-encapsulate-default* :default
   "The default value for the :ENCAPSULATE option to trace.")
 
 
-;;;; Internal state:
+;;;; Internal state.
 
-;;; A hash-table that maps each traced function to the TRACE-INFO.  The entry
-;;; for a closure is the shared function-entry object.
-;;;
-(defvar *traced-functions* (make-hash-table :test #'eq))
+(defvar *traced-functions* (make-hash-table :test #'eq)
+  "A hash-table that maps each traced function to the trace-info.  The
+   entry for a closure is the shared function-entry object.")
 
 ;;; The TRACE-INFO structure represents all the information we need to trace a
 ;;; given function.
@@ -110,15 +110,15 @@
 (defvar *in-trace* nil)
 
 
-;;;; Utilities:
+;;;; Utilities.
 
 ;;; TRACE-FDEFINITION  --  Internal
 ;;;
-;;;    Given a function name, a function or a macro name, return the raw
-;;; definition and some information.  "Raw"  means that if the result is a
+;;; Given a function name, a function or a macro name, return the raw
+;;; definition and some information.  "Raw" means that if the result is a
 ;;; closure, we strip off the closure and return the bare code.  The second
-;;; value is T if the argument was a function name.  The third value is one of
-;;; :COMPILED, :COMPILED-CLOSURE, :INTERPRETED, :INTERPRETED-CLOSURE and
+;;; value is T if the argument was a function name.  The third value is one
+;;; of :COMPILED, :COMPILED-CLOSURE, :INTERPRETED, :INTERPRETED-CLOSURE and
 ;;; :FUNCALLABLE-INSTANCE.
 ;;;
 (defun trace-fdefinition (x)
@@ -143,10 +143,9 @@
 	   (values res named-p :funcallable-instance))
 	  (t (values res named-p :compiled))))))
 
-
 ;;; TRACE-REDEFINED-UPDATE  --  Internal
 ;;;
-;;;    When a function name is redefined, and we were tracing that name, then
+;;; When a function name is redefined, and we were tracing that name, then
 ;;; untrace the old definition and trace the new one.
 ;;;
 (defun trace-redefined-update (fname new-value)
@@ -159,13 +158,12 @@
 ;;;
 (push #'trace-redefined-update ext:*setf-fdefinition-hook*)
 
-
 ;;; COERCE-FORM, COERCE-FORM-LIST  --  Internal
 ;;;
-;;;    Annotate some forms to evaluate with pre-converted functions.  Each form
-;;; is really a cons (exp . function).  Loc is the code location to use for
-;;; the lexical environment.  If Loc is NIL, evaluate in the null environment.
-;;; If Form is NIL, just return NIL.
+;;; Annotate some forms to evaluate with pre-converted functions.  Each
+;;; form is really a cons (exp . function).  Loc is the code location to
+;;; use for the lexical environment.  If Loc is NIL, evaluate in the null
+;;; environment.  If Form is NIL, just return NIL.
 ;;;
 (defun coerce-form (form loc)
   (when form
@@ -194,10 +192,9 @@
 (defun coerce-form-list (forms loc)
   (mapcar #'(lambda (x) (coerce-form x loc)) forms))
 
-
 ;;; PRINT-TRACE-INDENTATION  --  Internal
 ;;;
-;;;    Print indentation according to the number of trace entries.  Entries
+;;; Print indentation according to the number of trace entries.  Entries
 ;;; whose condition was false don't count.
 ;;;
 (defun print-trace-indentation ()
@@ -208,10 +205,9 @@
 	    (+ (mod (* depth 2) (- *max-trace-indentation* 2)) 2)
 	    depth)))
 
-
 ;;; TRACE-WHEREIN-P -- Internal.
 ;;;
-;;;    Return true if one of the Names appears on the stack below Frame.
+;;; Return true if one of the Names appears on the stack below Frame.
 ;;;
 (defun trace-wherein-p (frame names)
   (do ((frame (di:frame-down frame) (di:frame-down frame)))
@@ -222,7 +218,7 @@
 
 ;;; TRACE-PRINT  --  Internal
 ;;;
-;;;    Handle print and print-after options.
+;;; Handle print and print-after options.
 ;;;
 (defun trace-print (frame forms)
   (dolist (ele forms)
@@ -232,7 +228,7 @@
 
 ;;; TRACE-MAYBE-BREAK  --  Internal
 ;;;
-;;;    Test a break option, and break if true.
+;;; Test a break option, and break if true.
 ;;;
 (defun trace-maybe-break (info break where frame)
   (when (and break (funcall (cdr break) frame))
@@ -243,9 +239,9 @@
 
 ;;; DISCARD-INVALID-ENTRIES  --  Internal
 ;;;
-;;;    This function discards any invalid cookies on our simulated stack.
-;;; Encapsulated entries are always valid, since we bind *traced-entries* in
-;;; the encapsulation.
+;;; This function discards any invalid cookies on our simulated stack.
+;;; Encapsulated entries are always valid, since we bind *traced-entries*
+;;; in the encapsulation.
 ;;;
 (defun discard-invalid-entries (frame)
   (loop
@@ -257,14 +253,14 @@
     (pop *traced-entries*)))
 
 
-;;;; Hook functions:
+;;;; Hook functions.
 
 ;;; TRACE-START-BREAKPOINT-FUN -- Internal.
 ;;;
-;;;    Return a closure that can be used for a function start breakpoint hook
+;;; Return a closure that can be used for a function start breakpoint hook
 ;;; function and a closure that can be used as the FUNCTION-END-COOKIE
-;;; function.  The first communicates the sense of the Condition to the second
-;;; via a closure variable.
+;;; function.  The first communicates the sense of the Condition to the
+;;; second via a closure variable.
 ;;;
 (defun trace-start-breakpoint-fun (info)
   (let (conditionp)
@@ -301,14 +297,13 @@
 	 (declare (ignore frame))
 	 (push (cons cookie conditionp) *traced-entries*)))))
 
-
 ;;; TRACE-END-BREAKPOINT-FUN  --  Internal
 ;;;
-;;;    This prints a representation of the return values delivered.  First,
-;;; this checks to see that cookie is at the top of *traced-entries*; if it is
-;;; not, then we need to adjust this list to determine the correct indentation
-;;; for output.  We then check to see if the function is still traced and that
-;;; the condition succeeded before printing anything.
+;;; This prints a representation of the return values delivered.  First,
+;;; this checks to see that cookie is at the top of *traced-entries*; if it
+;;; is not, then we need to adjust this list to determine the correct
+;;; indentation for output.  We then check to see if the function is still
+;;; traced and that the condition succeeded before printing anything.
 ;;;
 (defun trace-end-breakpoint-fun (info)
   #'(lambda (frame bpt *trace-values* cookie)
@@ -344,7 +339,7 @@
 
 ;;; TRACE-CALL  --  Internal
 ;;;
-;;;    This function is called by the trace encapsulation.  It calls the
+;;; This function is called by the trace encapsulation.  It calls the
 ;;; breakpoint hook functions with NIL for the breakpoint and cookie, which
 ;;; we have cleverly contrived to work for our hook functions.
 ;;;
@@ -366,11 +361,11 @@
 
 ;;; TRACE-1 -- Internal.
 ;;;
-;;;    Trace one function according to the specified options.  We copy the
+;;; Trace one function according to the specified options.  We copy the
 ;;; trace info (it was a quoted constant), fill in the functions, and then
 ;;; install the breakpoints or encapsulation.
 ;;;
-;;;    If non-null, Definition is the new definition of a function that we are
+;;; If non-null, Definition is the new definition of a function that we are
 ;;; automatically retracing; this (FIX ?)
 ;;;
 (defun trace-1 (function-or-name info &optional definition)
@@ -452,13 +447,13 @@
   function-or-name)
 
 
-;;;; The TRACE macro:
+;;;; The TRACE macro.
 
-;;;  PARSE-TRACE-OPTIONS  --  Internal
+;;; PARSE-TRACE-OPTIONS  --  Internal
 ;;;
-;;;    Parse leading trace options off of Specs, modifying Info accordingly.
-;;; The remaining portion of the list is returned when we encounter a plausible
-;;; function name.
+;;; Parse leading trace options off of Specs, modifying Info accordingly.
+;;; The remaining portion of the list is returned when we encounter a
+;;; plausible function name.
 ;;;
 (defun parse-trace-options (specs info)
   (let ((current specs))
@@ -502,12 +497,11 @@
 	(pop current)))
     current))
 
-
 ;;; EXPAND-TRACE  --  Internal
 ;;;
-;;;    Compute the expansion of TRACE in the non-trivial case (arguments
-;;; specified.)  If there are no :FUNCTION specs, then don't use a LET.  This
-;;; allows TRACE to be used without the full interpreter.
+;;; Compute the expansion of TRACE in the non-trivial case (arguments
+;;; specified.)  If there are no :FUNCTION specs, then don't use a LET.
+;;; This allows TRACE to be used without the full interpreter.
 ;;;
 (defun expand-trace (specs)
   (collect ((binds)
@@ -534,90 +528,102 @@
 	`(let ,(binds) (list ,@(forms)))
 	`(list ,@(forms)))))
 
-
 ;;; %LIST-TRACED-FUNCTIONS  --  Internal
 ;;;
 (defun %list-traced-functions ()
   (loop for x being each hash-value in *traced-functions*
         collect (trace-info-what x)))
 
-
 ;;; TRACE -- Public.
 ;;;
 (defmacro trace (&rest specs)
-  "TRACE {Option Global-Value}* {Name {Option Value}*}*
-   TRACE is a debugging tool that prints information when specified functions
-   are called.  In its simplest form:
+  "trace {Option Global-value}* {Name {Option Value}*}*
+
+   `trace' is a debugging tool that prints information when specified
+   functions are called.  In its simplest form:
+
        (trace Name-1 Name-2 ...)
 
-   TRACE causes a printout on *TRACE-OUTPUT* each time that one of the named
-   functions is entered or returns (the Names are not evaluated.)  The output
-   is indented according to the number of pending traced calls, and this trace
-   depth is printed at the beginning of each line of output.
+   `trace' causes a printout on *trace-output* each time that one of the
+   named functions is entered or returns (the Names are not evaluated.)
+   The output is indented according to the number of pending traced calls,
+   and this trace depth is printed at the beginning of each line of output.
+   Printing verbosity of arguments and return values is controlled by
+   *debug-print-level* and *debug-print-length*.
 
-   Options allow modification of the default behavior.  Each option is a pair
-   of an option keyword and a value form.  Options may be interspersed with
-   function names.  Options only affect tracing of the function whose name they
-   appear immediately after.  Global options are specified before the first
-   name, and affect all functions traced by a given use of TRACE.
+   If names or options are left out, return a list of all currently traced
+   functions.
+
+   Options can cause the normal printout to be suppressed, or cause extra
+   information to be printed.  Each option is a pair of an option keyword
+   and a value form.  Options may be interspersed with function names.
+   Options only affect tracing of the function whose name they appear
+   immediately after.  Global options are specified before the first name,
+   and affect all functions traced by a given use of `trace'.  If an
+   already traced function is traced again, any new options replace the old
+   options.
 
    The following options are defined:
 
-   :CONDITION Form
-   :CONDITION-AFTER Form
-   :CONDITION-ALL Form
-       If :CONDITION is specified, then TRACE does nothing unless Form
-       evaluates to true at the time of the call.  :CONDITION-AFTER is
+   :condition Form
+   :condition-after Form
+   :condition-all Form
+       If :condition is specified, then `trace' does nothing unless Form
+       evaluates to true at the time of the call.  :condition-after is
        similar, but suppresses the initial printout, and is tested when the
-       function returns.  :CONDITION-ALL tries both before and after.
+       function returns.  :condition-all tries both before and after.
 
-   :WHEREIN Names
-       If specified, Names is a function name or list of names.  TRACE does
-       nothing unless a call to one of those functions encloses the call to
-       this function (i.e. it would appear in a backtrace.)  Anonymous
-       functions have string names like \"DEFUN FOO\".
+   :wherein Names
+       If specified, Names is a function name or list of names.  `trace'
+       does nothing unless a call to one of those functions encloses the
+       call to this function (i.e. it would appear in a backtrace.)
+       Anonymous functions have string names like \"defun foo\".
 
-   :BREAK Form
-   :BREAK-AFTER Form
-   :BREAK-ALL Form
+   :break Form
+   :break-after Form
+   :break-all Form
        If specified, and Form evaluates to true, then the debugger is invoked
        at the start of the function, at the end of the function, or both,
        according to the respective option.
 
-   :PRINT Form
-   :PRINT-AFTER Form
-   :PRINT-ALL Form
+   :print Form
+   :print-after Form
+   :print-all Form
        In addition to the usual prinout, the result of evaluating Form is
        printed at the start of the function, at the end of the function, or
        both, according to the respective option.  Multiple print options cause
        multiple values to be printed.
 
-   :FUNCTION Function-Form
+   :function Function-Form
        This is a not really an option, but rather another way of specifying
        what function to trace.  The Function-Form is evaluated immediately,
        and the resulting function is traced.
 
-   :ENCAPSULATE {:DEFAULT | T | NIL}
-       If T, the tracing is done via encapsulation (redefining the function
-       name) rather than by modifying the function.  :DEFAULT is the default,
-       and means to use encapsulation for interpreted functions and funcallable
-       instances, breakpoints otherwise.  When encapsulation is used, forms are
-       *not* evaluated in the function's lexical environment, but DEBUG:ARG can
-       still be used.
+   :encapsulate {:default | #t | ()}
 
-   :CONDITION, :BREAK and :PRINT forms are evaluated in the lexical environment
-   of the called function; DEBUG:VAR and DEBUG:ARG can be used.  The -AFTER and
-   -ALL forms are evaluated in the null environment."
+       If #t, the tracing is done via encapsulation (redefining the
+       function name) rather than by modifying the function with
+       breakpoints.  The advantage of using breakpoints is that tracing
+       works even when the function is anonymously called via `funcall'.
+       :default is the default, and means to use encapsulation for
+       interpreted functions and funcallable instances, breakpoints
+       otherwise.  When encapsulation is used, forms are not evaluated in
+       the function's lexical environment, but `debug:arg' can still be
+       used.
+
+   :condition, :break and :print forms are evaluated in the lexical
+   environment of the called function; `debug:var' and `debug:arg' can be
+   used.  The -after and -all forms are evaluated in the null environment."
   (if specs
       (expand-trace specs)
       '(%list-traced-functions)))
 
 
-;;;; Untracing:
+;;;; Untracing.
 
 ;;; UNTRACE-1  --  Internal
 ;;;
-;;;    Untrace one function.
+;;; Untrace one function.
 ;;;
 (defun untrace-1 (function-or-name)
   (let* ((fun (trace-fdefinition function-or-name))
@@ -636,7 +642,7 @@
 
 ;;; UNTRACE-ALL  --  Internal
 ;;;
-;;;    Untrace all traced functions.
+;;; Untrace all traced functions.
 ;;;
 (defun untrace-all ()
   (dolist (fun (%list-traced-functions))
@@ -644,8 +650,9 @@
   t)
 
 (defmacro untrace (&rest specs)
-  "Removes tracing from the specified functions.  With no args, untraces all
-   functions."
+  "Turn off tracing of the specified functions and remove their names from
+   *trace-function-list*.  If $specs is (), then turn off tracing off all
+   currently traced functions."
   (if specs
       (collect ((res))
 	(let ((current specs))

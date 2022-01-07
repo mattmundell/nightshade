@@ -1,18 +1,5 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/macros.lisp,v 1.41.2.2 2000/07/07 09:34:25 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    Random types and macros used in writing the compiler.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; Random types and macros used in writing the compiler.
+
 (in-package "C")
 
 (export '(lisp::with-compilation-unit) "LISP")
@@ -25,8 +12,8 @@
 
 (proclaim '(special *wild-type* *universal-type* *compiler-error-context*))
 
-;;;; Deftypes:
-
+
+;;;; Deftypes.
 ;;;
 ;;; Inlinep is used to determine how a function is called.  The values have
 ;;; these meanings:
@@ -37,14 +24,14 @@
 ;;;
 ;;;    :Inline	Inline declaration seen: save expansion, expanding to it if
 ;;;		policy favors.
-;;; 
+;;;
 ;;; :Maybe-Inline
 ;;;		Retain expansion, but only use it opportunistically.
 ;;;
 (deftype inlinep () '(member :inline :maybe-inline :notinline nil))
 
 
-;;;; The Policy macro:
+;;;; The Policy macro.
 
 (proclaim '(special *lexical-environment*))
 
@@ -56,7 +43,7 @@
 
 ;;; Find-Used-Parameters  --  Internal
 ;;;
-;;;    Find all the policy parameters which are actually mentioned in Stuff,
+;;; Find all the policy parameters which are actually mentioned in Stuff,
 ;;; returning the names in a list.  We assume everything is evaluated.
 ;;;
 (defun find-used-parameters (stuff)
@@ -70,21 +57,21 @@
 
 ;;; Policy  --  Public
 ;;;
-;;;    This macro provides some syntactic sugar for querying the settings of
+;;; This macro provides some syntactic sugar for querying the settings of
 ;;; the compiler policy parameters.
 ;;;
 (defmacro policy (node &rest conditions)
   "Policy Node Condition*
-  Test whether some conditions apply to the current compiler policy for Node.
-  Each condition is a predicate form which accesses the policy values by
-  referring to them as the variables SPEED, SPACE, SAFETY, CSPEED, BREVITY and
-  DEBUG.  The results of all the conditions are combined with AND and returned
-  as the result.
+   Test whether some conditions apply to the current compiler policy for Node.
+   Each condition is a predicate form which accesses the policy values by
+   referring to them as the variables SPEED, SPACE, SAFETY, CSPEED, BREVITY and
+   DEBUG.  The results of all the conditions are combined with AND and returned
+   as the result.
 
-  Node is a form which is evaluated to obtain the node which the policy is for.
-  If Node is NIL, then we use the current policy as defined by *default-cookie*
-  and *current-cookie*.  This option is only well defined during IR1
-  conversion."
+   Node is a form which is evaluated to obtain the node which the policy is for.
+   If Node is NIL, then we use the current policy as defined by *default-cookie*
+   and *current-cookie*.  This option is only well defined during IR1
+   conversion."
   (let* ((form `(and ,@conditions))
 	 (n-cookie (gensym))
 	 (binds (mapcar
@@ -100,14 +87,14 @@
        ,form)))
 
 
-;;;; Source-hacking defining forms:
+;;;; Source-hacking defining forms.
 
 (eval-when (compile load eval)
 
 ;;; Symbolicate  --  Interface
 ;;;
-;;;    Concatenate together the names of some strings and symbols, producing
-;;; a symbol in the current package.
+;;; Concatenate together the names of some strings and symbols, producing a
+;;; symbol in the current package.
 ;;;
 (proclaim '(function symbolicate (&rest (or string symbol)) symbol))
 (defun symbolicate (&rest things)
@@ -120,7 +107,7 @@
 
 ;;; SPECIAL-FORM-FUNCTION  --  Internal
 ;;;
-;;;    This function is stored in the SYMBOL-FUNCTION of special form names so
+;;; This function is stored in the SYMBOL-FUNCTION of special form names so
 ;;; that they are FBOUND.
 ;;;
 (defun special-form-function (&rest stuff)
@@ -143,7 +130,7 @@
 
 ;;; Def-IR1-Translator  --  Interface
 ;;;
-;;;    Parse defmacro style lambda-list, setting things up so that a compiler
+;;; Parse defmacro style lambda-list, setting things up so that a compiler
 ;;; error happens if the syntax is invalid.
 ;;;
 (defmacro def-ir1-translator (name (lambda-list start-var cont-var
@@ -151,10 +138,11 @@
 				   &body body)
   "Def-IR1-Translator Name (Lambda-List Start-Var Cont-Var {Key Value}*)
                       [Doc-String] Form*
-  Define a function that converts a Special-Form or other magical thing into
-  IR1.  Lambda-List is a defmacro style lambda list.  Start-Var and Cont-Var
-  are bound to the start and result continuations for the resulting IR1.
-  This keyword is defined:
+
+   Define a function that converts a Special-Form or other magical thing into
+   IR1.  Lambda-List is a defmacro style lambda list.  Start-Var and Cont-Var
+   are bound to the start and result continuations for the resulting IR1.
+   This keyword is defined:
       Kind
           The function kind to associate with Name (default :special-form)."
   (let ((fn-name (symbolicate "IR1-CONVERT-" name))
@@ -183,24 +171,27 @@
 
 ;;; Def-Source-Transform  --  Interface
 ;;;
-;;;    Similar to Def-IR1-Translator, except that we pass if the syntax is
+;;; Similar to Def-IR1-Translator, except that we pass if the syntax is
 ;;; invalid.
 ;;;
 (defmacro def-source-transform (name lambda-list &body body)
-  "Def-Source-Transform Name Lambda-List Form*
-  Define a macro-like source-to-source transformation for the function Name.
-  A source transform may \"pass\" by returning a non-nil second value.  If the
-  transform passes, then the form is converted as a normal function call.  If
-  the supplied arguments are not compatible with the specified lambda-list,
-  then the transform automatically passes.
-  
-  Source-Transforms may only be defined for functions.  Source transformation
-  is not attempted if the function is declared Notinline.  Source transforms
-  should not examine their arguments.  If it matters how the function is used,
-  then Deftransform should be used to define an IR1 transformation.
-  
-  If the desirability of the transformation depends on the current Optimize
-  parameters, then the Policy macro should be used to determine when to pass."
+  "def-source-transform $name $lambda-list form*
+
+   Define a macro-like source-to-source transformation for the function
+   $name.  A source transform may \"pass\" by returning a true second
+   value.  If the transform passes, then the form is converted as a normal
+   function call.  If the supplied arguments are not compatible with the
+   specified lambda-list, then the transform automatically passes.
+
+   Source-Transforms may only be defined for functions.  Source
+   transformation is not attempted if the function is declared Notinline.
+   Source transforms should not examine their arguments.  If it matters how
+   the function is used, then `deftransform' should be used to define an
+   IR1 transformation.
+
+   If the desirability of the transformation depends on the current
+   Optimize parameters, then the `policy' macro should be used to determine
+   when to pass."
   (let ((fn-name
 	 (if (listp name)
 	     (collect ((pieces))
@@ -226,11 +217,11 @@
 	     ,body))
 	 (setf (info function source-transform ',name) #',fn-name)))))
 
-
 (defmacro def-primitive-translator (name lambda-list &body body)
-  "Def-Primitive-Translator Name Lambda-List Form*
-  Define a function that converts a use of (%PRIMITIVE Name ...) into Lisp
-  code.  Lambda-List is a defmacro style lambda list."
+  "def-primitive-translator name lambda-list form*
+
+   Define a function that converts a use of (%PRIMITIVE Name ...) into Lisp
+   code.  Lambda-List is a defmacro style lambda list."
   (let ((fn-name (symbolicate "PRIMITIVE-TRANSLATE-" name))
 	(n-form (gensym))
 	(n-env (gensym)))
@@ -247,26 +238,26 @@
 	 (setf (gethash ',name *primitive-translators*) ',fn-name)))))
 
 
-;;;; Lambda-list parsing utilities:
+;;;; Lambda-list parsing utilities.
 ;;;
-;;;    IR1 transforms, optimizers and type inferencers need to be able to parse
-;;; the IR1 representation of a function call using a standard function
-;;; lambda-list.
-
+;;; IR1 transforms, optimizers and type inferencers need to be able to
+;;; parse the IR1 representation of a function call using a standard
+;;; function lambda-list.
 
 (eval-when (compile load eval)
 
 ;;; Parse-Deftransform  --  Internal
 ;;;
-;;;    Given a deftransform style lambda-list, generate code that parses the
-;;; arguments of a combination with respect to that lambda-list.  Body is the
-;;; the list of forms which are to be evaluated within the bindings.  Args is
-;;; the variable that holds list of argument continuations.  Error-Form is a
-;;; form which is evaluated when the syntax of the supplied arguments is
-;;; incorrect or a non-constant argument keyword is supplied.  Defaults and
-;;; other gunk are ignored.  The second value is a list of all the arguments
-;;; bound.  We make the variables IGNORABLE so that we don't have to manually
-;;; declare them Ignore if their only purpose is to make the syntax work.
+;;; Given a deftransform style lambda-list, generate code that parses the
+;;; arguments of a combination with respect to that lambda-list.  Body is
+;;; the the list of forms which are to be evaluated within the bindings.
+;;; Args is the variable that holds list of argument continuations.
+;;; Error-Form is a form which is evaluated when the syntax of the supplied
+;;; arguments is incorrect or a non-constant argument keyword is supplied.
+;;; Defaults and other gunk are ignored.  The second value is a list of all
+;;; the arguments bound.  We make the variables IGNORABLE so that we don't
+;;; have to manually declare them Ignore if their only purpose is to make
+;;; the syntax work.
 ;;;
 (defun parse-deftransform (lambda-list body args error-form)
   (declare (list lambda-list body) (symbol args))
@@ -330,11 +321,11 @@
 ); Eval-When (Compile Load Eval)
 
 
-;;;; Deftransform:
+;;;; Deftransform.
 
 ;;; Deftransform  --  Interface
 ;;;
-;;;    Parse the lambda-list and generate code to test the policy and
+;;; Parse the lambda-list and generate code to test the policy and
 ;;; automatically create the result lambda.
 ;;;
 (defmacro deftransform (name (lambda-list &optional (arg-types '*)
@@ -342,44 +333,45 @@
 					  &key result policy node defun-only
 					  eval-name important (when :native))
 			     &body (body decls doc))
-  "Deftransform Name (Lambda-List [Arg-Types] [Result-Type] {Key Value}*)
-               Declaration* [Doc-String] Form*
-  Define an IR1 transformation for Name.  An IR1 transformation computes a
-  lambda that replaces the function variable reference for the call.  A
-  transform may pass (decide not to transform the call) by calling the Give-Up
-  function.  Lambda-List both determines how the current call is parsed and
-  specifies the Lambda-List for the resulting lambda.
+  "deftransform name (lambda-list [arg-types] [result-type] {key value}*)
+               declaration* [doc-string] form*
 
-  We parse the call and bind each of the lambda-list variables to the
-  continuation which represents the value of the argument.  When parsing the
-  call, we ignore the defaults, and always bind the variables for unsupplied
-  arguments to NIL.  If a required argument is missing, an unknown keyword is
-  supplied, or an argument keyword is not a constant, then the transform
-  automatically passes.  The Declarations apply to the bindings made by
-  Deftransform at transformation time, rather than to the variables of the
-  resulting lambda.  Bound-but-not-referenced warnings are suppressed for the
-  lambda-list variables.  The Doc-String is used when printing efficiency notes
-  about the defined transform.
+   Define an IR1 transformation for $name.  An IR1 transformation computes
+   a lambda that replaces the function variable reference for the call.  A
+   transform may pass (decide not to transform the call) by calling the
+   `give-up' function.  $lambda-list both determines how the current call
+   is parsed and specifies the $lambda-list for the resulting lambda.
 
-  Normally, the body evaluates to a form which becomes the body of an
-  automatically constructed lambda.  We make Lambda-List the lambda-list for
-  the lambda, and automatically insert declarations of the argument and result
-  types.  If the second value of the body is non-null, then it is a list of
-  declarations which are to be inserted at the head of the lambda.  Automatic
-  lambda generation may be inhibited by explicitly returning a lambda from the
-  body.
+   We parse the call and bind each of the lambda-list variables to the
+   continuation which represents the value of the argument.  When parsing the
+   call, we ignore the defaults, and always bind the variables for unsupplied
+   arguments to NIL.  If a required argument is missing, an unknown keyword is
+   supplied, or an argument keyword is not a constant, then the transform
+   automatically passes.  The Declarations apply to the bindings made by
+   Deftransform at transformation time, rather than to the variables of the
+   resulting lambda.  Bound-but-not-referenced warnings are suppressed for the
+   lambda-list variables.  The Doc-String is used when printing efficiency notes
+   about the defined transform.
 
-  The Arg-Types and Result-Type are used to create a function type which the
-  call must satisfy before transformation is attempted.  The function type
-  specifier is constructed by wrapping (FUNCTION ...) around these values, so
-  the lack of a restriction may be specified by omitting the argument or
-  supplying *.  The argument syntax specified in the Arg-Types need not be the
-  same as that in the Lambda-List, but the transform will never happen if
-  the syntaxes can't be satisfied simultaneously.  If there is an existing
-  transform for the same function that has the same type, then it is replaced
-  with the new definition.
+   Normally, the body evaluates to a form which becomes the body of an
+   automatically constructed lambda.  We make Lambda-List the lambda-list for
+   the lambda, and automatically insert declarations of the argument and result
+   types.  If the second value of the body is non-null, then it is a list of
+   declarations which are to be inserted at the head of the lambda.  Automatic
+   lambda generation may be inhibited by explicitly returning a lambda from the
+   body.
 
-  These are the legal keyword options:
+   The Arg-Types and Result-Type are used to create a function type which the
+   call must satisfy before transformation is attempted.  The function type
+   specifier is constructed by wrapping (FUNCTION ...) around these values, so
+   the lack of a restriction may be specified by omitting the argument or
+   supplying *.  The argument syntax specified in the Arg-Types need not be the
+   same as that in the Lambda-List, but the transform will never happen if
+   the syntaxes can't be satisfied simultaneously.  If there is an existing
+   transform for the same function that has the same type, then it is replaced
+   with the new definition.
+
+   These are the legal keyword options:
     :Result - A variable which is bound to the result continuation.
     :Node   - A variable which is bound to the combination node for the call.
     :Policy - A form which is supplied to the Policy macro to determine whether
@@ -394,15 +386,14 @@
               Name with the specified transform definition function.  This may
               be later instantiated with %Deftransform.
     :Important
-            - If supplied and non-NIL, note this transform as ``important,''
+            - If supplied and true, note this transform as ``important,''
               which means effeciency notes will be generated when this
               transform fails even if brevity=speed (but not if brevity>speed)
     :When {:Native | :Byte | :Both}
             - Indicates whether this transform applies to native code,
               byte-code or both (default :native.)"
-
-  (when (and eval-name defun-only)
-    (error "Can't specify both DEFUN-ONLY and EVAL-NAME."))
+  (and eval-name defun-only
+       (error "Both DEFUN-ONLY and EVAL-NAME specified."))
   (let ((n-args (gensym))
 	(n-node (or node (gensym)))
 	(n-decls (gensym))
@@ -440,45 +431,47 @@
 	      ,doc
 	      ,(if important t nil)
               ,when))))))
+
 
-;;;; Defknown, Defoptimizer:
+;;;; Defknown, Defoptimizer.
 
 ;;; Defknown  --  Interface
 ;;;
-;;;    This macro should be the way that all implementation independent
+;;; This macro should be the way that all implementation independent
 ;;; information about functions is made known to the compiler.
 ;;;
 (defmacro defknown (name arg-types result-type &optional (attributes '(any))
 			 &rest keys)
-  "Defknown Name Arg-Types Result-Type [Attributes] {Key Value}* 
-  Declare the function Name to be a known function.  We construct a type
-  specifier for the function by wrapping (FUNCTION ...) around the Arg-Types
-  and Result-Type.  Attributes is a an unevaluated list of the boolean
-  attributes that the function has.  These attributes are meaningful here:
+  "Defknown Name Arg-Types Result-Type [Attributes] {Key Value}*
+
+   Declare the function Name to be a known function.  We construct a type
+   specifier for the function by wrapping (FUNCTION ...) around the Arg-Types
+   and Result-Type.  Attributes is a an unevaluated list of the boolean
+   attributes that the function has.  These attributes are meaningful here:
       call
          May call functions that are passed as arguments.  In order to determine
          what other effects are present, we must find the effects of all arguments
          that may be functions.
-        
+
       unsafe
          May incorporate arguments in the result or somehow pass them upward.
-        
+
       unwind
          May fail to return during correct execution.  Errors are O.K.
-        
+
       any
          The (default) worst case.  Includes all the other bad things, plus any
          other possible bad thing.
-        
+
       foldable
          May be constant-folded.  The function has no side effects, but may be
          affected by side effects on the arguments.  e.g. SVREF, MAPC.
-        
+
       flushable
          May be eliminated if value is unused.  The function has no side effects
          except possibly CONS.  If a function is defined to signal errors, then
          it is not flushable even if it is movable or foldable.
-        
+
       movable
          May be moved with impunity.  Has no side effects except possibly CONS,
          and is affected only by its arguments.
@@ -490,13 +483,13 @@
 	  dependent, and is usually automatically set by the Define-VOP
 	  :Conditional option.
 
-  Name may also be a list of names, in which case the same information is given
-  to all the names.  The keywords specify the initial values for various
-  optimizers that the function might have."
+   Name may also be a list of names, in which case the same information is given
+   to all the names.  The keywords specify the initial values for various
+   optimizers that the function might have."
   (when (and (intersection attributes '(any call unwind))
 	     (intersection attributes '(movable)))
     (error "Function cannot have both good and bad attributes: ~S" attributes))
-  
+
   `(%defknown ',(if (and (consp name)
 			 (not (eq (car name) 'setf)))
 		    name
@@ -507,10 +500,9 @@
 				    attributes))
 	      ,@keys))
 
-
 ;;; Defoptimizer  --  Interface
 ;;;
-;;;    Create a function which parses combination args according to a
+;;; Create a function which parses combination args according to a
 ;;; Lambda-List, optionally storing it in a function-info slot.
 ;;;
 (defmacro defoptimizer (what (lambda-list &optional (n-node (gensym))
@@ -518,23 +510,22 @@
 			     &body body)
   "Defoptimizer (Function Kind) (Lambda-List [Node-Var] Var*)
                 Declaration* Form*
-  Define some Kind of optimizer for the named Function.  Function must be a
-  known function.  Lambda-List is used to parse the arguments to the
-  combination as in Deftransform.  If the argument syntax is invalid or there
-  are non-constant keys, then we simply return NIL.
+   Define some Kind of optimizer for the named Function.  Function must be a
+   known function.  Lambda-List is used to parse the arguments to the
+   combination as in Deftransform.  If the argument syntax is invalid or there
+   are non-constant keys, then we simply return NIL.
 
-  The function is DEFUN'ed as Function-Kind-OPTIMIZER.  Possible kinds are
-  DERIVE-TYPE, OPTIMIZER, LTN-ANNOTATE and IR2-CONVERT.  If a symbol is
-  specified instead of a (Function Kind) list, then we just do a DEFUN with the
-  symbol as its name, and don't do anything with the definition.  This is
-  useful for creating optimizers to be passed by name to DEFKNOWN.
+   The function is DEFUN'ed as Function-Kind-OPTIMIZER.  Possible kinds are
+   DERIVE-TYPE, OPTIMIZER, LTN-ANNOTATE and IR2-CONVERT.  If a symbol is
+   specified instead of a (Function Kind) list, then we just do a DEFUN with the
+   symbol as its name, and don't do anything with the definition.  This is
+   useful for creating optimizers to be passed by name to DEFKNOWN.
 
-  If supplied, Node-Var is bound to the combination node being optimized.  If
-  additional Vars are supplied, then they are used as the rest of the optimizer
-  function's lambda-list.  LTN-ANNOTATE methods are passed an additional POLICY
-  argument, and IR2-CONVERT methods are passed an additional IR2-BLOCK
-  argument."
-
+   If supplied, Node-Var is bound to the combination node being optimized.  If
+   additional Vars are supplied, then they are used as the rest of the optimizer
+   function's lambda-list.  LTN-ANNOTATE methods are passed an additional POLICY
+   argument, and IR2-CONVERT methods are passed an additional IR2-BLOCK
+   argument."
   (let ((name (if (symbolp what) what
 		  (symbolicate (first what) "-" (second what) "-OPTIMIZER"))))
 
@@ -549,24 +540,25 @@
 		     (function-info-or-lose ',(first what)))
 		    #',name)))))))
 
- 
-;;;; IR groveling macros:
+
+;;;; IR groveling macros.
 
 ;;; Do-Blocks, Do-Blocks-Backwards  --  Interface
-;;;    
+;;;
 (defmacro do-blocks ((block-var component &optional ends result) &body body)
-  "Do-Blocks (Block-Var Component [Ends] [Result-Form]) {Declaration}* {Form}*
-  Iterate over the blocks in a component, binding Block-Var to each block in
-  turn.  The value of Ends determines whether to iterate over dummy head and
-  tail blocks:
+  "do-blocks (block-var component [ends] [result-form]) {declaration}* {form}*
+
+   Iterate over the blocks in a component, binding $block-var to each block in
+   turn.  The value of $ends determines whether to iterate over dummy head and
+   tail blocks:
     NIL   -- Skip Head and Tail (the default)
     :Head -- Do head but skip tail
     :Tail -- Do tail but skip head
     :Both -- Do both head and tail
 
-  If supplied, Result-Form is the value to return."
-  (unless (member ends '(nil :head :tail :both))
-    (error "Losing Ends value: ~S." ends))
+   If supplied, return $result-form."
+  (or (member ends '(nil :head :tail :both))
+      (error "Losing Ends value: ~S." ends))
   (let ((n-component (gensym))
 	(n-tail (gensym)))
     `(let* ((,n-component ,component)
@@ -581,10 +573,11 @@
 	 ,@body))))
 ;;;
 (defmacro do-blocks-backwards ((block-var component &optional ends result) &body body)
-  "Do-Blocks-Backwards (Block-Var Component [Ends] [Result-Form]) {Declaration}* {Form}*
-  Like Do-Blocks, only iterate over the blocks in reverse order."
-  (unless (member ends '(nil :head :tail :both))
-    (error "Losing Ends value: ~S." ends))
+  "do-blocks-backwards (block-var component [ends] [result-form]) {declaration}* {form}*
+
+   Like `do-blocks', only iterate over the blocks in reverse order."
+  (or (member ends '(nil :head :tail :both))
+      (error "Losing Ends value: ~S." ends))
   (let ((n-component (gensym))
 	(n-head (gensym)))
     `(let* ((,n-component ,component)
@@ -598,18 +591,17 @@
 	   ((eq ,block-var ,n-head) ,result)
 	 ,@body))))
 
-
 ;;; Do-Uses  --  Interface
 ;;;
-;;;    Could change it not to replicate the code someday perhaps...
+;;; Could change it not to replicate the code someday perhaps...
 ;;;
 (defmacro do-uses ((node-var continuation &optional result) &body body)
   "Do-Uses (Node-Var Continuation [Result]) {Declaration}* {Form}*
-  Iterate over the uses of Continuation, binding Node to each one succesively."
+   Iterate over the uses of Continuation, binding Node to each one succesively."
   (once-only ((n-cont continuation))
     `(ecase (continuation-kind ,n-cont)
        (:unused)
-       (:inside-block 
+       (:inside-block
 	(block nil
 	  (let ((,node-var (continuation-use ,n-cont)))
 	    ,@body
@@ -619,14 +611,13 @@
 			   ,result)
 	  ,@body)))))
 
-
 ;;; Do-Nodes, Do-Nodes-Backwards  --  Interface
 ;;;
-;;;    In the forward case, we terminate on Last-Cont so that we don't have to
-;;; worry about our termination condition being changed when new code is added
-;;; during the iteration.  In the backward case, we do NODE-PREV before
-;;; evaluating the body so that we can keep going when the current node is
-;;; deleted.
+;;; In the forward case, we terminate on Last-Cont so that we don't have to
+;;; worry about our termination condition being changed when new code is
+;;; added during the iteration.  In the backward case, we do NODE-PREV
+;;; before evaluating the body so that we can keep going when the current
+;;; node is deleted.
 ;;;
 ;;; When Restart-P is supplied to DO-NODES, we start iterating over again at
 ;;; the beginning of the block when we run into a continuation whose block
@@ -638,10 +629,10 @@
 ;;;
 (defmacro do-nodes ((node-var cont-var block &key restart-p) &body body)
   "Do-Nodes (Node-Var Cont-Var Block {Key Value}*) {Declaration}* {Form}*
-  Iterate over the nodes in Block, binding Node-Var to the each node and
-  Cont-Var to the node's Cont.  The only keyword option is Restart-P, which
-  causes iteration to be restarted when a node is deleted out from under us (if
-  not supplied, this is an error.)"
+   Iterate over the nodes in Block, binding Node-Var to the each node and
+   Cont-Var to the node's Cont.  The only keyword option is Restart-P, which
+   causes iteration to be restarted when a node is deleted out from under us (if
+   not supplied, this is an error.)"
   (let ((n-block (gensym))
 	(n-last-cont (gensym)))
     `(let* ((,n-block ,block)
@@ -670,7 +661,7 @@
 ;;;
 (defmacro do-nodes-backwards ((node-var cont-var block) &body body)
   "Do-Nodes-Backwards (Node-Var Cont-Var Block) {Declaration}* {Form}*
-  Like Do-Nodes, only iterates in reverse order."
+   Like Do-Nodes, only iterates in reverse order."
   (let ((n-block (gensym))
 	(n-start (gensym))
 	(n-last (gensym))
@@ -686,15 +677,15 @@
 	 (when (eq ,n-next ,n-start)
 	   (return nil))))))
 
-
 ;;; With-IR1-Environment  --  Interface
 ;;;
-;;;    The lexical environment is presumably already null...
+;;; The lexical environment is presumably already null...
 ;;;
 (defmacro with-ir1-environment (node &rest forms)
-  "With-IR1-Environment Node Form*
-  Bind the IR1 context variables so that IR1 conversion can be done after the
-  main conversion pass has finished."
+  "with-ir1-environment node form*
+
+   Bind the IR1 context variables so that IR1 conversion can be done after
+   the main conversion pass has finished."
   (let ((n-node (gensym)))
     `(let* ((,n-node ,node)
 	    (*current-component* (block-component (node-block ,n-node)))
@@ -702,10 +693,9 @@
 	    (*current-path* (node-source-path ,n-node)))
        ,@forms)))
 
-
 ;;; WITH-IR1-NAMESPACE  --  Interface
 ;;;
-;;;    Bind the hashtables used for keeping track of global variables,
+;;; Bind the hashtables used for keeping track of global variables,
 ;;; functions, &c.  Also establish condition handlers.
 ;;;
 (defmacro with-ir1-namespace (&body forms)
@@ -719,14 +709,14 @@
 		    (warning #'compiler-warning-handler))
        ,@forms)))
 
-
 ;;; LEXENV-FIND  --  Interface
 ;;;
 (defmacro lexenv-find (name slot &key test)
-  "LEXENV-FIND Name Slot {Key Value}*
-  Look up Name in the lexical environment namespace designated by Slot,
-  returning the <value, T>, or <NIL, NIL> if no entry.  The :TEST keyword
-  may be used to determine the name equality predicate."
+  "lexenv-find $name $slot {key value}*
+
+   Look up $name in the lexical environment namespace designated by $slot,
+   returning the <value, T>, or <NIL, NIL> if no entry.  The $test keyword
+   may be used to determine the name equality predicate."
   (once-only ((n-res `(assoc ,name (,(symbolicate "LEXENV-" slot)
 				    *lexical-environment*)
 			     :test ,(or test '#'eq))))
@@ -735,10 +725,9 @@
 	 (values nil nil))))
 
 
-
 ;;; With-debug-counters  --  Interface
 ;;;
-;;;    Bind the hashtables and counters used for keeping track of
+;;; Bind the hashtables and counters used for keeping track of
 ;;; continuation, TN, and label IDs for the debug dumping routines.
 ;;;
 (defmacro with-debug-counters (&body forms)
@@ -754,16 +743,15 @@
      ,@forms))
 
 
-;;;; The Defprinter macro:
+;;;; The Defprinter macro.      FIX mv to code?
 
 (defvar *defprint-pretty* nil
   "If true, defprinter print functions print each slot on a separate line.")
 
-
 ;;; Defprinter-Prin1, Defprinter-Princ  --  Internal
 ;;;
-;;;    These functions are called by the expansion of the Defprinter
-;;; macro to do the actual printing.
+;;; These functions are called by the expansion of the Defprinter macro to
+;;; do the actual printing.
 ;;;
 (defun defprinter-prin1 (name value stream &optional indent)
   (declare (symbol name) (stream stream) (ignore indent))
@@ -785,24 +773,24 @@
 
 (defmacro defprinter (name &rest slots)
   "Defprinter Name Slot-Desc*
-  Define some kind of reasonable defstruct structure-print function.  Name
-  is the name of the structure.  We define a function %PRINT-name which
-  prints the slots in the structure in the way described by the Slot-Descs.
-  Each Slot-Desc can be a slot name, indicating that the slot should simply
-  be printed.  A Slot-Desc may also be a list of a slot name and other stuff.
-  The other stuff is composed of keywords followed by expressions.  The
-  expressions are evaluated with the variable which is the slot name bound
-  to the value of the slot.  These keywords are defined:
-  
-  :PRIN1    Print the value of the expression instead of the slot value.
-  :PRINC    Like :PRIN1, only princ the value
-  :TEST     Only print something if the test is true.
-  
-  If no printing thing is specified then the slot value is printed as PRIN1.
-  
-  The structure being printed is bound to Structure and the stream is bound to
-  Stream."
-  
+
+   Define some kind of reasonable defstruct structure-print function.  Name
+   is the name of the structure.  We define a function %PRINT-name which
+   prints the slots in the structure in the way described by the Slot-Descs.
+   Each Slot-Desc can be a slot name, indicating that the slot should simply
+   be printed.  A Slot-Desc may also be a list of a slot name and other stuff.
+   The other stuff is composed of keywords followed by expressions.  The
+   expressions are evaluated with the variable which is the slot name bound
+   to the value of the slot.  These keywords are defined:
+
+   :PRIN1    Print the value of the expression instead of the slot value.
+   :PRINC    Like :PRIN1, only princ the value
+   :TEST     Only print something if the test is true.
+
+   If no printing thing is specified then the slot value is printed as PRIN1.
+
+   The structure being printed is bound to Structure and the stream is bound to
+   Stream."
   (flet ((sref (slot) `(,(symbolicate name "-" slot) structure)))
     (collect ((prints))
       (dolist (slot slots)
@@ -813,7 +801,7 @@
 	      (collect ((stuff))
 		(do ((option (rest slot) (cddr option)))
 		    ((null option)
-		     (prints		
+		     (prints
 		      `(let ((,sname ,(sref sname)))
 			 (when ,test
 			   ,@(or (stuff)
@@ -830,7 +818,7 @@
 		    (t
 		     (error "Losing Defprinter option: ~S."
 			    (first option)))))))))
-	     
+
       `(defun ,(symbolicate "%PRINT-" name) (structure stream depth)
 	 (flet ((do-prints (stream)
 		  (declare (ignorable stream))
@@ -860,19 +848,18 @@
 	 nil))))
 
 
-;;;; Boolean attribute utilities:
+;;;; Boolean attribute utilities.      FIX mv to code:?
 ;;;
-;;;    We need to maintain various sets of boolean attributes for known
-;;; functions and VOPs.  To save space and allow for quick set operations, we
-;;; represent them as bits in a fixnum.
-;;;
+;;; We need to maintain various sets of boolean attributes for known
+;;; functions and VOPs.  To save space and allow for quick set operations,
+;;; we represent them as bits in a fixnum.
 
 (deftype attributes () 'fixnum)
 
 (eval-when (compile load eval)
 ;;; Compute-Attribute-Mask  --  Internal
 ;;;
-;;;    Given a list of attribute names and an alist that translates them to
+;;; Given a list of attribute names and an alist that translates them to
 ;;; masks, return the OR of the masks.
 ;;;
 (defun compute-attribute-mask (names alist)
@@ -888,22 +875,22 @@
 
 ;;; Def-Boolean-Attribute  --  Interface
 ;;;
-;;;    Parse the specification and generate some accessor macros.
+;;; Parse the specification and generate some accessor macros.
 ;;;
 (defmacro def-boolean-attribute (name &rest attribute-names)
-  "Def-Boolean-Attribute Name Attribute-Name*
-  Define a new class of boolean attributes, with the attributes havin the
-  specified Attribute-Names.  Name is the name of the class, which is used to
-  generate some macros to manipulate sets of the attributes: 
+  "def-boolean-attribute $name attribute-name*
 
-    NAME-attributep attributes attribute-name*
+   Define a new class of boolean attributes, with the attributes having the
+   specified $attribute-names.  $name is the name of the FIX class, which is
+   used to generate some macros to manipulate sets of the attributes:
+
+    <$name>-attributep attributes attribute-name*
       Return true if one of the named attributes is present, false otherwise.
-      When set with SETF, updates the place Attributes setting or clearing the
+      When set with `setf', updates the place Attributes, setting or clearing the
       specified attributes.
 
-    NAME-attributes attribute-name*
+    <$name>-attributes attribute-name*
       Return a set of the named attributes."
-
   (let ((const-name (symbolicate name "-ATTRIBUTE-TRANSLATIONS"))
 	(test-name (symbolicate name "-ATTRIBUTEP")))
     (collect ((alist))
@@ -911,11 +898,11 @@
 	   (names attribute-names (cdr names)))
 	  ((null names))
 	(alist (cons (car names) mask)))
-	 
+
       `(progn
 	 (eval-when (compile load eval)
 	   (defconstant ,const-name ',(alist)))
-	 
+
 	 (defmacro ,test-name (attributes &rest attribute-names)
 	   "Automagically generated boolean attribute test function.  See
 	    Def-Boolean-Attribute."
@@ -924,7 +911,7 @@
 
 	 (define-setf-method ,test-name (place &rest attributes
 					       &environment env)
-	   
+
 	   "Automagically generated boolean attribute setter.  See
 	    Def-Boolean-Attribute."
 	   (multiple-value-bind (temps values stores set get)
@@ -942,38 +929,95 @@
 			  ,set
 			  ,newval)
 		       `(,',test-name ,n-place ,@attributes)))))
-	 
+
 	 (defmacro ,(symbolicate name "-ATTRIBUTES") (&rest attribute-names)
 	   "Automagically generated boolean attribute creation function.  See
 	    Def-Boolean-Attribute."
 	   (compute-attribute-mask attribute-names ,const-name))))))
 
-
 ;;; Attributes-Union, Attributes-Intersection, Attributes=  --  Interface
 ;;;
-;;;    And now for some gratuitous pseudo-abstraction...
+;;; And now for some gratuitous pseudo-abstraction...
 ;;;
 (defmacro attributes-union (&rest attributes)
   "Returns the union of all the sets of boolean attributes which are its
-  arguments." 
+   arguments."
   `(the attributes
 	(logior ,@(mapcar #'(lambda (x) `(the attributes ,x)) attributes))))
 ;;;
 (defmacro attributes-intersection (&rest attributes)
-  "Returns the intersection of all the sets of boolean attributes which are its
-  arguments." 
+  "Returns the intersection of all the sets of boolean attributes which are
+   its arguments."
   `(the attributes
 	(logand ,@(mapcar #'(lambda (x) `(the attributes ,x)) attributes))))
 ;;;
 (proclaim '(inline attributes=))
 (defun attributes= (attr1 attr2)
   (declare (type attributes attr1 attr2))
-  "Returns true if the attributes present in Attr1 are indentical to those in
-  Attr2."
+  "Returns true if the attributes present in Attr1 are indentical to those
+   in Attr2."
   (eql attr1 attr2))
 
 
-;;;; The Event statistics/trace utility:
+#[ Event Driven Operations
+
+    Operations could be linked to events.  At present this interface is
+    only used to print messages.
+
+Phase position: 7/23 (front)
+
+Presence: planned for future
+
+Files: ir1util, ir1opt
+
+Entry functions: `event'
+
+Call sequences:
+
+    event
+      %event
+	funcall event-info action
+
+
+From [Compiler Overview]
+
+    Various parts of ICR are incrementally recomputed, either eagerly on
+    modification of the ICR, or lazily, when the relevant information is
+    needed.
+
+      * Check that type assertions are satisfied, marking places where type
+        checks need to be done.
+
+      * Locate `let' calls.
+
+      * Delete functions and variables with no references
+
+FIX
+
+seems these already described in other phases
+
+may be referring to `event'
+
+    which has facility for callback
+
+        (setf (event-action event) #'function)
+
+    search for event-action in c:
+
+	macros.lisp:1017: ;;; Event-Count, Event-Action, Event-Level  --  Interface
+	macros.lisp:1024: (defun event-action (name)
+	macros.lisp:1032: (defun %set-event-action (name new-value)
+	macros.lisp:1038: (defsetf event-action %set-event-action)
+	macros.lisp:1038: (defsetf event-action %set-event-action)
+
+	    seems `event' only used for tracing, eg reoptimize-maxed-out
+
+	    perhaps a planned feature?
+		maybe some sort of plugin system?
+]#
+
+
+;;;; The Event statistics/trace utility.        FIX mv to code:?
 
 (eval-when (compile load eval)
 
@@ -982,7 +1026,7 @@
   ;; The name of this event.
   (name (required-argument) :type symbol)
   ;;
-  ;; The string rescribing this event.
+  ;; The string describing this event.
   (description (required-argument) :type string)
   ;;
   ;; The name of the variable we stash this in.
@@ -994,18 +1038,17 @@
   ;; The level of significance of this event.
   (level (required-argument) :type unsigned-byte)
   ;;
-  ;; If true, a function that gets called with the node that the event happened
-  ;; to.
+  ;; If true, a function that gets called with the node that the event
+  ;; happened to.
   (action nil :type (or function null)))
 
 ;;; A hashtable from event names to event-info structures.
 ;;;
 (defvar *event-info* (make-hash-table :test #'eq))
 
-
 ;;; Event-Info-Or-Lose  --  Internal
 ;;;
-;;;    Return the event info for Name or die trying.
+;;; Return the event info for Name or die trying.
 ;;;
 (defun event-info-or-lose (name)
   (declare (values event-info))
@@ -1016,7 +1059,6 @@
 
 ); Eval-When (Compile Load Eval)
 
-
 ;;; Event-Count, Event-Action, Event-Level  --  Interface
 ;;;
 (defun event-count (name)
@@ -1026,8 +1068,9 @@
 ;;;
 (defun event-action (name)
   "Return the function that is called when Event happens.  If this is null,
-  there is no action.  The function is passed the node to which the event
-  happened, or NIL if there is no relevant node.  This may be set with SETF."
+   there is no action.  The function is passed the node to which the event
+   happened, or NIL if there is no relevant node.  This may be set with
+   SETF."
   (declare (symbol name) (values (or function null)))
   (event-info-action (event-info-or-lose name)))
 ;;;
@@ -1040,9 +1083,9 @@
 (defsetf event-action %set-event-action)
 ;;;
 (defun event-level (name)
-  "Return the non-negative integer which represents the level of significance
-  of the event Name.  This is used to determine whether to print a message when
-  the event happens.  This may be set with SETF."
+  "Return the non-negative integer which represents the level of
+   significance of the event Name.  This is used to determine whether to
+   print a message when the event happens.  This may be set with SETF."
   (declare (symbol name) (values unsigned-byte))
   (event-info-level (event-info-or-lose name)))
 ;;;
@@ -1054,18 +1097,18 @@
 ;;;
 (defsetf event-level %set-event-level)
 
-
 ;;; Defevent  --  Interface
 ;;;
-;;;    Make an event-info structure and stash it in a variable so we can get at
-;;; it quickly.
+;;; Make an event-info structure and stash it in a variable so we can get
+;;; at it quickly.
 ;;;
 (defmacro defevent (name description &optional (level 0))
-  "Defevent Name Description
-  Define a new kind of event.  Name is a symbol which names the event and
-  Description is a string which describes the event.  Level (default 0) is the
-  level of significance associated with this event; it is used to determine
-  whether to print a Note when the event happens."
+  "defevent $name $description
+
+   Define a new kind of event.  $name is a symbol which names the event and
+   $description is a string which describes the event.  $level is the level
+   of significance associated with this event; it is used to determine
+   whether to print a Note when the event happens."
   (let ((var-name (symbolicate "*" name "-EVENT-INFO*")))
     `(eval-when (compile load eval)
        (defvar ,var-name
@@ -1077,27 +1120,27 @@
 (proclaim '(type unsigned-byte *event-note-threshold*))
 (defvar *event-note-threshold* 1
   "This variable is a non-negative integer specifying the lowest level of
-  event that will print a Note when it occurs.")
+   event that will print a Note when it occurs.")
 
 ;;; Event  --  Interface
 ;;;
-;;;    Increment the counter and do any action.  Mumble about the event if
+;;; Increment the counter and do any action.  Mumble about the event if
 ;;; policy indicates.
 ;;;
 (defmacro event (name &optional node)
-  "Event Name Node
-  Note that the event with the specified Name has happened.  Node is evaluated
-  to determine the node to which the event happened."
-  `(%event ,(event-info-var (event-info-or-lose name)) ,node))
+  "event $name $node
 
+   Note that the event with the specified $name has happened.  $node is
+   evaluated to determine the node to which the event happened."
+  `(%event ,(event-info-var (event-info-or-lose name)) ,node))
 
 ;;; Event-Statistics, Clear-Statistics  --  Interface
 ;;;
 (defun event-statistics (&optional (min-count 1) (stream *standard-output*))
   (declare (type unsigned-byte min-count) (stream stream) (values))
   "Print a listing of events and their counts, sorted by the count.  Events
-  that happened fewer than Min-Count times will not be printed.  Stream is the
-  stream to write to."
+   that happened fewer than Min-Count times will not be printed.  Stream is the
+   stream to write to."
   (collect ((info))
     (maphash #'(lambda (k v)
 		 (declare (ignore k))
@@ -1118,7 +1161,7 @@
   (values))
 
 
-;;;; Generic list (?) functions:
+;;;; Generic list (?) functions.  FIX mv to code:?
 
 (proclaim '(inline find-in position-in map-in))
 
@@ -1127,8 +1170,8 @@
 (defun find-in (next element list &key (key #'identity)
 		     (test #'eql test-p) (test-not nil not-p))
   "Find Element in a null-terminated List linked by the accessor function
-  Next.  Key, Test and Test-Not are the same as for generic sequence
-  functions."
+   Next.  Key, Test and Test-Not are the same as for generic sequence
+   functions."
   (when (and test-p not-p)
     (error "Silly to supply both :Test and :Test-Not."))
   (if not-p
@@ -1145,9 +1188,9 @@
 ;;;
 (defun position-in (next element list &key (key #'identity)
 		     (test #'eql test-p) (test-not nil not-p))
-  "Return the position of Element (or NIL if absent) in a null-terminated List
-  linked by the accessor function Next.  Key, Test and Test-Not are the same as
-  for generic sequence functions."
+  "Return the position of Element (or NIL if absent) in a null-terminated
+   List linked by the accessor function Next.  Key, Test and Test-Not are
+   the same as for generic sequence functions."
   (when (and test-p not-p)
     (error "Silly to supply both :Test and :Test-Not."))
   (if not-p
@@ -1162,25 +1205,23 @@
 	(when (funcall test (funcall key current) element)
 	  (return i)))))
 
-
 ;;; Map-In  --  Interface
 ;;;
 (defun map-in (next function list)
   "Map Function over the elements in a null-terminated List linked by the
-  accessor function Next, returning a list of the results."
+   accessor function Next, returning a list of the results."
   (collect ((res))
     (do ((current list (funcall next current)))
 	((null current))
       (res (funcall function current)))
     (res)))
 
-
 ;;; Deletef-In  --  Interface
 ;;;
 (defmacro deletef-in (next place item &environment env)
   "Deletef-In Next Place Item
-  Delete Item from a null-terminated list linked by the accessor function Next
-  that is stored in Place.  Item must appear exactly once in the list."
+   Delete Item from a null-terminated list linked by the accessor function Next
+   that is stored in Place.  Item must appear exactly once in the list."
   (multiple-value-bind
       (temps vals stores store access)
       (get-setf-method place env)
@@ -1202,12 +1243,11 @@
 			(,next ,n-current)))))
 	 (undefined-value)))))
 
-
 ;;; Push-In  --  Interface
 ;;;
 (defmacro push-in (next item place &environment env)
-  "Push Item onto a list linked by the accessor function Next that is stored in
-  Place."
+  "Push Item onto a list linked by the accessor function Next that is
+   stored in Place."
   (multiple-value-bind
       (temps vals stores store access)
       (get-setf-method place env)
@@ -1216,7 +1256,6 @@
        (setf (,next ,(first stores)) ,access)
        ,store
        (undefined-value))))
-
 
 ;;; EPOSITION  --  Interface
 ;;;

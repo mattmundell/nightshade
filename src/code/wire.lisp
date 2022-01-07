@@ -11,7 +11,76 @@
 	  wire-output-funcall wire-error wire-eof wire-io-error
 	  *current-wire* wire-get-bignum wire-output-bignum))
 
+
+#[ The WIRE Package
 
+The wire package provides for sending data along wires.  The remote package
+sits on top of this package.  All data sent with a given output routine
+must be read in the remote process with the complementary fetching routine.
+For example, if you send so a string with `wire-output-string', the remote
+process must know to use `wire-get-string'.  To avoid rigid data transfers
+and complicated code, the interface supports sending tagged data.  With
+tagged data, the system sends a tag announcing the type of the next data,
+and the remote system takes care of fetching the appropriate type.
+
+When using interfaces at the wire level instead of the RPC level,
+the remote process must read everything sent by these routines.  If
+the remote process leaves any input on the wire, it will later
+mistake the data for an RPC request causing unknown lossage.
+
+[ Untagged Data ]
+[ Tagged Data   ]
+[ Making Wires  ]
+]#
+
+
+#[ Untagged Data
+
+When using these routines both ends of the wire know exactly what types are
+coming and going and in what order. This data is restricted to the following
+types:
+
+ * 8 bit unsigned bytes.
+
+ * 32 bit unsigned bytes.
+
+ * 32 bit integers.
+
+ * simple-strings less than 65535 in length.
+
+The following functions either output or input an object of the specified
+data type.  When any of these output routines are used to send data across
+the wire, the corresponding input routine must be used to interpret the
+data.
+
+{function:wire:wire-output-byte}
+{function:wire:wire-get-byte}
+{function:wire:wire-output-number}
+{function:wire:wire-get-number}
+{function:wire:wire-output-string}
+{function:wire:wire-get-string}
+]#
+
+
+#[ Tagged Data
+
+When using these routines, the system automatically transmits and interprets
+the tags, so both ends can figure out what kind of data transfers
+occur.  Sending tagged data allows a greater variety of data types: integers
+inclusively less than 32 bits in length, symbols, lists, and remote-objects
+([Remote Objects]).  The system sends symbols as two strings, the
+package name and the symbol name.  The package must exist remotely,
+else the remote process signals an error.  FIX The system ignores other slots of
+symbols.  Lists may be any tree of the above valid data types.  To send other
+data types you must represent them in terms of these supported types.  For
+example, you could use `prin1-to-string' locally, send the string, and use
+`read-from-string' remotely.
+
+{function:wire:wire-output-object}
+{function:wire:wire-get-object}
+]#
+
+
 (eval-when (compile load eval) ; For macros in remote.lisp.
 
 (defconstant buffer-size 2048)
@@ -35,6 +104,21 @@
 (defconstant bignum-op 14)
 
 ) ;eval-when
+
+
+;;;; Structure.
+
+#[ Making Wires
+
+It is possible to manually create wires, in addition to the remote
+package's interface creating them for you.  A Unix file descriptor is
+needed to create a wire.  Unix file descriptors are described in section 2
+of the Unix manual pages.
+
+{function:wire:make-wire}
+{function:wire:wire-p}
+{function:wire:wire-fd}
+]#
 
 (defvar *current-wire* nil
   "The wire the form we are currently evaluating came across.")
@@ -71,6 +155,16 @@
   (cache-index 0)
   (object-hash (make-hash-table :test 'eq)))
 
+(setf (documentation 'make-wire 'function)
+  "Create a new wire when supplied with the file descriptor to use for the
+   underlying I/O operations.")
+
+(setf (documentation 'wire-p 'function)
+  "Return t if $wire is a wire, else ().")
+
+(setf (documentation 'wire-fd 'function)
+  "Return the file descriptor used by $wire.")
+
 (defstruct (remote-object
 	    (:constructor %make-remote-object (host pid id))
 	    (:print-function
@@ -83,6 +177,9 @@
   host
   pid
   id)
+
+(setf (documentation 'remote-object-p 'function)
+  "Return t if $x is a remote object, else ().")
 
 (define-condition wire-error (error)
   ((wire :reader wire-error-wire :initarg :wire))
@@ -106,16 +203,17 @@
 		     (wire-io-error-msg condition)))))
 
 
-;;;; Remote Object Randomness.
+;;;; Remote Objects.
 
 ;;; REMOTE-OBJECT-LOCAL-P -- public
 ;;;
-;;;   First, make sure the *this-host* and *this-pid* are set. Then test to
+;;; First, make sure the *this-host* and *this-pid* are set. Then test to
 ;;; see if the remote object's host and pid fields are *this-host* and
 ;;; *this-pid*
-
+;;;
 (defun remote-object-local-p (remote)
-  "Returns T iff the given remote object is defined locally."
+  "Return t if the remote object $remote is defined locally.  This can only
+   occur if the local process created $remote with `make-remote-object'."
   (declare (type remote-object remote))
   (unless *this-host*
     (setf *this-host* (unix:unix-gethostid))
@@ -125,13 +223,13 @@
 
 ;;; REMOTE-OBJECT-EQ -- public
 ;;;
-;;;   Remote objects are considered EQ if they refer to the same object, ie
+;;; Remote objects are considered EQ if they refer to the same object, ie
 ;;; Their host, pid, and id fields are the same (eql, cause they are all
 ;;; numbers).
-
+;;;
 (defun remote-object-eq (remote1 remote2)
-  "Returns T iff the two objects refer to the same (eq) object in the same
-  process."
+  "Return t if $remote1 and $remote2 refer to the same (`eq') Lisp object
+   in the same process."
   (declare (type remote-object remote1 remote2))
   (and (eql (remote-object-host remote1)
 	    (remote-object-host remote2))
@@ -142,38 +240,40 @@
 
 ;;; REMOTE-OBJECT-VALUE --- public
 ;;;
-;;;   First assure that the remote object is defined locally. If so, look up
-;;; the id in *id-to-objects*.
-;;; table. This will only happen if FORGET-REMOTE-TRANSLATION has been called
-;;; on the local object.
-
+;;; First assure that the remote object is defined locally. If so, look up
+;;; the id in *id-to-objects*.  table. This will only happen if
+;;; FORGET-REMOTE-TRANSLATION has been called on the local object.
+;;;
 (defun remote-object-value (remote)
-  "Return the associated value for the given remote object. It is an error if
-  the remote object was not created in this process or if
-  FORGET-REMOTE-TRANSLATION has been called on this remote object."
+  "Return the original object used to create the given remote object.
+   Throw an error if some other process originally created the
+   remote-object or if `forget-remote-translation' has been called on this
+   remote object."
   (declare (type remote-object remote))
-  (unless (remote-object-local-p remote)
-    (error "~S is defined is a different process." remote))
+  (or (remote-object-local-p remote)
+      (error "~S is defined is a different process." remote))
   (multiple-value-bind
       (value found)
       (gethash (remote-object-id remote)
 	       *id-to-object*)
-    (unless found
-      (cerror
-       "Use the value of NIL"
-       "No value for ~S -- FORGET-REMOTE-TRANSLATION was called to early."
-       remote))
+    (or found
+	(cerror
+	 "Use the value of ()"
+	 "No value for ~S -- FORGET-REMOTE-TRANSLATION was called to early."
+	 remote))
     value))
 
 ;;; MAKE-REMOTE-OBJECT --- public
 ;;;
-;;;   Convert the given local object to a remote object. If the local object is
-;;; alread entered in the *object-to-id* hash table, just use the old id.
-;;; Otherwise, grab the next id and put add both mappings to the two hash
-;;; tables.
-
+;;; Convert the given local object to a remote object. If the local object
+;;; is alread entered in the *object-to-id* hash table, just use the old
+;;; id.  Otherwise, grab the next id and put add both mappings to the two
+;;; hash tables.
+;;;
 (defun make-remote-object (local)
-  "Convert the given local object to a remote object."
+  "Return a remote-object that has $local as its value.  The remote-object
+   can be passed across wires just like the directly supported wire data
+   types."
   (unless *this-host*
     (setf *this-host* (unix:unix-gethostid))
     (setf *this-pid* (unix:unix-getpid)))
@@ -187,14 +287,17 @@
 
 ;;; FORGET-REMOTE-TRANSLATION -- public
 ;;;
-;;;   Remove any translation information about the given object. If there is
+;;; Remove any translation information about the given object. If there is
 ;;; currenlt no translation for the object, don't bother doing anything.
-;;; Otherwise remove it from the *object-to-id* hashtable, and remove the id
-;;; from the *id-to-object* hashtable.
-
+;;; Otherwise remove it from the *object-to-id* hashtable, and remove the
+;;; id from the *id-to-object* hashtable.
+;;;
 (defun forget-remote-translation (local)
-  "Forget the translation from the given local to the corresponding remote
-object. Passing that remote object to remote-object-value will new return NIL."
+  "Update $local so that GC can reclaim the associated storage.
+
+   This should be used after the last reference $local.  If some remote
+   process does send a reference to $local, `remote-object-value' signals
+   an error."
   (let ((id (gethash local *object-to-id*)))
     (when id
       (remhash local *object-to-id*)
@@ -206,8 +309,9 @@ object. Passing that remote object to remote-object-value will new return NIL."
 
 ;;; WIRE-LISTEN -- public
 ;;;
-;;;   If nothing is in the current input buffer, select on the file descriptor.
-
+;;; If nothing is in the current input buffer, select on the file
+;;; descriptor.
+;;;
 (defun wire-listen (wire)
   "Return T iff anything is in the input buffer or available on the socket."
   (or (< (wire-ibuf-offset wire)
@@ -228,21 +332,20 @@ object. Passing that remote object to remote-object-value will new return NIL."
 
 ;;; FILL-INPUT-BUFFER -- Internal
 ;;;
-;;;   Fill the input buffer from the socket. If we get an error reading, signal
-;;; a wire-io-error. If we get an EOF, signal a wire-eof error. If we get any
-;;; data, set the ibuf-end index.
-
+;;; Fill the input buffer from the socket. If we get an error reading,
+;;; signal a wire-io-error. If we get an EOF, signal a wire-eof error. If
+;;; we get any data, set the ibuf-end index.
+;;;
 (defun fill-input-buffer (wire)
-  "Read data off the socket, filling the input buffer. The buffer is cleared
-first. If fill-input-buffer returns, it is guarenteed that there will be at
-least one byte in the input buffer. If EOF was reached, as wire-eof error
-is signaled."
+  "Read data off the socket, filling the input buffer. The buffer is
+   cleared first. If fill-input-buffer returns, it is guarenteed that there
+   will be at least one byte in the input buffer. If EOF was reached, as
+   wire-eof error is signaled."
   (setf (wire-ibuf-offset wire) 0
 	(wire-ibuf-end wire) 0)
   (let ((fd (wire-fd wire))
 	(ibuf (wire-ibuf wire)))
-    (unless ibuf
-      (error 'wire-eof :wire wire))
+    (or ibuf (error 'wire-eof :wire wire))
 
     (multiple-value-bind
 	(bytes error)
@@ -262,12 +365,12 @@ is signaled."
 
 ;;; WIRE-GET-BYTE -- public
 ;;;
-;;;   Check to see if there is anything in the input buffer. If not, use
-;;; FILL-INPUT-BUFFER to get something. Return the next byte, adjusting
-;;; the input offset index.
-
+;;; Check to see if there is anything in the input buffer. If not, use
+;;; FILL-INPUT-BUFFER to get something. Return the next byte, adjusting the
+;;; input offset index.
+;;;
 (defun wire-get-byte (wire)
-  "Return the next byte from the wire."
+  "Return the next byte from $wire."
   (when (<= (wire-ibuf-end wire)
 	    (wire-ibuf-offset wire))
     (fill-input-buffer wire))
@@ -278,12 +381,11 @@ is signaled."
 
 ;;; WIRE-GET-NUMBER -- public
 ;;;
-;;;   Just read four bytes and pack them together with normal math ops.
-
+;;; Just read four bytes and pack them together with normal math ops.
+;;;
 (defun wire-get-number (wire &optional (signed t))
-  "Read a number off the wire. Numbers are 4 bytes in network order.
-The optional argument controls weather or not the number should be considered
-signed (defaults to T)."
+  "Read a number off $wire.  Numbers are 4 bytes in network order.  If
+   $signed is true then consider the number signed."
   (let* ((b1 (wire-get-byte wire))
 	 (b2 (wire-get-byte wire))
 	 (b3 (wire-get-byte wire))
@@ -311,12 +413,12 @@ signed (defaults to T)."
 
 ;;; WIRE-GET-STRING -- public
 ;;;
-;;;   Use WIRE-GET-NUMBER to read the length, then keep pulling stuff out of
-;;; the input buffer and re-filling it with FILL-INPUT-BUFFER until we've read
-;;; the entire string.
-
+;;; Use WIRE-GET-NUMBER to read the length, then keep pulling stuff out of
+;;; the input buffer and re-filling it with FILL-INPUT-BUFFER until we've
+;;; read the entire string.
+;;;
 (defun wire-get-string (wire)
-  "Reads a string from the wire. The first four bytes spec the size."
+  "Read a string from $wire.  The first four bytes spec the size."
   (let* ((length (wire-get-number wire))
 	 (result (make-string length))
 	 (offset 0)
@@ -349,12 +451,13 @@ signed (defaults to T)."
 
 ;;; WIRE-GET-OBJECT -- public
 ;;;
-;;;   First, read a byte to determine the type of the object to read. Then,
-;;; depending on the type, call WIRE-GET-NUMBER, WIRE-GET-STRING, or whatever
-;;; to read the necessary data. Note, funcall objects are funcalled.
-
+;;; First, read a byte to determine the type of the object to read. Then,
+;;; depending on the type, call WIRE-GET-NUMBER, WIRE-GET-STRING, or
+;;; whatever to read the necessary data. Note, funcall objects are
+;;; funcalled.
+;;;
 (defun wire-get-object (wire)
-  "Reads the next object from the wire and returns it."
+  "Read the results of `wire-output-object' and return that object."
   (let ((identifier (wire-get-byte wire))
 	(*current-wire* wire))
     (declare (fixnum identifier))
@@ -454,8 +557,8 @@ signed (defaults to T)."
 
 ;;; WRITE-STUFF -- internal
 ;;;
-;;;   Slightly better interface to unix:unix-write. Choaks on errors.
-
+;;; Slightly better interface to unix:unix-write. Choaks on errors.
+;;;
 (defmacro write-stuff (fd string-form &optional end)
   (let ((string (gensym))
 	(length (gensym))
@@ -482,11 +585,14 @@ signed (defaults to T)."
 
 ;;; WIRE-FORCE-OUTPUT -- internal
 ;;;
-;;;   Output any stuff remaining in the output buffer.
-
+;;; Output any stuff remaining in the output buffer.
+;;;
 (defun wire-force-output (wire)
-  "Send any info still in the output buffer down the wire and clear it. Nothing
-harmfull will happen if called when the output buffer is empty."
+  "Flush all internal buffers associated with $wire, sending the remote
+   requests.
+
+   This is necessary after a call to `remote'.  It is safe to call this
+   when the output buffer is empty."
   (unless (zerop (wire-obuf-end wire))
     (write-stuff (wire-fd wire)
 		 (wire-obuf wire)
@@ -496,11 +602,11 @@ harmfull will happen if called when the output buffer is empty."
 
 ;;; WIRE-OUTPUT-BYTE -- public
 ;;;
-;;;   Stick the byte in the output buffer. If there is no space, flush the
+;;; Stick the byte in the output buffer. If there is no space, flush the
 ;;; buffer using WIRE-FORCE-OUTPUT.
-
+;;;
 (defun wire-output-byte (wire byte)
-  "Output the given (8-bit) byte on the wire."
+  "Output the (8-bit) byte $byte on the $wire."
   (declare (integer byte))
   (let ((fill-pointer (wire-obuf-end wire))
 	(obuf (wire-obuf wire)))
@@ -514,11 +620,11 @@ harmfull will happen if called when the output buffer is empty."
 
 ;;; WIRE-OUTPUT-NUMBER -- public
 ;;;
-;;;   Output the number. Note, we don't care if the number is signed or not,
+;;; Output the number. Note, we don't care if the number is signed or not,
 ;;; because we just crank out the low 32 bits.
 ;;;
 (defun wire-output-number (wire number)
-  "Output the given (32-bit) number on the wire."
+  "Output the (32-bit) number $number on $wire."
   (declare (integer number))
   (wire-output-byte wire (+ 0 (ldb (byte 8 24) number)))
   (wire-output-byte wire (ldb (byte 8 16) number))
@@ -545,12 +651,12 @@ harmfull will happen if called when the output buffer is empty."
 
 ;;; WIRE-OUTPUT-STRING -- public
 ;;;
-;;;   Output the string. Strings are represented by the length as a number,
+;;; Output the string. Strings are represented by the length as a number,
 ;;; followed by the bytes of the string.
 ;;;
 (defun wire-output-string (wire string)
-  "Output the given string. First output the length using WIRE-OUTPUT-NUMBER,
-then output the bytes."
+  "Output $string on $wire.  First output the length using
+   `wire-output-number', then output the bytes."
   (declare (simple-string string))
   (let ((length (length string)))
     (declare (integer length))
@@ -577,15 +683,21 @@ then output the bytes."
 
 ;;; WIRE-OUTPUT-OBJECT -- public
 ;;;
-;;;   Output the given object. If the optional argument is non-nil, cache
-;;; the object to enhance the performance of sending it multiple times.
+;;; Output the given object. If the optional argument is true, cache the
+;;; object to enhance the performance of sending it multiple times.
 ;;; Caching defaults to yes for symbols, and nil for everything else.
-
+;;;
 (defun wire-output-object (wire object &optional (cache-it (symbolp object)))
-  "Output the given object on the given wire. If cache-it is T, enter this
-object in the cache for future reference."
-  (let ((cache-index (gethash object
-			      (wire-object-hash wire))))
+  "Send OBJECT over WIRE preceded by a tag indicating its type.
+
+   If CACHE-IT is true, only send OBJECT the first time it gets OBJECT.
+   Each end of the wire associates a token with OBJECT, similar to
+   remote-objects, making the sending of object more efficient on
+   successive transmissions.  CACHE-IT falls back to t for symbols and ()
+   for other types.  Since the RPC level requires function names, a
+   high-level protocol based on a set of function calls saves time in
+   sending the functions' names repeatedly."
+  (let ((cache-index (gethash object (wire-object-hash wire))))
     (cond
      (cache-index
       (wire-output-byte wire lookup-op)
@@ -629,9 +741,9 @@ object in the cache for future reference."
 
 ;;; WIRE-OUTPUT-FUNCALL -- public
 ;;;
-;;;   Send the funcall down the wire. Arguments are evaluated locally in the
+;;; Send the funcall down the wire. Arguments are evaluated locally in the
 ;;; lexical environment of the WIRE-OUTPUT-FUNCALL.
-
+;;;
 (defmacro wire-output-funcall (wire-form function &rest args)
   "Send the function and args down the wire as a funcall."
   (let ((num-args (length args))

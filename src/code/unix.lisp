@@ -1,4 +1,4 @@
-;;; This file contains the UNIX low-level support.
+;;; This file contains the Unix low-level support.
 
 (in-package "UNIX")
 
@@ -805,8 +805,8 @@
 ;;; GET-UNIX-ERROR-MSG -- public.
 ;;;
 (defun get-unix-error-msg (&optional (error-number unix-errno))
-  "Returns a string describing the error number which was returned by a
-  UNIX system call."
+  "Return a string describing the error number which was returned by a Unix
+   system call."
   (declare (type integer error-number))
   (if (array-in-bounds-p *unix-errors* error-number)
       (svref *unix-errors* error-number)
@@ -1270,7 +1270,7 @@
 (defmacro unix-fast-select (num-descriptors
 			    read-fds write-fds exception-fds
 			    timeout-secs &optional (timeout-usecs 0))
-  "Perform the UNIX select(2) system call.
+  "Perform the Unix select(2) system call.
   (declare (type (integer 0 #.FD-SETSIZE) num-descriptors)
 	   (type (or (alien (* (struct fd-set))) null)
 		 read-fds write-fds exception-fds)
@@ -1309,9 +1309,9 @@
 			    ,(* index 32))))))
 
 (defun unix-select (nfds rdfds wrfds xpfds to-secs &optional (to-usecs 0))
-  "Unix-select examines the sets of descriptors passed as arguments
-   to see if they are ready for reading and writing.  See the UNIX
-   Programmers Manual for more information."
+  "Unix-select examines the sets of descriptors passed as arguments to see
+   if they are ready for reading and writing.  See the FIX Unix Programmers
+   Manual for more information."
   (declare (type (integer 0 #.FD-SETSIZE) nfds)
 	   (type unsigned-byte rdfds wrfds xpfds)
 	   (type (or (unsigned-byte 31) null) to-secs)
@@ -1615,7 +1615,7 @@
 
 (defun unix-ioctl (fd cmd arg)
   "Unix-ioctl performs a variety of operations on open i/o
-   descriptors.  See the UNIX Programmer's Manual for more
+   descriptors.  See the FIX Unix Programmer's Manual for more
    information."
   (declare (type unix-fd fd)
 	   (type (unsigned-byte 32) cmd))
@@ -1814,10 +1814,9 @@
 	   (slot ,buf 'st-blocks)))
 
 (defun unix-stat (name)
-  "Unix-stat retrieves information about the specified
-   file returning them in the form of multiple values.
-   See the UNIX Programmer's Manual for a description
-   of the values returned.  If the call fails, then NIL
+  "Unix-stat retrieves information about the specified file returning them
+   in the form of multiple values.  FIX See the Unix Programmer's Manual
+   for a description of the values returned.  If the call fails, then NIL
    and an error number is returned instead."
   (declare (type unix-pathname name))
   (when (string= name "")
@@ -1975,7 +1974,7 @@
 	      (addr tv)
 	      #-svr4 (addr tz))))
 
-;;; Unix-utimes changes the accessed and updated times on UNIX
+;;; Unix-utimes changes the accessed and updated times on Unix
 ;;; files.  The first argument is the filename (a string) and
 ;;; the second argument is a list of the 4 times- accessed and
 ;;; updated seconds and microseconds.
@@ -2544,7 +2543,7 @@
 (defconstant ITIMER-VIRTUAL 1)
 (defconstant ITIMER-PROF 2)
 
-(defun unix-getitimer(which)
+(defun unix-getitimer (which)
   "Unix-getitimer returns the INTERVAL and VALUE slots of one of
    three system timers (:real :virtual or :profile). On success,
    unix-getitimer returns 5 values,
@@ -2566,8 +2565,8 @@
 			(slot (slot itv 'it-value) 'tv-usec))
 		which (alien-sap (addr itv))))))
 
-(defun unix-setitimer(which int-secs int-usec val-secs val-usec)
-  " Unix-setitimer sets the INTERVAL and VALUE slots of one of
+(defun unix-setitimer (which int-secs int-usec val-secs val-usec)
+  "Unix-setitimer sets the INTERVAL and VALUE slots of one of
    three system timers (:real :virtual or :profile). A SIGALRM signal
    will be delivered VALUE <seconds+microseconds> from now. INTERVAL,
    when non-zero, is <seconds+microseconds> to be loaded each time

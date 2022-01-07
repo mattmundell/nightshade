@@ -30,7 +30,7 @@
   `(integer ,(- max-pc) ,max-pc))
 
 
-;;;; Byte functions:
+;;;; Byte functions.
 
 ;;; Abstract class represents any type of byte-compiled function.
 ;;;
@@ -128,7 +128,7 @@
 
 ;;; BYTE-FUNCTION-TYPE  --  Interface
 ;;;
-;;;    Return a function type approximating the type of a byte compiled
+;;; Return a function type approximating the type of a byte compiled
 ;;; function.  We really only capture the arg signature.
 ;;;
 (defun byte-function-type (x)
@@ -326,7 +326,7 @@
 
 
 
-;;;; System constants
+;;;; System constants.
 
 ;;; A table mapping system constant indices to run-time values.  We don't
 ;;; reference the compiler variable at load time, since the interpreter is
@@ -484,7 +484,7 @@
   (list '#:%unique-tag%))
 
 
-;;;; Two-arg function stubs:
+;;;; Two-arg function stubs.
 ;;;
 ;;; We have two-arg versions of some n-ary functions that are normally
 ;;; open-coded.
@@ -500,7 +500,7 @@
 (defun two-arg-string> (x y) (string= x y))
 
 
-;;;; Misc primitive stubs:
+;;;; Misc primitive stubs.
 
 (macrolet ((frob (name &optional (args '(x)))
 	     `(defun ,name ,args (,name ,@args))))
@@ -516,7 +516,7 @@
   (frob %SXHASH-SIMPLE-SUBSTRING (str count)))
 
 
-;;;; Funny functions:
+;;;; Funny functions.
 
 ;;; used by both byte and IR1 interpreters.
 ;;;
@@ -525,7 +525,7 @@
     (funcall fun)))
 
 
-;;;; XOPs
+;;;; XOPs.
 
 ;;; Extension operations (XOPs) are random magic things that the byte
 ;;; interpreter needs to do, but can't be represented as a function call.
@@ -870,11 +870,9 @@
       (push-eval-stack val))
     (byte-interpret component new-pc fp)))
 
-
 
-;;;; Type checking:
+;;;; Type checking.
 
-;;;
 ;;; These two hashtables map between type specifiers and type predicate
 ;;; functions that test those types.  They are initialized according to the
 ;;; standard type predicates of the target system.
@@ -894,7 +892,7 @@
 
 ;;; LOAD-TYPE-PREDICATE  --  Internal
 ;;;
-;;;    Called by the loader to convert a type specifier into a type predicate
+;;; Called by the loader to convert a type specifier into a type predicate
 ;;; (as used by the TYPE-CHECK XOP.)  If it is a structure type with a
 ;;; predicate or has a predefined predicate, then return the predicate
 ;;; function, otherwise return the CTYPE structure for the type.
@@ -915,10 +913,10 @@
 
 ;;; TYPE-CHECK -- Xop.
 ;;;
-;;;    Check the type of the value on the top of the stack.  The type is
-;;; designated by an entry in the constants.  If the value is a function, then
-;;; it is called as a type predicate.  Otherwise, the value is a CTYPE object,
-;;; and we call %TYPEP on it.
+;;; Check the type of the value on the top of the stack.  The type is
+;;; designated by an entry in the constants.  If the value is a function,
+;;; then it is called as a type predicate.  Otherwise, the value is a CTYPE
+;;; object, and we call %TYPEP on it.
 ;;;
 (define-xop type-check (component old-pc pc fp)
   (declare (type code-component component)
@@ -942,7 +940,6 @@
 
 
 ;;;; The byte-interpreter.
-
 
 ;;; The various operations are encoded as follows.
 ;;;
@@ -1175,11 +1172,10 @@
       (allocate-eval-stack stack-frame-size)
       (byte-interpret component entry-pc fp))))
 
-
 ;;; BYTE-APPLY  --  Internal
 ;;;
-;;;    Call a function with some arguments popped off of the interpreter stack,
-;;; and restore the SP to the specifier value.
+;;; Call a function with some arguments popped off of the interpreter
+;;; stack, and restore the SP to the specifier value.
 ;;;
 (defun byte-apply (function num-args restore-sp)
   (declare (function function) (type index num-args))
@@ -1210,7 +1206,6 @@
 		      (setf (current-stack-pointer) restore-sp)
 		      (funcall function ,@(args))))))
       (frob))))
-
 
 (defun do-call (old-component call-pc ret-pc old-fp num-args named)
   (declare (type code-component old-component)
@@ -1255,7 +1250,6 @@
 		   (old-component ret-pc old-fp)
 		 (byte-apply function num-args old-sp)))
 	      (byte-interpret old-component ret-pc old-fp)))))))
-
 
 (defun do-tail-call (component pc fp num-args named)
   (declare (type code-component component)
@@ -1500,4 +1494,3 @@
 	  (byte-interpret old-component (- old-pc) old-fp)))))
 
 ;(declaim (end-block byte-interpret byte-interpret-byte invoke-xep))
-

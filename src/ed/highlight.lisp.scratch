@@ -1,0 +1,119 @@
+(defun check-active-region-font-marks ()
+  (let* ((region (current-region nil nil))
+	 (end (region-end region))
+	 (first-active-mark (car *active-region-font-marks*))
+	 (last-active-mark (last *active-region-font-marks*)))
+    (with-mark ((mark (region-start region)))
+      (if (mark= mark end)
+	  (return-from check-active-region-font-marks))
+      (and first-active-mark
+	   last-active-mark
+	   (mark-line first-active-mark)
+	   (eq (current-buffer)
+	       (line-buffer (mark-line first-active-mark)))
+	   (mark= first-active-mark mark)
+	   (let ((marks (cdr *active-region-font-marks*)))
+	     (loop
+	       (or marks
+		   (let ((res (and (line-offset mark 1 0)
+				   (mark= mark end))))
+		     (when (and (not res)
+				(line-offset mark 1 0)
+				(mark= mark end)
+				(start-line-p (car last-active-mark)))
+		       (let* ((previous (line-previous
+					 (mark-line mark)))
+			      (fmark (font-mark
+				      previous
+				      0
+				      *active-region-highlight-font*))
+			      (last-chi-mark (last-chi-mark end0)))
+			 (setq *highlighted-region* region)
+			 (active-highlight-chi-marks
+			  (region fmark end))
+			 (setf (font-mark-fore-color fmark)
+			       (color
+				(value
+				 active-region-highlight-foreground)))
+			 (setf (font-mark-back-color fmark)
+			       (color
+				(value
+				 active-region-highlight-background)))
+			 (setf (cdr last-active-mark) (list fmark)))
+		       (return t))
+		     (return res)))
+	       (let ((fmark (car marks)))
+		 (if (line-offset mark 1 0)
+		     (cond ((fi (mark= mark fmark))
+			    (return (and (not (cdr marks))
+					 (not (start-line-p fmark))
+					 (mark= fmark end))))
+			   ((mark>= mark end)
+			    (return nil))
+			   (t (setf marks (cdr marks))))
+
+		     (return (and (not (cdr marks))
+				  (not (start-line-p fmark))
+				  (mark= fmark end)))))))))))
+
+--
+
+#|
+(defmacro highlight-visible-chi-buffer (buffer line-highlight-fun)
+  "Highlight context in visible portions of Buffer.  Line-highlight-fun is
+   called on each line that needs updating."
+  `(dolist (window (buffer-windows ,buffer))
+     (let ((*in-string*)
+	   (*in-comment*)
+	   (line (mark-line (window-display-start window)))
+	   (height (window-height window)))
+       (or (eq (hi::window-first-changed window) hi::the-sentinel)
+	   (progn
+	     ;; Move to the first changed line.
+	     (loop while (and (> height 0) line (line-same-p line)) do
+	       (decf height)
+	       (setq line (line-next line)))
+	     (when (and line (> height 0))
+	       ;; Setup string and comment context from the least previous
+	       ;; up-to-date line.
+	       (let ((previous (line-previous line)))
+		 (loop while previous do
+		   (if (line-same-p previous) (return))
+		   (setq previous (line-previous previous)))
+		 (when previous
+		   (let ((chi-info (getf (line-plist previous) 'chi-info)))
+		     (when chi-info
+		       (setq *in-string* (chi-info-ending-quoted chi-info))
+		       (setq *in-comment* (chi-info-ending-commented chi-info))))
+		   (setq line (line-next line))))
+	       ;; Call the highlighter on each line.
+	       (loop while (and (> height 0) line) do
+		 (decf height)
+		 (ensure-chi-info line)
+		 (let* ((chi-info (getf (line-plist line) 'chi-info))
+			(*last-used-mark*
+			 (cons () (chi-info-font-marks chi-info))))
+		   (setf (chi-info-begins-quoted chi-info) *in-string*)
+		   (setf (chi-info-begins-commented chi-info) *in-comment*)
+		   ,(list line-highlight-fun 'line 'chi-info)
+		   (setf (chi-info-ending-quoted chi-info) *in-string*)
+		   (setf (chi-info-ending-commented chi-info) *in-comment*)
+		   (setf (chi-info-signature chi-info)
+			 (line-signature line))
+		   ;; Free any remaining font marks.
+		   (when (cdr *last-used-mark*)
+		     (dolist (old-mark (cdr *last-used-mark*))
+		       (delete-font-mark old-mark))
+		     (if (car *last-used-mark*)
+			 (setf (cdr *last-used-mark*) nil)
+			 (setf (chi-info-font-marks chi-info) nil))))
+		 ;; FIX + If the line is the same as it was before then skip to the
+		 ;; next changed line?
+		 (setq line (line-next line)))
+	       ;; Clear the signature on the line following the window, so that
+	       ;; the next highlighting continues from there.
+	       (when line
+		 (ensure-chi-info line)
+		 (let ((chi-info (getf (line-plist line) 'chi-info)))
+		   (setf (chi-info-signature chi-info) nil)))))))))
+|#

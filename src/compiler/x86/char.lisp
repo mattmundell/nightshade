@@ -1,31 +1,9 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/char.lisp,v 1.1.2.1 1998/06/23 11:24:00 pw Exp $")
-;;;
-;;; **********************************************************************
-;;; 
-;;; This file contains the x86 VM definition of character operations.
-;;;
-;;; Written by Rob MacLachlan
-;;; Converted for the MIPS R2000 by Christopher Hoover.
-;;; And then to the SPARC by William Lott.
-;;; And then to the x86, again by William.
-;;;
-;;; Debugged by Paul F. Werkowski, June-95.
-;;; Enhancements/debugging by Douglas T. Crosher 1996,1997.
-;;;
+;;; The x86 VM definition of character operations.
 
-(in-package :x86)
+(in-package "X86")
 
 
-;;;; Moves and coercions:
+;;;; Moves and coercions.
 
 ;;; Move a tagged char to an untagged representation.
 ;;;
@@ -44,7 +22,6 @@
 ;;;
 (define-move-vop move-to-base-char :move
   (any-reg control-stack) (base-char-reg base-char-stack))
-
 
 ;;; Move an untagged char to a tagged representation.
 ;;;
@@ -83,7 +60,6 @@
 (define-move-vop base-char-move :move
   (base-char-reg) (base-char-reg base-char-stack))
 
-
 ;;; Move untagged base-char arguments/return-values.
 ;;;
 (define-vop (move-base-char-argument)
@@ -105,16 +81,14 @@
 (define-move-vop move-base-char-argument :move-argument
   (any-reg base-char-reg) (base-char-reg))
 
-
 ;;; Use standard MOVE-ARGUMENT + coercion to move an untagged base-char
 ;;; to a descriptor passing location.
 ;;;
 (define-move-vop move-argument :move-argument
   (base-char-reg) (any-reg descriptor-reg))
 
-
 
-;;;; Other operations:
+;;;; Other operations.
 
 (define-vop (char-code)
   (:translate char-code)
@@ -169,4 +143,3 @@
 (define-vop (fast-char>/base-char base-char-compare)
   (:translate char>)
   (:variant :a :na))
-

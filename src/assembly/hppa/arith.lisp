@@ -1,18 +1,4 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/hppa/arith.lisp,v 1.8 1994/10/31 04:56:18 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Stuff to handle simple cases for generic arithmetic.
-;;;
-;;; Written by William Lott.
-;;;
 
 (in-package "HPPA")
 
@@ -64,7 +50,6 @@
   (inst xor res sign res)
   (inst add res sign res))
 
-
 #+assembler
 (define-assembly-routine
     (truncate)
@@ -73,7 +58,7 @@
 
      (:res quo signed-reg nl2-offset)
      (:res rem signed-reg nl3-offset))
-  
+
   ;; Move abs(divident) into quo.
   (inst move dividend quo :>=)
   (inst sub zero-tn quo quo)
@@ -101,7 +86,6 @@
   (inst sub zero-tn quo quo)
   (inst move dividend zero-tn :>=)
   (inst sub zero-tn rem rem))
-
 
 
 ;;;; Generic arithmetic.
@@ -164,7 +148,6 @@
   (inst bv lip)
   (inst move csp-tn cfp-tn))
 
-
 
 ;;;; Comparison routines.
 
@@ -178,9 +161,9 @@
 				  (:save-p t))
 				 ((:arg x (descriptor-reg any-reg) a0-offset)
 				  (:arg y (descriptor-reg any-reg) a1-offset)
-				  
+
 				  (:res res descriptor-reg a0-offset)
-				  
+
 				  (:temp lip interior-reg lip-offset)
 				  (:temp lra descriptor-reg lra-offset)
 				  (:temp nargs any-reg nargs-offset)
@@ -205,7 +188,6 @@
   (define-cond-assem-rtn generic-< < two-arg-< :<)
   (define-cond-assem-rtn generic-> > two-arg-> :>))
 
-
 (define-assembly-routine
     (generic-eql
      (:cost 10)
@@ -215,9 +197,9 @@
      (:save-p t))
     ((:arg x (descriptor-reg any-reg) a0-offset)
      (:arg y (descriptor-reg any-reg) a1-offset)
-     
+
      (:res res descriptor-reg a0-offset)
-     
+
      (:temp lip interior-reg lip-offset)
      (:temp lra descriptor-reg lra-offset)
      (:temp nargs any-reg nargs-offset)
@@ -252,9 +234,9 @@
      (:save-p t))
     ((:arg x (descriptor-reg any-reg) a0-offset)
      (:arg y (descriptor-reg any-reg) a1-offset)
-     
+
      (:res res descriptor-reg a0-offset)
-     
+
      (:temp lip interior-reg lip-offset)
      (:temp lra descriptor-reg lra-offset)
      (:temp nargs any-reg nargs-offset)

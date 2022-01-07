@@ -1,5 +1,3 @@
-;;; -*- Package: User -*-
-;;;
 ;;; Build all the Lisp code.
 ;;;
 ;;; Intended for a command like
@@ -67,12 +65,15 @@
   (preserve-logs target)
   (when (find-package "INTERFACE")
     (set (intern "*INTERFACE-STYLE*" "INTERFACE") :tty))
-; FIX some nice way of controlling the features per-invocation
-;   (setf *features*
-; 	(set-difference (list* $features *features*) '($misfeatures)))
+
   (setf (search-list "target:") `(,target ,src))
 
-  (format t "Loading setup...")
+  (format t "*features*: ~A~%" *features*)
+  (format t "Loading features...~%")
+  (load (open "target:features.lisp"))
+  (format t "*features*: ~A~%" *features*)
+
+  (format t "Loading setup...~%")
   (setq *compile-verbose* nil *compile-print* nil)
   (load "target:tools/setup" :if-source-newer :load-source)
   (setf *interactive* nil *gc-verbose* nil)
@@ -102,4 +103,3 @@
     (load "target:tools/worldbuild")))
 
 (build-world src target systems)
-;(quit)

@@ -12,26 +12,87 @@
 	  commandp command command-function command-documentation
 	  modeline-field modeline-field-p))
 
+#[ Representation of Text
+
+[ Lines   ]
+[ Marks   ]
+[ Regions ]
+]#
+
 
 ;;;; Marks.
+
+#[ Marks
+
+A mark indicates a specific position within the text represented by a line
+and a character position within that line.  Although a mark is sometimes
+loosely referred to as pointing to some character, it in fact points
+between characters.  If the charpos (the column) is zero, the previous
+character is the newline character separating the previous line from the
+mark's line.  If the charpos is equal to the number of characters in the
+line, the next character is the newline character separating the current
+line from the next.  If the mark's line is the first line in a buffer, a
+mark with charpos of zero has no previous character; if the mark's line is
+the last line in the buffer, a mark with charpos equal to the length of the
+line has no next character.
+
+This section discusses the very basic operations involving marks.  A lot
+of editor programming is built on altering some text at a mark.  Extended
+uses of marks is described in chapter FIX [doing-stuff].
+
+(FIX this is being reconsidered, as the implementation increases mark sizes)
+Marks are also [Streams], so a buffer can be modified by using the stream
+functions on a mark.
+
+[ Kinds of Marks ]
+[ Mark Functions ]
+[ Making Marks   ]
+[ Moving Marks   ]
+]#
+
+#[ Kinds of Marks
+
+A mark may have one of two lifetimes: temporary or permanent.
+Permanent marks remain valid after arbitrary operations on the text; temporary
+marks do not.  Temporary marks are used because less bookkeeping overhead is
+involved in their creation and use.  If a temporary mark is used after the text
+it points to has been modified results will be unpredictable.  Permanent marks
+continue to point between the same two characters regardless of insertions and
+deletions made before or after them.
+
+There are two different kinds of permanent marks which differ only in their
+behavior when text is inserted at the position of the mark; text is
+inserted to the left of a left-inserting mark and to the right of
+right-inserting mark.
+]#
 
 (defstruct (mark (:print-function %print-hmark)
 		 (:predicate markp)
 		 (:copier nil)
+		 ;; FIX this greatly increases the size of a mark
+		 (:include lisp-stream
+			   (in #'mark-stream-read-char)
+			   (out #'insert-character)
+			   (sout #'insert-string)
+			   (misc #'mark-stream-handle-misc))
 		 (:constructor internal-make-mark (line charpos %kind)))
   "An editor mark object."
-  line					; pointer to line
-  charpos				; character position
-  %kind)				; type of mark
+  line     ; pointer to line
+  charpos  ; character position
+  %kind)   ; type of mark
 
 (setf (documentation 'markp 'function)
-  "Returns true if its argument is an editor mark object, false otherwise.")
+  "Return true if mark is an editor $mark, false otherwise.")
 (setf (documentation 'mark-line 'function)
-  "Returns line that an editor mark points to.")
+  "Return the line that $mark points to.")
 (setf (documentation 'mark-charpos 'function)
-  "Returns the character position of an editor mark.
-  A mark's character position is the index within the line of the character
-  following the mark.")
+  "Return the character position of $mark.  A mark's character position is
+   the index within the mark's line of the character following the mark (or
+   the character that would follow mark if it the last character in the
+   buffer).")
+(setf (documentation 'mark-kind 'function)
+  "Return one of :right-inserting, :left-inserting or :temporary depending
+   on the mark's kind.")
 
 (defstruct (font-mark (:print-function
 		       (lambda (s stream d)
@@ -46,13 +107,30 @@
 		      (:copier nil)
 		      (:constructor internal-make-font-mark
 				    (line charpos %kind font)))
-  font)
+  font
+  fore-color
+  back-color)
 
 (defmacro fast-font-mark-p (s)
   `(typep ,s 'font-mark))
 
 
 ;;;; Regions, buffers, modeline fields.
+
+#[ Regions
+
+A region is simply a pair of marks: a starting mark and an ending mark.
+The text in a region consists of the characters following the starting
+mark and preceding the ending mark (keep in mind that a mark points between
+characters on a line, not at them).
+
+By modifying the starting or ending mark in a region it is possible to
+produce regions with a start and end which are out of order or even in
+different buffers.  The use of such regions is undefined and may
+result in arbitrarily bad behavior.
+
+[ Region Functions ]
+]#
 
 ;;; The region object:
 ;;;
@@ -65,14 +143,42 @@
   end)					; ending mark
 
 (setf (documentation 'regionp 'function)
-  "Returns true if its argument is an editor region object, Nil otherwise.")
+  "Return true if $region is an region object, else ().")
 (setf (documentation 'region-end 'function)
-  "Returns the mark that is the end of an editor region.")
+  "Return the mark that is the end of $region.")
 (setf (documentation 'region-start 'function)
-  "Returns the mark that is the start of an editor region.")
+  "Return the mark that is the start of region.")
 
+#[ Buffers (extension)
 
-;;; The buffer object:
+A buffer is an environment within the editor consisting of:
+
+  * A name.
+
+  * A piece of text.
+
+  * A current focus of attention, the point.
+
+  * An associated file (optional).
+
+  * A write protect flag.
+
+  * Some editor variables.
+
+  * Some key bindings.
+
+  * Some collection of modes.
+
+  * Some windows in which it is displayed.
+
+  * A list of modeline fields (optional).
+
+[ The Current Buffer ]
+[ Buffer Functions   ]
+[ Modelines          ]
+]#
+
+;;; The buffer structure.
 ;;;
 (defstruct (buffer (:constructor internal-make-buffer)
 		   (:print-function %print-hbuffer)
@@ -99,25 +205,88 @@
                               ;     buffer, for modeline field.
   (delete-hook nil))	      ; List of functions to call upon deletion.
 
+(setf (documentation 'bufferp 'function)
+  "Returns true if $buffer is a buffer object, else ().")
 (setf (documentation 'buffer-modes 'function)
-  "Return the list of the names of the modes active in a given buffer.")
+  "Return a list of the names of the [modes] active in $buffer, with the
+   major mode first, followed by any minor modes. ")
 (setf (documentation 'buffer-point 'function)
-  "Return the mark that is the current focus of attention in a buffer.")
+  "Return the mark that is the current location within $buffer.  To move
+   the point, use `move-mark' or `move-to-position' rather than setting
+   buffer-point with `setf'.")
 (setf (documentation 'buffer-windows 'function)
-  "Return the list of windows that are displaying a given buffer.")
+  "Return a list of all the windows in which $buffer may be displayed.
+   This list may include windows which are currently out of view.
+   [Windows] discusses windows.")
 (setf (documentation 'buffer-variables 'function)
-  "Return the string-table of the variables local to the specifed buffer.")
+  "Return the [string-table] containing the names of the [variables] local to
+   $buffer.")
 (setf (documentation 'buffer-write-date 'function)
-  "Return in universal time format the write date for the file associated
-   with the buffer.  If the pathname is set, then this should probably
-   be as well.  Should be NIL if the date is unknown or there is no file.")
+  "Return in universal time format the write date of the file associated
+   with the buffer.  Only set if there is a file or if the date is known.")
 (setf (documentation 'buffer-delete-hook 'function)
-  "This is the list of buffer specific functions that the editor invokes
-   when deleting this buffer.")
+  "Return the list of buffer specific functions that delete-buffer invokes
+   when deleting $buffer.  This is `setf'able.")
 (setf (documentation 'buffer-line-count 'function)
  "The number of lines in the buffer, for modeline fields.  Updated on
   certain hooks.")
 
+#[ Modelines
+
+A Buffer may specify a modeline, a line of text which is displayed across the
+bottom of a window to indicate status information.  Modelines are described as
+a list of modeline-field objects which have individual update functions and
+are optionally fixed-width.  These have an eql name for convenience in
+referencing and updating, but the name must be unique for all created
+modeline-field objects.  When creating a modeline-field with a specified width,
+the result of the update function is either truncated or padded on the right to
+meet the constraint.  All modeline-field functions must return simple strings
+with standard characters, and these take a buffer and a window as arguments.
+Modeline-field objects are typically shared amongst, or aliased by, different
+buffers' modeline fields lists.  These lists are unique allowing fields to
+behave the same wherever they occur, but different buffers may display these
+fields in different arrangements.
+
+Whenever one of the following changes occurs, all of a buffer's modeline fields
+are updated:
+
+  - A buffer's major mode is set.
+
+  - One of a buffer's minor modes is turned on or off.
+
+  - A buffer is renamed.
+
+  - A buffer's pathname changes.
+
+  - A buffer's modified status changes.
+
+  - A window's buffer is changed.
+
+The policy is that whenever one of these changes occurs, it is guaranteed that
+the modeline will be updated before the next trip through redisplay.
+Furthermore, since the system cannot know what modeline-field objects the
+user has added whose update functions rely on these values, or how he has
+changed `Default Modeline Fields', we must update all the fields.  When any
+but the last occurs, the modeline-field update function is invoked once for
+each window into the buffer.  When a window's buffer changes, each
+modeline-field update function is invoked once; other windows' modeline
+fields should not be affected due to a given window's buffer changing.
+
+The user should note that modelines can be updated at any time, so update
+functions should be careful to avoid needless delays (for example, waiting for
+a local area network to determine information).
+
+{function:ed:make-modeline-field}
+{function:ed:modeline-field-p}
+{function:ed:modeline-field-name}
+{function:ed:modeline-field}
+{function:ed:modeline-field-function}
+{function:ed:modeline-field-width}
+{function:ed:buffer-modeline-fields}
+{function:ed:buffer-modeline-field-p}
+{function:ed:update-modeline-fields}
+{function:ed:update-modeline-field}
+]#
 
 ;;; Modeline fields.
 ;;;
@@ -130,7 +299,7 @@
   %width)	; Width to display this field in.
 
 (setf (documentation 'modeline-field-p 'function)
-      "Returns true if its argument is a modeline field object, nil otherwise.")
+  "Return true if $x d is a modeline-field, else return ().")
 
 (defstruct (modeline-field-info (:print-function print-modeline-field-info)
 				(:conc-name ml-field-info-)
@@ -139,14 +308,14 @@
   (start nil)
   (end nil))
 
-
 
 ;;;; The mode object.
 
 (defstruct (mode-object (:predicate modep)
 			(:copier nil)
-			(:print-function %print-hemlock-mode))
+			(:print-function %print-editor-mode))
   name                   ; name of this mode
+  short-name             ; short name, for the modeline
   setup-function         ; setup function for this mode
   cleanup-function       ; Cleanup function for this mode
   bindings               ; The mode's command table.
@@ -159,19 +328,18 @@
   var-values             ; Alist for saving mode variables
   documentation)         ; Introductory comments for mode describing commands.
 
-(defun %print-hemlock-mode (object stream depth)
+(defun %print-editor-mode (object stream depth)
   (declare (ignore depth))
   (write-string "#<Editor Mode \"" stream)
   (write-string (mode-object-name object) stream)
   (write-string "\">" stream))
-
 
 
 ;;;; Variables.
 
 ;;; This holds information about editor variables, and the system stores
 ;;; these structures on the property list of the variable's symbolic
-;;; representation under the 'hemlock-variable-value property.
+;;; representation under the 'editor-variable-value property.
 ;;;
 (defstruct (variable-object
 	    (:print-function
@@ -185,8 +353,8 @@
   hooks		; The hook list for this variable.
   down		; The variable-object for the previous value.
   documentation ; The documentation.
+  source        ; The file or buffer from which this variable was defined.
   name)		; The string name.
-
 
 
 ;;;; Windows, dis-lines, and font-changes.
@@ -216,32 +384,53 @@
   modeline-dis-line		; Dis-line for modeline display.
   modeline-buffer		; Complete string of all modeline data.
   modeline-buffer-len           ; Valid chars in modeline-buffer.
+  modeline-fore-color           ; Foreground editor color of modeline.
+  modeline-back-color           ; Background editor color of modeline.
   (line-number 0)               ; Periodically updated line number of buffer
                                 ;    point, for modeline field.
   (display-recentering nil))	; Tells whether redisplay recenters window
 				;    regardless of whether it is current.
 
 (setf (documentation 'windowp 'function)
-  "Returns true if its argument is an editor window object, Nil otherwise.")
+  "Return true if $window is an editor window, else ().")
 (setf (documentation 'window-height 'function)
-  "Return the height of an editor window in character positions.")
+  "Return the height of the area of $window used for displaying the buffer,
+   in character positions.
+
+   May be changed with `setf'.")
 (setf (documentation 'window-width 'function)
-  "Return the width of an editor window in character positions.")
+  "Return the width of the area of $window used for displaying the buffer,
+   in character positions.
+
+   May be changed with `setf'.")
 (setf (documentation 'window-display-start 'function)
-  "Return the mark which points before the first character displayed in
-   the supplied window.")
+  "Return the mark that points before the first character displayed in
+   $window.
+
+   If window is the current window, then moving the start may leave the
+   window in place, since recentering may move it back to approximately
+   where it was originally.")
 (setf (documentation 'window-display-end 'function)
-  "Return the mark which points after the last character displayed in
-   the supplied window.")
+  "Return the mark that points after the last character displayed in
+   $window.
+
+   Redisplay always moves the display end to after the last character
+   displayed.")
 (setf (documentation 'window-point 'function)
- "Return the mark that points to where the cursor is displayed in this
-  window.  When the window is made current, the Buffer-Point of this window's
-  buffer is moved to this position.  While the window is current, redisplay
-  makes this mark point to the same position as the Buffer-Point of its
-  buffer.")
+  "Return as a mark the position in the buffer in $window where the cursor
+   is displayed.
+
+   This may be set with `setf'.  If $window is the current window, then
+   setting the point will have little effect as $window is forced to track
+   the buffer point.  For other windows, the window point is the position
+   that the buffer point will be moved to when the window becomes
+   current.")
 (setf (documentation 'window-display-recentering 'function)
- "This determines whether redisplay recenters window regardless of whether it
-  is current.  This is SETF'able.")
+ "Return whether redisplay ensures that the the point in the buffer in
+  $window is visible after redisplay.
+
+  This is `setf'able.  Changing window's buffer sets this to nil via
+  *Window Buffer Hook*.")
 (setf (documentation 'window-line-number 'function)
  "The line number of the buffer point, for modeline fields.  Updated on
   certain hooks.")
@@ -268,23 +457,23 @@
 			(:constructor make-font-change (next)))
   x			      ; X position that change takes effect.
   font			      ; Index into font-map of font to use.
+  fore-color                  ; Color (structure) to draw text.
+  back-color                  ; Color (structure) to paint background.
   next			      ; The next Font-Change on this dis-line.
   mark)			      ; Font-Mark responsible for this change.
-
 
 
 ;;;; Font family.
 
 (defstruct font-family
   map			; Font-map for hunk.
-  height		; Height of char box includung VSP.
+  height		; Height of char box includung VSP. FIX vsp?
   width			; Width of font.
   baseline		; Pixels from top of char box added to Y.
   cursor-width		; Pixel width of cursor.
   cursor-height		; Pixel height of cursor.
   cursor-x-offset	; Added to pos of UL corner of char box to get
   cursor-y-offset)	; UL corner of cursor blotch.
-
 
 
 ;;;; Attribute descriptors.
@@ -301,7 +490,6 @@
   hooks
   end-value)
 
-
 
 ;;;; Commands.
 
@@ -310,19 +498,20 @@
 		    (:copier nil)
 		    (:predicate commandp)
 		    (:print-function %print-hcommand))
-  %name				   ;The name of the command
-  documentation			   ;Command documentation string or function
-  function			   ;The function which implements the command
-  %bindings)			   ;Places where command is bound
+  %name		   ; The name of the command
+  documentation	   ; Command documentation string or function
+  function	   ; The function which implements the command
+  %bindings)	   ; Places where command is bound
 
 (setf (documentation 'commandp 'function)
-  "Returns true if its argument is an editor command object, Nil
-   otherwise.")
+  "Returns true if the argument is an editor command, () otherwise.")
 (setf (documentation 'command-documentation 'function)
-  "Return the documentation for an editor command, given the
-   command-object.  Command documentation may be either a string or a
-   function.  This may be set with Setf.")
-
+  "Return the documentation for an editor command.  Command documentation
+   may be either a string or a function.  This may be set with Setf.")
+(setf (documentation 'command-function 'function)
+  "Return the function for an editor command.  This may be set with Setf.")
+(setf (documentation 'command-name 'function)
+  "Return the name for an editor command.  This may be set with Setf.")
 
 
 ;;;; Random typeout streams.
@@ -344,7 +533,6 @@
   (format stream "#<Editor Random-Typeout-Stream ~S>"
 	  (buffer-name
 	   (line-buffer (mark-line (random-typeout-stream-mark object))))))
-
 
 
 ;;;; Redisplay devices.
@@ -381,6 +569,10 @@
 			;       &optional modeline-string modeline-function
   delete-window		; fun to remove a window from the screen.
 			; args: window
+  set-foreground-color  ; fun to set foreground color
+			; args: window color
+  set-background-color  ; fun to set background color
+			; args: window color
   random-typeout-setup	; fun to prepare for random typeout.
   			; args: device n
   random-typeout-cleanup; fun to clean up after random typeout.
@@ -389,11 +581,13 @@
   random-typeout-full-more ; fun to do full-buffered  more-prompting.
 			   ; args: # of newlines in the object just inserted
 			   ;    in the buffer.
-  force-output		; if non-nil, fun to force any output possibly buffered.
-  finish-output		; if non-nil, fun to force output and hand until done.
+  force-output		; if true, fun to force any output possibly buffered.
+  finish-output		; if true, fun to force output and hand until done.
   			; args: device window
   beep			; fun to beep or flash the screen.
   bottom-window-base    ; bottom text line of bottom window.
+  make-color            ; fun to make a new color.
+                        ; args: device color
   hunks)		; list of hunks on the screen.
 
 (defun print-device (obj str n)
@@ -402,9 +596,9 @@
 
 
 (defstruct (bitmap-device #|(:print-function print-device)|#
+			  (:constructor %make-bitmap-device)
 			  (:include device))
   display)		      ; CLX display object.
-
 
 (defstruct (tty-device #|(:print-function print-device)|#
 		       (:constructor %make-tty-device)
@@ -422,6 +616,8 @@
 			; args: hunk x y n
   clear-to-eol		; fun to clear to the end of a line from (x,y).
 			; args: hunk x y
+  space-to-eol		; fun to clear to the end of a line with spaces.
+			; args: hunk x y &optional back-color
   clear-to-eow		; fun to clear to the end of a window from (x,y).
 			; args: hunk x y
   open-line		; fun to open a line moving lines below it down.
@@ -459,8 +655,8 @@
   cm-string1		; initial substring of cursor motion string.
   cm-string2		; substring of cursor motion string between coordinates.
   cm-string3		; substring of cursor motion string after coordinates.
-  cm-one-origin		; non-nil if need to add one to coordinates.
-  cm-reversep		; non-nil if need to reverse coordinates.
+  cm-one-origin		; true if need to add one to coordinates.
+  cm-reversep		; true if need to reverse coordinates.
   (cm-x-pad nil)	; nil, 0, 2, or 3 for places to pad.
 			; 0 sends digit-chars.
   (cm-y-pad nil)	; nil, 0, 2, or 3 for places to pad.
@@ -519,7 +715,6 @@
 		 (buffer (if window (window-buffer window))))
 	    (if buffer (buffer-name buffer)))))
 
-
 ;;; Bitmap hunks.
 ;;;
 ;;; The lock field is no longer used.  If events could be handled while we
@@ -545,14 +740,14 @@
   (thumb-bar-p nil)	      ; True if we draw a thumb bar in the top border.
   window-group)		      ; The window-group to which this hunk belongs.
 
-
 ;;; Terminal hunks.
 ;;;
 (defstruct (tty-hunk #|(:print-function %print-device-hunk)|#
 		     (:include device-hunk))
   text-position		; Bottom Y position of text in hunk.
-  text-height)		; Number of lines of text.
-
+  text-height		; Number of lines of text.
+  foreground-color
+  background-color)
 
 
 ;;;; Some defsetfs:
@@ -591,14 +786,20 @@
   "Set a editor variable's documentation."
   `(%set-variable-documentation ,name ,kind ,where ,new-value))
 
+(defsetf variable-source (name &optional (kind :current) where) (new-value)
+  "Set a editor variable's source."
+  `(%set-variable-source ,name ,kind ,where ,new-value))
+
 (defsetf buffer-minor-mode %set-buffer-minor-mode
   "Turn a buffer minor mode on or off.")
 (defsetf buffer-major-mode %set-buffer-major-mode
   "Set a buffer's major mode.")
 (defsetf previous-character %set-previous-character
-  "Sets the character to the left of the given Mark.")
+  "Sets the character previous to the given $mark.  Signal an error if
+   $mark is before the first character.")
 (defsetf next-character %set-next-character
-  "Sets the characters to the right of the given Mark.")
+  "Set the character following the given $mark.  Signal an error if mark is
+   after the last character.")
 (defsetf character-attribute %set-character-attribute
   "Set the value for a character attribute.")
 (defsetf character-attribute-hooks %set-character-attribute-hooks
@@ -606,8 +807,8 @@
 (defsetf ring-ref %set-ring-ref "Set an element in a ring.")
 (defsetf current-window %set-current-window "Set the current window.")
 (defsetf current-buffer %set-current-buffer
-  "Set the current buffer, doing necessary stuff.")
-(defsetf mark-kind %set-mark-kind "Used to set the kind of a mark.")
+  "Set the current buffer, FIX doing necessary stuff.")
+(defsetf mark-kind %set-mark-kind "Set the kind of mark.")
 (defsetf buffer-region %set-buffer-region "Set a buffer's region.")
 (defsetf command-name %set-command-name
   "Change an editor command's name.")

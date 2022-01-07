@@ -174,7 +174,7 @@ lra
  * Call-into-C
  */
 
-	
+
 	.export call_into_c
 call_into_c
 	/* Set up a lisp stack frame.  Note: we convert the raw return pc into

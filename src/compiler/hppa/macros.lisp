@@ -1,20 +1,6 @@
-;;; -*- Package: hppa -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/macros.lisp,v 1.4 1994/10/31 04:42:45 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains various useful macros for generating HP-PA code.
-;;;
-;;; Written by William Lott.
-;;;
+;;; Various useful macros for generating HP-PA code.
 
-(in-package :hppa)
+(in-package "HPPA")
 
 
 ;;; Instruction-like macros.
@@ -60,8 +46,8 @@
     (:big-endian
      `(inst ldb (+ ,offset 3) ,source ,target))))
 
-;;; Macros to handle the fact that we cannot use the machine native call and
-;;; return instructions. 
+;;; Macros to handle the fact that we cannot use the machine native call
+;;; and return instructions.
 
 (defmacro lisp-jump (function)
   "Jump to the lisp function FUNCTION.  LIP is an interior-reg temporary."
@@ -113,7 +99,6 @@
 	 ((control-stack)
 	  (storew reg cfp-tn offset))))))
 
-
 ;;; MAYBE-LOAD-STACK-TN  --  Interface
 ;;;
 (defmacro maybe-load-stack-tn (reg reg-or-stack)
@@ -129,7 +114,7 @@
 	   (loadw ,n-reg cfp-tn (tn-offset ,n-stack))))))))
 
 
-;;;; Storage allocation:
+;;;; Storage allocation.
 
 (defmacro with-fixed-allocation ((result-tn temp-tn type-code size)
 				 &body body)
@@ -148,7 +133,7 @@
        ,@body)))
 
 
-;;;; Error Code
+;;;; Error Code.
 
 (defvar *adjustable-vectors* nil)
 
@@ -190,7 +175,6 @@
   (cons 'progn
 	(emit-error-break vop error-trap error-code values)))
 
-
 (defmacro cerror-call (vop label error-code &rest values)
   "Cause a continuable error.  If the error is continued, execution resumes at
   LABEL."
@@ -222,7 +206,6 @@
 	   (cerror-call ,vop ,continue ,error-code ,@values)
 	   ,error)))))
 
-
 
 ;;; PSEUDO-ATOMIC -- Handy macro for making sequences look atomic.
 ;;;
@@ -233,9 +216,8 @@
        ,@forms
        (inst addit (- ,n-extra 4) alloc-tn alloc-tn :od))))
 
-
 
-;;;; Indexed references:
+;;;; Indexed references.
 
 (deftype load/store-index (scale lowtag min-offset
 				 &optional (max-offset min-offset))
@@ -312,7 +294,6 @@
        (:generator 1
 	 (inst stw value (- (* (+ ,offset index) word-bytes) ,lowtag) object)
 	 (move value result)))))
-
 
 (defmacro define-partial-reffer (name type size signed offset lowtag scs
 				      el-type &optional translate)
@@ -395,4 +376,3 @@
 		 (- (+ (* ,offset word-bytes) (* index ,scale)) ,lowtag)
 		 object)
 	   (move value result))))))
-

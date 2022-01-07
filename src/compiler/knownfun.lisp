@@ -1,33 +1,21 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/knownfun.lisp,v 1.21.2.1 2000/07/07 09:34:24 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains stuff for maintaining a database of special
-;;; information about functions known to the compiler.  This includes semantic
-;;; information such as side-effects and type inference functions as well as
-;;; transforms and IR2 translators.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; Stuff for maintaining a database of special information about functions
+;;; known to the compiler.  This includes semantic information such as
+;;; side-effects and type inference functions as well as transforms and IR2
+;;; translators.
+
 (in-package :c)
 
 (export '(call unsafe unwind any foldable flushable movable predicate))
 
 ;;;; IR1 boolean function attributes:
 ;;;
-;;;    There are a number of boolean attributes of known functions which we
-;;; like to have in IR1.  This information is mostly side effect information of
-;;; a sort, but it is different from the kind of information we want in IR2.
-;;; We aren't interested in a fine breakdown of side effects, since we do very
-;;; little code motion on IR1.  We are interested in some deeper semantic
-;;; properties such as whether it is safe to pass stack closures to.
+;;; There are a number of boolean attributes of known functions which we
+;;; like to have in IR1.  This information is mostly side effect
+;;; information of a sort, but it is different from the kind of information
+;;; we want in IR2.  We aren't interested in a fine breakdown of side
+;;; effects, since we do very little code motion on IR1.  We are interested
+;;; in some deeper semantic properties such as whether it is safe to pass
+;;; stack closures to.
 ;;;
 (def-boolean-attribute ir1
   ;;
@@ -83,10 +71,11 @@
 	    (:print-function %print-function-info)
 	    (:pure t))
   ;;
-  ;; Boolean attributes of this function.
+  ;; Boolean attributes of this function (defined above).
   (attributes (required-argument) :type attributes)
   ;;
-  ;; A list of Transform structures describing transforms for this function.
+  ;; A list of Transform structures describing transforms for this
+  ;; function.  Defined by `deftransform'.
   (transforms () :type list)
   ;;
   ;; A function which computes the derived type for a call to this function by
@@ -96,7 +85,7 @@
   ;;
   ;; A function that does random unspecified code transformations by directly
   ;; hacking the IR.  Returns true if further optimizations of the call
-  ;; shouldn't be attempted.
+  ;; shouldn't be attempted.  Defined by `defoptimizer'.
   (optimizer nil :type (or function null))
   ;;
   ;; If true, a special-case LTN annotation method that is used in place of the
@@ -140,7 +129,7 @@
   (byte-compile :test byte-compile))
 
 
-;;;; Interfaces to defining macros:
+;;;; Interfaces to defining macros.
 
 ;;; The TRANSFORM structure represents an IR1 transform.
 ;;;
@@ -164,10 +153,9 @@
 
 (defprinter transform type note important when)
 
-
 ;;; %Deftransform  --  Internal
 ;;;
-;;;    Grab the Function-Info and enter the function, replacing any old one
+;;; Grab the Function-Info and enter the function, replacing any old one
 ;;; with the same type and note.
 ;;;
 (defun %deftransform (name type fun &optional note important
@@ -192,10 +180,9 @@
 	      (function-info-transforms info)))
     name))
 
-
 ;;; %Defknown  --  Internal
 ;;;
-;;;    Make a function-info structure with the specified type, attributes and
+;;; Make a function-info structure with the specified type, attributes and
 ;;; optimizers.
 ;;;
 (defun %defknown (names type attributes &key derive-type optimizer)
@@ -214,13 +201,12 @@
       (setf (info function info name target-env) info)))
   names)
 
-
 ;;; Function-Info-Or-Lose  --  Internal
 ;;;
-;;;    Return the Function-Info for name or die trying.  Since this is used by
-;;; people who want to modify the info, and the info may be shared, we copy it.
-;;; We don't have to copy the lists, since each function that has generators or
-;;; transforms has already been through here.
+;;; Return the Function-Info for name or die trying.  Since this is used by
+;;; people who want to modify the info, and the info may be shared, we copy
+;;; it.  We don't have to copy the lists, since each function that has
+;;; generators or transforms has already been through here.
 ;;;
 (defun function-info-or-lose (name)
   (declare (values function-info))
@@ -231,11 +217,11 @@
       (setf (info function info name) (copy-function-info old)))))
 
 
-;;;; Generic type inference methods:
+;;;; Generic type inference methods.
 
 ;;; RESULT-TYPE-xxx-ARG  --  Interface
 ;;;
-;;;    Derive the type to be the type of the xxx'th arg.  This can normally
+;;; Derive the type to be the type of the xxx'th arg.  This can normally
 ;;; only be done when the result value is that argument.
 ;;;
 (defun result-type-first-arg (call)
@@ -248,12 +234,11 @@
   (let ((cont (car (last (combination-args call)))))
     (when cont (continuation-type cont))))
 
-
 ;;; RESULT-TYPE-FLOAT-CONTAGION  --  Interface
 ;;;
-;;;    Derive the result type according to the float contagion rules, but
-;;; always return a float.  This is used for irrational functions that preserve
-;;; realness of their arguments.
+;;; Derive the result type according to the float contagion rules, but
+;;; always return a float.  This is used for irrational functions that
+;;; preserve realness of their arguments.
 ;;;
 (defun result-type-float-contagion (call)
   (declare (type combination call))
@@ -261,12 +246,11 @@
 	  :key #'continuation-type
 	  :initial-value (specifier-type 'single-float)))
 
-
 ;;; SEQUENCE-RESULT-NTH-ARG  --  Internal
 ;;;
-;;;    Return a closure usable as a derive-type method for accessing the N'th
-;;; argument.  If arg is a list, result is a list.  If arg is a vector, result
-;;; is a vector with the same element type.
+;;; Return a closure usable as a derive-type method for accessing the N'th
+;;; argument.  If arg is a list, result is a list.  If arg is a vector,
+;;; result is a vector with the same element type.
 ;;;
 (defun sequence-result-nth-arg (n)
   #'(lambda (call)
@@ -281,11 +265,10 @@
 		  (when (csubtypep type ltype)
 		    ltype))))))))
 
-
 ;;; RESULT-TYPE-SPECIFIER-NTH-ARG  --  Interface
 ;;;
-;;;    Derive the type to be the type specifier which is the N'th arg.
-;;; 
+;;; Derive the type to be the type specifier which is the N'th arg.
+;;;
 (defun result-type-specifier-nth-arg (n)
   #'(lambda (call)
       (declare (type combination call))

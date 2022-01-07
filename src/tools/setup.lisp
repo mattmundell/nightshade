@@ -1,15 +1,5 @@
-;;; -*- Package: USER -*-
-;;;
-;;; **********************************************************************
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/tools/setup.lisp,v 1.28.2.1 2000/05/23 16:39:07 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    Set up package environment and search lists for compiler.  Also some
-;;; compilation utilities.
-;;;
+;;; Package environment functions, and some compilation utilities.
+
 (in-package "USER")
 
 
@@ -49,8 +39,8 @@
 		    (warn "Not dumping uninterned symbol ~S." sym))
 		   ((eq how :inherited))
 		   (t
-		    (unless (eq pkg old)
-		      (pushnew name (gethash pkg imports) :test #'string=))
+		    (or (eq pkg old)
+			(pushnew name (gethash pkg imports) :test #'string=))
 		    (when (eq how :external)
 		      (exports name)))))))
 	    (collect ((import-froms))
@@ -93,45 +83,45 @@
 	 (new-names (mapcar #'(lambda (x)
 				(concatenate 'string "OLD-" x))
 			    names)))
-    (unless (some #'find-package new-names)
-      (collect ((new-packages))
-	(flet ((trans-pkg (x)
-		 (or (cdr (assoc x (new-packages))) x)))
-	  (loop for pkg in packages and new in new-names do
-	    (let ((nicks (package-nicknames pkg))
-		  (name (package-name pkg)))
-	      (rename-package pkg new)
-	      (let ((new-pkg (make-package name :nicknames nicks :use nil))
-		    (shad (package-shadowing-symbols pkg)))
-		(when shad
-		  (shadow shad new-pkg))
-		(new-packages (cons pkg new-pkg)))))
+    (or (some #'find-package new-names)
+	(collect ((new-packages))
+	  (flet ((trans-pkg (x)
+		   (or (cdr (assoc x (new-packages))) x)))
+	    (loop for pkg in packages and new in new-names do
+	      (let ((nicks (package-nicknames pkg))
+		    (name (package-name pkg)))
+		(rename-package pkg new)
+		(let ((new-pkg (make-package name :nicknames nicks :use nil))
+		      (shad (package-shadowing-symbols pkg)))
+		  (when shad
+		    (shadow shad new-pkg))
+		  (new-packages (cons pkg new-pkg)))))
 
-	  (loop for (old . new) in (new-packages) do
-	    (dolist (use (package-use-list old))
-	      (use-package (trans-pkg use) new)))
+	    (loop for (old . new) in (new-packages) do
+	      (dolist (use (package-use-list old))
+		(use-package (trans-pkg use) new)))
 
-	  (loop for (old . new) in (new-packages) do
-	    (do-symbols (sym old)
-	      (let ((pkg (symbol-package sym))
-		    (name (symbol-name sym)))
-		(multiple-value-bind (found how)
-				     (find-symbol name old)
-		  (assert (and (eq found sym) how))
-		  (cond
-		   ((not pkg)
-		    (warn "Not copying uninterned symbol ~S." sym))
-		   ((or (eq how :inherited)
-			(and (eq how :internal) (eq pkg old))))
-		   (t
-		    (let* ((npkg (trans-pkg pkg))
-			   (nsym (intern name npkg)))
-		      (multiple-value-bind (ignore new-how)
-					   (find-symbol name new)
-			(declare (ignore ignore))
-			(unless new-how (import nsym new)))
-		      (when (eq how :external)
-			(export nsym new)))))))))))))
+	    (loop for (old . new) in (new-packages) do
+	      (do-symbols (sym old)
+		(let ((pkg (symbol-package sym))
+		      (name (symbol-name sym)))
+		  (multiple-value-bind (found how)
+				       (find-symbol name old)
+		    (assert (and (eq found sym) how))
+		    (cond
+		     ((not pkg)
+		      (warn "Not copying uninterned symbol ~S." sym))
+		     ((or (eq how :inherited)
+			  (and (eq how :internal) (eq pkg old))))
+		     (t
+		      (let* ((npkg (trans-pkg pkg))
+			     (nsym (intern name npkg)))
+			(multiple-value-bind (ignore new-how)
+					     (find-symbol name new)
+			  (declare (ignore ignore))
+			  (unless new-how (import nsym new)))
+			(when (eq how :external)
+			  (export nsym new)))))))))))))
   (values))
 
 
@@ -157,7 +147,6 @@
 	       (with-compilation-unit (,@wcu-keys)
 		 ,@forms))
 	   (close *log-file*)))))
-
 
 (defun comf (name &rest keys &key proceed assem &allow-other-keys)
   (when (and *log-file*
@@ -250,7 +239,7 @@
 			    (when (and write-date
 				       (> src-write-date write-date))
 			      (setf write-date nil)))
-			  (unix-namestring file)))
+			  (os-namestring file)))
 		    input-files)))
       (cond ((null write-date)
 	     (format t "~S out of date.~%" (namestring output-file))

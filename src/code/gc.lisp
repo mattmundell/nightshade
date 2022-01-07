@@ -1,13 +1,58 @@
 ;;; Garbage collection and allocation related code.
 
 (in-package "EXTENSIONS")
+
 (export '(*before-gc-hooks* *after-gc-hooks* gc gc-on gc-off
 	  *bytes-consed-between-gcs* *gc-verbose* *gc-inhibit-hook*
 	  *gc-notify-before* *gc-notify-after* get-bytes-consed
 	  *gc-run-time* bytes-consed-between-gcs))
 
 (in-package "LISP")
+
 (export '(room))
+
+
+#[ Garbage Collection
+
+Nightshade uses a stop-and-copy garbage collector that compacts the items
+in dynamic space every time it runs.  Most users cause the system to garbage
+collect (GC) frequently, long before space is exhausted.  With 16 or 24
+megabytes of memory, causing GC's more frequently on less garbage allows the
+system to GC without much (if any) paging.
+
+The following functions invoke the garbage collector or control whether
+automatic garbage collection is in effect:
+
+{function:ext:gc}
+{function:ext:gc-on}
+{function:ext:gc-off}
+
+[ GC Parameters ]
+[ Weak Pointers ]
+[ Finalization  ]
+]#
+
+#[ GC Parameters
+
+There are a few variables that control the behavior of the garbage
+collector.
+
+{variable:ext:*bytes-consed-between-gcs*}
+{variable:ext:*gc-verbose*}
+{function:ext::default-gc-notify-before}
+{function:ext::default-gc-notify-after}
+{variable:ext:*gc-notify-before*}
+{variable:ext:*gc-notify-after*}
+
+Note that a garbage collection will happen at roughly the new threshold
+printed by the default *gc-notify-after* function.  The system periodically
+checks whether this threshold has been exceeded, and only then does a
+garbage collection.
+
+{variable:ext:*gc-inhibit-hook*}
+{variable:ext:*before-gc-hooks*}
+{variable:ext:*after-gc-hooks*}
+]#
 
 
 ;;;; DYNAMIC-USAGE and friends.
@@ -64,7 +109,7 @@
 	  ((= start (dynamic-1-space-start))
 	   1)
 	  (t
-	   (error "The current dynamic space is missing!")))))
+	   (error "The current dynamic space is missing.")))))
 
 
 ;;;; Room.
@@ -129,8 +174,8 @@
 ;;; GET-BYTES-CONSED -- Exported
 ;;;
 (defun get-bytes-consed ()
-  "Returns the number of bytes consed since the first time this function
-  was called.  The first time it is called, it returns zero."
+  "Return the number of bytes allocated since the first time this function
+   was called.  If this is the first time, return zero."
   (declare (optimize (speed 3) (safety 0)))
   (cond ((null *last-bytes-in-use*)
 	 (setq *last-bytes-in-use* (dynamic-usage))
@@ -145,24 +190,28 @@
 
 ;;;; Variables and constants.
 
-;;; The default value of *BYTES-CONSED-BETWEEN-GCS* and *GC-TRIGGER*.
-;;;
-(defconstant default-bytes-consed-between-gcs 2000000)
+(defconstant default-bytes-consed-between-gcs 2000000
+  "The fallback value of *bytes-consed-between-gcs* and *gc-trigger*.")
 
 ;;; This variable is the user-settable variable that specifices the
 ;;; minimum amount of dynamic space which must be consed before a GC
 ;;; will be triggered.
 ;;;
 (defvar *bytes-consed-between-gcs* default-bytes-consed-between-gcs
-  "This number specifies the minimum number of bytes of dynamic space
-   that must be consed before the next gc will occur.")
+  "The minimum number of bytes of dynamic space that must be consed before
+   the next GC will occur.  GC occurs automatically whenever the amount of
+   memory allocated to dynamic objects exceeds the value of an internal
+   variable.  After each GC, the system sets the internal variable to the
+   amount of dynamic space in use at that point plus the value of the
+   *bytes-consed-between-gcs*.")
 ;;;
 (declaim (type index *bytes-consed-between-gcs*))
 
 ;;; Public
+;;;
 (defvar *gc-run-time* 0
-  "The total CPU time spend doing garbage collection (as reported by
-   GET-INTERNAL-RUN-TIME.)")
+  "The total CPU time (run-time) spend doing garbage collection (as
+   reported by `get-internal-run-time').")
 
 (declaim (type index *gc-run-time*))
 
@@ -178,8 +227,8 @@
 ;;; On the RT, we store the GC trigger in a ``static'' symbol instead of
 ;;; letting magic C code handle it.  It gets initialized by the startup
 ;;; code. The X86 port defines this here because it uses the `ibmrt'
-;;; feature in the C code for allocation and binding stack access and
-;;; a lot of stuff wants this INTERNAL_GC_TRIGGER available as well.
+;;; feature in the C code for allocation and binding stack access and a lot
+;;; of stuff wants this INTERNAL_GC_TRIGGER available as well.
 #+(or ibmrt x86)
 (defvar vm::*internal-gc-trigger*)
 
@@ -189,7 +238,7 @@
 
 ;;; *GC-INHIBIT*
 ;;;
-;;; When non-NIL, inhibits garbage collection.
+;;; When true, inhibits garbage collection.
 ;;;
 (defvar *gc-inhibit* nil)
 
@@ -211,66 +260,76 @@
 ;;; *BEFORE-GC-HOOKS*
 ;;; *AFTER-GC-HOOKS*
 ;;;
-;;; These variables are a list of functions which are run before and
-;;; after garbage collection occurs.
+(defvar *before-gc-hooks* ()
+  "A list of functions called before garbage collection occurs.  The
+   functions should take no arguments.")
 ;;;
-(defvar *before-gc-hooks* nil
-  "A list of functions that are called before garbage collection occurs.
-  The functions should take no arguments.")
-;;;
-(defvar *after-gc-hooks* nil
-  "A list of functions that are called after garbage collection occurs.
-  The functions should take no arguments.")
+(defvar *after-gc-hooks* ()
+  "A list of functions called after garbage collection occurs.  The
+   functions should take no arguments.")
 
 ;;; *GC-INHIBIT-HOOK*
 ;;;
-;;; This hook is invoked whenever SUB-GC intends to GC (unless the GC
-;;; was explicitly forced by calling EXT:GC).  If the hook function
-;;; returns NIL then the GC procedes; otherwise, the GC is inhibited and
-;;; *GC-INHIBIT* and *NEED-TO-COLLECT-GARBAGE* are left bound to T.
-;;; Presumably someone will call GC-ON later to collect the garbage.
+;;; Invoked whenever `sub-gc' intends to GC (unless the GC was explicitly
+;;; forced by calling `ext:gc').
 ;;;
 (defvar *gc-inhibit-hook* nil
-  "Should be bound to a function or NIL.  If it is a function, this
-  function should take one argument, the current amount of dynamic
-  usage.  The function should return NIL if garbage collection should
-  continue and non-NIL if it should be inhibited.  Use with caution.")
+  "Should be bound to a function of one argument or ().  When the system
+   triggers an automatic GC and this is a function, then the system calls
+   the function with the amount of dynamic space currently in use (in
+   bytes).  If the function returns (), then the GC occurs; otherwise, the
+   system turns off automatic GC as if by `ext:gc-off' and *gc-inhibit* and
+   *need-to-collect-garbage* are left bound to T.  The writer of this hook
+   is responsible for knowing when automatic GC has been turned off and for
+   calling `ext:gc-on' or providing a way to call `ext:gc-on'.")
 
 ;;; *GC-VERBOSE*
 ;;;
 (defvar *gc-verbose* t
-  "When non-NIL, causes the functions bound to *GC-NOTIFY-BEFORE* and
-  *GC-NOTIFY-AFTER* to be called before and after a garbage collection
-  occurs respectively.  If :BEEP, causes the default notify functions to beep
-  annoyingly.")
+  "If true the functions bound to *gc-notify-before* and *gc-notify-after*
+   are called before and after a garbage collection occurs, respectively.
+   If :beep, causes the default notify functions to beep.")
 
 (defun default-gc-notify-before (bytes-in-use)
-  (when (eq *gc-verbose* :beep)
-    (system:beep *standard-output*))
+  "Notify the user that the system is about to GC.  Take one argument, the
+   amount of dynamic space in use before the GC (measured in bytes).  Print
+   a message like
+
+   [GC threshold exceeded with 2,107,124 bytes in use.  Commencing GC.]"
+  (if (eq *gc-verbose* :beep)
+      (system:beep *standard-output*))
   (format t "~&[GC threshold exceeded with ~:D bytes in use.  ~
              Commencing GC.]~%" bytes-in-use)
   (finish-output))
 ;;;
 (defparameter *gc-notify-before* #'default-gc-notify-before
-  "This function bound to this variable is invoked before GC'ing (unless
-  *GC-VERBOSE* is NIL) with the current amount of dynamic usage (in
-  bytes).  It should notify the user that the system is going to GC.")
+  "A function invoked before GC'ing (when *gc-verbose* is true) with the
+   current amount of dynamic usage (in bytes).  It should notify the user
+   that the system is going to GC.")
 
 (defun default-gc-notify-after (bytes-retained bytes-freed new-trigger)
+  "Notify the user that the system has just GC'd.
+
+   Take three arguments, the amount of dynamic usage (in bytes) now free,
+   the number of bytes freed by the GC, and the new GC trigger threshold.
+
+   Print a message like
+
+   [GC completed with 25,680 bytes retained and 2,096,808 bytes freed.]
+   [GC will next occur when at least 2,025,680 bytes are in use.]"
   (format t "[GC completed with ~:D bytes retained and ~:D bytes freed.]~%"
 	  bytes-retained bytes-freed)
   (format t "[GC will next occur when at least ~:D bytes are in use.]~%"
 	  new-trigger)
-  (when (eq *gc-verbose* :beep)
-    (system:beep *standard-output*))
+  (if (eq *gc-verbose* :beep)
+      (system:beep *standard-output*))
   (finish-output))
 ;;;
 (defparameter *gc-notify-after* #'default-gc-notify-after
-  "The function bound to this variable is invoked after GC'ing (unless
-  *GC-VERBOSE* is NIL) with the amount of dynamic usage (in bytes) now
-  free, the number of bytes freed by the GC, and the new GC trigger
-  threshold.  The function should notify the user that the system has
-  finished GC'ing.")
+  "A function invoked after GC'ing (when *gc-verbose* is true) with the
+   amount of dynamic usage (in bytes) now free, the number of bytes freed
+   by the GC, and the new GC trigger threshold.  The function should notify
+   the user that the system has finished GC'ing.")
 
 
 ;;;; Internal GC
@@ -349,7 +408,7 @@
 		   (carefully-funcall *gc-inhibit-hook* pre-gc-dyn-usage))
 	  (setf *gc-inhibit* t)
 	  (return-from sub-gc nil))
-	(without-interrupts
+	(system:block-interrupts
 	  (let ((*standard-output* *terminal-io*))
 	    (when verbose-p
 	      (carefully-funcall *gc-notify-before* pre-gc-dyn-usage))
@@ -393,21 +452,22 @@
 
 ;;; GC -- Exported
 ;;;
-;;; This is the user advertised garbage collection function.
+;;; The user advertised garbage collection function.
 ;;;
 #-gencgc
 (defun gc (&optional (verbose-p *gc-verbose*))
-  "Initiates a garbage collection.  The optional argument, VERBOSE-P,
-  which defaults to the value of the variable *GC-VERBOSE* controls
-  whether or not GC statistics are printed."
+  "Initiate a garbage collection.
+
+   If $verbose-p is true, then invoke *gc-notify-before* before GC'ing and
+   *gc-notify-after* afterwards."
   (sub-gc :verbose-p verbose-p :force-p t))
 ;;;
 #+gencgc
 (defun gc (&key (verbose *gc-verbose*) (gen 0) (full nil))
-  "Initiates a garbage collection.  The keyword :VERBOSE, which
-   defaults to the value of the variable *GC-VERBOSE* controls whether or
-   not GC statistics are printed. The keyword :GEN defaults to 0, and
-   controls the number of generations to garbage collect."
+  "Initiate a garbage collection of $gen generations.
+
+   If $verbose is true, then invoke *gc-notify-before* before GC'ing and
+   *gc-notify-after* afterwards."
   (sub-gc :verbose-p verbose :force-p t :gen (if full 6 gen)))
 
 
@@ -435,16 +495,21 @@
 (defsetf bytes-consed-between-gcs %set-bytes-consed-between-gcs)
 
 (defun gc-on ()
-  "Enables the garbage collector."
+  "Enable automatic garbage collection.
+
+   If the system would have GC'ed while automatic GC was off, then call
+   `gc'."
   (setq *gc-inhibit* nil)
   (when *need-to-collect-garbage*
     (sub-gc))
-  nil)
+  ())
 
 (defun gc-off ()
-  "Disables the garbage collector."
+  "Turn off automatic garbage collection.
+
+   On return, the system will only GC via `gc' or `gc-on'."
   (setq *gc-inhibit* t)
-  nil)
+  ())
 
 
 ;;;; Initialization stuff.

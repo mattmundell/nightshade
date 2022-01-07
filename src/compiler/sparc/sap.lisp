@@ -1,22 +1,9 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/sparc/sap.lisp,v 1.8.2.2 2000/08/12 07:34:01 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the SPARC VM definition of SAP operations.
-;;;
-;;; Written by William Lott.
-;;;
+;;; The SPARC VM definition of SAP operations.
+
 (in-package "SPARC")
 
 
-;;;; Moves and coercions:
+;;;; Moves and coercions.
 
 ;;; Move a tagged SAP to an untagged representation.
 ;;;
@@ -26,11 +13,9 @@
   (:note "pointer to SAP coercion")
   (:generator 1
     (loadw y x sap-pointer-slot other-pointer-type)))
-
 ;;;
 (define-move-vop move-to-sap :move
   (descriptor-reg) (sap-reg))
-
 
 ;;; Move an untagged SAP to a tagged representation.
 ;;;
@@ -38,14 +23,13 @@
   (:args (sap :scs (sap-reg) :to :save))
   (:temporary (:scs (non-descriptor-reg)) ndescr)
   (:results (res :scs (descriptor-reg)))
-  (:note "SAP to pointer coercion") 
+  (:note "SAP to pointer coercion")
   (:generator 20
     (with-fixed-allocation (res ndescr sap-type sap-size)
       (storew sap res sap-pointer-slot other-pointer-type))))
 ;;;
 (define-move-vop move-from-sap :move
   (sap-reg) (descriptor-reg))
-
 
 ;;; Move untagged sap values.
 ;;;
@@ -63,7 +47,6 @@
 ;;;
 (define-move-vop sap-move :move
   (sap-reg) (sap-reg))
-
 
 ;;; Move untagged sap arguments/return-values.
 ;;;
@@ -84,13 +67,11 @@
 (define-move-vop move-sap-argument :move-argument
   (descriptor-reg sap-reg) (sap-reg))
 
-
 ;;; Use standard MOVE-ARGUMENT + coercion to move an untagged sap to a
 ;;; descriptor passing location.
 ;;;
 (define-move-vop move-argument :move-argument
   (sap-reg) (descriptor-reg))
-
 
 
 ;;;; SAP-INT and INT-SAP
@@ -114,7 +95,6 @@
   (:policy :fast-safe)
   (:generator 1
     (move sap int)))
-
 
 
 ;;;; POINTER+ and POINTER-
@@ -151,7 +131,6 @@
   (:result-types signed-num)
   (:generator 1
     (inst sub res ptr1 ptr2)))
-
 
 
 ;;;; mumble-SYSTEM-REF and mumble-SYSTEM-SET
@@ -282,7 +261,6 @@
 (def-system-ref-and-set sap-ref-long %set-sap-ref-long
   long-reg long-float :long-float)
 
-
 
 ;;; Noise to convert normal lisp data objects into SAPs.
 
@@ -295,7 +273,6 @@
   (:generator 2
     (inst add sap vector
 	  (- (* vector-data-offset word-bytes) other-pointer-type))))
-
 
 
 ;;; Transforms for 64-bit SAP accessors.

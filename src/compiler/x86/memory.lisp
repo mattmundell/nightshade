@@ -1,26 +1,7 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/memory.lisp,v 1.2.2.3 2000/08/20 14:44:06 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the x86 definitions of some general purpose memory
-;;; reference VOPs inherited by basic memory reference operations.
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; Enhancements/debugging by Douglas T. Crosher 1996,1997,1999.
-;;; 
+;;; The x86 definitions of some general purpose memory reference VOPs
+;;; inherited by basic memory reference operations.
 
-(in-package :x86)
+(in-package "X86")
 
 ;;; Cell-Ref and Cell-Set are used to define VOPs like CAR, where the offset to
 ;;; be read or written is a property of the VOP used.  Cell-Setf is similar to
@@ -66,9 +47,9 @@
 
 ;;; Define-Cell-Accessors  --  Interface
 ;;;
-;;;    Define accessor VOPs for some cells in an object.  If the operation name
-;;; is NIL, then that operation isn't defined.  If the translate function is
-;;; null, then we don't define a translation.
+;;; Define accessor VOPs for some cells in an object.  If the operation
+;;; name is NIL, then that operation isn't defined.  If the translate
+;;; function is null, then we don't define a translation.
 ;;;
 (defmacro define-cell-accessors (offset lowtag
 					ref-op ref-trans set-op set-trans)

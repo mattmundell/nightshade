@@ -1,4 +1,4 @@
-;;; Low-level UNIX support for MACH-only features.
+;;; Low-level Unix support for MACH-only features.
 
 (in-package "MACH")
 (use-package "ALIEN")
@@ -18,6 +18,22 @@
 (def-alien-routine ("task_self" mach-task_self) port)
 (def-alien-routine ("thread_reply" mach-task_data) port)
 (def-alien-routine ("task_notify" mach-task_notify) port)
+
+
+#[ Making Sense of Mach Return Codes
+
+Whenever a remote procedure call returns a Unix error code (such as
+\code{kern_return_t}), it is usually prudent to check that code to see if
+the call was successful.  To relieve the programmer of testing this value,
+and to centralize the information about the meaning of non-success return
+codes, there are a number of macros and functions.  The function
+`get-unix-error-msg' is related.
+
+{function:mach:gr-error}
+{function:mach:gr-call}
+{function:mach:gr-call*}
+{function:mach:gr-bind}
+]#
 
 
 ;;;; Return codes.
@@ -47,28 +63,47 @@
 ;;; GR-Error  --  Public
 ;;;
 (defun gr-error (function gr &optional context)
-  "Signal an error indicating that Function returned code GR.  If the code
-   is success, then do nothing."
+  "Signal an error, printing a message indicating that the call to the
+   $function failed, with the return code $gr.  If supplied, the print the
+   string $context after the $function name and before the string
+   associated with the $gr.  For example:
+
+     (gr-error 'nukegarbage 3 \"lost big\")
+
+	 Error in function GR-ERROR:
+	 NUKEGARBAGE lost big, no space.
+	 Proceed cases:
+	 0: Return to Top-Level.
+	 Debug  (type H for help)
+	 (Signal #<Conditions:Simple-Error.5FDE0>)
+	 0]"
   (or (eql gr kern-success)
       (error "~S~@[ ~A~], ~(~A~)." function context (get-mach-error-msg gr))))
 
 ;;; GR-Call  --  Public
 ;;;
 (defmacro gr-call (fun &rest args)
-  "GR-Call Function {Arg}*
-   Call the function with the specified Args and signal an error if the
-   first value returned is not mach:kern-success.  Nil is returned."
+  "gr-call function {arg}*
+
+   Call $fun with $args and signal an error if the first returned value
+   (the GeneralReturn code) indicates an error, else return ().
+
+   For example
+
+     (gr-call mach:port_allocate *task-self*) => ()"
   (let ((n-gr (gensym)))
     `(let ((,n-gr (,fun ,@args)))
        (or (eql ,n-gr kern-success) (gr-error ',fun ,n-gr)))))
 
+;; FIX gr-call2?
 ;;; GR-Call*  --  Public
 ;;;
 (defmacro gr-call* (fun &rest args)
-  "GR-Call* Function {Arg}*
-   Call the function with the specified Args and signal an error if the
-   first value returned is not mach:kern-success.  The second value is
-   returned."
+  "gr-call* function {arg}*
+
+   Call $fun with $args and signal an error if the first returned value
+   (the GeneralReturn code) indicates an error, else return the second
+   value returned from the call."
   (let ((n-gr (gensym))
 	(n-res (gensym)))
     `(multiple-value-bind (,n-gr ,n-res) (,fun ,@args)
@@ -78,11 +113,22 @@
 ;;; GR-Bind  --  Public
 ;;;
 (defmacro gr-bind (vars (fun . args) &body (body decls))
-  "GR-Bind ({Var}*) (Function {Arg}*) {Form}*
-   Call the function with the specified Args and signal an error if the
-   first value returned is not mach:Kern-Success.  If the call succeeds,
-   the Forms are evaluated with remaining return values bound to the
-   Vars."
+  "gr-bind ({var}*) (function {arg}*) {form}*
+
+
+   Bind the vars listed in $vars from the second variable to the values
+   resulting from calling $function with $args, as in
+   `multiple-value-bind'.
+
+   If the first returned value (the GeneralReturn code) indicates an error,
+   then signal an error, else return ().
+
+   For example
+
+     (gr-bind (port_list port_list_cnt)
+              (mach:port_select *task-self*)
+       (format t \"The port count is ~S.\" port_list_cnt)
+       port_list)"
   (let ((n-gr (gensym)))
     `(multiple-value-bind (,n-gr ,@vars) (,fun ,@args)
        ,@decls

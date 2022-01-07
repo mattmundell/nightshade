@@ -1,18 +1,5 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/ltv.lisp,v 1.2 1994/10/31 04:27:28 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file implements LOAD-TIME-VALUE.
-;;;
-;;; Written by William Lott
-;;;
+;;; LOAD-TIME-VALUE implementation.
+
 (in-package "C")
 
 (in-package "LISP")
@@ -24,7 +11,7 @@
 
 (def-ir1-translator load-time-value ((form &optional read-only-p) start cont)
   "Arrange for FORM to be evaluated at load-time and use the value produced
-   as if it were a constant.  If READ-ONLY-P is non-NIL, then the resultant
+   as if it were a constant.  If READ-ONLY-P is true, then the resultant
    object is guaranteed to never be modified, so it can be put in read-only
    storage."
   (if (producing-fasl-file)
@@ -48,11 +35,9 @@
 			 `',value
 			 `(value-cell-ref ',(make-value-cell value)))))))
 
-
 (defoptimizer (%load-time-value ir2-convert) ((handle) node block)
   (assert (constant-continuation-p handle))
   (let ((cont (node-cont node))
 	(tn (make-load-time-value-tn (continuation-value handle)
 				     *universal-type*)))
     (move-continuation-result node block (list tn) cont)))
-	       

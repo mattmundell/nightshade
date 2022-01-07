@@ -1,21 +1,6 @@
-;;; -*- Package: RT; Log: c.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/vm.lisp,v 1.9 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the VM definition for the IBM RT.
-;;;
-;;; Written by William Lott, Rob Maclachlan, and Bill Chiles.
-;;;
+;;; The VM definition for the IBM RT.
 
 (in-package "RT")
-
 
 
 ;;;; SB and SC definition:
@@ -31,10 +16,9 @@
 ;; Anything I can cookup out of nowhere and store somewhere.
 (define-storage-base immediate-constant :non-packed)
 
-;;;
 ;;; Handy macro so we don't have to keep changing all the numbers whenever
 ;;; we insert a new storage class.
-;;; 
+;;;
 (defmacro define-storage-classes (&rest classes)
   (do ((forms (list 'progn)
 	      (let* ((class (car classes))
@@ -75,7 +59,7 @@
   (double-stack non-descriptor-stack :element-size 2) ; double floats.
 
 
-  ;; **** Things that can go in the non-descriptor registers.
+  ;;;; Things that can go in the non-descriptor registers.
 
   ;; Immediate descriptor objects.  Don't have to be seen by GC, but nothing
   ;; bad will happen if they are.  (fixnums, characters, header values, etc).
@@ -138,7 +122,7 @@
    :locations (15))
 
 
-  ;; **** Things that can go in the floating point registers.
+  ;;;; Things that can go in the floating point registers.
 
   ;; Non-Descriptor mc68881-single-floats.
   (mc68881-single-reg mc68881-float-registers
@@ -191,7 +175,6 @@
   ;; A catch or unwind block.
   (catch-block control-stack :element-size vm:catch-block-size))
 
-
 (export '(single-reg-sc-number double-reg-sc-number))
 (defconstant single-reg-sc-number
   (list mc68881-single-reg-sc-number
@@ -203,7 +186,7 @@
 	AFPA-double-reg-sc-number))
 
 
-;;;; Primitive Type Definitions
+;;;; Primitive Type Definitions.
 
 ;;; *any-primitive-type*
 ;;;
@@ -230,11 +213,9 @@
 (def-primitive-type word-pointer (word-pointer-reg descriptor-reg)
   :type fixnum)
 
-
 ;;; *word-pointer-type*
 ;;;
 (defvar *word-pointer-type* (primitive-type-or-lose 'word-pointer))
-
 
 ;;; *fixnum-primitive-type*
 ;;;
@@ -256,13 +237,13 @@
 (def-primitive-type base-char (base-char-reg any-reg))
 
 ;;; Primitive pointer types.
-;;; 
+;;;
 (def-primitive-type function (descriptor-reg))
 (def-primitive-type list (descriptor-reg))
 (def-primitive-type structure (descriptor-reg))
 
 ;;; Primitive other-pointer number types.
-;;; 
+;;;
 (def-primitive-type bignum (descriptor-reg))
 (def-primitive-type ratio (descriptor-reg))
 (def-primitive-type complex (descriptor-reg))
@@ -284,7 +265,7 @@
   :type double-float)
 
 ;;; Primitive other-pointer array types.
-;;; 
+;;;
 (def-primitive-type simple-string (descriptor-reg) :type simple-base-string)
 (def-primitive-type simple-bit-vector (descriptor-reg))
 (def-primitive-type simple-vector (descriptor-reg))
@@ -307,17 +288,15 @@
 ;;; restrict VOPs to them.
 
 ;;; Other primitive other-pointer types.
-;;; 
+;;;
 (def-primitive-type system-area-pointer (sap-reg descriptor-reg))
 (def-primitive-type weak-pointer (descriptor-reg))
 
 ;;; Random primitive types that don't exist at the LISP level.
-;;; 
+;;;
 (def-primitive-type random (non-descriptor-reg) :type nil)
 (def-primitive-type interior (interior-reg) :type nil)
 (def-primitive-type catch-block (catch-block) :type nil)
-
-
 
 
 ;;;; PRIMITIVE-TYPE-OF and friends.
@@ -333,8 +312,7 @@
 	   (primitive-type-or-lose 'list))
 	  (t
 	   *any-primitive-type*))))
-
-;;; 
+;;;
 (defvar *simple-array-primitive-types*
   '((base-char . simple-string)
     (string-char . simple-string)
@@ -482,13 +460,11 @@
       (t
        (values *any-primitive-type* nil)))))
 
-
 
 ;;;; Magical Registers
 
-;;; Other VOP/VM definition files use the definitions on this page when writing
-;;; interface code for the compiler.
-;;;
+;;; Other VOP/VM definition files use the definitions on this page when
+;;; writing interface code for the compiler.
 
 (eval-when (compile eval load)
   (defconstant nargs-offset 0)
@@ -522,14 +498,12 @@
 		  :sc (sc-or-lose 'descriptor-reg)
 		  :offset null-offset))
 
-
 ;;; Frame Pointer.
 ;;;
 (defparameter cfp-tn
   (make-random-tn :kind :normal
 		  :sc (sc-or-lose 'any-reg)
 		  :offset cfp-offset))
-
 
 ;;; Control stack pointer.
 ;;;
@@ -559,7 +533,6 @@
 		  :sc (sc-or-lose 'non-descriptor-reg)
 		  :offset nl0-offset))
 
-
 
 ;;;; Side-Effect Classes
 
@@ -585,19 +558,17 @@
 	 (sc-number-or-lose 'immediate)
 	 nil))))
 
-
 
 ;;;; Function Call Parameters
 
 ;;; The SC numbers for register and stack arguments/return values.
 ;;;
-;;; Other VOP/VM definition files use this when writing interface code for the
-;;; compiler.
+;;; Other VOP/VM definition files use this when writing interface code for
+;;; the compiler.
 ;;;
 (defconstant register-arg-scn (meta-sc-number-or-lose 'descriptor-reg))
 (defconstant immediate-arg-scn (meta-sc-number-or-lose 'any-reg))
 (defconstant control-stack-arg-scn (meta-sc-number-or-lose 'control-stack))
-
 
 (eval-when (compile load eval)
 
@@ -607,8 +578,7 @@
 (defconstant lra-save-offset 1)
 (defconstant nfp-save-offset 2)
 
-); Eval-When (Compile Load Eval)  
-
+); Eval-When (Compile Load Eval)
 
 (defparameter nargs-tn
   (make-random-tn :kind :normal
@@ -624,7 +594,6 @@
   (make-random-tn :kind :normal
 		  :sc (sc-or-lose 'descriptor-reg)
 		  :offset lra-offset))
-
 
 (eval-when (compile load eval)
 
@@ -644,11 +613,10 @@
 (defconstant register-arg-offsets '(12 13 14))
 
 ;;; Names to use for the argument registers.
-;;; 
+;;;
 (defconstant register-arg-names '(a0 a1 a2))
 
 ); Eval-When (Compile Load Eval)
-
 
 ;;; A list of TN's describing the register arguments.
 ;;;
@@ -658,7 +626,6 @@
 			      :sc (sc-or-lose 'descriptor-reg)
 			      :offset n))
 	  register-arg-offsets))
-
 
 
 ;;;; LOCATION-PRINT-NAME.

@@ -1,19 +1,6 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/node.lisp,v 1.34.2.2 2000/06/19 16:46:26 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    Structures for the first intermediate representation in the compiler,
+;;; Structures for the first intermediate representation in the compiler,
 ;;; IR1.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+
 (in-package "C")
 
 (export '(component component-info block-number))
@@ -21,7 +8,6 @@
 ;;; Defvars for these variables appear later.
 (proclaim '(special *current-path* *lexical-environment* *current-component*
 		    *default-cookie* *default-interface-cookie*))
-  
 
 (proclaim '(inline internal-make-lexenv))
 
@@ -72,7 +58,7 @@
   ;; The lexically enclosing cleanup, or NIL if none enclosing within Lambda.
   (cleanup nil :type (or cleanup null))
   ;;
-  ;; The representation of the current OPTIMIZE policy. 
+  ;; The representation of the current OPTIMIZE policy.
   (cookie *default-cookie* :type cookie)
   ;;
   ;; The policy that takes effect in XEPs and related syntax parsing functions.
@@ -83,7 +69,6 @@
   ;; AList of random options that are associated with the lexical
   ;; environment.  They can be established with COMPILER-OPTION-BIND.
   (options nil :type list))
-
 
 ;;; A Cont-Ref represents a reference to a continuation.
 ;;;
@@ -99,19 +84,21 @@
 (defprinter cont-ref
   cont)
 
-
-;;; The front-end data structure (IR1) is composed of nodes and continuations.
-;;; The general idea is that continuations contain top-down information and
-;;; nodes contain bottom-up, derived information.  A continuation represents a
-;;; place in the code, while a node represents code that does something.
+;; FIX add to doc?
+;;
+;;; The front-end data structure (IR1) is composed of nodes and
+;;; continuations.  The general idea is that continuations contain top-down
+;;; information and nodes contain bottom-up, derived information.  A          FIX what information? just type?
+;;; continuation represents a place in the code, while a node represents
+;;; code that does something.
 ;;;
-;;; This representation is more of a flow-graph than an augmented syntax tree.
-;;; The evaluation order is explicitly represented in the linkage by
-;;; continuations, rather than being implicit in the nodes which receive the
-;;; the results of evaluation.  This allows us to decouple the flow of results
-;;; from the flow of control.  A continuation represents both, but the
-;;; continuation can represent the case of a discarded result by having no
-;;; DEST. 
+;;; This representation is more of a flow-graph than an augmented syntax
+;;; tree.  The evaluation order is explicitly represented in the linkage by
+;;; continuations, rather than being implicit in the nodes which receive
+;;; the results of evaluation.  This allows us to decouple the flow of
+;;; results from the flow of control.  A continuation represents both, but
+;;; the continuation can represent the case of a discarded result by having
+;;; no DEST.
 
 (defstruct (continuation
 	    (:print-function %print-continuation)
@@ -172,7 +159,7 @@
   ;; An assertion on the type of this continuation's value.
   (asserted-type *wild-type* :type ctype)
   ;;
-  ;; Cached type of this contiuation's value.  If NIL, then this must be
+  ;; Cached type of this continuation's value.  If NIL, then this must be
   ;; recomputed: see Continuation-Derived-Type.
   (%derived-type nil :type (or ctype null))
   ;;
@@ -192,15 +179,16 @@
   ;; any random continuation that you pick up out of its Dest node has a Block.
   (block nil :type (or cblock null))
   ;;
-  ;; Set to true when something about this continuation's value has changed.
-  ;; See Reoptimize-Continuation.  This provides a way for IR1 optimize to
-  ;; determine which operands to a node have changed.  If the optimizer for
-  ;; this node type doesn't care, it can elect not to clear this flag.
+  ;; Set to true when something about this continuation's value has
+  ;; changed.  See `reoptimize-continuation'.  This provides a way for IR1
+  ;; optimize to determine which operands to a node have changed.  If the
+  ;; optimizer for this node type doesn't care, it can elect not to clear
+  ;; this flag.
   (reoptimize t :type boolean)
   ;;
   ;; An indication of what we have proven about how this contination's type
   ;; assertion is satisfied:
-  ;; 
+  ;;
   ;; NIL
   ;;    No type check is necessary (proven type is a subtype of the assertion.)
   ;;
@@ -234,11 +222,13 @@
   (declare (ignore d))
   (format stream "#<Continuation c~D>" (cont-num s)))
 
-
 (defstruct node
   ;;
   ;; The bottom-up derived type for this node.  This does not take into
-  ;; consideration output type assertions on this node (actually on its CONT).
+  ;; consideration output type assertions on this node (actually on its
+  ;; CONT).  Setup via `derive-node-type', in the node optimizers during
+  ;; IR1 optimization (in ir1opt.lisp) and by type propagation (in
+  ;; constraint.lisp).
   (derived-type *wild-type* :type ctype)
   ;;
   ;; True if this node needs to be optimized.  This is set to true whenever
@@ -250,7 +240,7 @@
   ;; indicates what we do controlwise after evaluating this node.  This may be
   ;; null during IR1 conversion.
   (cont nil :type (or continuation null))
-  ;; 
+  ;;
   ;; The continuation that this node is the next of.  This is null during
   ;; IR1 conversion when we haven't linked the node in yet or in nodes that
   ;; have been deleted from the IR1 by UNLINK-NODE.
@@ -260,23 +250,23 @@
   (lexenv *lexical-environment* :type lexenv)
   ;;
   ;; A representation of the source code responsible for generating this node.
-  ;; 
+  ;;
   ;; For a form introduced by compilation (does not appear in the original
   ;; source), the path begins with a list of all the enclosing introduced
   ;; forms.  This list is from the inside out, with the form immediately
   ;; responsible for this node at the head of the list.
   ;;
-  ;; Following the introduced forms is a representation of the location of the
-  ;; enclosing original source form.  This transition is indicated by the magic
-  ;; ORIGINAL-SOURCE-START marker.  The first element of the orignal source is
-  ;; the "form number", which is the ordinal number of this form in a
-  ;; depth-first, left-to-right walk of the truly top-level form in which this
-  ;; appears.
+  ;; Following the introduced forms is a representation of the location of
+  ;; the enclosing original source form.  This transition is indicated by
+  ;; the magic ORIGINAL-SOURCE-START marker.  The first element of the
+  ;; original source is the "form number", which is the ordinal number of
+  ;; this form in a depth-first, left-to-right walk of the truly top-level
+  ;; form in which this appears.
   ;;
   ;; Following is a list of integers describing the path taken through the
   ;; source to get to this point:
   ;;     (k l m ...) => (nth k (nth l (nth m ...)))
-  ;; 
+  ;;
   ;; The last element in the list is the top-level form number, which is the
   ;; ordinal number (in this call to the compiler) of the truly top-level form
   ;; containing the orignal source.
@@ -292,10 +282,9 @@
   ;; out this slot.
   (tail-p nil :type boolean))
 
-
 ;;; Flags that are used to indicate various things about a block, such as what
 ;;; optimizations need to be done on it:
-;;; -- REOPTIMIZE is set when something interesting happens the uses of a
+;;; -- REOPTIMIZE is set when something interesting happens FIX the uses of a
 ;;;    continuation whose Dest is in this block.  This indicates that the
 ;;;    value-driven (forward) IR1 optimizations should be done on this block.
 ;;; -- FLUSH-P is set when code in this block becomes potentially flushable,
@@ -330,7 +319,6 @@
   (frob delete-p)
   (frob type-asserted)
   (frob test-modified))
-  
 
 ;;; The CBlock structure represents a basic block.  We include SSet-Element so
 ;;; that we can have sets of blocks.  Initially the SSet-Element-Number is
@@ -348,7 +336,7 @@
 		   (:copier copy-block))
   ;;
   ;; A list of all the blocks that are predecessors/successors of this block.
-  ;; In well-formed IR1, most blocks will have one successors.  The only
+  ;; In well-formed IR1, most blocks will have one successors (FIX plural?).  The only
   ;; exceptions are:
   ;;  1] component head blocks (any number)
   ;;  2] blocks ending in an IF (1 or 2)
@@ -357,8 +345,8 @@
   (succ nil :type list)
   ;;
   ;; The continuation which heads this block (either a :Block-Start or
-  ;; :Deleted-Block-Start.)  Null when we haven't made the start continuation
-  ;; yet (and in the dummy component head and tail blocks.)
+  ;; :Deleted-Block-Start.)  Null before we've made the start continuation
+  ;; (and in the dummy component head and tail blocks.)
   (start nil :type (or continuation null))
   ;;
   ;; A list of all the nodes that have Start as their Cont.
@@ -378,7 +366,7 @@
 			   test-modified)
 	 :type attributes)
   ;;
-  ;; Some sets used by constraint propagation.
+  ;; Some sets used by constraint (FIX and copy?) propagation. FIX describe
   (kill nil)
   (gen nil)
   (in nil)
@@ -409,11 +397,11 @@
 ;;; The Block-Annotation structure is shared (via :include) by different
 ;;; block-info annotation structures so that code (specifically control
 ;;; analysis) can be shared.
-;;; 
+;;;
 (defstruct (block-annotation
 	    (:constructor nil))
   ;;
-  ;; The IR1 block that this block is in the Info for.  
+  ;; The IR1 block that this block is in the Info for.
   (block (required-argument) :type cblock)
   ;;
   ;; The next and previous block in emission order (not DFO).  This determines
@@ -422,7 +410,6 @@
   (next nil :type (or block-annotation null))
   (prev nil :type (or block-annotation null)))
 
-
 ;;; The Component structure provides a handle on a connected piece of the flow
 ;;; graph.  Most of the passes in the compiler operate on components rather
 ;;; than on the entire flow graph.
@@ -430,7 +417,7 @@
 (defstruct (component (:print-function %print-component))
   ;;
   ;; The kind of component:
-  ;; 
+  ;;
   ;; NIL
   ;;     An ordinary component, containing non-top-level code.
   ;;
@@ -493,12 +480,12 @@
   ;; component, to detect infinite or exponential blowups.
   (inline-expansions 0 :type index)
   ;;
-  ;;    A hashtable from combination nodes to things describing how an
-  ;; optimization of the node failed.  The value is an alist
-  ;; (Transform .  Args), where Transform is the structure describing the
-  ;; transform that failed, and Args is either a list of format arguments for
-  ;; the note, or the FUNCTION-TYPE that would have enabled the transformation
-  ;; but failed to match.
+  ;; A hashtable from combination nodes to things describing how an
+  ;; optimization of the node failed.  The value is an alist (Transform .
+  ;; Args), where Transform is the structure describing the transform that
+  ;; failed, and Args is either a list of format arguments for the note, or
+  ;; the FUNCTION-TYPE that would have enabled the transformation but
+  ;; failed to match.
   (failed-optimizations (make-hash-table :test #'eq) :type hash-table)
   ;;
   ;; Similar to NEW-FUNCTIONS, but is used when a function has already been
@@ -509,7 +496,6 @@
 (defprinter component
   name
   (reanalyze :test reanalyze))
-  
 
 ;;; The Cleanup structure represents some dynamic binding action.  Blocks are
 ;;; annotated with the current cleanup so that dynamic bindings can be removed
@@ -542,7 +528,6 @@
   mess-up
   (nlx-info :test nlx-info))
 
-
 ;;; The Environment structure represents the result of Environment analysis.
 ;;;
 (defstruct (environment (:print-function %print-environment))
@@ -568,7 +553,6 @@
   function
   (closure :test closure)
   (nlx-info :test nlx-info))
-
 
 ;;; The Tail-Set structure is used to accmumlate information about
 ;;; tail-recursive local calls.  The "tail set" is effectively the transitive
@@ -601,7 +585,6 @@
   functions
   type
   (info :test info))
-
 
 ;;; The NLX-Info structure is used to collect various information about
 ;;; non-local exits.  This is effectively an annotation on the Continuation,
@@ -643,12 +626,12 @@
   info)
 
 
-;;; Leaves:
+;;; Leaves.
 ;;;
-;;;    Variables, constants and functions are all represented by Leaf
-;;; structures.  A reference to a Leaf is indicated by a Ref node.  This allows
-;;; us to easily substitute one for the other without actually hacking the flow
-;;; graph.
+;;; Variables, constants and functions are all represented by Leaf
+;;; structures.  A reference to a Leaf is indicated by a Ref node.  This
+;;; allows us to easily substitute one for the other without actually
+;;; hacking the flow graph.
 
 (defstruct (leaf
 	    (:make-load-form-fun :ignore-it))
@@ -678,7 +661,6 @@
   ;; Some kind of info used by the back end.
   (info nil))
 
-
 ;;; The Constant structure is used to represent known constant values.  If Name
 ;;; is not null, then it is the name of the named constant which this leaf
 ;;; corresponds to, otherwise this is an anonymous constant.
@@ -693,7 +675,6 @@
   (name :test name)
   value)
 
-  
 ;;; The Basic-Var structure represents information common to all variables
 ;;; which don't correspond to known local functions.
 ;;;
@@ -701,7 +682,6 @@
   ;;
   ;; Lists of the set nodes for this variable.
   (sets () :type list))
-
 
 ;;; The Global-Var structure represents a value hung off of the symbol Name.
 ;;; We use a :Constant Var when we know that the thing is a constant, but don't
@@ -719,7 +699,6 @@
   (type :test (not (eq type *universal-type*)))
   (where-from :test (not (eq where-from :assumed)))
   kind)
-
 
 ;;; The Slot-Accessor structure represents slot accessor functions.  It is a
 ;;; subtype of Global-Var to make it look more like a normal function.
@@ -744,9 +723,9 @@
 
 ;;; The Defined-Function structure represents functions that are defined in
 ;;; the same compilation block, or that have inline expansions, or have a
-;;; non-NIL INLINEP value.  Whenever we change the INLINEP state (i.e. an
-;;; inline proclamation) we copy the structure so that former inlinep values
-;;; are preserved.
+;;; true INLINEP value.  Whenever we change the INLINEP state (i.e. an
+;;; inline proclamation) we copy the structure so that former inlinep
+;;; values are preserved.
 ;;;
 (defstruct (defined-function (:include global-var
 				       (where-from :defined)
@@ -770,8 +749,7 @@
   (functional :test functional))
 
 
-;;;; Function stuff:
-
+;;;; Function stuff.
 
 ;;; We default the Where-From and Type slots to :Defined and Function.  We
 ;;; don't normally manipulate function types for defined functions, but if
@@ -781,9 +759,6 @@
 				 (:where-from :defined)
 				 (:type (specifier-type 'function)))
 		       (:print-function %print-functional))
-  ;;        
-  ;;        
-  ;;        
   ;;
   ;; Some information about how this function is used.  These values are
   ;; meaningful:
@@ -875,10 +850,9 @@
   ;;
   ;; Various rare random info that dives code generation & stuff.
   (plist () :type list))
- 
+
 (defprinter functional
   name)
-
 
 ;;; The Lambda only deals with required lexical arguments.  Special, optional,
 ;;; keyword and rest arguments are handled by transforming into simpler stuff.
@@ -915,17 +889,17 @@
   ;; this is a self-pointer.
   (home nil :type (or clambda null))
   ;;
-  ;; A list of all the all the lambdas that have been let-substituted in this
+  ;; A list of all the lambdas that have been let-substituted in this
   ;; lambda.  This is only non-null in lambdas that aren't lets.
   (lets () :type list)
   ;;
-  ;; A list of all the Entry nodes in this function and its lets.  Null an a
-  ;; let.
+  ;; A list of all the Entry nodes in this function and its lets.  Null in
+  ;; a let.
   (entries () :type list)
   ;;
-  ;; A list of all the functions directly called from this function (or one of
-  ;; its lets) using a non-let local call.  May include deleted functions
-  ;; because nobody bothers to clear them out.
+  ;; A list of all the functions directly called from this function (or one
+  ;; of its lets) using a non-let local call.  May include deleted
+  ;; functions because nobody bothers to clear them out.
   (calls () :type list)
   ;;
   ;; The Tail-Set that this lambda is in.  Null during creation and in let
@@ -948,8 +922,7 @@
   (where-from :test (not (eq where-from :assumed)))
   (vars :prin1 (mapcar #'leaf-name vars)))
 
-
-;;; The Optional-Dispatch leaf is used to represent hairy lambdas.  If is a
+;;; The Optional-Dispatch leaf is used to represent hairy lambdas.  It is a
 ;;; Functional, like Lambda.  Each legal number of arguments has a function
 ;;; which is called when that number of arguments is passed.  The function is
 ;;; called with all the arguments actually passed.  If additional arguments are
@@ -1000,7 +973,7 @@
   ;; An entry point which takes Max-Args fixed arguments followed by an
   ;; argument context pointer and an argument count.  This entry point deals
   ;; with listifying rest args and parsing keywords.  This is null when extra
-  ;; arguments aren't legal.  
+  ;; arguments aren't legal.
   (more-entry nil :type (or clambda null))
   ;;
   ;; The main entry-point into the function, which takes all arguments
@@ -1008,7 +981,6 @@
   ;; be determined by examining the arglist.  This may be used by callers that
   ;; supply at least Max-Args arguments and know what they are doing.
   (main-entry nil :type (or clambda null)))
-
 
 (defprinter optional-dispatch
   name
@@ -1022,7 +994,6 @@
   (entry-points :test entry-points)
   (more-entry :test more-entry)
   main-entry)
-
 
 ;;; The Arg-Info structure allows us to tack various information onto
 ;;; Lambda-Vars during IR1 conversion.  If we use one of these things, then the
@@ -1057,7 +1028,6 @@
   (supplied-p :test supplied-p)
   (default :test default)
   (keyword :test keyword))
-
 
 ;;; The Lambda-Var structure represents a lexical lambda variable.  This
 ;;; structure is also used during IR1 conversion to describe lambda arguments
@@ -1095,9 +1065,9 @@
   (specvar nil :type (or global-var null))
   ;;
   ;; Set of the CONSTRAINTs on this variable.  Used by constraint
-  ;; propagation.  This is left null by the lambda pre-pass if it determine
-  ;; that this is a set closure variable, and is thus not a good subject for
-  ;; flow analysis.
+  ;; propagation.  This is left null by the lambda pre-pass if it
+  ;; determines that this is a set closure variable, and is thus not a good
+  ;; subject for flow analysis.
   (constraints nil :type (or sset null)))
 
 (defprinter lambda-var
@@ -1109,7 +1079,7 @@
   (specvar :test specvar))
 
 
-;;;; Basic node types:
+;;;; Basic node types.
 
 ;;; A Ref represents a reference to a leaf.  Ref-Reoptimize is initially (and
 ;;; forever) NIL, since Refs don't receive any values and don't have any IR1
@@ -1125,7 +1095,6 @@
 
 (defprinter ref
   leaf)
-
 
 ;;; Naturally, the IF node always appears at the end of a block.  Node-Cont is
 ;;; a dummy continuation, and is there only to keep people happy.
@@ -1150,7 +1119,6 @@
   consequent
   alternative)
 
-
 (defstruct (cset (:include node
 			   (:derived-type *universal-type*))
 		 (:print-function %print-set)
@@ -1168,7 +1136,6 @@
 (defprinter set
   var
   (value :prin1 (continuation-use value)))
-
 
 ;;; The Basic-Combination structure is used to represent both normal and
 ;;; multiple value combinations.  In a local function call, this node appears
@@ -1198,7 +1165,6 @@
   ;; Some kind of information attached to this node by the back end.
   (info nil))
 
-
 ;;; The Combination node represents all normal function calls, including
 ;;; FUNCALL.  This is distinct from Basic-Combination so that an MV-Combination
 ;;; isn't Combination-P.
@@ -1215,7 +1181,6 @@
 			       "<deleted>"))
 		       args)))
 
-
 ;;; An MV-Combination is to Multiple-Value-Call as a Combination is to Funcall.
 ;;; This is used to implement all the multiple-value receiving forms.
 ;;;
@@ -1226,7 +1191,6 @@
 (defprinter mv-combination
   (fun :prin1 (continuation-use fun))
   (args :prin1 (mapcar #'continuation-use args)))
-
 
 ;;; The Bind node marks the beginning of a lambda body and represents the
 ;;; creation and initialization of the variables.
@@ -1241,7 +1205,6 @@
 (defprinter bind
   lambda)
 
-
 ;;; The Return node marks the end of a lambda body.  It collects the return
 ;;; values and represents the control transfer on return.  This is also where
 ;;; we stick information used for Tail-Set type inference.
@@ -1253,7 +1216,7 @@
 		    (:constructor make-return)
 		    (:copier copy-return))
   ;;
-  ;; The lambda we are returing from.  Null temporarily during ir1tran.
+  ;; The lambda we are returning from.  Null temporarily during ir1tran.
   (lambda nil :type (or clambda null))
   ;;
   ;; The continuation which yields the value of the lambda.
@@ -1264,17 +1227,15 @@
   ;; no non-call uses, this is *empty-type*.
   (result-type *wild-type* :type ctype))
 
-
 (defprinter return
   lambda
   result-type)
 
 
-;;;; Non-local exit support:
+;;;; Non-local exit support.
 ;;;
-;;;    In IR1, we insert special nodes to mark potentially non-local lexical
+;;; In IR1, we insert special nodes to mark potentially non-local lexical
 ;;; exits.
-
 
 ;;; The Entry node serves to mark the start of the dynamic extent of a lexical
 ;;; exit.  It is the mess-up node for the corresponding :Entry cleanup.
@@ -1289,7 +1250,6 @@
   (cleanup nil :type (or cleanup null)))
 
 (defprinter entry)
-
 
 ;;; The Exit node marks the place at which exit code would be emitted, if
 ;;; necessary.  This is interposed between the uses of the exit continuation
@@ -1315,7 +1275,7 @@
   (value :test value))
 
 
-;;;; Miscellaneous IR1 structures:
+;;;; Miscellaneous IR1 structures.
 
 (defstruct (undefined-warning
 	    (:print-function
@@ -1339,7 +1299,7 @@
   (warnings () :type list))
 
 
-;;;; Freeze some structure types to speed type testing:
+;;;; Freeze some structure types to speed type testing.
 
 (declaim (freeze-type node leaf lexenv continuation cblock component cleanup
 		      environment tail-set nlx-info))

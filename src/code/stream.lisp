@@ -22,7 +22,7 @@
 	  *standard-input* *standard-output*
           *error-output* *query-io* *debug-io* *terminal-io* *trace-output*))
 
-;; FIX insertable-stream?
+;; FIX insertable-stream? (~like a buffer)
 
 (in-package "SYSTEM")
 (export '(make-indenting-stream read-n-bytes))
@@ -34,6 +34,13 @@
 	  stream-command-args make-stream-command make-case-frob-stream))
 
 (in-package "LISP")
+
+#[ Streams
+
+[FIX]
+
+[ Stream Extensions ]  FIX integrate this node
+]#
 
 (deftype string-stream ()
   '(or string-input-stream string-output-stream
@@ -93,12 +100,11 @@
 
 ;;; HOW THE STREAM STRUCTURE IS USED:
 ;;;
-;;;    Many of the slots of the stream structure contain functions
-;;; which are called to perform some operation on the stream.  Closed
-;;; streams have #'Closed-Flame in all of their function slots.  If
-;;; one side of an I/O or echo stream is closed, the whole stream is
-;;; considered closed.  The functions in the operation slots take
-;;; arguments as follows:
+;;; Many of the slots of the stream structure contain functions which are
+;;; called to perform some operation on the stream.  Closed streams have
+;;; #'Closed-Flame in all of their function slots.  If one side of an I/O
+;;; or echo stream is closed, the whole stream is considered closed.  The
+;;; functions in the operation slots take arguments as follows:
 ;;;
 ;;; In:			Stream, Eof-Errorp, Eof-Value
 ;;; Bin:		Stream, Eof-Errorp, Eof-Value
@@ -108,10 +114,11 @@
 ;;; Sout:		Stream, String, Start, End
 ;;; Misc:		Stream, Operation, &Optional Arg1, Arg2
 ;;;
-;;;    In order to save space, some of the less common stream operations
-;;; are handled by just one function, the Misc method.  This function
-;;; is passed a keyword which indicates the operation to perform.
-;;; The following keywords are used:
+;;; In order to save space, some of the less common stream operations are
+;;; handled by just one function, the Misc method.  This function is passed
+;;; a keyword which indicates the operation to perform.  The following
+;;; keywords are used:
+;;;
 ;;;  :listen 		- Return the following values:
 ;;; 			     t if any input waiting.
 ;;; 			     :eof if at eof.
@@ -133,49 +140,48 @@
 ;;;  :file-name		- Return the name of an associated file.
 ;;;  :interactive-p     - Is this an interactive device?
 ;;;
-;;;    In order to do almost anything useful, it is necessary to
-;;; define a new type of structure that includes stream, so that the
-;;; stream can have some state information.
+;;; In order to do almost anything useful, it is necessary to define a new
+;;; type of structure that includes stream, so that the stream can have
+;;; some state information.
 ;;;
 ;;; THE STREAM IN-BUFFER:
 ;;;
-;;;    The In-Buffer in the stream holds characters or bytes that
-;;; are ready to be read by some input function.  If there is any
-;;; stuff in the In-Buffer, then the reading function can use it
-;;; without calling any stream method.  Any stream may put stuff in
-;;; the In-Buffer, and may also assume that any input in the In-Buffer
-;;; has been consumed before any in-method is called.  If a text
-;;; stream has FIX? in In-Buffer, then the first character should not be
-;;; used to buffer normal input so that it is free for unreading into.
+;;; The In-Buffer in the stream holds characters or bytes that are ready to
+;;; be read by some input function.  If there is any stuff in the
+;;; In-Buffer, then the reading function can use it without calling any
+;;; stream method.  Any stream may put stuff in the In-Buffer, and may also
+;;; assume that any input in the In-Buffer has been consumed before any
+;;; in-method is called.  If a text stream has FIX? in In-Buffer, then the
+;;; first character should not be used to buffer normal input so that it is
+;;; free for unreading into.
 ;;;
-;;;    The In-Buffer slot is a vector In-Buffer-Length long.  The
-;;; In-Index is the index in the In-Buffer of the first available
-;;; object.  The available objects are thus between In-Index and the
-;;; length of the In-Buffer.
+;;; The In-Buffer slot is a vector In-Buffer-Length long.  The In-Index is
+;;; the index in the In-Buffer of the first available object.  The
+;;; available objects are thus between In-Index and the length of the
+;;; In-Buffer.
 ;;;
-;;;    When this buffer is only accessed by the normal stream
-;;; functions, the number of function calls is halved, thus
-;;; potentially doubling the speed of simple operations.  If the
-;;; Fast-Read-Char and Fast-Read-Byte macros are used, nearly all
-;;; function call overhead is removed, vastly speeding up these
-;;; important operations.
+;;; When this buffer is only accessed by the normal stream functions, the
+;;; number of function calls is halved, thus potentially doubling the speed
+;;; of simple operations.  If the Fast-Read-Char and Fast-Read-Byte macros
+;;; are used, nearly all function call overhead is removed, vastly speeding
+;;; up these important operations.
 ;;;
-;;;    If a stream does not have an In-Buffer, then the In-Buffer slot
-;;; must be nil, and the In-Index must be In-Buffer-Length.  These are
-;;; the default values for the slots.
+;;; If a stream does not have an In-Buffer, then the In-Buffer slot must be
+;;; nil, and the In-Index must be In-Buffer-Length.  These are the default
+;;; values for the slots.
 
 
 ;;;; Stream manipulation functions.
 
 (defun input-stream-p (stream)
-  "Returns non-nil if the given Stream can perform input operations."
+  "Return true if the given Stream can perform input operations."
   (and (lisp-stream-p stream)
        (not (eq (lisp-stream-in stream) #'closed-flame))
        (or (not (eq (lisp-stream-in stream) #'ill-in))
 	   (not (eq (lisp-stream-bin stream) #'ill-bin)))))
 
 (defun output-stream-p (stream)
-  "Returns non-nil if the given Stream can perform output operations."
+  "Return true if the given Stream can perform output operations."
   (and (lisp-stream-p stream)
        (not (eq (lisp-stream-in stream) #'closed-flame))
        (or (not (eq (lisp-stream-out stream) #'ill-out))
@@ -193,17 +199,17 @@
   (funcall (lisp-stream-misc stream) stream :interactive-p))
 
 (defun open-stream-p (stream)
-  "Return true if and only if STREAM has not been closed."
+  "Return true if STREAM is still open."
   (declare (type stream stream))
   (not (eq (lisp-stream-in stream) #'closed-flame)))
 
 (defun close (stream &key abort)
   "Closes the given Stream.  No more I/O may be performed, but inquiries
-   may still be made.  If :Abort is non-nil, an attempt is made to clean up
+   may still be made.  If $abort is true, an attempt is made to clean up
    the side effects of having created the stream."
   (declare (type stream stream))
-  (when (open-stream-p stream)
-    (funcall (lisp-stream-misc stream) stream :close abort))
+  (if (open-stream-p stream)
+      (funcall (lisp-stream-misc stream) stream :close abort))
   t)
 
 (defun set-closed-flame (stream)
@@ -221,7 +227,7 @@
 
 ;;; File-Position  --  Public
 ;;;
-;;;    Call the misc method with the :file-position operation.
+;;; Call the misc method with the :file-position operation.
 ;;;
 (defun file-position (stream &optional position)
   "With one argument returns the current position within the file
@@ -240,11 +246,10 @@
 
 ;;; File-Length  --  Public
 ;;;
-;;;    Like File-Position, only use :file-length.
+;;; Like File-Position, only use :file-length.
 ;;;
 (defun file-length (stream)
-  "This function returns the length of the file that File-Stream is open
-   to."
+  "Return the length of the file that File-Stream is open to."
   (declare (stream stream))
   (funcall (lisp-stream-misc stream) stream :file-length))
 
@@ -253,8 +258,9 @@
 
 (defun read-line (&optional (stream *standard-input*) (eof-errorp t) eof-value
 			    recursive-p)
-  "Returns a line of text read from the Stream as a string, discarding the
-   newline character."
+  "Return a line of text read from $stream as a string, discarding any
+   newline character.  Return a second value t on reaching the end of
+   file."
   (declare (ignore recursive-p))
   (let ((stream (in-synonym-of stream)))
     (if (lisp-stream-p stream)
@@ -279,8 +285,8 @@
 		      (done-with-fast-read-char)
 		      (return (values (eof-or-lose stream eof-errorp eof-value)
 				      t)))
-		     ;; since fast-read-char hit already the eof char, we
-		     ;; shouldn't do another read-char
+		     ;; Since fast-read-char already hit the EOF char, we
+		     ;; shouldn't do another read-char.
 		     (t
 		      (done-with-fast-read-char)
 		      (return (values (shrink-vector res index) t))))))))
@@ -377,7 +383,7 @@
 		     char)))))))
 
 (defun listen (&optional (stream *standard-input*))
-  "Returns T if a character is available on the given Stream."
+  "Return t if a character is available on $stream."
   (let ((stream (in-synonym-of stream)))
     (if (lisp-stream-p stream)
 	(or (/= (the fixnum (lisp-stream-in-index stream)) in-buffer-length)
@@ -466,9 +472,9 @@
 
 ;;; FAST-READ-CHAR-REFILL  --  Interface
 ;;;
-;;;    This function is called by the fast-read-char expansion to refill the
-;;; in-buffer for text streams.  There is definitely an in-buffer, and hence
-;;; must be an n-bin method.
+;;; This function is called by the fast-read-char expansion to refill the
+;;; in-buffer for text streams.  There is definitely an in-buffer, and
+;;; hence must be an n-bin method.
 ;;;
 (defun fast-read-char-refill (stream eof-errorp eof-value)
   (let* ((ibuf (lisp-stream-in-buffer stream))
@@ -491,10 +497,9 @@
 	   (setf (lisp-stream-in-index stream) (1+ start))
 	   (code-char (aref ibuf start))))))
 
-
 ;;; FAST-READ-BYTE-REFILL  --  Interface
 ;;;
-;;;    Similar to FAST-READ-CHAR-REFILL, but we don't have to leave room for
+;;; Similar to FAST-READ-CHAR-REFILL, but we don't have to leave room for
 ;;; unreading.
 ;;;
 (defun fast-read-byte-refill (stream eof-errorp eof-value)
@@ -520,7 +525,7 @@
 ;;;; Output functions.
 
 (defun write-char (character &optional (stream *standard-output*))
-  "Outputs the Character to the Stream."
+  "Output $character to $stream."
   (with-out-stream stream (lisp-stream-out character)
 		   (stream-write-char character))
   character)
@@ -531,11 +536,11 @@
   nil)
 
 (defun fresh-line (&optional (stream *standard-output*))
-  "Outputs a new line to the Stream if it is not positioned at the begining
-   of a line.  Returns T if it output a new line, nil otherwise."
+  "Output a new line to $stream if it is not positioned at the begining of
+   a line.  Return #t on outputting a new line, else ()."
   (let ((stream (out-synonym-of stream)))
     (if (lisp-stream-p stream)
-	(when (/= (or (charpos stream) 1) 0)
+	(fi* (zerop (or (charpos stream) 0))
 	  (funcall (lisp-stream-out stream) stream #\newline)
 	  t)
 	;; Fundamental-stream.
@@ -549,7 +554,7 @@
 ;; or (format "abc")  (format "abc" t)  (format "abc" stream) (format "~Aabc" stream x)
 (defun write-string (string &optional (stream *standard-output*)
 			    &key (start 0) (end (length (the vector string))))
-  "Outputs the String to the given Stream."
+  "Output $string to $stream."
   (write-string* string stream start end))
 
 (defun write-string* (string &optional (stream *standard-output*)
@@ -602,20 +607,20 @@
 		   (stream-line-length)))
 
 (defun finish-output (&optional (stream *standard-output*))
-  "Attempts to ensure that all output sent to the Stream has reached its
-   destination, and only then returns."
+  "Attempt to ensure that all output sent to $stream has reached its
+   destination, and only then return."
   (with-out-stream stream (lisp-stream-misc :finish-output)
 		   (stream-finish-output))
   nil)
 
 (defun force-output (&optional (stream *standard-output*))
-  "Attempts to force any buffered output to be sent."
+  "Attempt to force any buffered output on $stream to be sent."
   (with-out-stream stream (lisp-stream-misc :force-output)
 		   (stream-force-output))
   nil)
 
 (defun clear-output (&optional (stream *standard-output*))
-  "Clears the given output Stream."
+  "Clear output $stream."
   (with-out-stream stream (lisp-stream-misc :clear-output)
 		   (stream-force-output))
   nil)
@@ -629,7 +634,7 @@
 
 ;;;; Stream-misc-dispatch
 ;;;
-;;; Called from lisp-stream routines that encapsulate CLOS streams to
+;;; Called from lisp-stream routines that encapsulate CLOS streams to      FIX
 ;;; handle the misc routines and dispatch to the appropriate Gray stream
 ;;; functions.
 ;;;
@@ -638,7 +643,7 @@
 	   (ignore arg2))
   (case operation
     (:listen
-     ;; Return true is input available, :eof for eof-of-file, otherwise Nil.
+     ;; Return true if input available, :eof for eof-of-file, otherwise Nil.
      (let ((char (stream-read-char-no-hang stream)))
        (when (characterp char)
 	 (stream-unread-char stream char))
@@ -783,8 +788,8 @@
 
 ;;; Synonym-Misc  --  Internal
 ;;;
-;;;    We have to special-case the operations which could look at stuff in
-;;; the in-buffer.
+;;; We have to special-case the operations which could look at stuff in the
+;;; in-buffer.
 ;;;
 (defun synonym-misc (stream operation &optional arg1 arg2)
   (declare (optimize (safety 1)))
@@ -1013,7 +1018,7 @@
 (setf (documentation 'make-echo-stream 'function)
   "Returns a bidirectional stream which gets its input from Input-Stream and
    sends its output to Output-Stream.  In addition, all input is echoed to
-   the output stream")
+   the output stream.")
 
 ;;;; String Input Streams.
 
@@ -1196,7 +1201,7 @@
 
 ;;;; Fill-pointer streams.
 ;;;
-;;;    Fill pointer string output streams are used in the implementation of
+;;; Fill pointer string output streams are used in the implementation of
 ;;; With-Output-To-String.
 
 (defstruct (fill-pointer-output-stream
@@ -1222,7 +1227,7 @@
       (let ((offset-current (+ start current)))
 	(declare (fixnum offset-current))
 	(if (= offset-current end)
-	    (let* ((new-length (* current 2))
+	    (let* ((new-length (* current+1 2))
 		   (new-workspace (make-string new-length)))
 	      (declare (simple-string new-workspace))
 	      (%primitive byte-blt workspace start new-workspace 0 current)
@@ -1608,9 +1613,21 @@
 ;;;; Transfer.
 
 (defun transfer (in out)
-  "Read to the end of stream IN, writing the content to stream OUT."
-  (loop for line = (read-line in ()) while line do
-    (write-line line out)))
+  "Read to the end of stream $in, writing the content to stream $out."
+  ;; FIX read-line waits for a newline terminated line of input
+  ;;     can hang waiting for the newline following 1 or more chars
+  ;;  char vs line streams
+  (multiple-value-bind (line eofp)
+		       (read-line in ())
+    (iterate iter ((line line) (eofp eofp))
+      (when line
+	(write-string line out)
+	(or eofp
+	    (progn
+	      (write-char #\newline out)
+	      (multiple-value-bind (line eofp)
+				   (read-line in ())
+		(iter line eofp))))))))
 
 
 ;;;; Public interface from "EXTENSIONS" package.
@@ -1624,7 +1641,6 @@
 (defun print-stream-command (obj str n)
   (declare (ignore n))
   (format str "#<Stream-Cmd ~S>" (stream-command-name obj)))
-
 
 ;;; GET-STREAM-COMMAND -- Public.
 ;;;

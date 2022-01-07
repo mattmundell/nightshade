@@ -54,7 +54,7 @@ Linkage Registers:
   R31	ra  N	Return Addr	L2	Random Lisp Reg		Y
 
 Key:
-	CN == C/UNIX name
+	CN == C/Unix name
 	NL == Lisp name
 	PR == Preserved on C function call (callee saves)
 	GC == Considered as a root for GC

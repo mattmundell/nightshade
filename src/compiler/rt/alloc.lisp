@@ -1,24 +1,6 @@
-;;; -*- Package: rt -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/alloc.lisp,v 1.5 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/rt/alloc.lisp,v 1.5 1994/10/31 04:45:41 ram Exp $
-;;;
 ;;; Allocation VOPs for the IBM RT port.
-;;;
-;;; Written by William Lott.
-;;; Converted by Bill Chiles.
-;;;
 
 (in-package "RT")
-
 
 
 ;;;; LIST and LIST*
@@ -83,7 +65,6 @@
 
 (define-vop (list* list-or-list*)
   (:variant t))
-
 
 
 ;;;; Special purpose inline allocators.

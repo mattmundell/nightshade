@@ -3,6 +3,38 @@
 (in-package "ED")
 
 
+#[ Completion
+
+This is a minor mode that saves words greater than three characters in length,
+allowing later completion of those words.  This is very useful for the often
+long identifiers used in Lisp programs.  As you type a word, such as a Lisp
+symbol when in `Lisp' mode, and you progress to typing the third letter,
+the editor displays a possible completion in the status line.  You can then
+rotate through the possible completions or type some more letters to narrow
+down the possibilities.  If you choose a completion, you can also rotate
+through the possibilities in the buffer instead of in the status line.
+Choosing a completion or inserting a character that delimits words moves the
+word forward in the ring of possible completions, so the next time you enter
+its initial characters, the editor will prefer it over less recently used
+completions.
+
+{mode:Completion}
+{command:Completion Self Insert}
+
+`Completion Self Insert' is bound to most of the key-events with
+corresponding graphic characters.
+
+{command:Completion Complete Word}
+{command:Completion Rotate Completions}
+{command:List Possible Completions}
+{evariable:Completion Bucket Size}
+{command:Save Completions}
+{command:Read Completions}
+{evariable:Completion Database Filename}
+{command:Parse Buffer for Completions}
+]#
+
+
 ;;;; The Completion Database.
 
 ;;; The top level structure here is an array that gets indexed with the
@@ -16,11 +48,13 @@
 
 (defvar *completions* (make-array completion-table-size :initial-element nil))
 
-(defhvar "Completion Bucket Size"
-  "This limits the number of completions saved for a particular combination of
-   the first three letters of any word."
+(defevar "Completion Bucket Size"
+  "Completions are stored in buckets determined by the first three letters
+   of a word. This variable limits the number of completions saved for each
+   combination of the first three letters of a word.  If there are many
+   identifier in some module beginning with the same first three letters,
+   this variable needs to increase to accommodate all the names."
   :value 20)
-
 
 ;;; Mapping strings into buckets.
 
@@ -167,16 +201,15 @@
 
 (defmode "Completion" :transparent-p t :precedence 10.0
   :documentation
-  "This is a minor mode that saves words greater than three characters in length,
-   allowing later completion of those words.  This is very useful for often
-   long identifiers used in Lisp code.  All words with the same first three
-   letters are in one list sorted by most recently used.  \"Completion Bucket
-   Size\" limits the number of completions saved in each list.")
+  "This is a minor mode that saves words greater than three characters in
+   length, allowing later completion of those words.  This is very useful
+   for often long identifiers used in Lisp code.  All words with the same
+   first three letters are in one list sorted by most recently used.
+   *Completion Bucket Size* limits the number of completions saved in each
+   list.")
 
-(defcommand "Completion Mode" (p)
+(defcommand "Completion Mode" ()
   "Toggles Completion Mode in the current buffer."
-  "Toggles Completion Mode in the current buffer."
-  (declare (ignore p))
   (setf (buffer-minor-mode (current-buffer) "Completion")
 	(not (buffer-minor-mode (current-buffer) "Completion"))))
 
@@ -187,7 +220,7 @@
 ;;; keep track of the word in *completion-prefix* that the user is typing.  The
 ;;; length of the thing is kept in *completion-prefix-length*.
 ;;;
-(defconstant completion-prefix-max-size 100)
+(defconstant completion-prefix-max-size 256)
 
 (defvar *completion-prefix* (make-string completion-prefix-max-size))
 
@@ -203,15 +236,17 @@
 (defcommand "Completion Self Insert" (p)
   "Insert the last character typed, showing possible completions.  With prefix
    argument insert the character that many times."
-  "Implements \"Completion Self Insert\". Calling this function is not
-   meaningful."
   (let ((char (ext:key-event-char *last-key-event-typed*)))
-    (unless char (editor-error "Can't insert that character."))
+    (or char (editor-error "Can't insert that character."))
+#| FIX somehow handle a word going over the limit
+    (if (>= *completion-prefix-length* completion-prefix-max-size)
+	(editor-error "Word too long for completion."))
+|#
     (cond ((completion-char-p char)
 	   ;; If start of word not already in *completion-prefix*, put it
 	   ;; there.
-	   (unless (eq (last-command-type) :completion-self-insert)
-	     (set-completion-prefix))
+	   (or (eq (last-command-type) :completion-self-insert)
+	       (set-completion-prefix))
 	   ;; Then add new stuff.
 	   (cond ((and p (> p 1))
 		  (fill *completion-prefix* (char-downcase char)
@@ -241,8 +276,8 @@
 		(completion-char-p (previous-character point)))
 	   (with-mark ((mark point))
 	     (reverse-find-attribute mark :completion-wordchar #'zerop)
-	     (unless (eq (mark-line mark) point-line)
-	       (editor-error "No completion wordchars on this line!"))
+	     (or (eq (mark-line mark) point-line)
+		 (editor-error "Must have completion wordchars on this line."))
 	     (let ((insert-string (nstring-downcase
 				   (region-to-string
 				    (region mark point)))))
@@ -251,15 +286,15 @@
 	  (t
 	   (setq *completion-prefix-length* 0)))))
 
-
-(defcommand "Completion Complete Word" (p)
-  "Complete the word if we've got a completion, fixing up the case.  Invoking
-   this immediately in succession rotates through possible completions in the
-   buffer.  If there is no currently displayed completion, this tries to choose
-   a completion from text immediately before the point and displays the
+;; FIX compare m-/
+(defcommand "Completion Complete Word" ()
+  "Selects the currently displayed completion if there is one, guessing the
+   case of the inserted text as with `Query Replace'.  If invoked in
+   immediate succession rotate through possible completions in the buffer.
+   If there is no currently displayed completion, try to choose a
+   completion from text immediately before the point and display the
    completion if found."
   "Complete the word if we've got a completion, fixing up the case."
-  (declare (ignore p))
   (let ((last-command-type (last-command-type)))
     ;; If the user has been cursoring around and then tries to complete,
     ;; let him.
@@ -275,10 +310,13 @@
        (do-completion))))
   (setf (last-command-type) :completion))
 
-(defcommand "List Possible Completions" (p)
-  "List all possible completions of the prefix the user has typed."
-  "List all possible completions of the prefix the user has typed."
-  (declare (ignore p))
+;; FIX consistent with kill ring browsing?
+(defcommand "List Possible Completions" ()
+  "List all possible completions of the text immediately before point in a
+   pop-up display.  Sometimes this is more useful than rotating through
+   several completions to see what is available."
+  "List all possible completions of the text immediately before point in a
+   pop-up display."
   (let ((last-command-type (last-command-type)))
     (unless (member last-command-type '(:completion-self-insert :completion))
       (set-completion-prefix))
@@ -351,13 +389,10 @@
     strung))
 
 (defcommand "Completion Rotate Completions" (p)
-  "Show another possible completion in the status line, if there is one.
-   If there is no currently displayed completion, this tries to choose a
-   completion from text immediately before the point and displays the
-   completion if found.  With an argument, rotate the completion ring that many
-   times."
-  "Show another possible completion in the status line, if there is one.
-   With an argument, rotate the completion ring that many times."
+  "Show the next possible completion in the status line, if there is one,
+   otherwise try to choose a completion from text immediately before the
+   point and display the completion if found.  With an argument, rotate the
+   completion ring that many times."
   (unless (eq (last-command-type) :completion-self-insert)
     (set-completion-prefix)
     (setf (last-command-type) :completion-self-insert))
@@ -369,23 +404,20 @@
 
 ;;;; Nifty database and parsing machanisms.
 
-(defhvar "Completion Database Filename"
-  "The file that \"Save Completions\" and \"Read Completions\" will
-   respectively write and read the completion database to and from."
-  :value nil)
+(defevar "Completion Database Filename"
+  "The file that `Save Completions' and `Read Completions' respectively
+   write and read the completion database to and from.")
 
 (defvar *completion-default-default-database-filename*
   "ed-completions.txt"
-  "The file that will be defaultly written to and read from by \"Save
-   Completions\" and \"Read Completions\".")
+  "The file that will be defaultly written to and read from by `Save
+   Completions' and `Read Completions'.")
 
 (defcommand "Save Completions" (p)
-  "Writes the current completion database to a file, defaultly the value of
-   \"Completion Database Filename\".  With an argument, prompts for a
-   filename."
-  "Writes the current completion database to a file, defaultly the value of
-   \"Completion Database Filename\".  With an argument, prompts for a
-   filename."
+  "Write the current completion database to `Completion Database Filename'.
+   With an argument, prompts for a filename.  Write completions such that
+   `Read Completions' can read them back in preserving the
+   most-recently-used order."
   (let ((filename (or (and (not p) (value completion-database-filename))
 		      (prompt-for-file
 		       :must-exist nil
@@ -407,10 +439,10 @@
       (message "Done."))))
 
 (defcommand "Read Completions" (p)
-  "Reads some completions from a file, defaultly the value of \"Completion
-   Database File\".  With an argument, prompts for a filename."
-  "Reads some completions from a file, defaultly the value of \"Completion
-   Database File\".  With an argument, prompts for a filename."
+  "Read completions from *Completion Database File*.  With an argument,
+   prompt for a filename.  Move any current completions to a
+   less-recently-used status, and remove any in buckets that exceed the
+   limit `Completion Bucket Size'."
   (let ((filename (or (and (not p) (value completion-database-filename))
 		      (prompt-for-file
 		       :must-exist nil
@@ -442,12 +474,10 @@
 	      (when (= i end) (setf (cdr completion) nil))))))
       (message "Done."))))
 
-(defcommand "Parse Buffer for Completions" (p)
-  "Zips over a buffer slamming everything that is a valid completion word
-   into the completion hashtable."
-  "Zips over a buffer slamming everything that is a valid completion word
-   into the completion hashtable."
-  (declare (ignore p))
+(defcommand "Parse Buffer for Completions" ()
+  "Pass over the current buffer putting each valid completion word into the
+   database.  This is a good way of picking up many useful completions upon
+   visiting a new file for which there are no saved completions."
   (let ((buffer (prompt-for-buffer :prompt "Buffer to parse: "
 				   :must-exist t
 				   :default (current-buffer)

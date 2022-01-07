@@ -60,7 +60,7 @@
 ;;;
 (defun ts-stream-accept-input (remote input)
   (let ((stream (wire:remote-object-value remote)))
-    (system:without-interrupts
+    (system:block-interrupts
      (system:without-gcing
       (setf (ts-stream-current-input stream)
 	    (nconc (ts-stream-current-input stream)
@@ -99,7 +99,7 @@
 ;;;
 (defun %ts-stream-listen (stream)
   (flet ((check ()
-	   (system:without-interrupts
+	   (system:block-interrupts
 	    (system:without-gcing
 	     (loop
 	       (let* ((current (ts-stream-current-input stream))
@@ -126,7 +126,7 @@
 (defun %ts-stream-in (stream &optional eoferr eofval)
   (declare (ignore eoferr eofval)) ; EOF's are impossible.
   (wait-for-typescript-input stream)
-  (system:without-interrupts
+  (system:block-interrupts
    (system:without-gcing
     (let ((first (first (ts-stream-current-input stream))))
       (etypecase first
@@ -149,7 +149,7 @@
       ((next-str ()
 	 '(progn
 	    (wait-for-typescript-input stream)
-	    (system:without-interrupts
+	    (system:block-interrupts
 	     (system:without-gcing
 	      (let ((first (first (ts-stream-current-input stream))))
 		(etypecase first
@@ -177,7 +177,7 @@
   (unless (%ts-stream-listen stream)
     (let ((wire (ts-stream-wire stream))
 	  (ts (ts-stream-typescript stream)))
-      (system:without-interrupts
+      (system:block-interrupts
        (system:without-gcing
 	(wire:remote wire (ts-buffer-ask-for-input ts))
 	(wire:wire-force-output wire)))
@@ -189,7 +189,7 @@
 ;;; %TS-STREAM-FLSBUF --- internal.
 ;;;
 ;;; Flush the output buffer associated with stream.  This should only be used
-;;; inside a without-interrupts and without-gcing.
+;;; inside a block-interrupts and without-gcing.
 ;;;
 (defun %ts-stream-flsbuf (stream)
   (when (and (ts-stream-wire stream)
@@ -209,7 +209,7 @@
 ;;;
 (defun %ts-stream-out (stream char)
   (declare (base-char char))
-  (system:without-interrupts
+  (system:block-interrupts
    (system:without-gcing
     (when (= (ts-stream-output-buffer-index stream)
 	     ts-stream-output-buffer-size)
@@ -237,7 +237,7 @@
 	(newline (position #\Newline string :start start :end end :from-end t))
 	(length (- end start)))
     (when wire
-      (system:without-interrupts
+      (system:block-interrupts
        (system:without-gcing
 	(let ((index (ts-stream-output-buffer-index stream)))
 	  (cond ((> (+ index length)
@@ -271,7 +271,7 @@
 ;;; Unread a single character.
 ;;;
 (defun %ts-stream-unread (stream char)
-  (system:without-interrupts
+  (system:block-interrupts
    (system:without-gcing
     (let ((first (first (ts-stream-current-input stream))))
       (cond ((and (stringp first)
@@ -296,7 +296,7 @@
 ;;; Pass the request to the editor and clear any buffered input.
 ;;;
 (defun %ts-stream-clear-input (stream)
-  (system:without-interrupts
+  (system:block-interrupts
    (system:without-gcing
     (when (ts-stream-wire stream)
       (wire:remote-value (ts-stream-wire stream)
@@ -319,7 +319,7 @@
     (:interactive-p t)
     (:get-command
      (wait-for-typescript-input stream)
-     (system:without-interrupts
+     (system:block-interrupts
       (system:without-gcing
        (etypecase (first (ts-stream-current-input stream))
 	 (stream-command
@@ -333,7 +333,7 @@
      t)
     (:finish-output
      (when (ts-stream-wire stream)
-       (system:without-interrupts
+       (system:block-interrupts
 	(system:without-gcing
 	 (%ts-stream-flsbuf stream)
 	 ;; Note: for the return value to come back,
@@ -344,7 +344,7 @@
      t)
     (:force-output
      (when (ts-stream-wire stream)
-       (system:without-interrupts
+       (system:block-interrupts
 	(system:without-gcing
 	 (%ts-stream-flsbuf stream)
 	 (wire:wire-force-output (ts-stream-wire stream)))))

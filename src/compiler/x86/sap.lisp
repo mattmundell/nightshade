@@ -1,27 +1,9 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/sap.lisp,v 1.2.2.2 2000/05/23 16:38:03 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the x86 VM definition of SAP operations.
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; Enhancements/debugging by Douglas T. Crosher 1996,1997,1998,1999.
-;;;
-(in-package :x86)
+;;; The x86 VM definition of SAP operations.
+
+(in-package "X86")
 
 
-;;;; Moves and coercions:
+;;;; Moves and coercions.
 
 ;;; Move a tagged SAP to an untagged representation.
 ;;;
@@ -37,20 +19,18 @@
 
 ;;; Move an untagged SAP to a tagged representation.
 ;;;
-
 (define-vop (move-from-sap)
   (:args (sap :scs (sap-reg) :to :result))
   (:results (res :scs (descriptor-reg) :from :argument))
-  (:note "SAP to pointer coercion") 
+  (:note "SAP to pointer coercion")
   (:node-var node)
   (:generator 20
     (with-fixed-allocation (res sap-type sap-size node)
       (storew sap res sap-pointer-slot other-pointer-type))))
-	   
+
 ;;;
 (define-move-vop move-from-sap :move
   (sap-reg) (descriptor-reg))
-
 
 ;;; Move untagged sap values.
 ;;;
@@ -65,12 +45,9 @@
   (:affected)
   (:generator 0
     (move y x)))
-
-
 ;;;
 (define-move-vop sap-move :move
   (sap-reg) (sap-reg))
-
 
 ;;; Move untagged sap arguments/return-values.
 ;;;
@@ -93,13 +70,11 @@
 (define-move-vop move-sap-argument :move-argument
   (descriptor-reg sap-reg) (sap-reg))
 
-
 ;;; Use standard MOVE-ARGUMENT + coercion to move an untagged sap to a
 ;;; descriptor passing location.
 ;;;
 (define-move-vop move-argument :move-argument
   (sap-reg) (descriptor-reg))
-
 
 
 ;;;; SAP-INT and INT-SAP
@@ -123,7 +98,6 @@
   (:policy :fast-safe)
   (:generator 1
     (move sap int)))
-
 
 
 ;;;; POINTER+ and POINTER-
@@ -166,7 +140,6 @@
   (:generator 1
     (move res ptr1)
     (inst sub res ptr2)))
-
 
 
 ;;;; mumble-SYSTEM-REF and mumble-SYSTEM-SET
@@ -274,7 +247,8 @@
   sap-reg system-area-pointer :dword)
 
 
-;;; Sap-Ref-Double
+;;;; Sap-Ref-Double
+
 (define-vop (sap-ref-double)
   (:translate sap-ref-double)
   (:policy :fast-safe)
@@ -358,7 +332,8 @@
 		  (inst fxch value)))))))
 
 
-;;; Sap-Ref-Single
+;;;; Sap-Ref-Single
+
 (define-vop (sap-ref-single)
   (:translate sap-ref-single)
   (:policy :fast-safe)
@@ -442,7 +417,8 @@
 		  (inst fxch value)))))))
 
 
-;;; Sap-Ref-Long
+;;;; Sap-Ref-Long
+
 (define-vop (sap-ref-long)
   (:translate sap-ref-long)
   (:policy :fast-safe)
@@ -493,12 +469,12 @@
 		  (inst fstd value))
 		 (t
 		  ;; Neither value or result are in ST0
-		  (unless (location= value result)
-		    (inst fstd result))
+		  (or (location= value result)
+		      (inst fstd result))
 		  (inst fxch value)))))))
 
 
-;;; Noise to convert normal lisp data objects into SAPs.
+;;;; Noise to convert normal lisp data objects into SAPs.
 
 (define-vop (vector-sap)
   (:translate vector-sap)
@@ -511,7 +487,7 @@
     (inst add sap (- (* vector-data-offset word-bytes) other-pointer-type))))
 
 
-;;; Transforms for 64-bit SAP accessors.
+;;;; Transforms for 64-bit SAP accessors.
 
 (deftransform sap-ref-64 ((sap offset) (* *))
   '(logior (sap-ref-32 sap offset)

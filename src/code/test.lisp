@@ -1,6 +1,6 @@
 ;;; Attempt to combine node interpreter compiler and direct doc-generator
 ;;; function compiler for doc:doc-to-* implementation.  Strongest is note
-;;; in final `emit'.
+;;; in final `emit', below.
 
 (defun gnode-type (node)
   "Return the type of NODE."
@@ -89,7 +89,7 @@
        ;; Maybe (eval ,form) so that it can be passed in as
        ;;     `(... ,(maybe-comma xxx) ...)
        ;; where maybe-comma can return ,xxx if emit else xxx
-       ;; and change something to alow bare ,xxx forms to be
+       ;; and change something to allow bare ,xxx forms to be
        ;; passed around...
        (backquote ,form)
        ',form))

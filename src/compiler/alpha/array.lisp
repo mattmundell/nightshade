@@ -1,20 +1,5 @@
-;;; -*- Package: ALPHA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/array.lisp,v 1.2.2.2 2000/05/23 16:37:28 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the Alpha definitions for array operations.
-;;;
-;;; Written by William Lott
-;;; Conversion by Sean Hallgren
-;;; Complex-float support by Douglas Crosher 1998.
-;;;
+;;; The Alpha definitions for array operations.
+
 (in-package "ALPHA")
 
 
@@ -43,7 +28,6 @@
       (inst bis alloc-tn other-pointer-type result)
       (storew header result 0 other-pointer-type)
       (inst addq alloc-tn bytes alloc-tn))))
-
 
 
 ;;;; Additional accessors and setters for the array header.
@@ -76,10 +60,8 @@
     (inst subq temp (1- array-dimensions-offset) temp)
     (inst sll temp 2 res)))
 
-
 
 ;;;; Bounds checking routine.
-
 
 (define-vop (check-bound)
   (:translate %check-bound)
@@ -98,9 +80,8 @@
       (inst beq temp error)
       (move index result))))
 
-
 
-;;;; Accessors/Setters
+;;;; Accessors/Setters.
 
 ;;; Variants built on top of word-index-ref, etc.  I.e. those vectors whos
 ;;; elements are represented in integer registers and are built out of
@@ -158,7 +139,6 @@
 
 ;;; Integer vectors whos elements are smaller than a byte.  I.e. bit, 2-bit,
 ;;; and 4-bit vectors.
-;;; 
 
 (defmacro def-small-data-vector-frobs (type bits)
   (let* ((elements-per-word (floor word-bits bits))
@@ -206,7 +186,7 @@
 	 (:result-types positive-fixnum)
 	 (:generator 15
 	   (multiple-value-bind (word extra) (floor index ,elements-per-word)
-	     (loadw result object (+ word vector-data-offset) 
+	     (loadw result object (+ word vector-data-offset)
 		    other-pointer-type)
 	     (unless (zerop extra)
 	       (inst srl result (* extra ,bits) result))
@@ -324,9 +304,7 @@
 (def-small-data-vector-frobs simple-array-unsigned-byte-2 2)
 (def-small-data-vector-frobs simple-array-unsigned-byte-4 4)
 
-
 ;;; And the float variants.
-;;; 
 
 (define-vop (data-vector-ref/simple-array-single-float)
   (:note "inline array access")
@@ -515,8 +493,8 @@
 	(inst fmove value-imag result-imag)))))
 
 
-;;; These VOPs are used for implementing float slots in structures (whose raw
-;;; data is an unsigned-32 vector.
+;;; These VOPs are used for implementing float slots in structures (whose
+;;; raw data is an unsigned-32 vector.
 ;;;
 (define-vop (raw-ref-single data-vector-ref/simple-array-single-float)
   (:translate %raw-ref-single)
@@ -556,16 +534,13 @@
   (:arg-types simple-array-unsigned-byte-32 positive-fixnum
 	      complex-double-float))
 
-
-;;; These vops are useful for accessing the bits of a vector irrespective of
-;;; what type of vector it is.
-;;; 
+;;; These vops are useful for accessing the bits of a vector irrespective
+;;; of what type of vector it is.
 
 (define-full-reffer raw-bits * 0 other-pointer-type (unsigned-reg) unsigned-num
   %raw-bits)
 (define-full-setter set-raw-bits * 0 other-pointer-type (unsigned-reg)
   unsigned-num %set-raw-bits #+gengc nil)
-
 
 
 ;;;; Misc. Array VOPs.

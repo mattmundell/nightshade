@@ -1,19 +1,5 @@
-;;; -*- Package: MIPS -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/array.lisp,v 1.47.2.2 2000/05/23 16:37:38 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the MIPS definitions for array operations.
-;;;
-;;; Written by William Lott
-;;; Complex-float support by Douglas Crosher 1998.
-;;;
+;;; The MIPS definitions for array operations.
+
 (in-package "MIPS")
 
 
@@ -67,7 +53,6 @@
     (inst li nl0 other-pointer-type)
     (move result a0)))
 
-
 
 ;;;; Additional accessors and setters for the array header.
 
@@ -84,7 +69,6 @@
   array-dimensions-offset other-pointer-type
   (any-reg) positive-fixnum lisp::%set-array-dimension #+gengc nil)
 
-
 (defknown lisp::%array-rank (t) index (flushable))
 
 (define-vop (array-rank-vop)
@@ -99,10 +83,8 @@
     (inst subu temp (1- array-dimensions-offset))
     (inst sll res temp 2)))
 
-
 
 ;;;; Bounds checking routine.
-
 
 (define-vop (check-bound)
   (:translate %check-bound)
@@ -122,9 +104,8 @@
       (inst nop)
       (move result index))))
 
-
 
-;;;; Accessors/Setters
+;;;; Accessors/Setters.
 
 ;;; Variants built on top of word-index-ref, etc.  I.e. those vectors whos
 ;;; elements are represented in integer registers and are built out of
@@ -182,11 +163,8 @@
 (def-full-data-vector-frobs simple-array-signed-byte-32 signed-num
   signed-reg)
 
-
-
 ;;; Integer vectors whos elements are smaller than a byte.  I.e. bit, 2-bit,
 ;;; and 4-bit vectors.
-;;; 
 
 (defmacro def-small-data-vector-frobs (type bits)
   (let* ((elements-per-word (floor word-bits bits))
@@ -237,7 +215,7 @@
 	   (multiple-value-bind (word extra) (floor index ,elements-per-word)
 	     ,@(when (eq (backend-byte-order *target-backend*) :big-endian)
 		 `((setf extra (logxor extra (1- ,elements-per-word)))))
-	     (loadw result object (+ word vector-data-offset) 
+	     (loadw result object (+ word vector-data-offset)
 		    other-pointer-type)
 	     (unless (zerop extra)
 	       (inst srl result (* extra ,bits)))
@@ -354,9 +332,7 @@
 (def-small-data-vector-frobs simple-array-unsigned-byte-2 2)
 (def-small-data-vector-frobs simple-array-unsigned-byte-4 4)
 
-
 ;;; And the float variants.
-;;; 
 
 (define-vop (data-vector-ref/simple-array-single-float)
   (:note "inline array access")
@@ -484,7 +460,6 @@
 				other-pointer-type)))
     (inst nop)))
 
-
 (define-vop (data-vector-set/simple-array-complex-single-float)
   (:note "inline array store")
   (:translate data-vector-set)
@@ -550,7 +525,7 @@
   (:temporary (:scs (any-reg) :from (:argument 1)) shift)
   (:generator 6
     (inst sll shift index 2)
-    (inst addu lip object shift)  
+    (inst addu lip object shift)
     (let ((value-real (complex-double-reg-real-tn value))
 	  (result-real (complex-double-reg-real-tn result)))
       (str-double value-real lip (- (* vector-data-offset word-bytes)
@@ -565,8 +540,8 @@
 	(inst fmove :double result-imag value-imag)))))
 
 
-;;; These VOPs are used for implementing float slots in structures (whose raw
-;;; data is an unsigned-32 vector.
+;;; These VOPs are used for implementing float slots in structures (whose
+;;; raw data is an unsigned-32 vector.
 ;;;
 (define-vop (raw-ref-single data-vector-ref/simple-array-single-float)
   (:translate %raw-ref-single)
@@ -608,17 +583,15 @@
 
 ;;; These vops are useful for accessing the bits of a vector irrespective of
 ;;; what type of vector it is.
-;;; 
+;;;
 
 (define-full-reffer raw-bits * 0 other-pointer-type (unsigned-reg) unsigned-num
   %raw-bits)
 (define-full-setter set-raw-bits * 0 other-pointer-type (unsigned-reg)
   unsigned-num %set-raw-bits #+gengc nil)
 
-
 
 ;;;; Misc. Array VOPs.
 
 (define-vop (get-vector-subtype get-header-data))
 (define-vop (set-vector-subtype set-header-data))
-

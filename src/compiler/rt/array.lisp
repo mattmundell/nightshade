@@ -1,23 +1,6 @@
-;;; -*- Package: RT; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/array.lisp,v 1.11 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/rt/array.lisp,v 1.11 1994/10/31 04:45:41 ram Exp $
-;;;
-;;; This file contains the IBM RT definitions for array operations.
-;;;
-;;; Written by William Lott and Bill Chiles.
-;;;
+;;; The IBM RT definitions for array operations.
 
 (in-package "RT")
-
 
 
 ;;;; Allocator for the array header.
@@ -58,7 +41,6 @@
     (inst tlt ndescr alloc)
     (move result header)))
 
-
 
 ;;;; Additional accessors and setters for the array header.
 
@@ -76,8 +58,6 @@
   (:translate lisp::%set-array-dimension)
   (:policy :fast-safe)
   (:variant vm:array-dimensions-offset vm:other-pointer-type))
-
-
 
 (defknown lisp::%array-rank (t) fixnum (flushable))
 
@@ -100,7 +80,6 @@
     (inst sl temp 2)
     (move res temp)))
 
-
 
 ;;;; Bounds checking routine.
 
@@ -120,13 +99,12 @@
       (inst bnc :lt error)
       (move result index))))
 
-
 
 ;;;; 32-bit, 16-bit, and 8-bit vectors.
 
 ;;; We build these variants on top of VOP's defined in memory.lisp.  These
-;;; vectors' elements are represented in integer registers and are built out of
-;;; 8, 16, or 32 bit elements.
+;;; vectors' elements are represented in integer registers and are built
+;;; out of 8, 16, or 32 bit elements.
 
 (eval-when (compile eval)
 (defmacro def-data-vector-frobs (type variant element-type &rest scs)
@@ -171,7 +149,6 @@
   positive-fixnum unsigned-reg)
 (def-data-vector-frobs simple-array-unsigned-byte-32 word-index
   unsigned-num unsigned-reg)
-
 
 
 ;;;; Integer vectors with 1, 2, and 4 bit elements.
@@ -292,7 +269,7 @@
 	      ,@(unless (= bits 4)
 		  `((inst sr shift ,(- 3 (integer-length bits)))))))
 	   (inst xil shift ,(1- elements-per-word))
-	      
+
 	   ;; Unless our immediate is all 1's, zero the destination bits.
 	   (unless (and (sc-is value immediate)
 			(= (tn-value value) ,(1- (ash 1 bits))))
@@ -393,7 +370,6 @@
 (def-small-data-vector-frobs simple-array-unsigned-byte-2 2)
 (def-small-data-vector-frobs simple-array-unsigned-byte-4 4)
 
-
 
 ;;;; Float vectors.
 
@@ -473,7 +449,6 @@
     (inst mc68881-store value lip :double scratch)
     (unless (location= result value)
       (inst mc68881-move result value scratch))))
-)
 
 #+afpa(progn
 (define-vop (data-vector-ref/simple-array-afpa-single-float)
@@ -577,7 +552,6 @@
   (:results (result :scs (unsigned-reg)))
   (:result-types unsigned-num)
   (:variant 0 vm:other-pointer-type))
-
 
 
 ;;;; Vector subtype frobs.

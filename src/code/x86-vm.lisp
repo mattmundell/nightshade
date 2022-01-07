@@ -389,7 +389,7 @@
 
 ;;; EXTERN-ALIEN-NAME -- interface.
 ;;;
-;;; The loader uses this to convert alien names to the form they occure in
+;;; The loader uses this to convert alien names to the form they occur in
 ;;; the symbol table (for example, prepending an underscore).
 ;;;
 (defun extern-alien-name (name)

@@ -1,6 +1,6 @@
-;;; This file contains the definition of non-CLASS types (e.g. subtypes of
-;;; interesting BUILT-IN-CLASSes) and the interfaces to the type system.
-;;; Lisp type specifiers are parsed into a somewhat canonical internal type
+;;; The definition of non-CLASS types (e.g. subtypes of interesting
+;;; BUILT-IN-CLASSes) and the interfaces to the type system.  Lisp type
+;;; specifiers are parsed into a somewhat canonical internal type
 ;;; representation that supports type union, intersection, etc.
 
 (in-package "KERNEL")
@@ -32,6 +32,15 @@
 ;;;
 ;;; ratio and bignum are not recognized as numeric types.
 
+#[ Data Types
+
+[ Symbols ]
+[ Integers ]
+[ Floats ]
+[ Characters (lisp) ]
+[ Array Initialization ]
+]#
+
 ;;;
 (defvar *use-implementation-types* t
   "*Use-Implementation-Types* is a semi-public flag which determines how
@@ -46,12 +55,12 @@
 
 ;;; DELEGATE-COMPLEX-{SUBTYPEP-ARG2,INTERSECTION}  --  Interface
 ;;;
-;;;    These functions are used as method for types which need a complex
+;;; These functions are used as method for types which need a complex
 ;;; subtypep method to handle some superclasses, but cover a subtree of the
-;;; type graph (i.e. there is no simple way for any other type class to be a
-;;; subtype.)  There are always still complex ways, namely UNION and MEMBER
-;;; types, so we must give TYPE1's method a chance to run, instead of
-;;; immediately returning NIL, T.
+;;; type graph (i.e. there is no simple way for any other type class to be
+;;; a subtype.)  There are always still complex ways, namely UNION and
+;;; MEMBER types, so we must give TYPE1's method a chance to run, instead
+;;; of immediately returning NIL, T.
 ;;;
 (defun delegate-complex-subtypep-arg2 (type1 type2)
   (let ((subtypep-arg1
@@ -92,13 +101,13 @@
 
 ;;; DEFINE-SUPERCLASSES  --  Interface
 ;;;
-;;;    Takes a list of specs of the form (superclass &optional guard).
+;;; Takes a list of specs of the form (superclass &optional guard).
 ;;; Consider one spec (with no guard): any instance of type-class is also a
 ;;; subtype of SUPERCLASS and of any of its superclasses.  If there are
-;;; multiple specs, then some will have guards.  We choose the first spec whose
-;;; guard is a supertype of TYPE1 and use its superclass.  In effect, a
-;;; sequence of guards G0, G1, G2 is actually G0, (and G1 (not G0)),
-;;; (and G2 (not (or G0 G1))).
+;;; multiple specs, then some will have guards.  We choose the first spec
+;;; whose guard is a supertype of TYPE1 and use its superclass.  In effect,
+;;; a sequence of guards G0, G1, G2 is actually G0, (and G1 (not G0)), (and
+;;; G2 (not (or G0 G1))).
 ;;;
 (defmacro define-superclasses (type-class &rest specs)
   (let ((info
@@ -126,7 +135,7 @@
 
 ;;;; Function and Values types.
 ;;;
-;;;    Pretty much all of the general type operations are illegal on VALUES
+;;; Pretty much all of the general type operations are illegal on VALUES
 ;;; types, since we can't discriminate using them, do SUBTYPEP, etc.  FUNCTION
 ;;; types are acceptable to the normal type operations, but are generally
 ;;; considered to be equivalent to FUNCTION.  These really aren't true types in
@@ -191,9 +200,9 @@
 
 ;;; TYPE=-LIST  --  Internal
 ;;;
-;;;    Return true if List1 and List2 have the same elements in the same
-;;; positions according to TYPE=.  We return NIL, NIL if there is an uncertain
-;;; comparison.
+;;; Return true if List1 and List2 have the same elements in the same
+;;; positions according to TYPE=.  We return NIL, NIL if there is an
+;;; uncertain comparison.
 ;;;
 (defun type=-list (list1 list2)
   (declare (list list1 list2))
@@ -309,9 +318,9 @@
 
 ;;; Parse-Args-Types  --  Internal
 ;;;
-;;;    Given a lambda-list like values type specification and a Args-Type
-;;; structure, fill in the slots in the structure accordingly.  This is used
-;;; for both FUNCTION and VALUES types.
+;;; Given a lambda-list like values type specification and a Args-Type
+;;; structure, fill in the slots in the structure accordingly.  This is
+;;; used for both FUNCTION and VALUES types.
 ;;;
 (defun parse-args-types (lambda-list result)
   (declare (list lambda-list) (type args-type result))
@@ -337,8 +346,8 @@
 
 ;;; Unparse-Args-Types  --  Internal
 ;;;
-;;;    Return the lambda-list like type specification corresponding
-;;; to a Args-Type.
+;;; Return the lambda-list like type specification corresponding to a
+;;; Args-Type.
 ;;;
 (defun unparse-args-types (type)
   (declare (type args-type type) (values list))
@@ -383,16 +392,16 @@
 
 ;;;; Values types interfaces.
 ;;;
-;;;    We provide a few special operations that can be meaningfully used on
+;;; We provide a few special operations that can be meaningfully used on
 ;;; values types (as well as on any other type.)
 
 ;;; Single-Value-Type  --  Interface
 ;;;
-;;;    Return the type of the first value indicated by Type.  This is used by
-;;; people who don't want to have to deal with values types. If the first
-;;; values is an optional or rest argument then return the union with the null
-;;; type. If the first values is a keyword then give up and return the
-;;; universal type.
+;;; Return the type of the first value indicated by Type.  This is used by
+;;; people who don't want to have to deal with values types.  If the first
+;;; values is an optional or rest argument then return the union with the
+;;; null type.  If the first values is a keyword then give up and return
+;;; the universal type.
 ;;;
 (defun single-value-type (type)
   (declare (type ctype type))
@@ -417,7 +426,7 @@
 
 ;;; FUNCTION-TYPE-NARGS  --  Interface
 ;;;
-;;;    Return the minmum number of arguments that a function can be called
+;;; Return the minmum number of arguments that a function can be called
 ;;; with, and the maximum number or NIL.  If not a function type, return
 ;;; NIL, NIL.
 ;;;
@@ -434,10 +443,10 @@
 
 ;;; Values-Types  --  Interface
 ;;;
-;;;    Determine if Type corresponds to a definite number of values.  The first
-;;; value is a list of the types for each value, and the second value is the
-;;; number of values.  If the number of values is not fixed, then return NIL
-;;; and :Unknown.
+;;; Determine if Type corresponds to a definite number of values.  The
+;;; first value is a list of the types for each value, and the second value
+;;; is the number of values.  If the number of values is not fixed, then
+;;; return NIL and :Unknown.
 ;;;
 (defun values-types (type)
   (declare (type ctype type))
@@ -456,7 +465,7 @@
 
 ;;; Values-Type-Types  --  Internal
 ;;;
-;;;    Return two values:
+;;; Return two values:
 ;;; 1] A list of all the positional (fixed and optional) types.
 ;;; 2] The rest type (if any).  If keywords allowed, *universal-type*.  If no
 ;;;    keywords or rest, *empty-type*.
@@ -472,9 +481,9 @@
 
 ;;; Fixed-Values-Op  --  Internal
 ;;;
-;;;    Return a list of Operation applied to the types in Types1 and Types2,
-;;; padding with Rest2 as needed.  Types1 must not be shorter than Types2.  The
-;;; second value is T if Operation always returned a true second value.
+;;; Return a list of Operation applied to the types in Types1 and Types2,
+;;; padding with Rest2 as needed.  Types1 must not be shorter than Types2.
+;;; The second value is T if Operation always returned a true second value.
 ;;;
 (defun fixed-values-op (types1 types2 rest2 operation)
   (declare (list types1 types2) (type ctype rest2) (type function operation))
@@ -513,7 +522,7 @@
 
 ;;; Args-Type-Op  --  Internal
 ;;;
-;;;    Do the specified Operation on Type1 and Type2, which may be any type,
+;;; Do the specified Operation on Type1 and Type2, which may be any type,
 ;;; including Values types.  With values types such as:
 ;;;    (values a0 a1)
 ;;;    (values b0 b1)
@@ -576,9 +585,9 @@
 
 ;;; Values-Type-Union, Values-Type-Intersection  --  Interface
 ;;;
-;;;    Do a union or intersection operation on types that might be values
-;;; types.  The result is optimized for utility rather than exactness, but it
-;;; is guaranteed that it will be no smaller (more restrictive) than the
+;;; Do a union or intersection operation on types that might be values
+;;; types.  The result is optimized for utility rather than exactness, but
+;;; it is guaranteed that it will be no smaller (more restrictive) than the
 ;;; precise result.
 ;;;
 (defun-cached (values-type-union :hash-function type-cache-hash
@@ -607,7 +616,7 @@
 
 ;;; Values-Types-Intersect  --  Interface
 ;;;
-;;;    Like Types-Intersect, except that it sort of works on values types.
+;;; Like Types-Intersect, except that it sort of works on values types.
 ;;; Note that due to the semantics of Values-Type-Intersection, this might
 ;;; return {T, T} when there isn't really any intersection (?).
 ;;;
@@ -624,7 +633,7 @@
 
 ;;; Values-Subtypep  --  Interface
 ;;;
-;;;    A subtypep-like operation that can be used on any types, including
+;;; A subtypep-like operation that can be used on any types, including
 ;;; values types.
 ;;;
 (defun-cached (values-subtypep :hash-function type-cache-hash
@@ -674,7 +683,7 @@
 
 ;;; Csubtypep  --  Interface
 ;;;
-;;;    Like subtypep, only works on Type structures.
+;;; Like subtypep, only works on Type structures.
 ;;;
 (defun-cached (csubtypep :hash-function type-cache-hash
 			 :hash-bits 8
@@ -699,9 +708,9 @@
 
 ;;; Type=  --  Interface
 ;;;
-;;;    If two types are definitely equivalent, return true.  The second value
-;;; indicates whether the first value is definitely correct.  This should only
-;;; fail in the presence of Hairy types.
+;;; If two types are definitely equivalent, return true.  The second value
+;;; indicates whether the first value is definitely correct.  This should
+;;; only fail in the presence of Hairy types.
 ;;;
 (defun-cached (type= :hash-function type-cache-hash
 		     :hash-bits 8
@@ -716,7 +725,7 @@
 
 ;;; TYPE/=  --  Interface
 ;;;
-;;;    Not exactly the negation of TYPE=, since when the relationship is
+;;; Not exactly the negation of TYPE=, since when the relationship is
 ;;; uncertain, we still return NIL, NIL.  This is useful in cases where the
 ;;; conservative assumption is =.
 ;;;
@@ -732,11 +741,11 @@
 
 ;;; Type-Union  --  Interface
 ;;;
-;;;    Find a type which includes both types.  Any inexactness is represented
-;;; by the fuzzy element types; we return a single value that is precise to the
-;;; best of our knowledge.  This result is simplified into the canonical form,
-;;; thus is not a UNION type unless there is no other way to represent the
-;;; result.
+;;; Find a type which includes both types.  Any inexactness is represented
+;;; by the fuzzy element types; we return a single value that is precise to
+;;; the best of our knowledge.  This result is simplified into the
+;;; canonical form, thus is not a UNION type unless there is no other way
+;;; to represent the result.
 ;;;
 (defun-cached (type-union :hash-function type-cache-hash
 			  :hash-bits 8
@@ -757,10 +766,10 @@
 
 ;;; Type-Intersection  --  Interface
 ;;;
-;;;    Return as restrictive a type as we can discover that is no more
-;;; restrictive than the intersection of Type1 and Type2.  The second value is
-;;; true if the result is exact.  At worst, we randomly return one of the
-;;; arguments as the first value (trying not to return a hairy type).
+;;; Return as restrictive a type as we can discover that is no more
+;;; restrictive than the intersection of Type1 and Type2.  The second value
+;;; is true if the result is exact.  At worst, we randomly return one of
+;;; the arguments as the first value (trying not to return a hairy type).
 ;;;
 (defun-cached (type-intersection :hash-function type-cache-hash
 				 :hash-bits 8
@@ -777,10 +786,11 @@
 
 ;;; Types-Intersect  --  Interface
 ;;;
-;;;    The first value is true unless the types don't intersect.  The second
-;;; value is true if the first value is definitely correct.  NIL is considered
-;;; to intersect with any type.  If T is a subtype of either type, then we also
-;;; return T, T.  This way we consider hairy types to intersect with T.
+;;; The first value is true unless the types don't intersect.  The second
+;;; value is true if the first value is definitely correct.  NIL is
+;;; considered to intersect with any type.  If T is a subtype of either
+;;; type, then we also return T, T.  This way we consider hairy types to
+;;; intersect with T.
 ;;;
 (defun types-intersect (type1 type2)
   (declare (type ctype type1 type2))
@@ -798,7 +808,7 @@
 
 ;;; Type-Specifier  --  Interface
 ;;;
-;;;    Return a Common Lisp type specifier corresponding to this type.
+;;; Return a type specifier corresponding to this type.
 ;;;
 (defun type-specifier (type)
   (declare (type ctype type))
@@ -806,7 +816,7 @@
 
 ;;; VALUES-SPECIFIER-TYPE  --  Interface
 ;;;
-;;;    Return the type structure corresponding to a type specifier.  We pick
+;;; Return the type structure corresponding to a type specifier.  We pick
 ;;; off Structure types as a special case.
 ;;;
 ;;; Note: VALUES-SPECIFIER-TYPE-CACHE-CLEAR must be called whenever a type is
@@ -848,7 +858,7 @@
 
 ;;; SPECIFIER-TYPE  --  Interface
 ;;;
-;;;    Like VALUES-SPECIFIER-TYPE, except that we guarantee to never return a
+;;; Like VALUES-SPECIFIER-TYPE, except that we guarantee to never return a
 ;;; VALUES type.
 ;;;
 (defun specifier-type (x)
@@ -859,8 +869,8 @@
 
 ;;; Type-Expand  --  Interface
 ;;;
-;;;    Similar to Macroexpand, but expands deftypes.  We don't bother returning
-;;; a second value.
+;;; Similar to Macroexpand, but expands deftypes.  We don't bother
+;;; returning a second value.
 ;;;
 (defun type-expand (form)
   (let ((def (cond ((symbolp form)
@@ -874,8 +884,8 @@
 
 ;;; Precompute-Types  --  Interface
 ;;;
-;;;    Take a list of type specifiers, compute the translation and define it as
-;;; a builtin type.
+;;; Take a list of type specifiers, compute the translation and define it
+;;; as a builtin type.
 ;;;
 (defun precompute-types (specs)
   (declare (list specs))
@@ -1044,7 +1054,7 @@
   ;;
   ;; The upper and lower bounds on the value.  If null, there is no bound.
   ;; If a list of a number, the bound is exclusive.  Integer types never
-  ;; have exclusive bounds.
+  ;; have exclusive bounds. FIX always have inclusive?
   (low nil :type (or number cons null))
   (high nil :type (or number cons null)))
 
@@ -1130,14 +1140,14 @@
 
 ;;; Numeric-Bound-Test  --  Internal
 ;;;
-;;;    Return true if X is "less than or equal" to Y, taking open bounds into
-;;; consideration.  Closed is the predicate used to test the bound on a closed
-;;; interval (e.g. <=), and Open is the predicate used on open bounds (e.g. <).
-;;; Y is considered to be the outside bound, in the sense that if it is
-;;; infinite (NIL), then the test suceeds, whereas if X is infinite, then the
-;;; test fails (unless Y is also infinite).
+;;; Return true if X is "less than or equal" to Y, taking open bounds into
+;;; consideration.  Closed is the predicate used to test the bound on a
+;;; closed interval (e.g. <=), and Open is the predicate used on open
+;;; bounds (e.g. <).  Y is considered to be the outside bound, in the sense
+;;; that if it is infinite (NIL), then the test suceeds, whereas if X is
+;;; infinite, then the test fails (unless Y is also infinite).
 ;;;
-;;;    This is for comparing bounds of the same kind, e.g. upper and upper.
+;;; This is for comparing bounds of the same kind, e.g. upper and upper.
 ;;; Use Numeric-Bound-Test* for different kinds of bounds.
 ;;;
 #-negative-zero-is-not-zero
@@ -1174,7 +1184,7 @@
 
 ;;; Numeric-Bound-Test*  --  Internal
 ;;;
-;;;    Used to compare upper and lower bounds.  This is different from the
+;;; Used to compare upper and lower bounds.  This is different from the
 ;;; same-bound case:
 ;;; -- Since X = NIL is -infinity, whereas y = NIL is +infinity, we return true
 ;;;    if *either* arg is NIL.
@@ -1209,10 +1219,11 @@
 
 ;;; Numeric-Bound-Max  --  Internal
 ;;;
-;;;    Return whichever of the numeric bounds X and Y is "maximal" according to
-;;; the predicates Closed (e.g. >=) and Open (e.g. >).  This is only meaningful
-;;; for maximizing like bounds, i.e. upper and upper.  If Max-P is true, then
-;;; we return NIL if X or Y is NIL, otherwise we return the other arg.
+;;; Return whichever of the numeric bounds X and Y is "maximal" according
+;;; to the predicates Closed (e.g. >=) and Open (e.g. >).  This is only
+;;; meaningful for maximizing like bounds, i.e. upper and upper.  If Max-P
+;;; is true, then we return NIL if X or Y is NIL, otherwise we return the
+;;; other arg.
 ;;;
 (defmacro numeric-bound-max (x y closed open max-p)
   (once-only ((n-x x)
@@ -1266,7 +1277,7 @@
 
 ;;; NUMERIC-TYPES-ADJACENT  --  Internal
 ;;;
-;;;    If the high bound of Low is adjacent to the low bound of High, then
+;;; If the high bound of Low is adjacent to the low bound of High, then
 ;;; return True, otherwise NIL.
 ;;;
 (defun numeric-types-adjacent (low high)
@@ -1358,8 +1369,8 @@
 
 ;;; Check-Bound  --  Internal
 ;;;
-;;;    Check that X is a well-formed numeric bound of the specified Type.
-;;; If X is *, return NIL, otherwise return the bound.
+;;; Check that X is a well-formed numeric bound of the specified Type.  If
+;;; X is *, return NIL, otherwise return the bound.
 ;;;
 (defmacro check-bound (x type)
   `(cond ((eq ,x '*) nil)
@@ -1464,10 +1475,10 @@
 
 ;;; Round-Numeric-Bound  --  Internal
 ;;;
-;;;    Take the numeric bound X and convert it into something that can be used
-;;; as a bound in a numeric type with the specified Class and Format.  If up-p
-;;; is true, then we round up as needed, otherwise we round down.  Up-p true
-;;; implies that X is a lower bound, i.e. (N) > N.
+;;; Take the numeric bound X and convert it into something that can be used
+;;; as a bound in a numeric type with the specified Class and Format.  If
+;;; up-p is true, then we round up as needed, otherwise we round down.
+;;; Up-p true implies that X is a lower bound, i.e. (N) > N.
 ;;;
 ;;; This is used by Numeric-Type-Intersection to mash the bound into the
 ;;; appropriate type number.  X may only be a float when Class is Float.
@@ -1498,20 +1509,21 @@
 
 ;;; Number :Simple-Intersection type method  --  Internal
 ;;;
-;;;    Handle the case of Type-Intersection on two numeric types.  We use
-;;; Types-Intersect to throw out the case of types with no intersection.  If an
-;;; attribute in Type1 is unspecified, then we use Type2's attribute, which
-;;; must be at least as restrictive.  If the types intersect, then the only
-;;; attributes that can be specified and different are the class and the
-;;; bounds.
+;;; Handle the case of Type-Intersection on two numeric types.  We use
+;;; Types-Intersect to throw out the case of types with no intersection.
+;;; If an attribute in Type1 is unspecified, then we use Type2's attribute,
+;;; which must be at least as restrictive.  If the types intersect, then
+;;; the only attributes that can be specified and different are the class
+;;; and the bounds.
 ;;;
-;;;    When the class differs, we use the more restrictive class.  The only
+;;; When the class differs, we use the more restrictive class.  The only
 ;;; interesting case is rational/integer, since rational includes integer.
 ;;;
-;;;    We make the result lower (upper) bound the maximum (minimum) of the
+;;; We make the result lower (upper) bound the maximum (minimum) of the
 ;;; argument lower (upper) bounds.  We convert the bounds into the
-;;; appropriate numeric type before maximizing.  This avoids possible confusion
-;;; due to mixed-type comparisons (but I think the result is the same).
+;;; appropriate numeric type before maximizing.  This avoids possible
+;;; confusion due to mixed-type comparisons (but I think the result is the
+;;; same).
 ;;;
 (define-type-method (number :simple-intersection) (type1 type2)
   (declare (type numeric-type type1 type2))
@@ -1547,7 +1559,7 @@
 
 ;;; Float-Format-Max  --  Interface
 ;;;
-;;;    Given two float formats, return the one with more precision.  If either
+;;; Given two float formats, return the one with more precision.  If either
 ;;; one is null, return NIL.
 ;;;
 (defun float-format-max (f1 f2)
@@ -1558,14 +1570,15 @@
 
 ;;; Numeric-Contagion  --  Interface
 ;;;
-;;;    Return the result of an operation on Type1 and Type2 according to the
+;;; Return the result of an operation on Type1 and Type2 according to the
 ;;; rules of numeric contagion.  This is always NUMBER, some float format
-;;; (possibly complex) or RATIONAL.  Due to rational canonicalization, there
-;;; isn't much we can do here with integers or rational complex numbers.
+;;; (possibly complex) or RATIONAL.  Due to rational canonicalization,
+;;; there isn't much we can do here with integers or rational complex
+;;; numbers.
 ;;;
-;;;    If either argument is not a Numeric-Type, then return NUMBER.  This is
-;;; useful mainly for allowing types that are technically numbers, but not a
-;;; Numeric-Type.
+;;; If either argument is not a Numeric-Type, then return NUMBER.  This is
+;;; useful mainly for allowing types that are technically numbers, but not
+;;; a Numeric-Type.
 ;;;
 (defun numeric-contagion (type1 type2)
   (if (and (numeric-type-p type1) (numeric-type-p type2))
@@ -1633,9 +1646,9 @@
 
 ;;; Specialized-Element-Type-Maybe  --  Internal
 ;;;
-;;;      What this does depends on the setting of the
-;;; *use-implementation-types* switch.  If true, return the specialized element
-;;; type, otherwise return the original element type.
+;;; What this does depends on the setting of the *use-implementation-types*
+;;; switch.  If true, return the specialized element type, otherwise return
+;;; the original element type.
 ;;;
 (defun specialized-element-type-maybe (type)
   (declare (type array-type type))
@@ -1780,7 +1793,7 @@
 
 ;;; Check-Array-Dimensions  --  Internal
 ;;;
-;;;    Check a supplied dimension list to determine if it is legal.
+;;; Check a supplied dimension list to determine if it is legal.
 ;;;
 (defun check-array-dimensions (dims)
   (typecase dims
@@ -1962,7 +1975,7 @@
 
 ;;; MAKE-UNION-TYPE  --  Internal
 ;;;
-;;;    Make a union type from the specifier types, setting ENUMERABLE in the
+;;; Make a union type from the specifier types, setting ENUMERABLE in the
 ;;; result if all are enumerable.
 ;;;
 (defun make-union-type (types)
@@ -2192,22 +2205,23 @@
 
 ;;; TYPE-DIFFERENCE  --  Interface
 ;;;
-;;;    Return the type that describes all objects that are in X but not in Y.
+;;; Return the type that describes all objects that are in X but not in Y.
 ;;; If we can't determine this type, then return NIL.
 ;;;
-;;;    For now, we only are clever dealing with union and member types.  If
-;;; either type is not a union type, then we pretend that it is a union of just
-;;; one type.  What we do is remove from X all the types that are a subtype any
-;;; type in Y.  If any type in X intersects with a type in Y but is not a
-;;; subtype, then we give up.
+;;; For now, we only are clever dealing with union and member types.  If
+;;; either type is not a union type, then we pretend that it is a union of
+;;; just one type.  What we do is remove from X all the types that are a
+;;; subtype any type in Y.  If any type in X intersects with a type in Y
+;;; but is not a subtype, then we give up.
 ;;;
-;;;    We must also special-case any member type that appears in the union.  We
-;;; remove from X's members all objects that are TYPEP to Y.  If Y has any
-;;; members, we must be careful that none of those members are CTYPEP to any
-;;; of Y's non-member types.  We give up in this case, since to compute that
-;;; difference we would have to break the type from X into some collection of
-;;; types that represents the type without that particular element.  This seems
-;;; too hairy to be worthwhile, given its low utility.
+;;; We must also special-case any member type that appears in the union.
+;;; We remove from X's members all objects that are TYPEP to Y.  If Y has
+;;; any members, we must be careful that none of those members are CTYPEP
+;;; to any of Y's non-member types.  We give up in this case, since to
+;;; compute that difference we would have to break the type from X into
+;;; some collection of types that represents the type without that
+;;; particular element.  This seems too hairy to be worthwhile, given its
+;;; low utility.
 ;;;
 (defun type-difference (x y)
   (let ((x-types (if (union-type-p x) (union-type-types x) (list x)))
@@ -2253,7 +2267,7 @@
 
 ;;; CLEAR-TYPE-CACHES  --  Interface
 ;;;
-;;;    Clear memoization of all type system operations that can be altered by
+;;; Clear memoization of all type system operations that can be altered by
 ;;; type definition/redefinition.
 ;;;
 (defun clear-type-caches ()
@@ -2270,11 +2284,11 @@
 
 ;;; CTypep  --  Interface
 ;;;
-;;;    If Type is a type that we can do a compile-time test on, then return
-;;; the whether the object is of that type as the first value and second
-;;; value true.  Otherwise return NIL, NIL.
+;;; If Type is a type that we can do a compile-time test on, then return
+;;; whether the object is of that type as the first value and second value
+;;; true.  Otherwise return NIL, NIL.
 ;;;
-;;;    We give up on unknown types, pick off FUNCTION and UNION types.  For
+;;; We give up on unknown types, pick off FUNCTION and UNION types.  For
 ;;; structure types, we require that the type be defined in both the
 ;;; current and compiler environments, and that the INCLUDES be the same.
 ;;;
@@ -2336,7 +2350,7 @@
 
 ;;; EXTRACT-FUNCTION-TYPE  --  Interface
 ;;;
-;;;    Pull the type specifier out of a function object.
+;;; Pull the type specifier out of a function object.
 ;;;
 (defun extract-function-type (fun)
   (if (eval:interpreted-function-p fun)
@@ -2349,7 +2363,7 @@
 
 ;;; Ctype-Of  --  Interface
 ;;;
-;;;    Like Type-Of, only returns a Type structure instead of a type
+;;; Like Type-Of, only returns a Type structure instead of a type
 ;;; specifier.  We try to return the type most useful for type checking,
 ;;; rather than trying to come up with the one that the user might find
 ;;; most informative.

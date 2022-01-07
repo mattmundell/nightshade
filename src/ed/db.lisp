@@ -5,42 +5,81 @@
 
 ;;; Structure.
 
-(add-hook exit-hook 'db:save-db)
+(add-hook exit-hook 'db:ensure-db-saved)
 
-(defmode "DB" :major-p nil
+(defmode "DB" :major-p ()
   :precedence 4.0
   :documentation
   ".db database mode.")
 
 
+;;; Mode.
+
+(defmode "Record" :major-p t)
+
+
 ;;; Commands.
 
-(defcommand "Describe Record" (p)
-  "Pop up a .db description of a prompted record.  With a prefix present
-   the record in a buffer."
-  "Pop up a .db description of a prompted record.  If P is true then
-   present the record in a buffer."
-  (db:ensure-db-read)
-  (let* ((name (prompt-for-string
-		:default (word-at-point)
-		:trim t
-		:prompt "Name, surname or AKA: "
-		:help "Enter name, surname or an AKA of the .db entry to edit."))
-	 (record (db:find-record name)))
-    (or record (editor-error "Search for record failed."))
-    (if p
-	(progn
-	  (switch-to-buffer-command () (find-file-buffer "FIX db"))
-	  (with-output-to-mark (stream (current-point))
-	    (db:write-record stream (car record))))
-	(with-pop-up-display (stream)
-	  (db:write-record stream (car record))))))
+(defun refresh-record-buffer (buffer name records)
+  (with-writable-buffer (buffer)
+    (delete-region (buffer-region buffer))
+    (defevar "name"
+      "The name matched by the records in this buffer."
+      :value name
+      :buffer buffer)
+    (with-output-to-mark (stream (buffer-point buffer))
+      (loop for record in records do
+	(db:write-record stream record)
+	(format stream "================================================~%")))
+    (buffer-start (buffer-point buffer))))
 
-(defcommand "Edit Record" (p)
+(defcommand "Describe Record" (p)
+  "Present a description of a prompted record.  With a prefix pop up the
+   record."
+  (db:ensure-db-read #'message)
+  (let ((name (prompt-for-string
+	       :default (word-at-point)
+	       :trim t
+	       :prompt "Name, surname or AKA: "
+	       :help "Enter name, surname or an AKA of the .db entry to edit.")))
+    (if p
+	(let ((records (progn
+			 (message "Finding matching records.")
+			 (db::find-records name))))
+	  (or records (editor-error "Search for ~A failed." name))
+	  (loop for record in records do
+	    (with-pop-up-display (stream)
+	      (db:write-record stream record)
+	      (format stream "================================================~%"))))
+	(let* ((buffer-name (format () "Record ~A" name))
+	       (buffer (getstring buffer-name *buffer-names*)))
+	  (if buffer
+	      (switch-to-buffer-command () buffer)
+	      (let ((records (progn
+			       (message "Finding matching records...")
+			       (db::find-records name))))
+		(or records (editor-error "Search for ~A failed." name))
+		(let* ((buffer (make-unique-buffer buffer-name
+						   :modes '("Record"))))
+		  (refresh-record-buffer buffer name records)
+		  (switch-to-buffer-command () buffer))))))))
+
+(defcommand "Refresh Record Buffer" ()
+  "Refresh a record buffer."
+  (or (editor-bound-p name :buffer buffer)
+      (editor-error "Buffer must be in Record mode."))
+  (let ((records (progn
+		   (message "Finding matching records...")
+		   (db::find-records (value name)))))
+    (fi* records
+      (with-writable-buffer ((current-buffer))
+	(delete-region (buffer-region (current-buffer))))
+      (editor-error "Search for ~A failed." (value name)))
+    (refresh-record-buffer (current-buffer) (value name) records)))
+
+(defcommand "Edit Record" ()
   "Switch to a buffer of a prompted .db record, for editing."
-  "Switch to a buffer of a prompted .db record, for editing."
-  (declare (ignore p))
-  (db:ensure-db-read)
+  (db:ensure-db-read #'message)
   (let* ((name (prompt-for-string
 		:default (word-at-point)
 		:trim t
@@ -50,14 +89,13 @@
     (or *record* (editor-error "Search for record failed."))
     (find-object (car *record*)
 		 (lambda (record)
+		   (db:set-db-modified)
 		   (setf (car *record*) record)))
     (setf (buffer-minor-mode (current-buffer) "DB") t)))
 
-(defcommand "Add Record" (p)
+(defcommand "Add Record" ()
   "Add a .db record."
-  "Add a .db record."
-  (declare (ignore p))
-  (db:ensure-db-read)
+  (db:ensure-db-read #'message)
   (let* ((forename (prompt-for-string
 		    :default (word-at-point)
 		    :trim t
@@ -96,13 +134,12 @@
 					 (list (cons 'CREATION-DATE date)
 					       (cons 'TIMESTAMP date)))))))))
 
-(defcommand "Save DB" (p)
+(defcommand "Save DB" ()
   "Save the .db database to disk."
-  "Save the .db database to disk."
-  (declare (ignore p))
-  (db:save-db))
+  (db:ensure-db-saved))
 
 
+;;; FIX instance, value?
 ;;; Objed mode.
 
 (defmode "Objed" :major-p nil
@@ -110,17 +147,15 @@
   :documentation
   "Object editing mode.")
 
-(defcommand "Save Object" (p)
+(defcommand "Save Object" ()
   "Save the object represented in the current buffer."
-  "Save the object represented in the current buffer."
-  (declare (ignore p))
   (let ((object (value object)))
     (when object
       (let ((buffer (current-buffer)))
 	(with-input-from-region (stream (buffer-region buffer))
-	  (setv object (or (read stream nil)
-			   (editor-error "nil was read from buffer"))))
-	(setf (buffer-modified buffer) nil)
+	  (setv object (or (read stream ())
+			   (editor-error "Failed to read a record from the buffer."))))
+	(setf (buffer-modified buffer) ())
 	(invoke-hook save-object-hook (value object))))))
 
 (defun object-to-buffer-name (object)
@@ -152,11 +187,11 @@
 		     use)))
     (change-to-buffer buffer)
     (if use (or (stringp use) (delete-region (buffer-region buffer))))
-    (defhvar "Object"
+    (defevar "Object"
       "The object under edit in this buffer."
       :buffer buffer
       :value object)
-    (defhvar "Save Object Hook"
+    (defevar "Save Object Hook"
       "Hook to invoke when object under edit is saved."
       :buffer buffer
       :value (list save-hook))
@@ -164,10 +199,8 @@
       (funcall printer object stream))
     (setf (buffer-modified buffer) nil)))
 
-(defcommand "Inspect Object" (p)
+(defcommand "Inspect Object" ()
   "Inspect the result of the evaluation of a prompted Lisp form."
-  "Inspect the result of the evaluation of a prompted Lisp form."
-  (declare (ignore p))
   (let* ((form (prompt-for-expression
 		:prompt "Inspect: "
 		:help "Enter Lisp form; the result will be inspected.")))

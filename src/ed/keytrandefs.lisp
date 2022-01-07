@@ -1,6 +1,6 @@
-;;; This file initializes character translation that would otherwise be done
-;;; in rompsite.lisp, but there are no good hacks for mapping X11 keysyms
-;;; to CMU Common Lisp character codes.
+;;; This file initializes character translation that would otherwise be
+;;; done in rompsite.lisp, but there are no good hacks for mapping X11
+;;; keysyms to Lisp character codes.
 
 ;;; The IBM RT keyboard has X11 keysyms defined for the following modifier
 ;;; keys, but we leave them mapped to nil indicating that they are non-events
@@ -13,7 +13,6 @@
 ;;;    lock		65509
 
 (in-package "EDI")
-
 
 ;;; Function keys for the RT.
 ;;;
@@ -81,30 +80,30 @@
 ;;; Number pad.
 ;;;
 (define-keysym 65407 #\numlock #\s-numlock)
-(define-keysym 65421 #\s-return #\s-return)			;num-pad-enter
-(define-keysym 65455 #\s-/ #\s-/)				;num-pad-/
-(define-keysym 65450 #\s-* #\s-*)				;num-pad-*
-(define-keysym 65453 #\s-- #\s--)				;num-pad--
-(define-keysym 65451 #\s-+ #\s-+)				;num-pad-+
-(define-keysym 65456 #\s-0 #\s-0)				;num-pad-0
-(define-keysym 65457 #\s-1 #\s-1)				;num-pad-1
-(define-keysym 65458 #\s-2 #\s-2)				;num-pad-2
-(define-keysym 65459 #\s-3 #\s-3)				;num-pad-3
-(define-keysym 65460 #\s-4 #\s-4)				;num-pad-4
-(define-keysym 65461 #\s-5 #\s-5)				;num-pad-5
-(define-keysym 65462 #\s-6 #\s-6)				;num-pad-6
-(define-keysym 65463 #\s-7 #\s-7)				;num-pad-7
-(define-keysym 65464 #\s-8 #\s-8)				;num-pad-8
-(define-keysym 65465 #\s-9 #\s-9)				;num-pad-9
-(define-keysym 65454 #\s-. #\s-.)				;num-pad-.
+(define-keysym 65421 #\s-return #\s-return)			; num-pad-enter
+(define-keysym 65455 #\s-/ #\s-/)				; num-pad-/
+(define-keysym 65450 #\s-* #\s-*)				; num-pad-*
+(define-keysym 65453 #\s-- #\s--)				; num-pad--
+(define-keysym 65451 #\s-+ #\s-+)				; num-pad-+
+(define-keysym 65456 #\s-0 #\s-0)				; num-pad-0
+(define-keysym 65457 #\s-1 #\s-1)				; num-pad-1
+(define-keysym 65458 #\s-2 #\s-2)				; num-pad-2
+(define-keysym 65459 #\s-3 #\s-3)				; num-pad-3
+(define-keysym 65460 #\s-4 #\s-4)				; num-pad-4
+(define-keysym 65461 #\s-5 #\s-5)				; num-pad-5
+(define-keysym 65462 #\s-6 #\s-6)				; num-pad-6
+(define-keysym 65463 #\s-7 #\s-7)				; num-pad-7
+(define-keysym 65464 #\s-8 #\s-8)				; num-pad-8
+(define-keysym 65465 #\s-9 #\s-9)				; num-pad-9
+(define-keysym 65454 #\s-. #\s-.)				; num-pad-.
 
 ;;; "Named" keys.
 ;;;
 (define-keysym 65289 #\tab #\tab)
-(define-keysym 65307 #\escape #\escape)				;esc
+(define-keysym 65307 #\escape #\escape)				; esc
 (define-keysym 65288 #\backspace #\backspace)
-(define-keysym 65293 #\return #\return)				;enter
-(define-keysym 65512 #\linefeed #\linefeed)			;action
+(define-keysym 65293 #\return #\return)				; enter
+(define-keysym 65512 #\linefeed #\linefeed)			; action
 (define-keysym 32 #\space #\space)
 
 ;;; Letters.
@@ -163,8 +162,7 @@
 (define-keysym 46 #\.) (define-keysym 62 #\>)
 (define-keysym 47 #\/) (define-keysym 63 #\?)
 
-
 ;;; Sun keyboard.
 ;;;
-(define-keysym 65387 #\break #\s-break)				;alternate (Sun).
+(define-keysym 65387 #\break #\s-break)				; alternate (Sun).
 (define-keysym 65290 #\linefeed #\s-linefeed)

@@ -1,16 +1,16 @@
 ;;; -*- Package: USER -*-
 ;;;
-;;; This file compiles the editor.
+;;; Compile the editor.
 
 #+bootstrap
 (progn
-  (when (ext:get-command-line-switch "slave")
-    (error "Cannot compile the editor in a slave due to its clobbering
-	    needed typescript routines by renaming the package."))
+  (if (ext:get-command-line-switch "slave")
+      (error "Cannot compile the editor in a slave due to its clobbering
+	      needed typescript routines by renaming the package."))
   ;;; Blast the old packages in case they are around.  This is solely to
   ;;; prove the editor can compile cleanly from scratch.
   ;;;
-  (copy-packages '("ED" "HI")))
+  (copy-packages '("ED" "EDI")))
 
 (load "target:ed/exports.lisp")
 
@@ -41,8 +41,6 @@
 		 (optimize-interface (debug 1))))
        (:macro (declare (optimize (speed 0))))))
 
-(load "code:mh")
-
 (comf "target:code/globals")
 (comf "target:code/struct" :load t)
 (comf "target:ed/exports" :load t)
@@ -62,7 +60,8 @@
 (ext::re-initialize-key-events)
 (comf "target:ed/keysym-defs")
 (comf "target:ed/input")
-(comf "target:ed/macros" :byte-compile t :load t)
+(comf "target:ed/macros" :byte-compile t)
+(load "target:ed/macros")
 (comf "target:ed/line")
 (comf "target:ed/ring")
 (comf "target:ed/htext1")
@@ -124,7 +123,8 @@
 (comf "target:ed/comments" :byte-compile t)
 (comf "target:ed/fill")
 (comf "target:ed/parse" :load t)
-(comf "target:ed/parse-scribe")
+; FIX
+;(comf "target:ed/parse-scribe")
 (comf "target:ed/parse-css")
 (comf "target:ed/info" :byte-compile t)
 (comf "target:ed/ginfo" :byte-compile t)
@@ -132,7 +132,7 @@
 (comf "target:ed/doccoms" :byte-compile t)
 (comf "target:ed/srccom" :byte-compile t)
 (comf "target:ed/abbrev" :byte-compile t)
-(comf "target:ed/group" :byte-compile t)
+(comf "target:ed/group")
 (comf "target:ed/overwrite" :byte-compile t)
 (comf "target:ed/gosmacs" :byte-compile t)
 (comf "target:ed/eval-server" :byte-compile t)
@@ -140,8 +140,8 @@
 (comf "target:ed/lispbuf" :byte-compile t)
 (comf "target:ed/lispeval" :byte-compile t)
 (comf "target:ed/icom" :byte-compile t)
-(comf "target:ed/hi-integrity" :byte-compile t)
 (comf "target:ed/ed-integrity" :byte-compile t)
+(comf "target:ed/edi-integrity" :byte-compile t)
 (comf "target:ed/scribe" :byte-compile t)
 (comf "target:ed/c")
 (comf "target:ed/pascal" :byte-compile t)
@@ -151,37 +151,41 @@
 (comf "target:ed/m4" :byte-compile t)
 (comf "target:ed/tex" :byte-compile t)
 (comf "target:ed/roff" :byte-compile t)
+(comf "target:ed/sgml" :byte-compile t)
 (comf "target:ed/edit-defs" :byte-compile t)
 (comf "target:ed/auto-save" :byte-compile t)
 (comf "target:ed/register" :byte-compile t)
 #+clx (comf "target:ed/xcoms" :byte-compile t)
 (comf "target:ed/unixcoms" :byte-compile t)
-(comf "target:ed/dired" :byte-compile t)
 (comf "target:ed/db" :byte-compile t)
+(comf "target:ed/inspect" :byte-compile t)
 (comf "target:ed/mh")
 (comf "target:ed/compile" :byte-compile t)
 (comf "target:ed/diredcoms" :byte-compile t)
 (comf "target:ed/packed" :byte-compile t)
 (comf "target:ed/bufed" :byte-compile t)
+(comf "target:ed/page" :byte-compile t)
 (comf "target:ed/evented" :byte-compile t)
-(comf "target:ed/lisp-lib" :byte-compile t)
 (comf "target:ed/completion" :byte-compile t)
 (comf "target:ed/shell" :byte-compile t)
 (comf "target:ed/telnet" :byte-compile t)
-(comf "target:ed/debug" :byte-compile t)
 (comf "target:ed/netnews" :byte-compile t)
 (comf "target:ed/rcs" :byte-compile t)
 (comf "target:ed/vc" :byte-compile t)
 (comf "target:ed/dabbrev" :byte-compile t)
 (comf "target:ed/calendar")
 (comf "target:ed/sort" :byte-compile t)
-(comf "target:ed/csv")
 (comf "target:ed/www")
 (comf "target:ed/outline" :byte-compile t)
-(comf "target:ed/buildcoms" :byte-compile t)
-(comf "target:ed/break" :byte-compile t)
+;(comf "target:ed/buildcoms" :byte-compile t)
+(comf "target:ed/buildcoms") ; FIX
+(comf "target:ed/rest" :byte-compile t)
 (comf "target:ed/enriched" :byte-compile t)
+(comf "target:ed/menu" :byte-compile t)
 (comf "target:ed/build" :byte-compile t)
+(comf "target:ed/line-end" :byte-compile t)
+(comf "target:ed/refresh" :byte-compile t)
+(comf "target:ed/testcoms" :byte-compile t)
 
 ) ;WITH-COMPILATION-UNIT for commands
 
@@ -199,14 +203,14 @@
 
 ) ;WITH-COMPILER-LOG-FILE
 
-(unless (probe-file "target:ed/spell-dictionary.bin")
+(unless (probe-file "target:spell-dictionary.bin")
   (load "target:ed/spell-rt")
   (load "target:ed/spell-corr")
   (load "target:ed/spell-aug")
   (load "target:ed/spell-build")
   (funcall (fdefinition (intern "BUILD-DICTIONARY" "SPELL"))
 	   "target:ed/spell-dictionary.text"
-	   "target:ed/spell-dictionary.bin"))
+	   "target:spell-dictionary.bin"))
 
 (cat-if-anything-changed
  "target:ed/ed-library"
@@ -261,12 +265,14 @@
  "target:ed/undo"
  "target:ed/killcoms"
  "target:ed/parse"
- "target:ed/parse-scribe"
+; FIX
+; "target:ed/parse-scribe"
  "target:ed/parse-css"
  "target:ed/searchcoms"
  "target:ed/filecoms"
  "target:ed/info"
  "target:ed/ginfo"
+ "target:ed/menu"
  "target:ed/doccoms"
  "target:ed/srccom"
  "target:ed/group"
@@ -298,6 +304,7 @@
  "target:ed/m4"
  "target:ed/tex"
  "target:ed/roff"
+ "target:ed/sgml"
  "target:ed/edit-defs"
  "target:ed/auto-save"
  "target:ed/register"
@@ -305,28 +312,32 @@
  "target:ed/unixcoms"
  "target:ed/mh"
  "target:ed/compile"
- "target:ed/dired"
  "target:ed/diredcoms"
  "target:ed/packed"
  "target:ed/bufed"
+ "target:ed/page"
  "target:ed/evented"
- "target:ed/lisp-lib"
  "target:ed/completion"
  "target:ed/shell"
  "target:ed/telnet"
- "target:ed/debug"
+ "target:ed/inspect"
  "target:ed/netnews"
  "target:ed/rcs"
  "target:ed/vc"
  "target:ed/dabbrev"
  "target:ed/db"
- "target:ed/calendar"
  "target:ed/sort"
- "target:ed/csv"
  "target:ed/www"
  "target:ed/outline"
  "target:ed/buildcoms"
- "target:ed/break"
+ "target:ed/rest"
  "target:ed/enriched"
  "target:ed/build"
+ "target:ed/line-end"
+ "target:ed/refresh"
+ "target:ed/testcoms"
+
+ "target:ed/calendar"
+ "target:ed/ed-integrity"
+ "target:ed/edi-integrity"
  "target:ed/bindings")

@@ -1,23 +1,10 @@
-;;; -*- Package: hppa -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/parms.lisp,v 1.5.2.2 2000/10/16 17:32:22 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains some parameterizations of various VM
-;;; attributes for the HP-PA.  This file is separate from other stuff so 
-;;; that it can be compiled and loaded earlier. 
-;;;
-;;; Written by William Lott.
-;;;
+;;; Some parameterizations of various VM attributes for the HP-PA.  This
+;;; file is separate from other stuff so that it can be compiled and loaded
+;;; earlier.
 
-(in-package :hppa)
-(use-package :c)
+(in-package "HPPA")
+
+(use-package "C")
 
 
 ;;;; Compiler constants.
@@ -37,7 +24,7 @@
 ); eval-when
 
 
-;;;; Machine Architecture parameters:
+;;;; Machine Architecture parameters.
 
 (export '(word-bits byte-bits word-shift word-bytes float-sign-shift
 
@@ -54,8 +41,6 @@
 	  float-underflow-trap-bit float-overflow-trap-bit
 	  float-imprecise-trap-bit float-invalid-trap-bit
 	  float-divide-by-zero-trap-bit))
-
-	  
 
 (eval-when (compile load eval)
 
@@ -115,7 +100,6 @@
 
 ); eval-when
 
-
 
 ;;;; Description of the target address space.
 
@@ -124,7 +108,7 @@
 	  target-dynamic-space-start))
 
 ;;; Where to put the different spaces.
-;;; 
+;;;
 (defparameter target-read-only-space-start #x20000000)
 (defparameter target-static-space-start    #x28000000)
 (defparameter target-dynamic-space-start   #x30000000)
@@ -158,7 +142,6 @@
   call-site
   function-prologue
   function-epilogue)
-
 
 
 ;;;; Static symbols.
@@ -203,11 +186,9 @@
     ;; Interrupt Handling
     lisp::*free-interrupt-context-index*
     unix::*interrupts-enabled*
-    unix::*interrupt-pending*
-    ))
+    unix::*interrupt-pending*))
 
 (defparameter static-functions
   '(length
     two-arg-+ two-arg-- two-arg-* two-arg-/ two-arg-< two-arg-> two-arg-= eql
-    %negate two-arg-and two-arg-ior two-arg-xor two-arg-gcd two-arg-lcm
-    ))
+    %negate two-arg-and two-arg-ior two-arg-xor two-arg-gcd two-arg-lcm))

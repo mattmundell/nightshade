@@ -1,19 +1,5 @@
-;;; -*- Package: ALPHA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/alpha/array.lisp,v 1.2 1994/10/31 04:55:55 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the support routines for arrays and vectors.
-;;;
-;;; Written by William Lott.
-;;; Conversion by Sean Hallgren
-;;; 
+;;; Support routines for arrays and vectors.
+
 (in-package "ALPHA")
 
 (define-assembly-routine (allocate-vector

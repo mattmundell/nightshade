@@ -1,19 +1,4 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/cell.lisp,v 1.6 1994/10/31 04:42:45 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the VM definition of various primitive memory access
-;;; VOPs for the HPPA
-;;;
-;;; Written by William Lott.
-;;; 
+;;; The VM definition of various primitive memory access VOPs for the HPPA.
 
 (in-package "HPPA")
 
@@ -37,9 +22,8 @@
   (:generator 1
     (storew value object offset lowtag)))
 
-
 
-;;;; Symbol hacking VOPs:
+;;;; Symbol hacking VOPs.
 
 ;;; The compiler likes to be able to directly SET symbols.
 ;;;
@@ -89,7 +73,6 @@
   (:variant symbol-value-slot other-pointer-type)
   (:policy :fast)
   (:translate symbol-value))
-
 
 
 ;;;; Fdefinition (fdefn) objects.
@@ -141,7 +124,6 @@
     (storew temp fdefn fdefn-raw-addr-slot other-pointer-type)
     (move fdefn result)))
 
-
 
 ;;;; Binding and Unbinding.
 
@@ -189,7 +171,6 @@
 
     DONE))
 
-
 
 ;;;; Closure indexing.
 
@@ -215,7 +196,6 @@
 (define-vop (closure-init slot-set)
   (:variant closure-info-offset function-pointer-type))
 
-
 
 ;;;; Value Cell hackery.
 
@@ -225,9 +205,8 @@
 (define-vop (value-cell-set cell-set)
   (:variant value-cell-value-slot other-pointer-type))
 
-
 
-;;;; Instance hackery:
+;;;; Instance hackery.
 
 (define-vop (instance-length)
   (:policy :fast-safe)
@@ -256,7 +235,6 @@
 
 (define-full-setter instance-index-set * instance-slots-offset
   instance-pointer-type (descriptor-reg any-reg) * %instance-set)
-
 
 
 ;;;; Code object frobbing.

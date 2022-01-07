@@ -283,12 +283,5 @@
 ;;; have a split I&D cache and do require cahce flusing.
 ;;;
 (defun sanctify-for-execution (component)
-  (without-gcing
-    (alien-funcall (extern-alien "os_flush_icache"
-				 (function void
-					   system-area-pointer
-					   unsigned-long))
-		   (code-instructions component)
-		   (* (code-header-ref component code-code-size-slot)
-		      word-bytes)))
+  (declare (ignore component))
   nil)

@@ -1,0 +1,24 @@
+dired-guts
+#|
+	    (let ((dir-info (variable-value 'dired-information
+					    :buffer buffer))
+		  (update nil))
+	      (if dot-files-p
+		  (or (dired-info-dot-files-p dir-info)
+		      (setf (dired-info-dot-files-p dir-info) t
+			    update t)))
+	      (if backup-files-p
+		  (or (dired-info-backup-files-p dir-info)
+		      (setf (dired-info-backup-files-p dir-info) t
+			    update t)))
+	      (if coldefs
+		  (or (dired-info-coldefs dir-info)
+		      (setf (dired-info-coldefs dir-info) coldefs
+			    update t)))
+	      (if recurse-p
+		  (or (dired-info-recurse dir-info)
+		      (setf (dired-info-recurse dir-info) t
+			    update t)))
+	      (if update
+		  (update-dired-buffer directory pattern buffer)))
+|#

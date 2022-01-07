@@ -1,22 +1,9 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/sap.lisp,v 1.3.2.1 1998/06/23 11:23:30 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the HP-PA VM definition of SAP operations.
-;;;
-;;; Written by William Lott.
-;;;
+;;; The HP-PA VM definition of SAP operations.
+
 (in-package "HPPA")
 
 
-;;;; Moves and coercions:
+;;;; Moves and coercions.
 
 ;;; Move a tagged SAP to an untagged representation.
 ;;;
@@ -31,7 +18,6 @@
 (define-move-vop move-to-sap :move
   (descriptor-reg) (sap-reg))
 
-
 ;;; Move an untagged SAP to a tagged representation.
 ;;;
 (define-vop (move-from-sap)
@@ -45,7 +31,6 @@
 ;;;
 (define-move-vop move-from-sap :move
   (sap-reg) (descriptor-reg))
-
 
 ;;; Move untagged sap values.
 ;;;
@@ -62,7 +47,6 @@
 ;;;
 (define-move-vop sap-move :move
   (sap-reg) (sap-reg))
-
 
 ;;; Move untagged sap arguments/return-values.
 ;;;
@@ -82,13 +66,11 @@
 (define-move-vop move-sap-argument :move-argument
   (descriptor-reg sap-reg) (sap-reg))
 
-
 ;;; Use standard MOVE-ARGUMENT + coercion to move an untagged sap to a
 ;;; descriptor passing location.
 ;;;
 (define-move-vop move-argument :move-argument
   (sap-reg) (descriptor-reg))
-
 
 
 ;;;; SAP-INT and INT-SAP
@@ -112,7 +94,6 @@
   (:policy :fast-safe)
   (:generator 1
     (move int sap)))
-
 
 
 ;;;; POINTER+ and POINTER-
@@ -149,7 +130,6 @@
   (:result-types signed-num)
   (:generator 1
     (inst sub ptr1 ptr2 res)))
-
 
 
 ;;;; mumble-SYSTEM-REF and mumble-SYSTEM-SET

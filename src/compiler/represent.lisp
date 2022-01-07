@@ -1,33 +1,86 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/represent.lisp,v 1.34.2.1 1998/06/23 11:23:04 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the implementation independent code for the
-;;; representation selection phase in the compiler.  Representation selection
-;;; decides whether to use non-descriptor representations for objects and emits
-;;; the appropriate representation-specific move and coerce vops.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; Implementation independent code for the representation selection phase
+;;; in the compiler.  Representation selection decides whether to use
+;;; non-descriptor representations for objects and emits the appropriate
+;;; representation-specific move and coerce vops.
+
 (in-package "C")
 
+#[ Representation Selection
+
+    Look at all references to each TN to determine which representation has
+    the lowest cost.  Emit appropriate move and coerce VOPS for that
+    representation.
+
+Phase position: 17/23 (back)
+
+Presence: required
+
+Files: represent
+
+Entry functions: `select-representations'
+
+Call sequences:
+
+    native-compile-component
+      select-representations
+        select-tn-representation
+          add-representation-costs
+        emit-moves-and-coercions
+          find-move-vop
+          emit-move-template
+          coerce-vop-operands
+          emit-arg-moves
+        note-if-number-stack
+
+
+Some types of object (such as {\tt single-float}) have multiple possible
+representations.  Multiple representations are useful mainly when there is a
+particularly efficient non-descriptor representation.  In this case, there is
+the normal descriptor representation, and an alternate non-descriptor
+representation.
+
+This possibility brings up two major issues:
+
+  * The compiler must decide which representation will be most efficient for
+    any given value, and
+
+  * Representation conversion code must be inserted where the representation
+    of a value is changed.
+
+First, the representations for TNs are selected by examining all the TN
+references and attempting to minimize reference costs.  Then representation
+conversion code is introduced.
+
+This phase is in effect a pre-pass to register allocation.  The main reason
+for its existence is that representation conversions may be fairly complex
+(e.g.  involving memory allocation), and thus must be found before register
+allocation.
+
+
+VMR conversion leaves stubs for representation specific move operations.
+Representation selection recognizes {\tt move} by name.  Argument and return
+value passing for call VOPs is controlled by the {\tt :move-arguments} option
+to {\tt define-vop}.
+
+Representation selection is also responsible for determining what functions use
+the number stack (FIX first mention).  If any representation is chosen which could involve packing
+into the {\tt non-descriptor-stack} SB, then we allocate the NFP register
+throughout the component.  As an optimization, permit the decision of whether a
+number stack frame needs to be allocated to be made on a per-function basis.
+If a function doesn't use the number stack, and isn't in the same tail-set as
+any function that uses the number stack, then it doesn't need a number stack
+frame, even if other functions in the component do.
+]#
+
 
-;;;; Error routines:
+;;;; Error routines.
 ;;;
-;;;    Problems in the VM definition often show up here, so we try to be as
+;;; Problems in the VM definition often show up here, so we try to be as
 ;;; implementor-friendly as possible.
-;;;
 
 ;;; GET-OPERAND-INFO  --  Interface
 ;;;
-;;;    Given a TN ref for a VOP argument or result, return these values:
+;;; Given a TN ref for a VOP argument or result, return these values:
 ;;; 1] True if the operand is an argument, false otherwise.
 ;;; 2] The ordinal position of the operand.
 ;;; 3] True if the operand is a more operand, false otherwise.
@@ -68,7 +121,7 @@
 				 (vop-parse-results parse))
 			     n)
 			arg-p)
-		     
+
 		     (return
 		      (values arg-p
 			      (1+ n)
@@ -85,10 +138,9 @@
 	        (vop-info-result-load-scs info)
 	        (vop-info-more-result-costs info))))))
 
-
 ;;; LISTIFY-RESTRICTIONS  --  Interface
 ;;;
-;;;    Convert a load-costs vector to the list of SCs allowed by the operand
+;;; Convert a load-costs vector to the list of SCs allowed by the operand
 ;;; restriction.
 ;;;
 (defun listify-restrictions (restr)
@@ -99,10 +151,9 @@
 	(res (svref (backend-sc-numbers *backend*) i))))
     (res)))
 
-    
 ;;; BAD-COSTS-ERROR  --  Internal
 ;;;
-;;;    Try to give a helpful error message when Ref has no cost specified for
+;;; Try to give a helpful error message when Ref has no cost specified for
 ;;; some SC allowed by the TN's primitive-type.
 ;;;
 (defun bad-costs-error (ref)
@@ -119,7 +170,7 @@
 	(unless (losers)
 	  (error "Representation selection flamed out for no obvious reason.~@
 	          Try again after recompiling the VM definition."))
-	
+
 	(error "~S is not valid as the ~:R ~:[result~;argument~] to the~@
 	        ~S VOP, since the TN's primitive type ~S allows SCs:~%  ~S~@
 		~:[which cannot be coerced or loaded into the allowed SCs:~
@@ -135,11 +186,10 @@
 		 (mapcar #'sc-name (listify-restrictions load-scs)))
 	       incon)))))
 
-
 ;;; BAD-COERCE-ERROR  --  Internal
 ;;;
-;;;    Try to give a helpful error message when we fail to do a coercion
-;;; for some reason.
+;;; Try to give a helpful error message when we fail to do a coercion for
+;;; some reason.
 ;;;
 (defun bad-coerce-error (op)
   (declare (type tn-ref op))
@@ -170,7 +220,7 @@
 		    (t
 		     (error "Representation selection flamed out for no ~
 		             obvious reason."))))))
-	
+
 	(unless (or (load-lose) (no-move-scs) (move-lose))
 	  (error "Representation selection flamed out for no obvious reason.~@
 	          Try again after recompiling the VM definition."))
@@ -195,7 +245,6 @@
 	       (move-lose)
 	       incon)))))
 
-
 ;;; BAD-MOVE-ARG-ERROR  --  Internal
 ;;;
 (defun bad-move-arg-error (val pass)
@@ -206,9 +255,9 @@
 	 pass (sc-name (tn-sc pass))))
 
 
-;;;; VM Consistency Checking:
+;;;; VM Consistency Checking.
 ;;;
-;;;    We do some checking of the consistency of the VM definition at load
+;;; We do some checking of the consistency of the VM definition at load
 ;;; time.
 
 ;;; CHECK-MOVE-FUNCTION-CONSISTENCY  --  Interface
@@ -223,7 +272,7 @@
 	      (warn "No move function defined to load SC ~S from constant ~
 	             SC ~S."
 		    (sc-name sc) (sc-name const))))
-	  
+
 	  (dolist (alt (sc-alternate-scs sc))
 	    (unless (svref moves (sc-number alt))
 	      (warn "No move function defined to load SC ~S from alternate ~
@@ -235,13 +284,13 @@
 		    (sc-name sc) (sc-name alt)))))))))
 
 
-;;;; Representation selection:
+;;;; Representation selection.
 
 ;;; VOPs that we ignore in initial cost computation.  We ignore SET in the
-;;; hopes that nobody is setting specials inside of loops.  We ignore
-;;; TYPE-CHECK-ERROR because we don't want the possibility of error to bias the
-;;; result.  Notes are suppressed for T-C-E as well, since we don't need to
-;;; worry about the efficiency of that case.
+;;; hopes that nobody is setting specials inside loops.  We ignore
+;;; TYPE-CHECK-ERROR because we don't want the possibility of error to bias
+;;; the result.  Notes are suppressed for TYPE-CHECK-ERROR as well, since
+;;; we don't need to worry about the efficiency of that case.
 ;;;
 (defconstant ignore-cost-vops '(set type-check-error))
 (defconstant suppress-note-vops '(type-check-error))
@@ -250,12 +299,13 @@
 
 ;;; ADD-REPRESENTATION-COSTS  --  Local
 ;;;
-;;;    We special-case the move VOP, since using this costs for the normal MOVE
-;;; would spuriously encourage descriptor representations.  We won't actually
-;;; need to coerce to descriptor and back, since we will replace the MOVE with
-;;; a specialized move VOP.  What we do is look at the other operand.  If its
-;;; representation has already been chosen (e.g.  if it is wired), then we use
-;;; the appropriate move costs, otherwise we just ignore the references.
+;;; We special-case the move VOP, since using this costs for the normal
+;;; MOVE would spuriously encourage descriptor representations.  We won't
+;;; actually need to coerce to descriptor and back, since we will replace
+;;; the MOVE with a specialized move VOP.  What we do is look at the other
+;;; operand.  If its representation has already been chosen (e.g.  if it is
+;;; wired), then we use the appropriate move costs, otherwise we just
+;;; ignore the references.
 ;;;
 (defun add-representation-costs (refs scs costs
 				      ops-slot costs-slot more-costs-slot
@@ -301,24 +351,22 @@
 	       (return))))))))
   (undefined-value))
 
-
 ;;; SELECT-TN-REPRESENTATION  --  Internal
 ;;;
-;;;    Return the best representation for a normal TN.  SCs is a list
-;;; of the SC numbers of the SCs to select from.  Costs is a scratch
-;;; vector.
+;;; Return the best representation for a normal TN.  SCs is a list of the
+;;; SC numbers of the SCs to select from.  Costs is a scratch vector.
 ;;;
-;;;    What we do is sum the costs for each reference to TN in each of
-;;; the SCs, and then return the SC having the lowest cost. A second
-;;; value is returned which is true when the selection is unique which
-;;; is often not the case for the MOVE VOP.
+;;; What we do is sum the costs for each reference to TN in each of the
+;;; SCs, and then return the SC having the lowest cost.  A second value is
+;;; returned which is true when the selection is unique which is often not
+;;; the case for the MOVE VOP.
 ;;;
 (defun select-tn-representation (tn scs costs)
   (declare (type tn tn) (type sc-vector costs)
 	   (inline add-representation-costs))
   (dolist (scn scs)
     (setf (svref costs scn) 0))
-  
+
   (add-representation-costs (tn-reads tn) scs costs
 			    #'vop-args #'vop-info-arg-costs
 			    #'vop-info-more-arg-costs
@@ -327,7 +375,7 @@
 			    #'vop-results #'vop-info-result-costs
 			    #'vop-info-more-result-costs
 			    t)
-  
+
   (let ((min most-positive-fixnum)
 	(min-scn nil)
 	(unique nil))
@@ -343,17 +391,16 @@
 
 (declaim (end-block))
 
-
 ;;; NOTE-NUMBER-STACK-TN  --  Internal
 ;;;
-;;;    Prepare for the possibility of a TN being allocated on the number stack
-;;; by setting NUMBER-STACK-P in all functions that TN is referenced in and in
-;;; all the functions in their tail sets.  Refs is a TN-Refs list of references
-;;; to the TN.
+;;; Prepare for the possibility of a TN being allocated on the number stack
+;;; by setting NUMBER-STACK-P in all functions that TN is referenced in and
+;;; in all the functions in their tail sets.  Refs is a TN-Refs list of
+;;; references to the TN.
 ;;;
 (defun note-number-stack-tn (refs)
   (declare (type (or tn-ref null) refs))
-  
+
   (do ((ref refs (tn-ref-next ref)))
       ((null ref))
     (let* ((lambda (block-home-lambda
@@ -372,11 +419,11 @@
 
   (undefined-value))
 
-
 ;;; GET-OPERAND-NAME  --  Internal
 ;;;
-;;;    If TN is a variable, return the name.  If TN is used by a VOP emitted
-;;; for a return, then return a string indicating this.  Otherwise, return NIL.
+;;; If TN is a variable, return the name.  If TN is used by a VOP emitted
+;;; for a return, then return a string indicating this.  Otherwise, return
+;;; NIL.
 ;;;
 (defun get-operand-name (tn arg-p)
   (declare (type tn tn))
@@ -390,10 +437,9 @@
 	  (t
 	   nil))))
 
-
 ;;; DO-COERCE-EFFICIENCY-NOTE  --  Internal
 ;;;
-;;;    If policy indicates, give an efficiency note for doing the a coercion
+;;; If policy indicates, give an efficiency note for doing the a coercion
 ;;; Vop, where Op is the operand we are coercing for and Dest-TN is the
 ;;; distinct destination in a move.
 ;;;
@@ -418,7 +464,7 @@
 					    (if arg-p
 						(vop-args op-vop)
 						(vop-results op-vop)))
-			       (error "Couldn't fine op?  Bug!")))))
+			       (error "Error in program, failed to find op.")))))
 	     (compiler-note
 	      "Doing ~A (cost ~D)~:[~2*~; ~:[to~;from~] ~S~], for:~%~6T~
 	       The ~:R ~:[result~;argument~] of ~A."
@@ -430,19 +476,18 @@
 			  (get-operand-name dest-tn nil)))))
   (undefined-value))
 
-
 ;;; FIND-MOVE-VOP  --  Internal
 ;;;
-;;;    Find a move VOP to move from the operand OP-TN to some other
-;;; representation corresponding to OTHER-SC and OTHER-PTYPE.  Slot is the SC
-;;; slot that we grab from (move or move-argument).  Write-P indicates that OP
-;;; is a VOP result, so OP is the move result and other is the arg, otherwise
-;;; OP is the arg and other is the result.
+;;; Find a move VOP to move from the operand OP-TN to some other
+;;; representation corresponding to OTHER-SC and OTHER-PTYPE.  Slot is the
+;;; SC slot that we grab from (move or move-argument).  Write-P indicates
+;;; that OP is a VOP result, so OP is the move result and other is the arg,
+;;; otherwise OP is the arg and other is the result.
 ;;;
-;;;    If an operand is of primitive type T, then we use the type of the other
+;;; If an operand is of primitive type T, then we use the type of the other
 ;;; operand instead, effectively intersecting the argument and result type
-;;; assertions.  This way, a move VOP can restrict whichever operand makes more
-;;; sense, without worrying about which operand has the type info.
+;;; assertions.  This way, a move VOP can restrict whichever operand makes
+;;; more sense, without worrying about which operand has the type info.
 ;;;
 (defun find-move-vop (op-tn write-p other-sc other-ptype slot)
   (declare (type tn op-tn) (type sc other-sc)
@@ -469,27 +514,26 @@
 		    :t-ok nil))
 	  (return info))))))
 
-	
 ;;; EMIT-COERCE-VOP  --  Internal
 ;;;
-;;;    Emit a coercion VOP for Op Before the specifed VOP or die trying.  SCS
-;;; is the operand's LOAD-SCS vector, which we use to determine what SCs the
-;;; VOP will accept.  We pick any acceptable coerce VOP, since it practice it
-;;; seems uninteresting to have more than one applicable.
+;;; Emit a coercion VOP for Op Before the specifed VOP or die trying.  SCS
+;;; is the operand's LOAD-SCS vector, which we use to determine what SCs
+;;; the VOP will accept.  We pick any acceptable coerce VOP, since it
+;;; practice it seems uninteresting to have more than one applicable.
 ;;;
-;;;    On the X86 port, stack SCs may be placed in the list of operand
-;;; preferred SCs, and to prevent these stack SCs being selected when
-;;; a register SC is available the non-stack SCs are searched first.
+;;; On the X86 port, stack SCs may be placed in the list of operand
+;;; preferred SCs, and to prevent these stack SCs being selected when a
+;;; register SC is available the non-stack SCs are searched first.
 ;;;
-;;;    What we do is look at each SC allowed by both the operand restriction
-;;; and the operand primitive-type, and see if there is a move VOP which moves
-;;; between the operand's SC and load SC.  If we find such a VOP, then we make
-;;; a TN having the load SC as the representation.
+;;; What we do is look at each SC allowed by both the operand restriction
+;;; and the operand primitive-type, and see if there is a move VOP which
+;;; moves between the operand's SC and load SC.  If we find such a VOP,
+;;; then we make a TN having the load SC as the representation.
 ;;;
-;;;    Dest-TN is the TN that we are moving to, for a move or move-arg.  This
+;;; Dest-TN is the TN that we are moving to, for a move or move-arg.  This
 ;;; is only for efficiency notes.
 ;;;
-;;;    If the TN is an unused result TN, then we don't actually emit the move;
+;;; If the TN is an unused result TN, then we don't actually emit the move;
 ;;; we just change to the right kind of TN.
 ;;;
 (defun emit-coerce-vop (op dest-tn scs before)
@@ -535,13 +579,12 @@
 		     (check-sc scn sc))
 	    (return)))))))
 
-
 ;;; COERCE-SOME-OPERANDS  --  Internal
 ;;;
-;;;    Scan some operands and call EMIT-COERCE-VOP on any for which we can't
+;;; Scan some operands and call EMIT-COERCE-VOP on any for which we can't
 ;;; load the operand.  The coerce VOP is inserted Before the specified VOP.
-;;; Dest-TN is the destination TN if we are doing a move or move-arg, and is
-;;; NIL otherwise.  This is only used for efficiency notes.
+;;; Dest-TN is the destination TN if we are doing a move or move-arg, and
+;;; is NIL otherwise.  This is only used for efficiency notes.
 ;;;
 (proclaim '(inline coerce-some-operands))
 (defun coerce-some-operands (ops dest-tn load-scs before)
@@ -555,10 +598,9 @@
       (emit-coerce-vop op dest-tn (car scs) before)))
   (undefined-value))
 
-
 ;;; COERCE-VOP-OPERANDS  --  Internal
 ;;;
-;;;    Emit coerce VOPs for the args and results, as needed.
+;;; Emit coerce VOPs for the args and results, as needed.
 ;;;
 (defun coerce-vop-operands (vop)
   (declare (type vop vop))
@@ -568,15 +610,14 @@
 			  (vop-next vop)))
   (undefined-value))
 
-
 ;;; EMIT-ARG-MOVES  --  Internal
 ;;;
-;;;    Iterate over the more operands to a call VOP, emitting move-arg VOPs and
-;;; any necessary coercions.  We determine which FP to use by looking at the
-;;; MOVE-ARGS annotation.  If the vop is a :LOCAL-CALL, we insert any needed
-;;; coercions before the ALLOCATE-FRAME so that lifetime analysis doesn't get
-;;; confused (since otherwise, only passing locations are written between A-F
-;;; and call.)
+;;; Iterate over the more operands to a call VOP, emitting move-arg VOPs
+;;; and any necessary coercions.  We determine which FP to use by looking
+;;; at the MOVE-ARGS annotation.  If the vop is a :LOCAL-CALL, we insert
+;;; any needed coercions before the ALLOCATE-FRAME so that lifetime
+;;; analysis doesn't get confused (since otherwise, only passing locations
+;;; are written between A-F and call.)
 ;;;
 (defun emit-arg-moves (vop)
   (let* ((info (vop-info vop))
@@ -605,7 +646,7 @@
 				 #'sc-move-arg-vops)))
 	(unless res
 	  (bad-move-arg-error val-tn pass-tn))
-	
+
 	(change-tn-ref-tn val pass-tn)
 	(let* ((this-fp
 		(cond ((not (sc-number-stack-p pass-sc)) fp-tn)
@@ -638,13 +679,12 @@
 				after)))))
   (undefined-value))
 
-
 ;;; EMIT-MOVES-AND-COERCIONS  --  Internal
 ;;;
-;;;    Scan the IR2 looking for move operations that need to be replaced with
-;;; special-case VOPs and emitting coercion VOPs for operands of normal VOPs.
-;;; We delete moves to TNs that are never read at this point, rather than
-;;; possibly converting them to some expensive move operation.
+;;; Scan the IR2 looking for move operations (FIX VOPs?) that need to be replaced with
+;;; special-case VOPs and emitting coercion VOPs for operands of normal
+;;; VOPs.  We delete moves to TNs that are never read at this point, rather
+;;; than possibly converting them to some expensive move operation.
 ;;;
 (defun emit-moves-and-coercions (block)
   (declare (type ir2-block block))
@@ -678,10 +718,9 @@
        (t
 	(coerce-vop-operands vop))))))
 
-
 ;;; NOTE-IF-NUMBER-STACK  --  Internal
 ;;;
-;;;    If TN is in a number stack SC, make all the right annotations.  Note
+;;; If TN is in a number stack SC, make all the right annotations.  Note
 ;;; that this should be called after TN has been referenced, since it must
 ;;; iterate over the referencing environments.
 ;;;
@@ -697,23 +736,23 @@
     (note-number-stack-tn (tn-writes tn)))
   (undefined-value))
 
-
 ;;; SELECT-REPRESENTATIONS  --  Interface
 ;;;
-;;;    Entry to representation selection.  First we select the representation
+;;; Entry to representation selection.  First we select the representation
 ;;; for all normal TNs, setting the TN-SC.  After selecting the TN
-;;; representations, we set the SC for all :ALIAS TNs to be the representation
-;;; chosen for the original TN.  We then scan all the IR2, emitting any
-;;; necessary coerce and move-arg VOPs.  Finally, we scan all TNs looking for
-;;; ones that might be placed on the number stack, noting this so that the
-;;; number-FP can be allocated.  This must be done last, since references in
-;;; new environments may be introduced by MOVE-ARG insertion.
+;;; representations, we set the SC for all :ALIAS TNs to be the
+;;; representation chosen for the original TN.  We then scan all the IR2,
+;;; emitting any necessary coerce and move-arg VOPs.  Finally, we scan all
+;;; TNs looking for ones that might be placed on the number stack, noting
+;;; this so that the number-FP can be allocated.  This must be done last,
+;;; since references in new environments may be introduced by MOVE-ARG
+;;; insertion.
 ;;;
 (defun select-representations (component)
   (let ((costs (make-array sc-number-limit))
 	(2comp (component-info component)))
 
-    ;; First pass; only allocate SCs where there is a distinct choice.
+    ;; First pass; only allocate SCs where there is a single choice.
     (do ((tn (ir2-component-normal-tns 2comp)
 	     (tn-next tn)))
 	((null tn))
@@ -726,8 +765,9 @@
 		    (when unique
 			  (setf (tn-sc tn) sc))))
 		(t
-		 (setf (tn-sc tn) 
-		       (svref (backend-sc-numbers *backend*) (first scs))))))))
+		 (setf (tn-sc tn)
+		       (svref (backend-sc-numbers *backend*)
+			      (first scs))))))))
 
     (do ((tn (ir2-component-normal-tns 2comp)
 	     (tn-next tn)))
@@ -737,7 +777,8 @@
 	(let* ((scs (primitive-type-scs (tn-primitive-type tn)))
 	       (sc (if (rest scs)
 		       (select-tn-representation tn scs costs)
-		       (svref (backend-sc-numbers *backend*) (first scs)))))
+		       (svref (backend-sc-numbers *backend*)
+			      (first scs)))))
 	  (assert sc)
 	  (setf (tn-sc tn) sc))))
 
@@ -748,7 +789,7 @@
 
     (do-ir2-blocks (block component)
       (emit-moves-and-coercions block))
-    
+
     (macrolet ((frob (slot restricted)
 		 `(do ((tn (,slot 2comp) (tn-next tn)))
 		      ((null tn))

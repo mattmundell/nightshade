@@ -4,6 +4,38 @@
 
 (export '(describe-parts))
 
+#[ The Inspector
+
+There is a simple terminal-based inspector.
+
+{function:inspect}
+
+The TTY inspector is a crude interface to `describe' which allows objects
+to be traversed and maintains a history.  This inspector prints information
+about an object and a numbered list of the components of the object.  The
+command-line based interface is a normal read--eval--print loop, but an
+integer n descends into the n'th component of the current object, and
+symbols with these special names are interpreted as commands:
+
+  U
+      Move back to the enclosing object.  As you descend into the
+      components of an object, a stack of all the objects previously seen
+      is kept.  This command pops you up one level of this stack.
+
+  Q, E
+      Return the current object from inspect.
+
+  R
+      Recompute object display, and print again.  Useful if the object
+      may have changed.
+
+  D
+      Display again without recomputing.
+
+  H, ?
+      Show help message.
+]#
+
 ;;; The Tty inspector views LISP objects as being composed of parts.  A
 ;;; list, for example, would be divided into it's members, and a instance
 ;;; into its slots.  These parts are stored in a list.  The first two
@@ -38,6 +70,7 @@
 
 ;;; Dummy definition for when we have no CLX...
 (defun inspect (object)
+  "Call the inspector on $object.  Return the selected $object."
   (tty-inspect object))
 
 (defun tty-inspect (object)

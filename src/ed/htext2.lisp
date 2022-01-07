@@ -10,7 +10,8 @@
 
 
 (defun region-to-string (region)
-  "Returns a string containing the characters in the given Region."
+  "Return a string containing the characters in $region.  Delimit lines
+   with the newline character."
   (close-line)
   (let* ((dst-length (count-characters region))
 	 (string (make-string dst-length))
@@ -40,9 +41,10 @@
 	    (setf (char string index) #\newline)
 	    (setq index (1+ index)))))
     string))
+
 
 (defun string-to-region (string)
-  "Returns a region containing the characters in the given String."
+  "Return a region containing the characters in $string."
   (let* ((string (if (simple-string-p string)
 		     string (coerce string 'simple-string)))
 	 (end (length string)))
@@ -76,12 +78,15 @@
 			       :left-inserting))))))))))
 
 (defun line-to-region (line)
-  "Returns a region containing the specified line."
+  "Return a region containing all the characters on $line.  The first mark
+   is :right-inserting and the last is :left-inserting."
   (internal-make-region (mark line 0 :right-inserting)
 			(mark line (line-length* line) :left-inserting)))
+
 
 (defun previous-character (mark)
-  "Returns the character immediately before the given Mark."
+  "Return the character immediately before $mark, or () if $mark is before
+   the first character."
   (let ((line (mark-line mark))
 	(charpos (mark-charpos mark)))
     (if (= charpos 0)
@@ -95,8 +100,10 @@
 		      (1- (+ right-open-pos (- charpos left-open-pos)))))
 	    (schar (line-chars line) (1- charpos))))))
 
+;; FIX consider n arg  eg (next-character mark 2) for char after next char
 (defun next-character (mark)
-  "Returns the character immediately after the given Mark."
+  "Return the character immediately after $mark, or () if $mark is after
+   the last character."
   (let ((line (mark-line mark))
 	(charpos (mark-charpos mark)))
     (if (eq line open-line)
@@ -117,9 +124,9 @@
 
 ;;; %Set-Next-Character  --  Internal
 ;;;
-;;;    This is the setf form for Next-Character.  Since we may change a
-;;; character to or from a newline, we must be prepared to split and
-;;; join lines.  We cannot just delete  a character and insert the new one
+;;; This is the setf form for Next-Character.  Since we may change a
+;;; character to or from a newline, we must be prepared to split and join
+;;; lines.  We cannot just delete a character and insert the new one
 ;;; because the marks would not be right.
 ;;;
 (defun %set-next-character (mark character)
@@ -130,8 +137,8 @@
       (modifying-line line mark)
       (cond ((= right-open-pos line-cache-length)
 	     ;; The mark is at the end of the line.
-	     (unless next
-	       (error "~S has no next character, so it cannot be set." mark))
+	     (or next
+		 (error "~S has no next character, so it cannot be set." mark))
 	     (unless (char= character #\newline)
 	       ;; If the character is no longer a newline then mash two
 	       ;; lines together.
@@ -170,25 +177,30 @@
 
 ;;; %Set-Previous-Character  --  Internal
 ;;;
-;;;    The setf form for Previous-Character.  We just Temporarily move the
+;;; The setf form for Previous-Character.  We just Temporarily move the
 ;;; mark back one and call %Set-Next-Character.
 ;;;
 (defun %set-previous-character (mark character)
-  (unless (mark-before mark)
-    (error "~S has no previous character, so it cannot be set." mark))
+  (or (mark-before mark)
+      (error "~S has no previous character, so it cannot be set." mark))
   (%set-next-character mark character)
   (mark-after mark)
   character)
+
 
 (defun count-lines (region)
-  "Returns the number of lines in the region, first and last lines inclusive."
+  "Return the number of lines in the $region, including the first and last
+   lines.  Associate a newline with the line it follows, thus count a
+   region containing some text followed by one newline is one line, and the
+   same line prefixed with a newline as two lines."
   (do ((line (mark-line (region-start region)) (line-next line))
        (count 1 (1+ count))
        (last-line (mark-line (region-end region))))
       ((eq line last-line) count)))
 
 (defun count-characters (region)
-  "Returns the number of characters in the region."
+  "Return the number of characters in $region.  Count line breaks as one
+   character."
   (let* ((start (region-start region))
 	 (end (region-end region))
 	 (first-line (mark-line start))
@@ -201,33 +213,44 @@
 	     (+ count (mark-charpos end)))
 	  (setq count (+ 1 count (line-length* line)))))))
 
+
+#[ Moving Marks
+
+These functions destructively modify marks to point to new positions.  Other
+sections of this document describe mark moving routines specific to higher
+level text forms than characters and lines, such as words, sentences,
+paragraphs, Lisp forms, etc.
+
+{function:ed:move-to-position}
+{function:ed:move-mark}
+{function:ed:line-start}
+{function:ed:line-end}
+{function:ed:buffer-start}
+{function:ed:buffer-end}
+{function:ed:mark-before}
+{function:ed:mark-after}
+{function:ed:character-offset}
+{function:ed:line-offset}
+]#
+
 (defun word-start (mark)
-  "If Mark is on a word move Mark to the beginning of the word."
+  "If $mark is on a word move $mark to the beginning of the word."
   (reverse-find-attribute mark :word-delimiter))
 
 (defun word-end (mark)
-  "If Mark is on a word move Mark to the end of the word."
+  "If $mark is on a word move $mark to the end of the word."
   (find-attribute mark :word-delimiter))
 
-(defun line-end (mark &optional line)
-  "If Mark is on a word move Mark to the end of the word."
-  (if line
-      (change-line mark line)
-      (setq line (mark-line mark)))
-  (setf (mark-charpos mark) (line-length* line))
-  mark)
-
-(defun line-start (mark &optional line)
-  "Changes the Mark to point to the beginning of the Line and returns it.
-  Line defaults to the line Mark is on."
-  (when line
-    (change-line mark line))
+(defun line-start (mark &optional (line (mark-line mark)))
+  "Change $mark to point to the beginning of the current line, or the
+   beginning of $line if line is given.  Return $mark."
+  (if line (change-line mark line))
   (setf (mark-charpos mark) 0)
   mark)
 
 (defun line-end (mark &optional line)
-  "Changes the Mark to point to the end of the line and returns it.
-  Line defaults to the line Mark is on."
+  "Change $mark to point to the end of the current line or the end of $line
+   if $line is given.  Return $mark."
   (if line
       (change-line mark line)
       (setq line (mark-line mark)))
@@ -235,27 +258,32 @@
   mark)
 
 (defun buffer-start (mark &optional (buffer (line-buffer (mark-line mark))))
-  "Change Mark to point to the beginning of Buffer, which defaults to the
-   buffer Mark is currently in."
-  (or buffer (error "Mark ~S does not point into a buffer." mark))
+  "Change $mark to point to the beginning of the current buffer, or of
+   $buffer if $buffer is set."
+  (or buffer (error "Mark ~S must point into a buffer." mark))
   (move-mark mark (buffer-start-mark buffer)))
 
 (defun buffer-end (mark &optional (buffer (line-buffer (mark-line mark))))
-  "Change Mark to point to the end of Buffer, which defaults to
-   the buffer Mark is currently in."
-  (or buffer (error "Mark ~S does not point into a buffer." mark))
+  "Change $mark to point to the end of the current buffer, or of $buffer if
+   $buffer is set."
+  (or buffer (error "Mark ~S must point into a buffer." mark))
   (move-mark mark (buffer-end-mark buffer)))
 
 (defun move-mark (mark new-position)
-  "Changes the Mark to point to the same position as New-Position."
+  "Change $mark to point to the same position as $new-position, and return
+   $mark."
   (let ((line (mark-line new-position)))
     (change-line mark line))
   (setf (mark-charpos mark) (mark-charpos new-position))
   mark)
+
 
+;; FIX these very similar character-offset?
+
 (defun mark-before (mark)
-  "Changes the Mark to point one character before where it currently points.
-  NIL is returned if there is no previous character."
+  "Change $mark to point one character before the current position.  If
+   mark points before the first character, then return () and leave mark as
+   it is."
   (let ((charpos (mark-charpos mark)))
     (cond ((zerop charpos)
 	   (let ((prev (line-previous (mark-line mark))))
@@ -268,8 +296,9 @@
 	   mark))))
 
 (defun mark-after (mark)
-  "Changes the Mark to point one character after where it currently points.
-  NIL is returned if there is no next character."
+  "Change $mark to point one character after the current position.  If
+   $mark points after the last character, then return nil and leave mark as
+   it is."
   (let ((line (mark-line mark))
 	(charpos (mark-charpos mark)))
     (cond ((= charpos (line-length* line))
@@ -282,11 +311,11 @@
 	   (setf (mark-charpos mark) (1+ charpos))
 	   mark))))
 
-;; FIX alias char-offset?
+;; FIX alias/rename char-offset?
 (defun character-offset (mark n)
-  "Changes the Mark to point N characters after (or -N before if N is negative)
-  where it currently points.  If there aren't N characters before (or after)
-  the mark, Nil is returned."
+  "Change $mark to point $n characters after (or before if $n is negative)
+   the current position.  If there are less than $n characters after (or
+   before) the mark, then return () and leave mark as it is."
   (let ((charpos (mark-charpos mark)))
     (if (< n 0)
 	(let ((n (- n)))
@@ -321,9 +350,18 @@
 
 ;; FIX (n 1)?  like (character-offset
 (defun line-offset (mark n &optional charpos)
-  "Move Mark to point N lines after (-N before if N is negative) where it
-   currently points, returning mark.  If there are less than N lines after
-   (or before) the Mark, return nil."  ;; FIX just return nil?
+  "Change $mark to point $n lines after (or before if $n is negative) the
+   current position.  The character position of the resulting mark is
+
+         (min (line-length resulting-line) (mark-charpos mark))
+
+   if charpos is (), or
+
+         (min (line-length resulting-line) charpos)
+
+   if it is specified.  As with `character-offset', if there are fewer than
+   $n lines then return () and leave mark as it is."
+  (declare (type integer n))
   (if (< n 0)
       (do ((line (mark-line mark) (line-previous line))
 	   (n n (1+ n)))
@@ -349,17 +387,18 @@
 ;;; region-bounds  --  Public
 ;;;
 (defun region-bounds (region)
-  "Return as multiple-value the start and end of Region."
+  "Return as multiple-values the starting and ending marks of $region."
   (values (region-start region) (region-end region)))
 
 (defun set-region-bounds (region start end)
-  "Set the start and end of Region to the marks Start and End."
+  "Set the start and end of $region to the marks $start and $end.  Throw an
+   error if $start is after $end or if the marks are in separate buffers."
   (let ((sl (mark-line start))
 	(el (mark-line end)))
     (or (eq (line-%buffer sl) (line-%buffer el))
-	(when (or (> (line-number sl) (line-number el))
-		  (and (eq sl el) (> (mark-charpos start) (mark-charpos end))))
-	  (error "Marks ~S and ~S cannot be made into a region." start end)))
+	(if (or (> (line-number sl) (line-number el))
+		(and (eq sl el) (> (mark-charpos start) (mark-charpos end))))
+	    (error "Marks ~S and ~S cannot be made into a region." start end)))
     (setf (region-start region) start  (region-end region) end))
   region)
 

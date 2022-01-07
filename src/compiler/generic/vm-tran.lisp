@@ -1,23 +1,10 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/generic/vm-tran.lisp,v 1.35.2.4 2000/10/21 13:09:15 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains impelemtentation-dependent transforms.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; Impelemtentation-dependent transforms.
+
 (in-package "C")
 
-;;; We need to define these predicates, since the TYPEP source transform picks
-;;; whichever predicate was defined last when there are multiple predicates for
-;;; equivalent types.
+;;; We need to define these predicates, since the TYPEP source transform
+;;; picks whichever predicate was defined last when there are multiple
+;;; predicates for equivalent types.
 ;;;
 (def-source-transform short-float-p (x) `(single-float-p ,x))
 #-long-float
@@ -155,7 +142,6 @@
 			      index
 			      new-value))))))
 
-
 ;;; Transforms for getting at arrays of unsigned-byte n when n < 8.
 
 #+nil
@@ -188,7 +174,7 @@
   (frob (simple-array (unsigned-byte 4) (*)) 4))
 
 
-;;;; Simple string transforms:
+;;;; Simple string transforms.
 
 (defconstant vector-data-bit-offset (* vm:vector-data-offset vm:word-bits))
 
@@ -209,7 +195,6 @@
 		    (the index (* size vm:byte-bits)))
      result))
 
-
 (deftransform copy-seq ((seq) (simple-string))
   '(let* ((length (length seq))
 	  (res (make-string length)))
@@ -220,7 +205,6 @@
 		    vector-data-bit-offset
 		    (the index (* length vm:byte-bits)))
      res))
-
 
 (deftransform replace ((string1 string2 &key (start1 0) (start2 0)
 				end1 end2)
@@ -241,7 +225,6 @@
 					       start2)))
 			    vm:byte-bits)))
      string1))
-
 
 (deftransform concatenate ((rtype &rest sequences)
 			   (t &rest simple-string)
@@ -272,8 +255,7 @@
 	 res))))
 
 
-;;;; Bit vector hackery:
-
+;;;; Bit vector hackery.
 
 ;;; SIMPLE-BIT-VECTOR bit-array operations are transformed to a word loop that
 ;;; does 32 bits at a time.
@@ -337,8 +319,7 @@
 	     (32bit-logical-not (%raw-bits bit-array index))))))
 
 
-;;;; Primitive translator for byte-blt
-
+;;;; Primitive translator for byte-blt.
 
 (def-primitive-translator byte-blt (src src-start dst dst-start dst-end)
   `(let ((src ,src)
@@ -366,10 +347,11 @@
 	     (bit-bash-copy src (+ src-start vector-data-bit-offset)
 			    dst (+ dst-start vector-data-bit-offset)
 			    length))))))))
-
-;;;; SXHASH:
 
-;;; Should be in VM:
+
+;;;; SXHASH.
+
+;;; Should be in VM:   FIX
 
 (defconstant sxhash-bits-byte (byte 29 0))
 (defconstant sxmash-total-bits 29)

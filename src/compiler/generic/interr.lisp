@@ -1,29 +1,13 @@
-;;; -*- Package: KERNEL -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/generic/interr.lisp,v 1.5.2.2 2000/05/23 16:37:31 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file defines all of the internal errors.  How they are handled is
-;;; defined in .../code/interr.lisp.  How they are signaled depends on the
-;;; machine.
-;;; 
-;;; Written by William Lott.
-;;;
+;;; All of the internal errors.  How they are handled is defined in
+;;; .../code/interr.lisp.  How they are signaled depends on the machine.
+
 (in-package "KERNEL")
 
 (export '(error-number-or-lose))
 
-
 (defun error-number-or-lose (name)
   (or (position name (c:backend-internal-errors c:*backend*) :key #'car)
       (error "Unknown internal error: ~S" name)))
-
 
 (eval-when (compile eval)
 
@@ -41,7 +25,6 @@
        nil)))
 
 ); eval-when
-
 
 (define-internal-errors
   (unknown

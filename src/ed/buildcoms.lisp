@@ -1,275 +1,174 @@
 ;;; Commands to build the system.
 
+;; FIX move most to n:src/Build.lisp
+
 (in-package "ED")
 
-(defhvar "Source Directory"
-  "Source directory for build commands."
-  :value nil)
+(defevar "Source Directory"
+  "Source directory for build commands.")
 
-(defhvar "Build Directory"
-  "Destination directory for build commands."
-  :value nil)
+(defevar "Build Directory"
+  "Destination directory for build commands.")
 
-(defhvar "Builder Directory"
-  "Location of the system used to build the source."
-  :value nil)
+(defevar "Builder Directory"
+  "Location of the system used to build the source.")
 
-(defcommand "Set Build Directory" (p)
+(defcommand "Set Build Directory" ()
   "Set the build directory."
-  "Set the build directory."
-  (declare (ignore p))
   (setv build-directory
-	(dired-namify (prompt-for-file
-		       :prompt "Build directory: "
-		       :must-exist nil
-		       :help "Name of build destination directory."
-		       :default (value build-directory)))))
+	(lisp::namify (prompt-for-file
+		 :prompt "Build directory: "
+		 :must-exist nil
+		 :help "Name of build destination directory."
+		 :default (value build-directory)))))
 
-(defcommand "Set Source Directory" (p)
+(defcommand "Set Source Directory" ()
   "Set the source directory."
-  "Set the source directory."
-  (declare (ignore p))
   (setv source-directory
-	(dired-namify (prompt-for-file
-		       :prompt "Source directory: "
-		       :must-exist nil
-		       :help "Name of build source directory."
-		       :default (value source-directory)))))
+	(lisp::namify (prompt-for-file
+		 :prompt "Source directory: "
+		 :must-exist nil
+		 :help "Name of build source directory."
+		 :default (value source-directory)))))
 
-(defcommand "Set Builder Directory" (p)
+(defcommand "Set Builder Directory" ()
   "Set the builder directory."
-  "Set the builder directory."
-  (declare (ignore p))
   (setv builder-directory
-	(dired-namify (prompt-for-file
-		       :prompt "Builder directory: "
-		       :must-exist nil
-		       :help "Name of builder directory."
-		       :default (value builder-directory)))))
+	(lisp::namify (prompt-for-file
+		 :prompt "Builder directory: "
+		 :must-exist nil
+		 :help "Name of builder directory."
+		 :default (value builder-directory)))))
+
+(defcommand "Set Builder Slave" ()
+  "Set the slave used for building."
+  (let ((info (nth-value
+	       1
+	       (prompt-for-keyword (list *server-names*)
+				   :prompt "Existing server name: "
+				   :help
+				   "Enter the name of an existing eval server."
+				   :must-exist t))))
+    (setq *builder-slave* (server-info-slave-buffer info))))
 
 (defun get-build-directory ()
   "Return the build directory, prompting for a directory if required."
-  (dired-namify (or (value build-directory)
-		    (set-build-directory-command nil))))
+  (namify (or (value build-directory)
+	      (set-build-directory-command))))
 
 (defun get-source-directory ()
   "Return the source directory, prompting for a directory if required."
-   (dired-namify (or (value source-directory)
-		     (set-source-directory-command nil))))
+  (namify (or (value source-directory)
+	      (set-source-directory-command))))
 
 (defun get-builder-directory ()
   "Return the builder directory, prompting for a directory if required."
-  (dired-namify (or (value builder-directory)
-		    (set-builder-directory-command nil))))
+  (namify (or (value builder-directory)
+	      (set-builder-directory-command))))
 
-(defvar *builder-slave* nil
+(defvar *builder-slave* ()
   "Slave for building build.")
 
 (defun get-builder-slave ()
   "Return the builder slave, creating it if required."
   ;; FIX check if server matches builder-directory
-  ;; FIX may need to check if builder still alive
-  (or *builder-slave*
-      (hlet ((slave-utility (format nil "~A/lisp/nightshade" (get-builder-directory)))
+  (if (and *builder-slave*
+	   (let ((buffer (getstring (buffer-name *builder-slave*)
+				    *buffer-names*)))
+	     (and buffer
+		  ;; Check if builder is alive.
+		  (editor-bound-p 'server-info
+				  :buffer *builder-slave*))))
+      *builder-slave*
+      (elet ((slave-utility (format () "~A/lisp/nightshade" (get-builder-directory)))
 	     (slave-utility-switches
 	      `("-core"
-		,(format nil "~A/lisp/lisp.core" (get-builder-directory))))
+		,(format () "~A/lisp/lisp.core" (get-builder-directory))))
 	     (confirm-slave-creation))
-	(let ((info (create-slave "Builder")))
+	(let* ((name (unique-buffer-name "Builder"))
+	       (info (create-slave name)))
 	  (if info
 	      (setq *builder-slave* (server-info-slave-buffer info)))))))
 
-(defun input-source-cleaning (stream)
-  "Put commands into Stream to clean the source tree."
-  (format stream
-	  "(setq user::build \"~A\")"
-	  (get-source-directory))
-  (confirm-typescript-input-command nil)
-  (format stream
-	  "(load \"~A/tools/clean-build.lisp\")"
-	  (get-source-directory))
-  (confirm-typescript-input-command nil))
-
-(defcommand "Clean" (p)
+(defcommand "Clean All" ()
   "Clean the build directory."
-  "Clean the build directory."
-  (declare (ignore p))
-  (hlet ((save-all-files-confirm nil))
-    (save-all-files-command nil))
+  (elet ((save-all-files-confirm nil))
+    (save-all-files-command))
+  (let ((slave (get-builder-slave)))
+    (change-to-buffer slave)
+    (with-output-to-mark (stream (current-point))
+      (format stream "(build:build \"~A/\" \"clean\")"
+	      (get-source-directory))
+      (confirm-typescript-input-command))))
+
+(defcommand "Clean Lisp" ()
+  "Clean the Lisp code in the build directory."
+  (elet ((save-all-files-confirm nil))
+    (save-all-files-command))
   (let* ((slave (get-builder-slave)))
     (change-to-buffer slave)
     (with-output-to-mark (stream (current-point))
-      (input-source-cleaning stream)
-      (format stream
-	      "(setq user::build \"~A\")"
-	      (get-build-directory))
-      (confirm-typescript-input-command nil)
-      (format stream
-	      "(load \"~A/tools/clean-build.lisp\")"
+      (format stream "(build:build \"~A/\" \"clean-lisp\")"
 	      (get-source-directory))
-      (confirm-typescript-input-command nil))))
+      (confirm-typescript-input-command))))
 
-(defcommand "Clean Lisp" (p)
-  "Clean the lisp code in the build directory."
-  "Clean the lisp code in the build directory."
-  (declare (ignore p))
-  (hlet ((save-all-files-confirm nil))
-    (save-all-files-command nil))
-  (let* ((slave (get-builder-slave)))
-    (change-to-buffer slave)
-    (with-output-to-mark (stream (current-point))
-      (input-source-cleaning stream)
-      (format stream
-	      "(setq user::build \"~A/code\")"
-	      (get-build-directory))
-      (confirm-typescript-input-command nil)
-      (format stream
-	      "(load \"~A/tools/clean-build.lisp\")"
-	      (get-source-directory))
-      (confirm-typescript-input-command nil))))
-
-(defcommand "Clean Editor" (p)
+(defcommand "Clean Editor" ()
   "Clean the editor code in the build directory."
-  "Clean the editor code in the build directory."
-  (declare (ignore p))
-  (hlet ((save-all-files-confirm nil))
-    (save-all-files-command nil))
+  (elet ((save-all-files-confirm nil))
+    (save-all-files-command))
   (let* ((slave (get-builder-slave)))
     (change-to-buffer slave)
     (with-output-to-mark (stream (current-point))
-      (input-source-cleaning stream)
-      (format stream
-	      "(setq user::build \"~A/ed\")"
-	      (get-build-directory))
-      (confirm-typescript-input-command nil)
-      (format stream
-	      "(load \"~A/tools/clean-build.lisp\")"
+      (format stream "(build:build \"~A/\" \"clean-editor\")"
 	      (get-source-directory))
-      (confirm-typescript-input-command nil))))
+      (confirm-typescript-input-command))))
 
-(defcommand "Build All" (p)
+;;; FIX run in process mode  shell-command?
+;;;       or as slaves, maybe build: can use current slave
+
+(defcommand "Build All" ()
   "Build all systems."
-  "Build all systems."
-  (declare (ignore p))
-  (hlet ((save-all-files-confirm nil))
-    (save-all-files-command nil))
-  (let* ((slave (get-builder-slave)))
+  (elet ((save-all-files-confirm nil))
+    (save-all-files-command))
+  (let ((slave (get-builder-slave)))
     (change-to-buffer slave)
     (with-output-to-mark (stream (current-point))
-      (format stream
-	      "(setq user::src \"~A\")"
+      (format stream "(build:build \"~A/\" \"all\")"
 	      (get-source-directory))
-      (confirm-typescript-input-command nil)
-      (format stream
-	      "(setq user::target \"~A\")"
-	      (get-build-directory))
-      (confirm-typescript-input-command nil)
-      (format stream
-	      "(setq user::systems '(:lisp :compiler :ed :kernel))")
-      (confirm-typescript-input-command nil)
-      (format stream
-	      "(load \"~A/tools/build-world.lisp\")"
-	      (get-source-directory))
-      (confirm-typescript-input-command nil))))
+      (confirm-typescript-input-command))))
 
-(defcommand "Build Some" (p)
-  "Build some of build, prompting for a list of systems to build."
-  "Build some of build, prompting for a list of systems to build."
-  (declare (ignore p))
-  (hlet ((save-all-files-confirm nil))
-    (save-all-files-command nil))
-  (let* ((slave (get-builder-slave))
-	 (systems (prompt-for-string
-		   :prompt "Systems to build: "
-		   :default ":lisp :compiler :kernel")))
-    (change-to-buffer slave)
-    (with-output-to-mark (stream (current-point))
-      (format stream
-	      "(setq user::src \"~A\")"
-	      (get-source-directory))
-      (confirm-typescript-input-command nil)
-      (format stream
-	      "(setq user::target \"~A\")"
-	      (get-build-directory))
-      (confirm-typescript-input-command nil)
-      (format stream "(setq user::systems '(~A))" systems)
-      (confirm-typescript-input-command nil)
-      (format stream
-	      "(load \"~A/tools/build-world.lisp\")"
-	      (get-source-directory))
-      (confirm-typescript-input-command nil))))
-
-(defcommand "Build Lisp" (p)
+(defcommand "Build Lisp" ()
   "Build the Lisp code."
-  "Build the Lisp code."
-  (declare (ignore p))
-  (hlet ((save-all-files-confirm nil))
-    (save-all-files-command nil))
+  (elet ((save-all-files-confirm nil))
+    (save-all-files-command))
   (let* ((slave (get-builder-slave)))
     (change-to-buffer slave)
     (with-output-to-mark (stream (current-point))
-      (format stream
-	      "(setq user::src \"~A\")"
+      (format stream "(build:build \"~A/\" \"lisp\")"
 	      (get-source-directory))
-      (confirm-typescript-input-command nil)
-      (format stream
-	      "(setq user::target \"~A\")"
-	      (get-build-directory))
-      (confirm-typescript-input-command nil)
-      (format stream "(setq user::systems '(:lisp))")
-      (confirm-typescript-input-command nil)
-      (format stream
-	      "(load \"~A/tools/build-world.lisp\")"
-	      (get-source-directory))
-      (confirm-typescript-input-command nil))))
+      (confirm-typescript-input-command))))
 
-(defcommand "Build Editor" (p)
-  "Build the editor."
-  "Build the editor."
-  (declare (ignore p))
-  (hlet ((save-all-files-confirm nil))
-    (save-all-files-command nil))
+(defcommand "Build Editor" ()
+  "Build the Editor."
+  (elet ((save-all-files-confirm nil))
+    (save-all-files-command))
   (let* ((slave (get-builder-slave)))
     (change-to-buffer slave)
     (with-output-to-mark (stream (current-point))
-      (format stream
-	      "(setq user::src \"~A\")"
+      (format stream "(build:build \"~A/\" \"editor\")"
 	      (get-source-directory))
-      (confirm-typescript-input-command nil)
-      (format stream
-	      "(setq user::target \"~A\")"
-	      (get-build-directory))
-      (confirm-typescript-input-command nil)
-      (format stream "(setq user::systems '(:ed))")
-      (confirm-typescript-input-command nil)
-      (format stream
-	      "(load \"~A/tools/build-world.lisp\")"
-	      (get-source-directory))
-      (confirm-typescript-input-command nil))))
+      (confirm-typescript-input-command))))
 
-(defcommand "Build Kernel" (p)
+(defcommand "Build Kernel" ()
   "Build the kernel image."
-  "Build the kernel image."
-  (declare (ignore p))
-  (hlet ((save-all-files-confirm nil))
-    (save-all-files-command nil))
+  (elet ((save-all-files-confirm nil))
+    (save-all-files-command))
   (let* ((slave (get-builder-slave)))
     (change-to-buffer slave)
     (with-output-to-mark (stream (current-point))
-      (format stream
-	      "(setq user::src \"~A\")"
+      (format stream "(build:build \"~A/\" \"kernel\")"
 	      (get-source-directory))
-      (confirm-typescript-input-command nil)
-      (format stream
-	      "(setq user::target \"~A\")"
-	      (get-build-directory))
-      (confirm-typescript-input-command nil)
-      (format stream "(setq user::systems '(:kernel))")
-      (confirm-typescript-input-command nil)
-      (format stream
-	      "(load \"~A/tools/build-world.lisp\")"
-	      (get-source-directory))
-      (confirm-typescript-input-command nil))))
+      (confirm-typescript-input-command))))
 
 (defvar *build-core-buffer* nil)
 
@@ -277,78 +176,106 @@
   "Return the buffer for use in Build Core."
   (or (and *build-core-buffer*
 	   (car (memq *build-core-buffer* *buffer-list*)))
-      (setq *build-core-buffer* ( #|FIX|# edi::make-unique-buffer "Build Core"))))
+      (setq *build-core-buffer* (make-unique-buffer "Build Core"))))
 
-(defcommand "Build Core" (p)
+(defcommand "Build Core" ()
   "Build final Lisp core."
-  "Build final Lisp core."
-  (declare (ignore p))
-  (hlet ((save-all-files-confirm nil))
-    (save-all-files-command nil))
+  (elet ((save-all-files-confirm))
+    (save-all-files-command))
+  ;; FIX get build core slave
   (let ((buffer (get-build-core-buffer)))
     (delete-region (buffer-region buffer))
-    (change-to-buffer buffer))
-  (make-new-shell t nil
-		  (format nil "~A/tools/build-core ~A"
-			  (get-source-directory)
-			  (get-build-directory))))
-
-(defcommand "Build Binary Distribution" (p)
-  "Build binary distribution."
-  "Build binary distribution."
-  (declare (ignore p))
-  (let* ((base (concatenate 'simple-string
-			    ;; FIX ~make-tmp-dir, check if
-			    ;; exists
-			    "/tmp/"
-			    (symbol-name (gensym))
-			    "/"))
-	 (bin (concatenate 'simple-string
-			   base
-			   "usr/local/bin/"))
-	 (lib (concatenate 'simple-string
-			   base
-			   "usr/local/lib/nightshade/"))
-	 (man (concatenate 'simple-string
-			   base
-			   "usr/local/man/man1/"))
-	 (buffer (make-unique-buffer "Build Binary Distribution")))
     (change-to-buffer buffer)
-    (ensure-directories-exist bin)
-    (ensure-directories-exist lib)
-    (ensure-directories-exist man)
-    (let ((*standard-output* (make-hemlock-output-stream
-			      (current-point))))
-      (dired:copy-file (concatenate 'simple-string
-				    (get-build-directory)
-				    "/lisp/nightshade")
-		       bin)
-      (dired:copy-file (concatenate 'simple-string
-				    (get-build-directory)
-				    "/lisp/lisp.core")
-		       lib)
-      (dired:copy-file (concatenate 'simple-string
-				    (get-source-directory)
-				    "/etc/nightshade.1")
-		       man)
-      (in-directory base
-	(ext::run-program
-	 "/bin/sh" (list "-c"
-			 (format () "tar jcvf ~A/nightshade-bin-~A--~A.tar.bz2 ~A"
-				  (get-build-directory)
-				  (read-line (open (format nil
-							   "~A/VERSION"
-							   (get-source-directory))))
-				  ;; FIX improve format-time
-				  (multiple-value-bind
-				      (secs mins hours day month year)
-				      (decode-universal-time (get-universal-time))
-				    (declare (ignore secs mins hours))
-				    (string-downcase
-				     (format nil "~A-~A-~A"
-					     (short-month-name month)
-					     day year)))
-				  "usr/local/"))
-	 :wait t :input ()
-	 :output *standard-output* :error :output))
-      (format t "Done.~%"))))
+    (let ((*standard-output* (make-editor-output-stream
+			      (copy-mark (current-point)))))
+      (build:build "n:src/" "core"))
+    (setf (buffer-modified buffer) ())))
+
+(defcommand "Build Doc" ()
+  "Build the documentation for the website."
+  (elet ((save-all-files-confirm nil))
+    (save-all-files-command))
+  (let ((slave (get-builder-slave)))
+    (change-to-buffer slave)
+    (with-output-to-mark (stream (current-point))
+      (format stream "(build:build \"~A/\" \"doc\")"
+	      (get-source-directory))
+      (confirm-typescript-input-command))))
+
+(defcommand "Test All" ()
+  "Run all system tests."
+  (elet ((save-all-files-confirm nil))
+    (save-all-files-command))
+  (let ((slave (get-builder-slave)))
+    (change-to-buffer slave)
+    (with-output-to-mark (stream (current-point))
+      (format stream "(build:build \"~A/\" \"test\")"
+	      (get-source-directory))
+      (confirm-typescript-input-command))))
+
+(defcommand "Test Code" ()
+  "Run all system tests."
+  (elet ((save-all-files-confirm nil))
+    (save-all-files-command))
+  (let ((slave (get-builder-slave)))
+    (change-to-buffer slave)
+    (with-output-to-mark (stream (current-point))
+      (format stream "(build:build \"~A/\" \"test-code\")"
+	      (get-source-directory))
+      (confirm-typescript-input-command))))
+
+(defcommand "Test Ed" ()
+  "Run all system tests."
+  (elet ((save-all-files-confirm nil))
+    (save-all-files-command))
+  (let ((slave (get-builder-slave)))
+    (change-to-buffer slave)
+    (with-output-to-mark (stream (current-point))
+      (format stream "(build:build \"~A/\" \"test-ed\")"
+	      (get-source-directory))
+      (confirm-typescript-input-command))))
+
+
+;;;; Building distribution archive.
+
+(defcommand "Build Distribution" ()
+  "Build distribution, which includes binary and source."
+  (elet ((save-all-files-confirm nil))
+    (save-all-files-command))
+  (let ((slave (get-builder-slave)))
+    (change-to-buffer slave)
+    (with-output-to-mark (stream (current-point))
+      (format stream "(build:build \"~A/\" \"dist\")"
+	      (get-source-directory))
+      (confirm-typescript-input-command))))
+
+
+;;; Syncing commands.
+
+(defcommand "Build Manifest" ()
+  "Update the times in the manifest files in the current source tree."
+  (elet ((save-all-files-confirm nil))
+    (save-all-files-command))
+  (let ((buffer (make-unique-buffer "Build Manifest")))
+    (change-to-buffer buffer)
+    (let ((*standard-output* (make-editor-output-stream (current-point)
+							:none)))
+      (format *standard-output* "Merging...~%")
+      (sync:update-manifest-times "n:"))
+    (setf (buffer-modified buffer) ())))
+
+(defcommand "Build Merge" (p)
+  "Merge from a prompted location.  With a prefix output verbose messages."
+  (elet ((save-all-files-confirm nil))
+    (save-all-files-command))
+  (let ((buffer (make-unique-buffer "Build Merge")))
+    (change-to-buffer buffer)
+    (let ((*standard-output* (make-editor-output-stream (current-point)
+							:none)))
+      (format *standard-output* "Merging...~%")
+      (sync:merge-from-server (prompt-for-file
+			       :prompt "Merge from: "
+			       :must-exist ()
+			       :help "Pathname from which to merge.")
+			      p))
+    (setf (buffer-modified buffer) ())))

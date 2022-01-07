@@ -1,0 +1,47 @@
+html, body  {
+	font-family: sans-serif;
+	background-color: grey;
+}
+
+//UL         { list-style: none }
+
+span.note  { font-size: smaller; }
+
+a          { text-decoration: none }
+
+a:hover    { text-decoration: underline }
+
+//table       { empty-cells: show; }
+//table:empty { background-color: red; }
+
+table.body-table    { width: 90%; margin-left: auto; margin-right: auto; background-color: white;
+					  padding: 1%;
+	                  border-style: solid; border-width: 1px }
+
+table.HEADING       { font-weight: bold; padding: 0; margin-left: 0; width: 100%;
+					  border-bottom-style: solid; border-bottom-width: 1px;
+
+td.HEADING          { font-size: 115% }
+
+table.menu          { margin: 0; padding: 0; spacing: 0; width: 100%; }
+tr.menu             { margin: 0; padding: 0; spacing: 0; width: 100%; }
+td.menu             { margin: 0; padding: 0; spacing: 0; white-space: normal }
+
+table.SECTION-heading  { font-weight: bold; padding: 0; margin-left: 0; width: 100%;
+					     border-bottom-style: dashed; border-bottom-width: 1px }
+td.SECTION-heading     { font-size: 105% }
+
+table.function         { margin-left: 5%; margin-right: 5%; padding: 0; spacing: 5%; width: 100%; }
+td.function            { width: auto }
+table.variable         { margin-left: 5%; margin-right: 5%; padding: 0; }
+table.editor-variable  { margin-left: 5%; margin-right: 5%; padding: 0; }
+table.command          { margin-left: 5%; margin-right: 5%; padding: 0; }
+table.constant         { margin-left: 5%; margin-right: 5%; padding: 0; }
+table.mode             { margin-left: 5%; margin-right: 5%; padding: 0; }
+
+ul       { margin-right: 5%; }
+
+dl       { margin-left: 5%; }
+dt       { font-weight: bold; }
+
+pre      { margin-left: 5% }

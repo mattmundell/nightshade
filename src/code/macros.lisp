@@ -1,30 +1,33 @@
 ;;; Macros.
 
 (in-package "LISP")
-(export '(defvar defparameter defconstant when fi unless setf
-	  defsetf psetf swap shiftf rotatef push pushnew pop
-	  incf decf remf case typecase case= with-open-file
+(export '(defvar defparameter defconstant when if* fi fi* *fi unless
+	  until while
+	  setf defsetf psetf swap clearf shiftf rotatef push pushnew pop
+	  incf decf remf case typecase case=
+	  to-file from-file
+	  with-open-file with-temp-file
 	  with-open-stream with-input-from-string with-output-to-string
 	  locally etypecase ctypecase ecase ccase ecase= ccase=
 	  get-setf-expansion define-setf-expander
           define-modify-macro destructuring-bind nth-value
           otherwise ; Sacred to CASE and related macros.  FIX?
 	  define-compiler-macro
-	  number-string
 	  ;; FIX CLtL1 versions:
 	  define-setf-method get-setf-method get-setf-method-multiple-value))
 
 (in-package "EXTENSIONS")
-(export '(do-anonymous collect iterate in-directory do-strings))
+;; FIX in-directory to in-dir
+(export '(do-anonymous collect iterate in-directory do-strings #| do-lines |#))
 
 (in-package "LISP")
 
 
 ;;; Parse-Body  --  Public
 ;;;
-;;;    Parse out declarations and doc strings, *not* expanding macros.
-;;; Eventually the environment arg should be flushed, since macros can't expand
-;;; into declarations anymore.
+;;; Parse out declarations and doc strings, *not* expanding macros.
+;;; Eventually the environment arg should be flushed, since macros can't
+;;; expand into declarations anymore.
 ;;;
 (defun parse-body (body environment &optional (doc-string-allowed t))
   "This function is to parse the declarations and doc-string out of the
@@ -53,11 +56,11 @@
 	       (return (values tail (nreverse decls) doc))))))))
 
 
-;;;; DEFMACRO:
+;;;; DEFMACRO.
 
 ;;; Defmacro  --  Public
 ;;;
-;;;    Parse the definition and make an expander function.  The actual
+;;; Parse the definition and make an expander function.  The actual
 ;;; definition is done by %defmacro which we expand into.
 ;;;
 (defmacro defmacro (name lambda-list &body body)
@@ -75,14 +78,14 @@
 
 ;;; %Defmacro, %%Defmacro  --  Internal
 ;;;
-;;;    Defmacro expands into %Defmacro which is a function that is treated
-;;; magically the compiler.  After the compiler has gotten the information it
-;;; wants out of macro definition, it compiles a call to %%Defmacro which
-;;; happens at load time.  We have a %Defmacro function which just calls
-;;; %%Defmacro in order to keep the interpreter happy.
+;;; Defmacro expands into %Defmacro which is a function that is treated
+;;; magically the compiler.  After the compiler has gotten the information
+;;; it wants out of macro definition, it compiles a call to %%Defmacro
+;;; which happens at load time.  We have a %Defmacro function which just
+;;; calls %%Defmacro in order to keep the interpreter happy.
 ;;;
-;;;    Eventually %%Defmacro should deal with clearing old compiler information
-;;; for the functional value.
+;;; Eventually %%Defmacro should deal with clearing old compiler
+;;; information for the functional value.
 ;;;
 (defun c::%defmacro (name definition lambda-list doc)
   (assert (eval:interpreted-function-p definition))
@@ -137,10 +140,10 @@
      (%define-symbol-macro ',name ',expansion)))
 ;;;
 (defun %define-symbol-macro (name expansion)
-  (unless (symbolp name)
-    (error 'simple-type-error :datum name :expected-type 'symbol
-	   :format-control "Symbol macro name is not a symbol: ~S."
-	   :format-arguments (list name)))
+  (or (symbolp name)
+      (error 'simple-type-error :datum name :expected-type 'symbol
+	     :format-control "Symbol macro name is not a symbol: ~S."
+	     :format-arguments (list name)))
   (ecase (info variable kind name)
     ((:macro :global nil)
      (setf (info variable kind name) :macro)
@@ -159,7 +162,7 @@
 ;;; DEFTYPE is a lot like DEFMACRO.
 
 (defmacro deftype (name arglist &body body)
-  "Syntax like DEFMACRO, but defines a new type."
+  "Syntax like `defmacro', but defines a new type."
   (or (symbolp name)
       (error "~S -- Type name not a symbol." name))
 
@@ -231,7 +234,7 @@
 
 ;;; %DEFINE-SETF-MACRO  --  Internal
 ;;;
-;;;    Do stuff for defining a setf macro.
+;;; Do stuff for defining a setf macro.
 ;;;
 (defun %define-setf-macro (name expander inverse doc)
   (cond ((not (fboundp `(setf ,name))))
@@ -266,40 +269,56 @@
 	 ,body))))
 
 
-;;;; Defun, Defvar, Defparameter, Defconstant:
+#[ Functions
+
+Can recurse. [Iteration]
+
+Defun.
+
+Docstrings.
+]#
+
+
+;;;; Defun, Defvar, Defparameter, Defconstant.
 
 ;;; Defun  --  Public
 ;;;
-;;;    Very similar to Defmacro, but simpler.  We don't have to parse the
+;;; Very similar to Defmacro, but simpler.  We don't have to parse the
 ;;; lambda-list.
 ;;;
 (defmacro defun (&whole source name lambda-list &body (body decls doc))
+  "defun Name (Arg*) Doc Body
+
+   Define a global function in the current package called Name.
+
+   `flet' defines local functions."
   (let ((def `(lambda ,lambda-list
 		,@decls
-		(block ,(if (and (consp name) (eq (car name) 'setf))
-			    (cadr name)
-			    name)
-		  ,@body))))
+		(block () ; FIX is this slow? does it add much space?
+		  (block ,(if (and (consp name) (eq (car name) 'setf))
+			      (cadr name)
+			      name)
+		    ,@body)))))
     `(c::%defun ',name #',def ,doc ',source)))
 
 ;;; %Defun, %%Defun  --  Internal
 ;;;
-;;;    Similar to %Defmacro, ...
+;;; Similar to %Defmacro, ...
 ;;;
 (defun c::%%defun (name def doc &optional inline-expansion)
   (setf (fdefinition name) def)
-  (when doc
-    (if (and (consp name) (eq (first name) 'setf))
-	(setf (documentation (second name) 'setf) doc)
-	(setf (documentation name 'function) doc)))
+  (if doc
+      (if (and (consp name) (eq (first name) 'setf))
+	  (setf (documentation (second name) 'setf) doc)
+	  (setf (documentation name 'function) doc)))
   (c::define-function-name name)
   (when (eq (info function where-from name) :assumed)
     (setf (info function where-from name) :defined)
-    (when (info function assumed-type name)
-      (setf (info function assumed-type name) nil)))
-  (when (or inline-expansion
-	    (info function inline-expansion name))
-    (setf (info function inline-expansion name) inline-expansion))
+    (if (info function assumed-type name)
+	(setf (info function assumed-type name) ())))
+  (if (or inline-expansion
+	  (info function inline-expansion name))
+      (setf (info function inline-expansion name) inline-expansion))
   name)
 ;;;
 (defun c::%defun (name def doc source)
@@ -311,15 +330,16 @@
 ;;; DEFCONSTANT  --  Public
 ;;;
 (defmacro defconstant (var val &optional doc)
-  "For defining global constants at top level.  The DEFCONSTANT says that the
-  value is constant and may be compiled into code.  If the variable already has
-  a value, and this is not equal to the init, an error is signalled.  The third
-  argument is an optional documentation string for the variable."
+  "For defining global constants at top level.  The DEFCONSTANT says that
+   the value is constant and may be compiled into code.  If the variable
+   already has a value, and this is not equal to the init, an error is
+   signalled.  The third argument is an optional documentation string for
+   the variable."
   `(c::%defconstant ',var ,val ',doc))
 
 ;;; %Defconstant, %%Defconstant  --  Internal
 ;;;
-;;;    Like the other %mumbles except that we currently actually do something
+;;; Like the other %mumbles except that we currently actually do something
 ;;; interesting at load time, namely checking if the constant is being
 ;;; redefined.
 ;;;
@@ -339,10 +359,10 @@
   name)
 
 (defmacro defvar (var &optional (val nil valp) (doc nil docp))
-  "For defining global variables at top level.  Declares the variable
-  SPECIAL and, optionally, initializes it.  If the variable already has a
-  value, the old value is not clobbered.  The third argument is an optional
-  documentation string for the variable."
+  "For defining global variables at top level.  Declare the variable
+   special and, optionally, initialize it.  If the variable already has a
+   value, the old value is kept.  $doc is an optional documentation string
+   for the variable."
   `(progn
     (proclaim '(special ,var))
      ,@(when valp
@@ -353,10 +373,10 @@
     ',var))
 
 (defmacro defparameter (var val &optional (doc nil docp))
-  "Defines a parameter that is not normally changed by the program,
-  but that may be changed without causing an error.  Declares the
-  variable special and sets its value to VAL.  The third argument is
-  an optional documentation string for the parameter."
+  "Define a parameter that is not normally changed by the program, but that
+   may be changed without causing an error.  Declare the variable special
+   and sets its value to $val.  $doc is an optional documentation string
+   for the parameter."
   `(progn
     (proclaim '(special ,var))
     (setq ,var ,val)
@@ -367,25 +387,56 @@
 
 ;;;; ASSORTED CONTROL STRUCTURES
 
+#[ Conditionals
+
+{function:if}
+{function:if*}
+{function:fi}
+{function:fi*}
+{function:cond}
+{function:case}
+{function:case=}
+]#
+
 ;;; FIX when in english is for ~ something that happened or is thought will happen
-;;;         "when the dog walked"  "when the dog walk over here"
+;;;         "when the dog walked"  "when the dog walks over here"
 ;;;     if is for something that may happen
-(defmacro when (test &body forms)
-  "First arg is a predicate.  If it is non-null, the rest of the forms are
-   evaluated as a PROGN."
-  `(cond (,test nil ,@forms)))
+;;;     when is like a temporal structure?
+;;;     when could be "when the pred is true, then do..." which is ok english
+(defmacro when (predicate &body forms)
+  "If $predicate evaluates true, then evaluate $forms as a PROGN."
+  `(cond (,predicate nil ,@forms)))
+
+(defmacro if* (predicate &body forms)
+  "If $predicate evaluates true, then evaluate $forms as a PROGN."
+  `(cond (,predicate nil ,@forms)))
 
 ;; FIX consider adding (if x) for symmetry  (if x) == (if x t ())
-(defmacro fi (test &optional (else t) (then ()))
-  "Backward if.  First arg (TEST) is a predicate.  If it is true then the
-   second form (ELSE) is evaluated, else the first form (THEN) is
-   evaluated.  (fi x) == (fi x t ())."
-  `(if ,test ,then ,else))
+;; FIX would (fi x) => (fi x x ()) be any more useful? slower?
+;;                           ^- the returned x would always be ()!
+;; FIX     then (if x) => (if x x ()) could replace `identity'
+;;             more useful to turn a true value into t leaving () as ()
+;;               as in the => (if x t ()) form
+(defmacro fi (predicate &optional (else t) (then ()))
+  "Backward if.  If $predicate evaluates true then evaluate the second form
+   ($else), otherwise evaluate the first form ($then).  (fi x) is
+   equivalent to (fi x t ())."
+  `(if ,predicate ,then ,else))
 
 (defmacro unless (test &rest forms)
   "First arg is a predicate.  If it is null, the rest of the forms are
    evaluated as a PROGN."
-  `(cond ((not ,test) nil ,@forms)))
+  `(cond ((not ,test) () ,@forms)))
+
+(defmacro *fi (predicate &rest forms)
+  "Backward fi*.  If $predicate evaluates true then return (), otherwise
+   evaluate $forms as a PROGN."
+  `(fi ,predicate ,(if forms `(progn ,@forms) t)))
+
+(defmacro fi* (test &rest forms)
+  "Backward `when'.  First arg ($test) is a predicate.  If it is true then
+   return (), otherwise evaluate the rest of the forms as a `progn'."
+  `(fi ,test ,(if forms `(progn ,@forms) t)))
 
 (defmacro return (&optional (value nil))
   `(return-from nil ,value))
@@ -404,7 +455,7 @@
 
 ;;; Prog1, Prog2  --  Public
 ;;;
-;;;    These just turn into a Let.
+;;; These just turn into a Let.
 ;;;
 (defmacro prog1 (result &rest body)
   (let ((n-result (gensym)))
@@ -417,7 +468,7 @@
 
 ;;; And, Or  --  Public
 ;;;
-;;;    AND and OR are defined in terms of IF.
+;;; AND and OR are defined in terms of IF.
 ;;;
 (defmacro and (&rest forms)
   (cond ((endp forms) t)
@@ -439,7 +490,7 @@
 
 ;;; Cond  --  Public
 ;;;
-;;;    COND also turns into IF.
+;;; COND also turns into IF.
 ;;;
 (defmacro cond (&rest clauses)
   ;; FIX doc?
@@ -461,16 +512,16 @@
 		   (cond ,@(rest clauses))))))))
 
 
-;;;; Multiple value macros:
+;;;; Multiple value macros.
 
 ;;; Multiple-Value-XXX  --  Public
 ;;;
-;;;    All the multiple-value receiving forms are defined in terms of
+;;; All the multiple-value receiving forms are defined in terms of
 ;;; Multiple-Value-Call.
 ;;;
 (defmacro multiple-value-setq (varlist value-form)
-  (unless (and (listp varlist) (every #'symbolp varlist))
-    (error "Varlist is not a list of symbols: ~S." varlist))
+  (or (and (listp varlist) (every #'symbolp varlist))
+      (error "Varlist is not a list of symbols: ~S." varlist))
   (let ((temps (mapcar #'(lambda (x) (declare (ignore x)) (gensym)) varlist)))
     `(multiple-value-bind ,temps ,value-form
        ,@(mapcar #'(lambda (var temp)
@@ -479,8 +530,8 @@
        ,(car temps))))
 ;;;
 (defmacro multiple-value-bind (varlist value-form &body body)
-  (unless (and (listp varlist) (every #'symbolp varlist))
-    (error "Varlist is not a list of symbols: ~S." varlist))
+  (or (and (listp varlist) (every #'symbolp varlist))
+      (error "Varlist is not a list of symbols: ~S." varlist))
   (if (= (length varlist) 1)
       `(let ((,(car varlist) ,value-form))
 	 ,@body)
@@ -495,7 +546,7 @@
 
 (defmacro nth-value (n form)
   "Evaluates FORM and returns the Nth value (zero based).  This involves no
-  consing when N is a trivial constant integer."
+   consing when N is a trivial constant integer."
   (if (integerp n)
       (let ((dummy-list nil)
             (keeper (gensym "KEEPER-")))
@@ -675,17 +726,17 @@
 
 ;;; SETF  --  Public
 ;;;
-;;;    Except for atoms, we always call GET-SETF-METHOD, since it has some
-;;; non-trivial semantics.  But when there is a setf inverse, and G-S-M uses
-;;; it, then we return a call to the inverse, rather than returning a hairy let
-;;; form.  This is probably important mainly as a convenince in allowing the
-;;; use of setf inverses without the full interpreter.
+;;; Except for atoms, we always call GET-SETF-METHOD, since it has some
+;;; non-trivial semantics.  But when there is a setf inverse, and G-S-M
+;;; uses it, then we return a call to the inverse, rather than returning a
+;;; hairy let form.  This is probably important mainly as a convenince in
+;;; allowing the use of setf inverses without the full interpreter.
 ;;;
 (defmacro setf (&rest args &environment env)
-  "Takes pairs of arguments like SETQ.  The first is a place and the second
-   is the value that is supposed to go into that place.  Returns the last
-   value.  The place argument may be any of the access forms for which SETF
-   knows a corresponding setting form."
+  "Takes pairs of arguments like `SETQ'.  The first is a place and the
+   second is the value that is supposed to go into that place.  Returns the
+   last value.  The place argument may be any of the access forms for which
+   `setf' knows a corresponding setting form."
   (let ((nargs (length args)))
     (cond
      ((= nargs 2)
@@ -703,22 +754,23 @@
 		       (multiple-value-bind ,newval ,value-form
 			 ,setter))))))))
      ((oddp nargs)
-      (error "Odd number of args to SETF."))
+      (error "Odd number of args to `setf'."))
      (t
       (do ((a args (cddr a)) (l nil))
 	  ((null a) `(progn ,@(nreverse l)))
 	(setq l (cons (list 'setf (car a) (cadr a)) l)))))))
 
 (defmacro psetf (&rest args &environment env)
-  "This is to SETF as PSETQ is to SETQ.  Args are alternating place
-  expressions and values to go into those places.  All of the subforms and
-  values are determined, left to right, and only then are the locations
-  updated.  Returns NIL."
+  "Set (as with `setf') the place to the value in the alternating
+   place-value $pairs.  Determine all of the place expressions and values
+   first, left to right, and then update the locations.  Return ().
+
+   This is to `setf' as `psetq' is to `setq'."
   (collect ((let*-bindings) (mv-bindings) (setters))
     (do ((a args (cddr a)))
 	((endp a))
       (if (endp (cdr a))
-	  (error "Odd number of args to PSETF."))
+	  (error "Odd number of args to `psetf'."))
       (multiple-value-bind
 	  (dummies vals newval setter getter)
 	  (get-setf-expansion (car a) env)
@@ -831,9 +883,11 @@
 	      `(let* ,(nreverse let-list)
 		 ,setter)))))))
 
+;; FIX pushend pushbak appendf?
+
 (defmacro push (obj place &environment env)
   "Takes an object and a location holding a list.  Conses the object onto
-  the list, returning the modified list.  OBJ is evaluated before PLACE."
+   the list, returning the modified list.  OBJ is evaluated before PLACE."
   (if (symbolp place)
       `(setq ,place (cons ,obj ,place))
       (multiple-value-bind (dummies vals newval setter getter)
@@ -882,17 +936,17 @@
 
 (define-modify-macro incf (&optional (delta 1)) +
   "The first argument is some location holding a number.  This number is
-  incremented by the second argument, DELTA, which defaults to 1.")
+   incremented by the second argument, DELTA, which defaults to 1.")
 
 (define-modify-macro decf (&optional (delta 1)) -
   "The first argument is some location holding a number.  This number is
-  decremented by the second argument, DELTA, which defaults to 1.")
+   decremented by the second argument, DELTA, which defaults to 1.")
 
 (defmacro remf (place indicator &environment env)
-  "Place may be any place expression acceptable to SETF, and is expected
-  to hold a property list or ().  This list is destructively altered to
-  remove the property specified by the indicator.  Returns T if such a
-  property was present, NIL if not."
+  "Place may be any place expression acceptable to SETF, and is expected to
+   hold a property list or ().  This list is destructively altered to
+   remove the property specified by the indicator.  Returns T if such a
+   property was present, NIL if not."
   (multiple-value-bind (dummies vals newval setter getter)
 		       (get-setf-method place env)
     (do* ((d dummies (cdr d))
@@ -919,6 +973,7 @@
 			       (return t))))))))
       (push (list (car d) (car v)) let-list))))
 
+;; FIX swapf?
 (defmacro swap (a b)
   "Swap the values of A and B using setf.  Return the new value of A."
   (let ((tem (gensym)))
@@ -926,6 +981,11 @@
        (setf ,a ,b)
        (setf ,b ,tem)
        ,a)))
+
+;; FIX clrf
+(defmacro clearf (place)
+  "Put () in PLACE."
+  `(setf ,place ()))
 
 
 ;;; The built-in DEFSETFs.
@@ -1045,10 +1105,9 @@
   `(progn (replace ,sequence ,v :start1 ,start :end1 ,end)
 	  ,v))
 
-
-;;; Evil hack invented by the gnomes of Vassar Street (though not as evil as
-;;; it used to be.)  The function arg must be constant, and is converted to an
-;;; APPLY of ther SETF function, which ought to exist.
+;;; Evil hack invented by the gnomes of Vassar Street (though not as evil
+;;; as it used to be.)  The function arg must be constant, and is converted
+;;; to an APPLY of their SETF function, which ought to exist.
 ;;;
 (define-setf-expander apply (function &rest args)
   (unless (and (listp function)
@@ -1070,8 +1129,8 @@
 ;;;
 (define-setf-expander ldb (bytespec place &environment env)
   "The first argument is a byte specifier.  The second is any place form
-  acceptable to SETF.  Replaces the specified byte of the number in this
-  place with bits from the low-order end of the new value."
+   acceptable to SETF.  Replaces the specified byte of the number in this
+   place with bits from the low-order end of the new value."
   (multiple-value-bind (dummies vals newval setter getter)
 		       (get-setf-method place env)
     (if (and (consp bytespec) (eq (car bytespec) 'byte))
@@ -1098,8 +1157,8 @@
 
 (define-setf-expander mask-field (bytespec place &environment env)
   "The first argument is a byte specifier.  The second is any place form
-  acceptable to SETF.  Replaces the specified byte of the number in this place
-  with bits from the corresponding position in the new value."
+   acceptable to SETF.  Replaces the specified byte of the number in this
+   place with bits from the corresponding position in the new value."
   (multiple-value-bind (dummies vals newval setter getter)
 		       (get-setf-method place env)
     (let ((btemp (gensym))
@@ -1162,7 +1221,7 @@
 	     (error "~S -- Bad clause in ~S." case name))
 	    ((memq (car case) '(t otherwise))
 	     (if errorp
-		 (error "No default clause allowed in ~S: ~S" name case)
+		 (error "Otherwise clause in ~S: ~S" name case)
 		 (push `(t nil ,@(rest case)) clauses)))
 	    ((and multi-p (listp (first case)))
 	     (setf keys (append (first case) keys))
@@ -1230,14 +1289,23 @@
       :interactive read-evaluated-form
       value)))
 
+;; FIX consider a more consistent way of varying of the predicate
+;;         case is generalized by cond
+;;         (member has :test arg   (also `memq' compat fun)
+;;         same holds for if  if= if-equal if-eql if-equalp  (if (pred :test xxx) ...
+;;           if is also gen'd by cond
+;;         case= useful, eg in code:mh.lisp
+
 (defmacro case (keyform &body cases)
-  "CASE Keyform {({(Key*) | Key} Form*)}*
-   Evaluates the Forms in the first clause with a Key EQL to the value of
-   Keyform.  If a singleton key is T then the clause is a default clause."
+  "case keyform {({(key*) | key} form*)}*
+
+   Evaluate the Forms in the first clause with a Key `eql' to the value of
+   Keyform.  If a singleton key is t then the clause is a default clause."
   (case-body 'case keyform cases t 'eql nil nil))
 
 (defmacro ccase (keyform &body cases)
   "CCASE Keyform {({(Key*) | Key} Form*)}*
+
    Evaluates the Forms in the first clause with a Key EQL to the value of
    Keyform.  If none of the keys matches then a correctable error is
    signalled."
@@ -1342,7 +1410,6 @@
 ;;; CHECK-TYPE, regardless of whether they are needed.  Because it would be
 ;;; nice if this were cheap to use, and some things can't afford this excessive
 ;;; consing (e.g., READ-CHAR), we bend backwards a little.
-;;;
 
 (defmacro check-type (place type &optional type-string)
   "Signals an error of type type-error if the contents of place are not of the
@@ -1378,8 +1445,8 @@
 	value))))
 
 ;;; READ-EVALUATED-FORM is used as the interactive method for restart cases
-;;; setup by the Common Lisp "casing" (e.g., CCASE and CTYPECASE) macros
-;;; and by CHECK-TYPE.
+;;; setup by the "casing" (e.g., CCASE and CTYPECASE) macros and by
+;;; CHECK-TYPE.
 ;;;
 (defun read-evaluated-form ()
   (format *query-io* "~&Type a form to be evaluated:~%")
@@ -1391,9 +1458,9 @@
 (defmacro with-open-file ((var &rest open-args) &body (forms decls))
   "Bindspec is of the form (Stream File-Name . Options).  The file whose
    name is File-Name is opened using the Options and bound to the variable
-   Stream. If the call to open is unsuccessful, the forms are not
+   Stream.  If the call to open is unsuccessful, the forms are not
    evaluated.  The Forms are executed, and when they terminate, normally or
-   otherwise, the file is closed."
+   otherwise, the file is closed."  ; FIX return?
   (let ((abortp (gensym)))
     `(let ((,var (open ,@open-args))
 	   (,abortp t))
@@ -1405,10 +1472,28 @@
 	 (when ,var
 	   (close ,var :abort ,abortp))))))
 
+(defmacro with-temp-file ((var &rest open-args) &body (forms decls))
+  "Bindspec is of the form (Stream . Options).  A temporary file is opened
+   for the duration of the forms.  The file is opened using the Options and
+   bound to the variable Stream.  The forms are only evaluated If the call
+   to open is successful."
+  (let ((abortp (gensym)) (file (gensym)))
+    `(let* ((,file (pick-new-file))
+	    (,var (open ,file ,@open-args))
+	    (,abortp t))
+       ,@decls
+       (unwind-protect
+	   (multiple-value-prog1
+	       (progn ,@forms)
+	     (setq ,abortp ()))
+	 (when ,var
+	   (close ,var :abort ,abortp))
+	 (delete-file ,file)))))
+
 (defmacro with-open-stream ((var stream) &body (forms decls))
-  "The form stream should evaluate to a stream.  VAR is bound
-   to the stream and the forms are evaluated as an implicit
-   progn.  The stream is closed upon exit."
+  "The form stream should evaluate to a stream.  VAR is bound to the stream
+   and the forms are evaluated as an implicit progn.  The stream is closed
+   upon exit."
   (let ((abortp (gensym)))
     `(let ((,var ,stream)
 	   (,abortp t))
@@ -1422,7 +1507,7 @@
 
 (defmacro with-input-from-string ((var string &key index start end) &body (forms decls))
   "Binds the Var to an input stream that returns characters from String and
-  executes the body.  See manual for details."
+   executes the body.  See manual for details."
   ;; The once-only inhibits compiler note for unreachable code when 'end' is true.
   (once-only ((string string))
     `(let ((,var
@@ -1440,6 +1525,7 @@
 	 (close ,var)
 	 ,@(if index `((setf ,index (string-input-stream-current ,var))))))))
 
+;; FIX rename to-string? out-to-string?
 (defmacro with-output-to-string ((var &optional string) &body (forms decls))
   "If *string* FIX? is specified, it must be a string with a fill pointer;
    the output is incrementally appended to the string (as if by use of
@@ -1458,9 +1544,61 @@
 	 (get-output-stream-string ,var))))
 
 
-;;;; Iteration macros:
+;;;; To and from files.
 
+(defmacro to-file ((stream &rest open-args) &body body)
+  "to-file stream filename `open'-options
+
+   Evaluate $body with $stream open for output to filename."
+  `(with-open-file (,stream ,@open-args :direction :output) ,@body))
+
+(defmacro from-file ((stream &rest open-args) &body body)
+  "from-file stream filename `open'-options
+
+   Evaluate $body with $stream open for input from filename."
+  `(with-open-file (,stream ,@open-args :direction :input) ,@body))
+
+
+;;;; Iteration macros.
+
+#[ Iteration
+
+{function:loop}
+{function:dotimes}
+{function:while}
+{function:until}
+
+Recursion.
+Local function recursion.
+
+{function:iterate}
+{function:labels}
+
+{function:tagbody}
+
+== Type specific iteration ==
+
+{function:dolist}
+{function:map}
+{function:map-into}
+{function:reduce}
+
+{function:mapc}
+{function:mapcar}
+{function:mapcan}
+{function:mapl}
+{function:maplist}
+{function:mapcon}
+]#
+
+;; FIX how about (dotimes 10 (body))? (dotimes var (body))? (dotimes (function) (body))?
+;; FIX how about (dotimes (i 10 :from 10 :result t) (body))?
+;;
 (defmacro dotimes ((var count &optional (result nil)) &body body)
+  "dotimes ($var $count [$result]) $body
+
+   Evaluate $body $count times with $var bound to the time (starting at 0).
+   Return $result."
   (cond ((numberp count)
          `(do ((,var 0 (1+ ,var)))
               ((>= ,var ,count) ,result)
@@ -1480,6 +1618,10 @@
 ;;; don't want to use IGNORABLE on what might be a special var.
 ;;;
 (defmacro dolist ((var list &optional (result nil)) &body body)
+  "dolist ($var $list [$result]) $body
+
+   Evaluate $body for each element of $list in order, with $var bound to
+   the element.  Return $result."
   (let ((n-list (gensym)))
     `(do ((,n-list ,list (cdr ,n-list)))
 	 ((endp ,n-list)
@@ -1491,32 +1633,102 @@
        (let ((,var (car ,n-list)))
 	 ,@body))))
 
+#|
+(defmacro loop (&body (body decls))
+  "loop declaration* form*
+
+   Repeatedly evaluate $body.  Wrap a block named () around the loop,
+   allowing `return' to exit from the loop."
+  (let ((L1 (gensym)))
+    `(block ()
+       ,@decl
+       (tagbody
+	,L1
+	,@body
+	(go ,L1)))))
+|#
+
 (defmacro do (varlist endlist &body (body decls))
-  "DO ({(Var [Init] [Step])}*) (Test Exit-Form*) Declaration* Form*
-  Iteration construct.  Each Var is initialized in parallel to the value of the
-  specified Init form.  On subsequent iterations, the Vars are assigned the
-  value of the Step form (if any) in paralell.  The Test is evaluated before
-  each evaluation of the body Forms.  When the Test is true, the Exit-Forms
-  are evaluated as a PROGN, with the result being the value of the DO.  A block
-  named NIL is established around the entire expansion, allowing RETURN to be
-  used as an laternate exit mechanism."
-  (do-do-body varlist endlist body decls 'let 'psetq 'do nil))
+  "do ({(Var [Init] [Step])}*) (Test Exit-Form*) Declaration* Form*
+
+   Iterate.  Each Var is initialized in parallel to the value of the
+   specified Init form.  On subsequent iterations, the Vars are assigned
+   the value of the Step form (if any) in parallel.  The Test is evaluated
+   before each evaluation of the body Forms.  When the Test is true, the
+   Exit-Forms are evaluated as a `progn', with the result being the value
+   of the `do'.  A block named NIL is established around the entire
+   expansion, allowing `return' to be used as an alternate exit mechanism."
+  (generate-do-loop varlist endlist body decls 'let 'psetq 'do nil 'fi))
+
+(defmacro until (varlist endlist &body (body decls))
+  "until ({(Var [Init] [Step])}*) (Test Exit-Form*) Declaration* Form*
+
+   Iterate.  Each Var is initialized in parallel to the value of the
+   specified Init form.  On subsequent iterations, the Vars are assigned
+   the value of the Step form (if any) in parallel.  The Test is evaluated
+   before each evaluation of the body Forms.  When the Test is true, the
+   Exit-Forms are evaluated as a `progn', with the result being the value
+   of the `until'.  A block named NIL is established around the entire
+   expansion, allowing `return' to be used as an alternate exit mechanism."
+  (generate-do-loop varlist endlist body decls 'let 'psetq 'until nil 'fi))
+
+(defmacro while (varlist endlist &body (body decls))
+  "while ({(Var [Init] [Step])}*) (Test Exit-Form*) Declaration* Form*
+
+   Iterate.  Each Var is initialized in parallel to the value of the
+   specified Init form.  On subsequent iterations, the Vars are assigned
+   the value of the Step form (if any) in parallel.  The Test is evaluated
+   before each evaluation of the body Forms.  When the Test is false, the
+   Exit-Forms are evaluated as a `progn', with the result being the value
+   of the `while'.  A block named NIL is established around the entire
+   expansion, allowing `return' to be used as an alternate exit mechanism."
+  (generate-do-loop varlist endlist body decls 'let 'psetq 'while nil 'if))
 
 (defmacro do* (varlist endlist &body (body decls))
-  "DO* ({(Var [Init] [Step])}*) (Test Exit-Form*) Declaration* Form*
-  Iteration construct.  Each Var is initialized sequentially (like LET*) to the
-  value of the specified Init form.  On subsequent iterations, the Vars are
-  sequentially assigned the value of the Step form (if any).  The Test is
-  evaluated before each evaluation of the body Forms.  When the Test is true,
-  the Exit-Forms are evaluated as a PROGN, with the result being the value
-  of the DO.  A block named NIL is established around the entire expansion,
-  allowing RETURN to be used as an laternate exit mechanism."
-  (do-do-body varlist endlist body decls 'let* 'setq 'do* nil))
+  "do* ({(Var [Init] [Step])}*) (Test Exit-Form*) Declaration* Form*
+
+   Iterate.  Each Var is initialized sequentially (like LET*) to the value
+   of the specified Init form.  On subsequent iterations, the Vars are
+   sequentially assigned the value of the Step form (if any).  The Test is
+   evaluated before each evaluation of the body Forms.  When the Test is
+   true, the Exit-Forms are evaluated as a PROGN, with the result being the
+   value of the DO.  A block named NIL is established around the entire
+   expansion, allowing RETURN to be used as an alternate exit mechanism."
+  (generate-do-loop varlist endlist body decls 'let* 'setq 'do* nil 'fi))
+
+(defmacro until* (varlist endlist &body (body decls))
+  "until* ({(Var [Init] [Step])}*) (Test Exit-Form*) Declaration* Form*
+
+   Iterate.  Each Var is initialized sequentially (like `let*') to the
+   value of the specified Init form.  On subsequent iterations, the Vars
+   are sequentially assigned the value of the Step form (if any).  The Test
+   is evaluated before each evaluation of the body Forms.  When the Test is
+   true, the Exit-Forms are evaluated as a `progn', with the result being
+   the value of the `until'.  A block named NIL is established around the
+   entire expansion, allowing `return' to be used as an alternate exit
+   mechanism."
+  (generate-do-loop varlist endlist body decls 'let* 'setq 'until* nil 'fi))
+
+(defmacro while* (varlist endlist &body (body decls))
+  "while* ({(Var [Init] [Step])}*) (Test Exit-Form*) Declaration* Form*
+
+   Iterate.  Each Var is initialized sequentially (like `let*') to the
+   value of the specified Init form.  On subsequent iterations, the Vars
+   are sequentially assigned the value of the Step form (if any).  The Test
+   is evaluated before each evaluation of the body Forms.  When the Test is
+   true, the Exit-Forms are evaluated as a `progn', with the result being
+   the value of the `do'.  A block named NIL is established around the
+   entire expansion, allowing `return' to be used as an alternate exit
+   mechanism."
+  (generate-do-loop varlist endlist body decls 'let* 'setq 'while* nil 'if))
 
 
-;;;; Miscellaneous macros:
+;;;; Miscellaneous macros.
 
 (defmacro psetq (&rest pairs)
+  "Set (as with `setq') the place to the value in the alternating
+   place-value $pairs.  Evaluate all of the values first, left to right,
+   and then update the locations.  Return ()."
   (do ((lets nil)
        (setqs nil)
        (pairs pairs (cddr pairs)))
@@ -1534,7 +1746,7 @@
   `#',form)
 
 
-;;;; With-Compilation-Unit:
+;;;; With-Compilation-Unit.
 
 ;;; True if we are within a With-Compilation-Unit form, which normally
 ;;; causes nested uses to be NOOPS.
@@ -1550,7 +1762,7 @@
 
 ;;; EVALUATE-DECLARATION-CONTEXT  --  Internal
 ;;;
-;;;    Recursively descend the context form, returning true if this subpart
+;;; Recursively descend the context form, returning true if this subpart
 ;;; matches the specified context.
 ;;;
 (defun evaluate-declaration-context (context name parent)
@@ -1599,7 +1811,7 @@
 
 ;;; PROCESS-CONTEXT-DECLARATIONS  --  Internal
 ;;;
-;;;    Given a list of context declaration specs, return a new value for
+;;; Given a list of context declaration specs, return a new value for
 ;;; C::*CONTEXT-DECLARATIONS*.
 ;;;
 (defun process-context-declarations (decls)
@@ -1618,69 +1830,109 @@
 ;;; With-Compilation-Unit  --  Public
 ;;;
 (defmacro with-compilation-unit (options &body body)
-  "WITH-COMPILATION-UNIT ({Key Value}*) Form*
-  This form affects compilations that take place within its dynamic extent.  It
-  is intended to be wrapped around the compilation of all files in the same
-  system.  These keywords are defined:
-    :OVERRIDE Boolean-Form
-        One of the effects of this form is to delay undefined warnings
-        until the end of the form, instead of giving them at the end of each
-        compilation.  If OVERRIDE is NIL (the default), then the outermost
-        WITH-COMPILATION-UNIT form grabs the undefined warnings.  Specifying
-        OVERRIDE true causes that form to grab any enclosed warnings, even if
-        it is enclosed by another WITH-COMPILATION-UNIT.
-    :OPTIMIZE Decl-Form
-        Decl-Form should evaluate to an OPTIMIZE declaration specifier.  This
-        declaration changes the `global' policy for compilations within the
-        body.
-    :OPTIMIZE-INTERFACE Decl-Form
+  "with-compilation-unit ({key value}*) form*
+
+   Evaluate the forms in an environment where warnings for undefined
+   variables, functions and types occur after all the forms have been
+   evaluated.  Evaluate each value in the key value pairs.  Recognize the
+   keywords:
+
+     $override boolean-form
+
+         If () when called within another invocation of
+         `with-compilation-unit' then leave any warnings for the enclosing
+         call, otherwise emit the warnings.
+
+    $optimize decl-form
+
+        decl-form must evaluate to an OPTIMIZE declaration specifier, such
+        as (optimize (speed 3) (safety 0)).  Change the global policy for
+        compilations within $body, as defined by decl-form.
+        \xlref{optimize-declaration}
+
+    $optimize-interface decl-form
+
         Like OPTIMIZE, except that it specifies the value of the CMU extension
-        OPTIMIZE-INTERFACE policy (which controls argument type and syntax
-        checking.)
-    :CONTEXT-DECLARATIONS List-of-Context-Decls-Form
-        This is a CMU extension which allows compilation to be controlled
-        by pattern matching on the context in which a definition appears.  The
-        argument should evaluate to a list of lists of the form:
-            (Context-Spec Declare-Form+)
-        In the indicated context, the specified declare forms are inserted at
-        the head of each definition.  The declare forms for all contexts that
-	match are appended together, with earlier declarations getting
-	predecence over later ones.  A simple example:
+        OPTIMIZE-INTERFACE policy (which .)
+
+        Change the optimize-interface policy for compilations within $body,
+        as defined by decl-form.  The optimize-interface policy controls
+        argument type and syntax checking.
+        \xlref{optimize-declaration}
+
+    $context-declarations list-of-context-decls-form
+
+        Adjust the compilation policy by pattern matching on the context in
+        which a definition appears.  The argument should evaluate to a list
+        of lists of the form:
+
+            (context-spec declare-form+)
+
+        In the indicated context, insert the specified declare forms at the
+        head of each definition.  Append together the declare forms for all
+        contexts that match, with earlier declarations getting predecence
+        over later ones.  For example, the argurment
+
             :context-declarations
             '((:external (declare (optimize (safety 2)))))
-        This will cause all functions that are named by external symbols to be
-        compiled with SAFETY 2.  The full syntax of context specs is:
-	:INTERNAL, :EXTERNAL
-	    True if the symbols is internal (external) in its home package.
-	:UNINTERNED
-	    True if the symbol has no home package.
-	:ANONYMOUS
-	    True if the function doesn't have any interesting name (not
-	    DEFMACRO, DEFUN, LABELS or FLET).
-	:MACRO, :FUNCTION
-	    :MACRO is a global (DEFMACRO) macro.  :FUNCTION is anything else.
-	:LOCAL, :GLOBAL
-	    :LOCAL is a LABELS or FLET.  :GLOBAL is anything else.
-	(:OR Context-Spec*)
-	    True in any specified context.
-	(:AND Context-Spec*)
-	    True only when all specs are true.
-	(:NOT Context-Spec)
-	    True when the spec is false.
-        (:MEMBER Name*)
-	    True when the name is one of these names (EQUAL test.)
-	(:MATCH Pattern*)
-	    True when any of the patterns is a substring of the name.  The name
-	    is wrapped with $'s, so $FOO matches names beginning with FOO,
-	    etc."
+
+        will cause all functions that are named by external symbols to be
+        compiled with safety 2.  The full syntax of context specs is:
+
+	  :internal, :external
+
+	      True if the symbols is internal (external) in its home
+	      package.
+
+	  :uninterned
+
+	      True if the symbol has no home package.
+
+	  :anonymous
+
+	      True if the function doesn't have any interesting name (not
+	      `defmacro', `defun', `labels' or `flet').
+
+	  :macro, :function
+
+	      :macro is a global (`defmacro') macro.  :function is anything
+	      else.
+
+	  :local, :global
+
+	      :local is a `labels' or `flet'.  :global is anything else.
+
+	  (:or context-spec*)
+
+	      True in any specified context.
+
+	  (:and context-spec*)
+
+	      True only when all specs are true.
+
+	  (:not context-spec)
+
+	      True when the spec is false.
+
+	  (:member name*)
+
+	      True when the name is one of these names (`equal' test.)
+
+	  (:match pattern*)
+
+	      True when any of the patterns is a substring of the name.
+	      The name is wrapped with $'s, so $foo matches names beginning
+	      with foo, etc.
+
+        \xlref{context-declarations}."
   (let ((override nil)
 	(optimize nil)
 	(optimize-interface nil)
 	(context-declarations nil)
 	(n-fun (gensym))
 	(n-abort-p (gensym)))
-    (when (oddp (length options))
-      (error "Odd number of key/value pairs: ~S." options))
+    (if (oddp (length options))
+	(error "Odd number of key/value pairs: ~S." options))
     (do ((opt options (cddr opt)))
 	((null opt))
       (case (first opt)
@@ -1739,18 +1991,20 @@
 
 ;;; Public.
 ;;;
-(defmacro in-directory (directory &body forms)
+(defmacro in-directory (pathname &body forms)
+  "in-directory $pathname form*
+
+   Evaluate $forms with the current directory set to $pathname.  Assume
+   that the directory in $pathname includes a trailing slash.  Follow
+   symlinks.
+
+   Signal an error if the directory named in $pathname is missing, or if
+   $pathname is some type other than string, stream or pathname."
   (let ((cwd (gensym)))
-    `(let ((,cwd (default-directory)))
+    `(let ((,cwd (current-directory)))
        (unwind-protect
 	   (progn
-	     (setf (ext:default-directory) (directory-namestring ,directory))
+	     (setf (current-directory)
+		   (directory-namestring (common-prefix ,pathname)))
 	     ,@forms)
-	 (setf (ext:default-directory) ,cwd)))))
-
-;;; Public.
-;;;
-;;; FIX why macro? (think should use macros only for changes to eval)
-(defmacro number-string (number)  ;; FIX and string-number? parse-integer
-  `(let ((*print-base* 10)) ; FIX
-     (prin1-to-string ,number)))
+	 (setf (current-directory) ,cwd)))))

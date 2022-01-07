@@ -1,20 +1,4 @@
-;;; -*- Package: ALPHA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/pred.lisp,v 1.2 1994/10/31 04:39:51 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the VM definition of predicate VOPs for the Alpha.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Converted by Sean Hallgren.
-;;; 
+;;; The VM definition of predicate VOPs for the Alpha.
 
 (in-package "ALPHA")
 
@@ -30,7 +14,7 @@
     (inst br zero-tn dest)))
 
 
-;;;; Conditional VOPs:
+;;;; Conditional VOPs.
 
 (define-vop (if-eq)
   (:args (x :scs (any-reg descriptor-reg zero null))

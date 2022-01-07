@@ -1,21 +1,6 @@
-;;; -*- Package: ALPHA; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/subprim.lisp,v 1.2 1994/10/31 04:39:51 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    Linkage information for standard static functions, and random vops.
-;;;
-;;; Written by William Lott.
-;;; Converted by Sean Hallgren.
-;;; 
-(in-package "ALPHA")
+;;; Linkage information for standard static functions, and random vops.
 
+(in-package "ALPHA")
 
 
 ;;;; Length
@@ -35,28 +20,24 @@
   (:generator 50
     (move object ptr)
     (move zero-tn count)
-    
+
     LOOP
-    
+
     (inst cmpeq ptr null-tn temp)
     (inst bne temp done)
-    
+
     (inst and ptr lowtag-mask temp)
     (inst xor temp list-pointer-type temp)
     (inst bne temp not-list)
-    
+
     (loadw ptr ptr cons-cdr-slot list-pointer-type)
     (inst addq count (fixnum 1) count)
     (inst br zero-tn loop)
-    
+
     NOT-LIST
     (cerror-call vop done object-not-list-error ptr)
-    
+
     DONE
     (move count result)))
-       
 
 (define-static-function length (object) :translate length)
-
-
-

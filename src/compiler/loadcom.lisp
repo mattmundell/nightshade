@@ -1,16 +1,5 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/loadcom.lisp,v 1.48 1997/01/18 14:31:36 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Load up the compiler.
-;;;
+
 (in-package "C")
 
 (load "c:backend")
@@ -69,5 +58,7 @@
 (load "c:eval-comp")
 (load "c:eval")
 (load "c:byte-comp")
+
+(load "c:glossary")
 
 (load "vm:core")

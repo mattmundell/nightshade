@@ -10,25 +10,39 @@
 (in-package "LISP")
 
 
+#[ Describe
+
+In addition to the basic function described below, there are a number of
+switches and other things that control the behavior of `describe'.
+
+{function:describe}
+
+{variable:ext:*describe-level*}
+{variable:ext:*describe-indentation*}
+{variable:ext:*describe-print-level*}
+{variable:ext:*describe-print-length*}
+]#
+
+
 ;;;; DESCRIBE public switches.
 
 (defvar *describe-level* 2
-  "Depth of recursive descriptions allowed.")
+  "The maximum level of recursive description allowed.")
 
-(defvar *describe-verbose* nil
-  "If non-nil, descriptions may provide interpretations of information and
-   pointers to additional information.  Normally nil.")
+(defvar *describe-verbose* ()
+  "If true, descriptions may provide interpretations of information and
+   pointers to additional information.")
 
 (defvar *describe-print-level* 2
-  "*print-level* gets bound to this inside describe.  If null, use
+  "*print-level* is bound to this inside `describe'.  If (), use
    *print-level*")
 
 (defvar *describe-print-length* 5
-  "*print-length* gets bound to this inside describe.  If null, use
+  "*print-length* is bound to this inside `describe'.  If (), use
    *print-length*.")
 
 (defvar *describe-indentation* 3
-  "Number of spaces that sets off each line of a recursive description.")
+  "The number of spaces to indent for each level of recursive description.")
 
 (defvar *in-describe* nil
   "Used to tell whether we are doing a recursive describe.")
@@ -45,8 +59,31 @@
 ;;; DESCRIBE sets up the output stream and calls DESCRIBE-AUX, which does the
 ;;; hard stuff.
 ;;;
-(defun describe (x &optional stream)
-  "Prints a description of the object X."
+(defun describe (x &optional (stream *standard-output*))
+  "Print useful information about $x on $stream.  Print out the type, then
+   print other information based on the type of $x.  The types which are
+   presently handled are:
+
+     hash-table
+	 Print the number of entries currently in the hash table and the
+	 number of buckets currently allocated.
+
+     function
+	 Print a list of the function's name (if any) and its formal
+	 parameters.  If the name has function documentation, then print
+         it.  If the function is compiled, then print the file where it
+         is defined.
+
+     fixnum
+	 Print whether the integer is prime.
+
+     symbol
+	 Print The symbol's value, properties, and documentation.  If the
+	 symbol has a function definition, then describe the function.
+
+   If there is anything interesting to be said about some component of the
+   $x, invoke `describe' recursively to describe that component.  Indicate
+   the level of recursion by indenting the output."
   (declare (type (or stream (member t nil)) stream))
   (or *describe-output*
       (setq *describe-output* (make-indenting-stream *standard-output*)))
@@ -60,7 +97,6 @@
 	 (setf (indenting-stream-stream *describe-output*)
 	       (case stream
 		 ((t) *terminal-io*)
-		 ((nil) *standard-output*)
 		 (t stream)))
 	 (let ((*standard-output* *describe-output*)
 	       (*print-level* (or *describe-print-level* *print-level*))
@@ -76,13 +112,13 @@
 ;;; object into which we have already descended.
 ;;;
 (defun describe-aux (x)
-  (when (or (not (integerp *describe-level*))
-	    (minusp *describe-level*))
-    (error "*describe-level* should be a nonnegative integer - ~A."
-	   *describe-level*))
-  (when (or (>= *current-describe-level* *describe-level*)
-	    (member x *described-objects*))
-    (return-from describe-aux x))
+  (if (or (not (integerp *describe-level*))
+	  (minusp *describe-level*))
+      (error "*describe-level* should be a nonnegative integer - ~A."
+	     *describe-level*))
+  (if (or (>= *current-describe-level* *describe-level*)
+	  (member x *described-objects*))
+      (return-from describe-aux x))
   (push x *described-objects*)
   (typecase x
     (symbol (describe-symbol x))
@@ -166,7 +202,7 @@
 	     (+ internal-count external-count) internal-count external-count)))
 
 
-;;;; Function and symbol description (documentation):
+;;;; Function and symbol description (documentation).
 
 ;;; DESC-DOC prints the specified kind of documentation about the given Name.
 ;;; If Name is null, or not a valid name, then don't print anything.
@@ -180,9 +216,9 @@
 
 ;;; DESCRIBE-FUNCTION-NAME  --  Internal
 ;;;
-;;;    Describe various stuff about the functional semantics attached to the
-;;; specified Name.  Type-Spec is the function type specifier extracted from
-;;; the definition, or NIL if none.
+;;; Describe various stuff about the functional semantics attached to the
+;;; specified Name.  Type-Spec is the function type specifier extracted
+;;; from the definition, or NIL if none.
 ;;;
 (defun describe-function-name (name type-spec)
   (let ((*print-level* nil)
@@ -206,7 +242,7 @@
 
 ;;; DESCRIBE-FUNCTION-INTERPRETED  --  Internal
 ;;;
-;;;    Interpreted function describing; handles both closure and non-closure
+;;; Interpreted function describing; handles both closure and non-closure
 ;;; functions.  Instead of printing the compiled-from info, we print the
 ;;; definition.
 ;;;
@@ -224,10 +260,10 @@
 
     (let ((name (or name dname)))
       (desc-doc name 'function kind)
-      (unless (eq kind :macro)
-	(describe-function-name
-	 name
-	 (type-specifier (eval:interpreted-function-type x)))))
+      (or (eq kind :macro)
+	  (describe-function-name
+	   name
+	   (type-specifier (eval:interpreted-function-type x)))))
 
     (when closure-p
       (format t "~&Its closure environment is:")
@@ -240,7 +276,7 @@
 
 ;;; PRINT-COMPILED-FROM  --  Internal
 ;;;
-;;;    Print information from the debug-info about where X was compiled from.
+;;; Print information from the debug-info about where X was compiled from.
 ;;;
 (defun print-compiled-from (code-obj)
   (let ((info (kernel:%code-debug-info code-obj)))
@@ -264,7 +300,7 @@
 
 ;;; DESCRIBE-FUNCTION-COMPILED  --  Internal
 ;;;
-;;;    Describe a compiled function.  The closure case calls us to print the
+;;; Describe a compiled function.  The closure case calls us to print the
 ;;; guts.
 ;;;
 (defun describe-function-compiled (x kind name)
@@ -281,8 +317,8 @@
 
   (let ((name (or name (%function-name x))))
     (desc-doc name 'function kind)
-    (unless (eq kind :macro)
-      (describe-function-name name (%function-type x))))
+    (or (eq kind :macro)
+	(describe-function-name name (%function-type x))))
 
   (print-compiled-from (kernel:function-code-header x)))
 
@@ -290,16 +326,16 @@
 
   (let ((name (or name (c::byte-function-name x))))
     (desc-doc name 'function kind)
-    (unless (eq kind :macro)
-      (describe-function-name name 'function)))
+    (or (eq kind :macro)
+	(describe-function-name name 'function)))
 
   (print-compiled-from (c::byte-function-component x)))
 
 ;;; DESCRIBE-FUNCTION  --  Internal
 ;;;
-;;;    Describe a function with the specified kind and name.  The latter
-;;; arguments provide some information about where the function came from. Kind
-;;; NIL means not from a name.
+;;; Describe a function with the specified kind and name.  The latter
+;;; arguments provide some information about where the function came from.
+;;; Kind NIL means not from a name.
 ;;;
 (defun describe-function (x &optional (kind nil) name)
   (declare (type function x) (type (member :macro :function nil) kind))
@@ -308,7 +344,7 @@
     (:macro (format t "Macro-function: ~S" x))
     (:function (format t "Function: ~S" x))
     ((nil)
-     (format t "~S is function." x)))
+     (format t "~S is a function." x)))
   (case (get-type x)
     (#.vm:closure-header-type
      (describe-function-compiled (%closure-function x) kind name)

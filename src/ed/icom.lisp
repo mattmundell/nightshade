@@ -1,7 +1,6 @@
-;;;   This is an italicized comment.
+;;; This is an italicized comment.
 
 (in-package "ED")
-
 
 (defun delete-line-italic-marks (line)
   (dolist (m (edi::line-marks line))
@@ -26,7 +25,6 @@
       ((eq line end))
     (delete-line-italic-marks line)))
 
-
 (defmode "Italic"
   :setup-function
   #'(lambda (buffer) (set-comment-font (buffer-region buffer) 1))
@@ -34,22 +32,16 @@
   #'(lambda (buffer) (delete-italic-marks-region (buffer-region buffer))))
 
 (define-file-option "Italicize Comments" (buffer value)
-  (declare (ignore value))
   (setf (buffer-minor-mode buffer "Italic") t))
 
-(defcommand "Italic Comment Mode" (p)
+(defcommand "Italic Comment Mode" ()
   "Toggle \"Italic\" mode in the current buffer.  When in \"Italic\" mode,
-  semicolon comments are displayed in an italic font."
-  "Toggle \"Italic\" mode in the current buffer."
-  (declare (ignore p))
+   semicolon comments are displayed in an italic font."
   (setf (buffer-minor-mode (current-buffer) "Italic")
 	(not (buffer-minor-mode (current-buffer) "Italic"))))
 
-
 (defcommand "Start Italic Comment" (p)
   "Italicize the text in this comment."
-  "Italicize the text in this comment."
-  (declare (ignore p))
   (let* ((point (current-point))
 	 (pos (mark-charpos point))
 	 (line (mark-line point)))

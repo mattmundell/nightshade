@@ -5,6 +5,20 @@
 (export '(redisplay redisplay-all))
 
 
+#[ Redisplay
+
+Redisplay translates changes in the internal representation of text into
+changes on the screen.  Ideally this process finds the minimal transformation
+to make the screen correspond to the text in order to maximize the speed of
+redisplay.
+
+{function:ed:redisplay}
+{evariable:Redisplay Hook}
+{function:ed:redisplay-all}
+{function:ed:editor-finish-output}
+]#
+
+
 ;;;; Main redisplay entry points.
 
 (defvar *things-to-do-once* ()
@@ -33,10 +47,10 @@
 ;;; is for other windows.
 ;;;
 ;;; Whenever we invoke one of the internal routines, we keep track of the
-;;; non-nil return values, so we can return t when we are done.  Returning t
-;;; means redisplay should run again to make sure it converged.  To err on the
-;;; safe side, if any window had any changed lines, then let's go through
-;;; redisplay again; that is, return t.
+;;; true return values, so we can return t when we are done.  Returning t
+;;; means redisplay should run again to make sure it converged.  To err on
+;;; the safe side, if any window had any changed lines, then let's go
+;;; through redisplay again; that is, return t.
 ;;;
 ;;; After checking each window, we put the cursor in the appropriate place and
 ;;; force output.  When we try to position the cursor, it may no longer lie
@@ -58,6 +72,7 @@
 ;;; redisplay methods throw to this to abort redisplay in addition to this
 ;;; code.
 ;;;
+(declaim (special *lifted*))
 (defmacro redisplay-loop (general-fun special-fun &optional (afterp t))
   (let* ((device (gensym)) (point (gensym)) (hunk (gensym)) (n-res (gensym))
 	 (win-var (gensym))
@@ -68,7 +83,8 @@
 			   `(,special-fun ,win-var)
 			   `(funcall ,special-fun ,win-var))))
     `(let ((,n-res nil)
-	   (*in-redisplay* t))
+	   (*in-redisplay* t)
+	   (*lifted*))
        (catch 'redisplay-catcher
 	 (when (listen-editor-input *real-editor-input*)
 	   (throw 'redisplay-catcher :editor-input))
@@ -106,7 +122,6 @@
 
 ) ;eval-when
 
-
 ;;; REDISPLAY -- Public.
 ;;;
 ;;; This function updates the display of all windows which need it.  It assumes
@@ -115,7 +130,27 @@
 ;;; *screen-image-trashed* is only used by terminal redisplay.
 ;;;
 (defun redisplay ()
-  "The main entry into redisplay; updates any windows that seem to need it."
+  "Execute the redisplay process.  This runs whenever the editor command
+   loop checks for input.  Frequently check for input, and if there is any,
+   return.  Return a value as follows:
+
+     ()
+	All windows were up to date.
+
+     t
+	Update was needed, and completed successfully.
+
+     :editor-input
+	Update is needed, but was cut short for pending input.
+
+   Invoke the functions in *Redisplay Hook* on the current window after
+   computing screen transformations and before executing them.  After
+   invoking the hook, recompute the redisplay and then execute it on the
+   current window.
+
+   For the current window and any window with window-display-recentering
+   set, ensure the buffer's point for the window's buffer is visible after
+   redisplay."
   (when *things-to-do-once*
     (dolist (thing *things-to-do-once*) (apply (car thing) (cdr thing)))
     (setf *things-to-do-once* nil))
@@ -127,16 +162,23 @@
 	(t
 	 (redisplay-loop redisplay-window redisplay-window-recentering))))
 
-
 ;;; REDISPLAY-ALL -- Public.
 ;;;
 ;;; Update the screen making no assumptions about its correctness.  This is
-;;; useful if the screen gets trashed, or redisplay gets lost.  Since windows
-;;; may be on different devices, we have to go through the list clearing all
-;;; possible devices.  Always returns T or :EDITOR-INPUT, never NIL.
+;;; useful if the screen gets trashed, or redisplay gets lost.  Since
+;;; windows may be on different devices, we have to go through the list
+;;; clearing all possible devices.  Always returns t or :editor-input.
 ;;;
 (defun redisplay-all ()
-  "An entry into redisplay; causes all windows to be fully refreshed."
+  "Redisplay all windows.  For the current window and any window with
+   attribute display-recentering set, ensure the buffer's point for the
+   window's buffer is visible after redisplay.  Return a value as follows:
+
+     t
+	Update was needed, and completed successfully.
+
+     :editor-input
+	Update is needed, but was cut short for pending input."
   (let ((cleared-devices nil))
     (dolist (w *window-list*)
       (let* ((hunk (window-hunk w))
@@ -160,7 +202,6 @@
 		window)
        t)))
 
-
 
 ;;;; Internal redisplay entry points.
 
@@ -180,7 +221,7 @@
 
 ;;; REDISPLAY-WINDOWS-FROM-MARK -- Internal Interface.
 ;;;
-;;; hemlock-output-stream methods call this to update the screen.  It only
+;;; editor-output-stream methods call this to update the screen.  It only
 ;;; redisplays windows which are displaying the buffer concerned and
 ;;; doesn't deal with making the cursor track the point.
 ;;; *screen-image-trashed* is only used by terminal redisplay.  This must
@@ -221,9 +262,9 @@
 ;;; Return t if there are any changed lines, nil otherwise.
 ;;;
 (defun redisplay-window (window)
-  "Maybe updates the window's image and calls the device's smart redisplay
+  "Maybe update $window's image and call the device's smart redisplay
    method.  NOTE: the smart redisplay method may throw to
-   'edi::redisplay-catcher to abort redisplay."
+   'edi::redisplay-catcher to exit redisplay."
   (maybe-update-window-image window)
   (prog1
       (not (eq (window-first-changed window) the-sentinel))
@@ -231,7 +272,7 @@
 	     window)))
 
 (defun redisplay-window-all (window)
-  "Updates the window's image and calls the device's dumb redisplay method."
+  "Update $window's image and call the device's dumb redisplay method."
   (setf (window-tick window) (tick))
   (update-window-image window)
   (funcall (device-dumb-redisplay (device-hunk-device (window-hunk window)))
@@ -259,7 +300,7 @@
 ;;; smart method shouldn't do anything anyway.  NOTE: the smart redisplay
 ;;; method may throw to 'edi::redisplay-catcher to abort redisplay.
 ;;;
-;;; This return t if there are any changed lines, nil otherwise.
+;;; Return t if there are any changed lines, nil otherwise.
 ;;;
 (defun redisplay-window-recentering (window)
   (setup-for-recentering-redisplay window)
@@ -283,15 +324,15 @@
     (maybe-update-window-image window)
     (maybe-recenter-window window)))
 
-
 ;;; MAYBE-UPDATE-WINDOW-IMAGE only updates if the text has changed or the
-;;; display start (FIX has changed?).
+;;; display start FIX.
 ;;;
 (defun maybe-update-window-image (window)
-  (when (or (> (buffer-modified-tick (window-buffer window))
+  (fi (and (<= (buffer-modified-tick (window-buffer window))
 	       (window-tick window))
-	    (mark/= (window-display-start window)
-		    (window-old-start window)))
-    (setf (window-tick window) (tick))
-    (update-window-image window)
-    t))
+	   (mark= (window-display-start window)
+		  (window-old-start window)))
+      (progn
+	(setf (window-tick window) (tick))
+	(update-window-image window)
+	t)))

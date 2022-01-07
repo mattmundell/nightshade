@@ -1,22 +1,5 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/x86/alloc.lisp,v 1.2.2.1 1998/06/23 11:21:16 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Stuff to handle allocating simple objects.
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski -- Spring 1995.
-;;;
+
 (in-package :x86)
 
 
@@ -55,11 +38,11 @@
 
   BIGNUM
   ;;; Note: On the mips port space for a two word bignum is always
-  ;;; allocated and the header size is set to either one or two words
-  ;;; as appropriate. On the mips port this is faster, and smaller
-  ;;; inline, but produces more garbage. The inline x86 version uses
-  ;;; the same approach, but here we save garbage and allocate the
-  ;;; smallest possible bignum.
+  ;;; allocated and the header size is set to either one or two words as
+  ;;; appropriate.  On the mips port this is faster, and smaller inline,
+  ;;; but produces more garbage.  The inline x86 version uses the same
+  ;;; approach, but here we save garbage and allocate the smallest possible
+  ;;; bignum.
   (inst jmp :ns one-word-bignum)
   (inst mov ebx eax)
 
@@ -67,7 +50,7 @@
   (with-fixed-allocation (ebx bignum-type (+ bignum-digits-offset 2))
     (storew eax ebx bignum-digits-offset other-pointer-type))
   (inst ret)
-  
+
   ONE-WORD-BIGNUM
   (with-fixed-allocation (ebx bignum-type (+ bignum-digits-offset 1))
     (storew eax ebx bignum-digits-offset other-pointer-type))

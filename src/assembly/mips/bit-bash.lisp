@@ -1,20 +1,4 @@
-;;; -*- Package: MIPS -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/mips/bit-bash.lisp,v 1.14.2.1 1998/06/23 11:21:15 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/assembly/mips/bit-bash.lisp,v 1.14.2.1 1998/06/23 11:21:15 pw Exp $
-;;;
 ;;; Stuff to implement bit bashing.
-;;;
-;;; Written by William Lott.
-;;;
 
 (in-package "MIPS")
 
@@ -38,7 +22,7 @@
 	 (copy-right (gen-label)))
      (compute-bit/word-offsets src src-offset src-bit-offset)
      (compute-bit/word-offsets dst dst-offset dst-bit-offset)
-     
+
      (inst addu temp1 dst-bit-offset length)
      (inst subu temp1 (fixnum 32))
      (inst bgez temp1 wide-copy)
@@ -69,7 +53,7 @@
      (inst sll ntemp1 2)
      (inst addu ,ptr ntemp1)))
 
-     
+
 (defmacro narrow-copy ()
   '(let ((aligned (gen-label))
 	 (only-one-src-word (gen-label))
@@ -116,7 +100,6 @@
      (inst or ntemp1 ntemp2)
      (inst b done)
      (inst sw ntemp1 dst)))
-
 
 (defmacro wide-copy-left ()
   '(let ((aligned (gen-label)))
@@ -182,7 +165,7 @@
 	 (interior temp2))
      (inst beq dst-bit-offset left-aligned)
      (inst nop)
-     
+
      (get-src :left)
      (inst li ntemp3 (make-fixup "bit_bash_low_masks" :foreign))
      (inst addu ntemp3 dst-bit-offset)
@@ -228,7 +211,6 @@
      (inst b done)
      (inst sw ntemp1 dst)))
 
-
 (defmacro wide-copy-right ()
   '(let ((aligned (gen-label))
 	 (final-bits temp1))
@@ -238,7 +220,7 @@
 
      ;; Increase src and dst so they point to the end of the buffers instead
      ;; of the beginning.
-     ;; 
+     ;;
      (inst srl ntemp3 7)
      (inst sll ntemp3 2)
      (inst addu dst ntemp3)
@@ -318,7 +300,7 @@
 	 (interior temp2))
      (inst beq final-bits right-aligned)
      (inst nop)
-     
+
      (get-src :right)
      (inst li ntemp3 (make-fixup "bit_bash_low_masks" :foreign))
      (inst addu ntemp3 final-bits)
@@ -362,12 +344,11 @@
      (inst and ntemp1 ntemp3)
      (inst or ntemp1 ntemp2)
      (inst sw ntemp1 dst)))
-     
+
 (defmacro check-for-interrupts ()
   nil)
 
 ) ; eval-when (compile eval)
-
 
 
 ;;;; The actual routines.
@@ -384,7 +365,7 @@
 			  (:arg dst-offset any-reg a2-offset)
 			  (:arg length any-reg a3-offset)
 			  (:res res descriptor-reg null-offset)
-			  
+
 			  (:temp src interior-reg lip-offset)
 			  (:temp temp1 descriptor-reg a4-offset)
 			  (:temp temp2 descriptor-reg a5-offset)
@@ -423,7 +404,7 @@
 			  (:arg dst-offset any-reg a2-offset)
 			  (:arg length any-reg a3-offset)
 			  (:res res descriptor-reg null-offset)
-			  
+
 			  (:temp dst interior-reg lip-offset)
 			  (:temp temp1 descriptor-reg a4-offset)
 			  (:temp temp2 descriptor-reg a5-offset)
@@ -462,7 +443,7 @@
 			  (:arg dst-offset any-reg a1-offset)
 			  (:arg length any-reg a2-offset)
 			  (:res res descriptor-reg null-offset)
-			  
+
 			  (:temp temp1 descriptor-reg a4-offset)
 			  (:temp temp2 descriptor-reg a5-offset)
 			  (:temp src-shift descriptor-reg cname-offset)
@@ -494,7 +475,7 @@
 			  (:arg dst-offset any-reg a3-offset)
 			  (:arg length any-reg a4-offset)
 			  (:res res descriptor-reg null-offset)
-			  
+
 			  (:temp src non-descriptor-reg nl0-offset)
 			  (:temp dst non-descriptor-reg nl1-offset)
 			  (:temp temp1 descriptor-reg a5-offset)

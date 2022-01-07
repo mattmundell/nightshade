@@ -1,34 +1,379 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/ir2tran.lisp,v 1.61.2.3 2000/07/09 14:03:15 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the virtual machine independent parts of the code
-;;; which does the actual translation of nodes to VOPs.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; The virtual machine independent parts of the code which does the actual
+;;; translation of nodes to VOPs.
+
 (in-package "C")
+
 (in-package "KERNEL")
 (export '(%caller-frame-and-pc))
+
 (in-package "C")
 
 (export '(safe-fdefn-function return-single instance-ref instance-set
 			      funcallable-instance-lexenv))
 
+#[ VMR Conversion
+
+    Convert ICR into VMR by translating nodes into VOPs.  Emit type checks.
+
+Phase position: 15/23 (middle)
+
+Presence: required
+
+Files: ir2tran
+
+Entry functions: `ir2-convert'
+
+Call sequences:
+
+    native-compile-component
+      ir2-convert
+        ir2-convert-block
+          ir2-convert-ref
+          ir2-convert-local-call
+          ir2-convert-full-call
+          ir2-convert-template
+          ir2-convert-if
+            ir2-convert-conditional
+          ir2-convert-bind
+          ir2-convert-return
+          ir2-convert-set
+          ir2-convert-mv-bind
+          ir2-convert-throw
+          ir2-convert-mv-call
+          ir2-convert-exit
+          ir2-convert-entry
+          finish-ir2-block
+
+    Single-use let var continuation substitution not really correct, since it can
+    cause a spurious type error.  Maybe we do want stuff to prove that an NLX can't
+    happen after all.  Or go back to the idea of moving a combination arg to the
+    ref location, and having that use the ref cont (with its output assertion.)
+    This lossage doesn't seem very likely to actually happen, though.
+        XXX must-reach stuff wouldn't work quite as well as combination substitute in
+        psetq, etc., since it would fail when one of the new values is random code
+        (might unwind.)
+
+    Is this really a general problem with eager type checking?  It seems you could
+    argue that there was no type error in this code:
+	(+ :foo (throw 'up nil))
+    But we would signal an error.
+
+
+    Emit explicit you-lose operation when we do a move between two non-T ptypes,
+    even when type checking isn't on.  Can this really happen?  Seems we should
+    treat continuations like this as though type-check was true.  Maybe LTN should
+    leave type-check true in this case, even when the policy is unsafe.  (Do a type
+    check against NIL?)
+
+    At continuation use time, we may in general have to do both a coerce-to-t and a
+    type check, allocating two temporary TNs to hold the intermediate results.
+
+
+    VMR Control representation:
+
+    We represent all control transfer explicitly.  In particular, :Conditional VOPs
+    take a single Target continuation and a Not-P flag indicating whether the sense
+    of the test is negated.  Then an unconditional Branch VOP will be emitted
+    afterward if the other path isn't a drop-through.
+
+    So we linearize the code before VMR-conversion.  This isn't a problem,
+    since there isn't much change in control flow after VMR conversion (none until
+    loop optimization requires introduction of header blocks.)  It does make
+    cost-based branch prediction a bit ucky, though, since we don't have any cost
+    information in ICR.  Actually, I guess we do have pretty good cost information
+    after LTN even before VMR conversion, since the most important thing to know is
+    which functions are open-coded.
+
+FIX [Virtual Machine Representation] describes this internal representation.
+
+VMR preserves the block structure of ICR, but replaces the nodes with a target
+dependent virtual machine (VM) representation.  Different implementations may
+use different VMs without making major changes in the back end.  The two main
+components of VMR are Temporary Names (TNs) and Virtual OPerations (VOPs).  TNs
+represent the locations that hold values, and VOPs represent the operations
+performed on the values.
+
+A "primitive type" is a type meaningful at the VM level.  Examples are Fixnum,
+String-Char, Short-Float.  During VMR conversion we use the primitive type of
+an expression to determine both where we can store the result of the expression
+and which type-specific implementations of an operation can be applied to the
+value.
+    Ptype is a set of SCs == representation choices and representation
+    specific operations
+
+The VM specific definitions provide functions that do stuff like find the
+primitive type corresponding to a type and test for primitive type subtypep.
+Usually primitive types will be disjoint except for T, which represents all
+types.
+
+The primitive type T is special-cased.  Not only does it overlap with all the
+other types, but it implies a descriptor ("boxed" or "pointer") representation.
+For efficiency reasons, we sometimes want to use
+alternate representations for some objects such as numbers.  The majority of
+operations cannot exploit alternate representations, and would only be
+complicated if they had to be able to convert alternate representations into
+descriptors.  A template can require an operand to be a descriptor by             ; FIX first mention template?
+constraining the operand to be of type T.
+
+A TN can only represent a single value, so we bare the implementation of MVs at
+this point.  When we know the number of multiple values being handled, we use
+multiple TNs to hold them.  When the number of values is actually unknown, we
+use a convention that is compatible with full function call.
+
+Everything that is done is done by a VOP in VMR.  Calls to simple primitive
+functions such as + and CAR are translated to VOP equivalents by a table-driven
+mechanism.  This translation is specified by the particular VM definition; VMR
+conversion makes no assumptions about which operations are primitive or what
+operand types are worth special-casing.  The default calling mechanisms and
+other miscellaneous builtin features are implemented using standard VOPs that
+must be implemented by each VM.
+
+Type information can be forgotten after VMR conversion, since all type-specific
+operation selections have been made.
+
+Simple type checking is explicitly done using CHECK-xxx VOPs.  They act like
+innocuous effectless/unaffected VOPs which return the checked thing as a
+result.  This allows loop-invariant optimization and common subexpression
+elimination to remove redundant checks.  All type checking is done at the time
+the continuation is used.
+
+Note that we need only check asserted types, since if type inference works, the
+derived types will also be satisfied.  We can check whichever is more
+convenient, since both should be true.
+
+Constants are turned into special Constant TNs, which are wired down in a SC       ; FIX first mention of SC?
+that is determined by their type.  The VM definition provides a function that
+returns FIX constant a TN to represent a Constant Leaf.
+
+Each component has a constant pool.  There is a register dedicated to holding
+the constant pool for the current component.  The back end allocates
+non-immediate constants in the constant pool when it discovers them during
+translation from ICR.
+
+    XXX Check that we are describing what is actually implemented.  But this
+    really isn't very good in the presence of interesting unboxed
+    representations...
+
+Since LTN only deals with values from the viewpoint of the receiver, we must be
+prepared during the translation pass to do stuff to the continuation at the
+time it is used.
+ -- If a VOP yields more values than are desired, then we must create TNs to
+    hold the discarded results.  An important special-case is continuations
+    whose value is discarded.  These continuations won't be annotated at all.
+    In the case of a Ref, we can simply skip evaluation of the reference when
+    the continuation hasn't been annotated.  Although this will eliminate
+    bogus references that for some reason weren't optimized away, the real
+    purpose is to handle deferred references.
+ -- If a VOP yields fewer values than desired, then we must default the extra
+    values to NIL.
+ -- If a continuation has its type-check flag set, then we must check the type
+    of the value before moving it into the result location.  In general, this
+    requires computing the result in a temporary, and having the type-check
+    operation deliver it in the actual result location.
+ -- If the template's result type is T, then we must generate a boxed
+    temporary to compute the result in when the continuation's type isn't T.
+
+
+We may also need to do stuff to the arguments when we generate code for a
+template.  If an argument continuation isn't annotated, then it must be a
+deferred reference.  We use the leaf's TN instead.  We may have to do any of
+the above use-time actions also.  Alternatively, we could avoid hair by not
+deferring references that must be type-checked or may need to be boxed.
+
+== Stack analysis ==
+
+Think of this as a lifetime problem: a values generator is a write and a values
+receiver is a read.  We want to annotate each VMR-Block with the unknown-values
+continuations that are live at that point.  If we do a control transfer to a
+place where fewer continuations are live, then we must deallocate the newly
+dead continuations.
+
+We want to convince ourselves that values deallocation based on lifetime
+analysis actually works.  In particular, we need to be sure that it doesn't
+violate the required stack discipline.  It is clear that it is impossible to
+deallocate the values before they become dead, since later code may decide to
+use them.  So the only thing we need to ensure is that the "right" time isn't
+later than the time that the continuation becomes dead.
+
+The only reason why we couldn't deallocate continuation A as soon as it becomes
+dead would be that there is another continuation B on top of it that isn't dead
+(since we can only deallocate the topmost continuation).
+
+The key to understanding why this can't happen is that each continuation has
+only one read (receiver).  If B is on top of A, then it must be the case that A
+is live at the receiver for B.  This means that it is impossible for B to be
+live without A being live.
+
+
+The reason that we don't solve this problem using a normal iterative flow
+analysis is that we also need to know the ordering of the continuations on the
+stack so that we can do deallocation.  When it comes time to discard values, we
+want to know which discarded continuation is on the bottom so that we can reset
+SP to its start.
+
+    I suppose we could also decrement SP by the aggregate size of the discarded
+    continuations.
+
+Another advantage of knowing the order in which we expect
+continuations to be on the stack is that it allows us to do some consistency
+checking.  Also doing a localized graph walk around the values-receiver is
+likely to be much more efficient than doing an iterative flow analysis problem
+over all the code in the component (not that big a consideration.)
+
+	Actually, what we do is do a backward graph walk from each unknown-values
+	receiver.   As we go, we mark each walked block with the ordered list of
+	continuations we believe are on the stack.  Starting with an empty stack, we:
+	 -- When we encounter another unknown-values receiver, we push that
+	    continuation on our simulated stack.
+	 -- When we encounter a receiver (which had better be for the topmost
+	    continuation), we pop that continuation.
+	 -- When we pop all continuations, we terminate our walk.
+
+	XXX not quite right...  It seems we may run into "dead values" during the
+	graph walk too.  It seems that we have to check if the pushed continuation is
+	on stack top, and if not, add it to the ending stack so that the post-pass will
+	discard it.
+
+	    XXX Also, we can't terminate our walk just because we hit a block previously
+	    walked.  We have to compare the the End-Stack with the values received along
+	    the current path: if we have more values on our current walk than on the walk
+	    that last touched the block, then we need to re-walk the subgraph reachable
+	    from from that block, using our larger set of continuations.  It seems that our
+	    actual termination condition is reaching a block whose End-Stack is already EQ
+	    to our current stack.
+
+
+	    If at the start, the block containing the values receiver has already been
+	    walked, the we skip the walk for that continuation, since it has already been
+	    handled by an enclosing values receiver.  Once a walk has started, we
+	    ignore any signs of a previous walk, clobbering the old result with our own,
+	    since we enclose that continuation, and the previous walk doesn't take into
+	    consideration the fact that our values block underlies its own.
+
+	    When we are done, we have annotated each block with the stack current both at
+	    the beginning and at the end of that block.  Blocks that aren't walked don't
+	    have anything on the stack either place (although they may hack MVs
+	    internally).
+
+	    We then scan all the blocks in the component, looking for blocks that have
+	    predecessors with a different ending stack than that block's starting stack.
+	    (The starting stack had better be a tail of the predecessor's ending stack.)
+	    We insert a block intervening between all of these predecessors that sets SP to
+	    the end of the values for the continuation that should be on stack top.  Of
+	    course, this pass needn't be done if there aren't any global unknown MVs.
+
+	    Also, if we find any block that wasn't reached during the walk, but that USEs
+	    an outside unknown-values continuation, then we know that the DEST can't be
+	    reached from this point, so the values are unused.  We either insert code to
+	    pop the values, or somehow mark the code to prevent the values from ever being
+	    pushed.  (We could cause the popping to be done by the normal pass if we
+	    iterated over the pushes beforehand, assigning a correct END-STACK.)
+
+	    XXX But I think that we have to be a bit clever within blocks, given the
+	    possibility of blocks being joined.  We could collect some unknown MVs in a
+	    block, then do a control transfer out of the receiver, and this control
+	    transfer could be squeezed out by merging blocks.  How about:
+
+		(tagbody
+		  (return
+		   (multiple-value-prog1 (foo)
+		     (when bar
+		       (go UNWIND))))
+
+		 UNWIND
+		  (return
+		   (multiple-value-prog1 (baz)
+		     bletch)))
+
+	    But the problem doesn't happen here (can't happen in general?) since a node
+	    buried within a block can't use a continuation outside of the block.  In fact,
+	    no block can have more then one PUSH continuation, and this must always be be
+	    last continuation.  So it is trivially (structurally) true that all pops come
+	    before any push.
+
+		XXX But not really: the DEST of an embedded continuation may be outside the
+		block.  There can be multiple pushes, and we must find them by iterating over
+		the uses of MV receivers in LTN.  But it would be hard to get the order right
+		this way.  We could easily get the order right if we added the generators as we
+		saw the uses, except that we can't guarantee that the continuations will be
+		annotated at that point.  (Actually, I think we only need the order for
+		consistency checks, but that is probably worthwhile).  I guess the thing to do
+		is when we process the receiver, add the generator blocks to the
+		Values-Generators, then do a post-pass that re-scans the blocks adding the
+		pushes.
+
+	    I believe that above concern with a dead use getting mashed inside a block
+	    can't happen, since the use inside the block must be the only use, and if the
+	    use isn't reachable from the push, then the use is totally unreachable, and
+	    should have been deleted, which would prevent the prevent it from ever being
+	    annotated.
+
+We find the partial ordering of the values globs for unknown values
+continuations in each environment.  We don't have to scan the code looking for
+unknown values continuations since LTN annotates each block with the
+continuations that were popped and not pushed or pushed and not popped.  This
+is all we need to do the inter-block analysis.
+
+After we have found out what stuff is on the stack at each block boundary, we
+look for blocks with predecessors that have junk on the stack.  For each such
+block, we introduce a new block containing code to restore the stack pointer.
+Since unknown-values continuations are represented as <start, count>, we can
+easily pop a continuation using the Start TN.
+
+Note that there is only doubt about how much stuff is on the control stack,
+since only it is used for unknown values.  Any special stacks such as number
+stacks will always have a fixed allocation.
+
+== Non-local exit ==
+
+If the starting and ending continuations are not in the same environment, then
+the control transfer is a non-local exit.  In this case just call Unwind with
+the appropriate stack pointer, and let the code at the re-entry point worry
+about fixing things up.
+
+It seems like maybe a good way to organize VMR conversion of NLX would be to
+have environment analysis insert funny functions in new interposed cleanup
+blocks.  The thing is that we need some way for VMR conversion to:
+ 1] Get its hands on the returned values.
+ 2] Do weird control shit.
+ 3] Deliver the values to the original continuation destination.
+I.e. we need some way to interpose arbitrary code in the path of value
+delivery.
+
+What we do is replace the NLX uses of the continuation with another
+continuation that is received by a MV-Call to %NLX-VALUES in a cleanup block
+that is interposed between the NLX uses and the old continuation's block.  The
+MV-Call uses the original continuation to deliver it's values to.
+
+    Actually, it's not really important that this be an MV-Call, since it has to
+    be special-cased by LTN anyway.  Or maybe we would want it to be an MV call.
+    If did normal LTN analysis of an MV call, it would force the returned values
+    into the unknown values convention, which is probably pretty convenient for use
+    in NLX.
+
+    Then the entry code would have to use some special VOPs to receive the unknown
+    values.  But we probably need special VOPs for NLX entry anyway, and the code
+    can share with the call VOPs.  Also we probably need the technology anyway,
+    since THROW will use truly unknown values.
+
+
+On entry to a dynamic extent that has non-local-exists into it (always at an
+ENTRY node), we take a complete snapshot of the dynamic state:
+ * the top pointers for all stacks
+ * current Catch and Unwind-Protect
+ * current special binding (binding stack pointer in shallow binding)
+
+We insert code at the re-entry point which restores the saved dynamic state.
+All TNs live at a NLX EP are forced onto the stack, so we don't have to restore
+them, and we don't have to worry about getting them saved.
+]#
 
 
-;;;; Moves and type checks:
+;;;; Moves and type checks.
 
 ;;; Emit-Move  --  Internal
 ;;;
-;;;    Move X to Y unless they are EQ.
+;;; Move X to Y unless they are EQ.
 ;;;
 (defun emit-move (node block x y)
   (declare (type node node) (type ir2-block block) (type tn x y))
@@ -36,10 +381,9 @@
     (vop move node block x y))
   (undefined-value))
 
-
 ;;; Type-Check-Template  --  Interface
 ;;;
-;;;    If there is any CHECK-xxx template for Type, then return it, otherwise
+;;; If there is any CHECK-xxx template for Type, then return it, otherwise
 ;;; return NIL.
 ;;;
 (defun type-check-template (type)
@@ -53,10 +397,9 @@
 	      (template-or-lose name *backend*)
 	      nil)))))
 
-
 ;;; Emit-Type-Check  --  Internal
 ;;;
-;;;    Emit code in Block to check that Value is of the specified Type,
+;;; Emit code in Block to check that Value is of the specified Type,
 ;;; yielding the checked result in Result.  Value and result may be of any
 ;;; primitive type.  There must be CHECK-xxx VOP for Type.  Any other type
 ;;; checks should have been converted to an explicit type test.
@@ -69,7 +412,7 @@
 
 ;;; MAKE-VALUE-CELL  --  Internal
 ;;;
-;;;    Allocate an indirect value cell.  Maybe do some clever stack allocation
+;;; Allocate an indirect value cell.  Maybe do some clever stack allocation
 ;;; someday.
 ;;;
 (defevent make-value-cell "Allocate heap value cell for lexical var.")
@@ -78,11 +421,11 @@
   (vop make-value-cell node block value res))
 
 
-;;;; Leaf reference:
+;;;; Leaf reference.
 
 ;;; Find-In-Environment  --  Internal
 ;;;
-;;;    Return the TN that holds the value of Thing in the environment Env.
+;;; Return the TN that holds the value of Thing in the environment Env.
 ;;;
 (defun find-in-environment (thing env)
   (declare (type (or nlx-info lambda-var) thing) (type environment env)
@@ -96,10 +439,9 @@
 	 (assert (eq env (block-environment (nlx-info-target thing))))
 	 (ir2-nlx-info-home (nlx-info-info thing))))))
 
-
 ;;; Constant-TN  --  Internal
 ;;;
-;;;    If Leaf already has a constant TN, return that, otherwise make a TN for
+;;; If Leaf already has a constant TN, return that, otherwise make a TN for
 ;;; it.
 ;;;
 (defun constant-tn (leaf)
@@ -108,12 +450,11 @@
       (setf (leaf-info leaf)
 	    (make-constant-tn leaf))))
 
-  
 ;;; Leaf-TN  --  Internal
 ;;;
-;;;    Return a TN that represents the value of Leaf, or NIL if Leaf isn't
-;;; directly represented by a TN.  Env is the environment that the reference is
-;;; done in.
+;;; Return a TN that represents the value of Leaf, or NIL if Leaf isn't
+;;; directly represented by a TN.  Env is the environment that the
+;;; reference is done in.
 ;;;
 (defun leaf-tn (leaf env)
   (declare (type leaf leaf) (type environment env))
@@ -124,19 +465,17 @@
     (constant (constant-tn leaf))
     (t nil)))
 
-
 ;;; Emit-Constant  --  Internal
 ;;;
-;;;    Used to conveniently get a handle on a constant TN during IR2
+;;; Used to conveniently get a handle on a constant TN during IR2
 ;;; conversion.  Returns a constant TN representing the Lisp object Value.
 ;;;
 (defun emit-constant (value)
   (constant-tn (find-constant value)))
 
-
 ;;; IR2-Convert-Ref  --  Internal
 ;;;
-;;;    Convert a Ref node.  The reference must not be delayed.
+;;; Convert a Ref node.  The reference must not be delayed.
 ;;;
 (defun ir2-convert-ref (node block)
   (declare (type ref node) (type ir2-block block))
@@ -179,12 +518,11 @@
     (move-continuation-result node block locs cont))
   (undefined-value))
 
-
 ;;; IR2-Convert-Closure  --  Internal
 ;;;
-;;;    Emit code to load a function object representing Leaf into Res.  This
-;;; gets interesting when the referenced function is a closure: we must make
-;;; the closure and move the closed over values into it.
+;;; Emit code to load a function object representing Leaf into Res.  This
+;;; gets interesting when the referenced function is a closure: we must
+;;; make the closure and move the closed over values into it.
 ;;;
 ;;; Leaf is either a :TOP-LEVEL-XEP functional or the XEP lambda for the called
 ;;; function, since local call analysis converts all closure references.  If a
@@ -222,13 +560,12 @@
 	   (emit-move node block entry res))))
   (undefined-value))
 
-
 ;;; IR2-Convert-Set  --  Internal
 ;;;
-;;;    Convert a Set node.  If the node's cont is annotated, then we also
-;;; deliver the value to that continuation.  If the var is a lexical variable
-;;; with no refs, then we don't actually set anything, since the variable has
-;;; been deleted.
+;;; Convert a Set node.  If the node's cont is annotated, then we also
+;;; deliver the value to that continuation.  If the var is a lexical
+;;; variable with no refs, then we don't actually set anything, since the
+;;; variable has been deleted.
 ;;;
 (defun ir2-convert-set (node block)
   (declare (type cset node) (type ir2-block block))
@@ -258,25 +595,26 @@
   (undefined-value))
 
 
-;;;; Utilities for receiving fixed values:
+;;;; Utilities for receiving fixed values.
 
 ;;; Continuation-TN  --  Internal
 ;;;
-;;;    Return a TN that can be referenced to get the value of Cont.  Cont must
-;;; be LTN-Annotated either as a delayed leaf ref or as a fixed, single-value
-;;; continuation.  If a type check is called for, do it.
+;;; Return a TN that can be referenced to get the value of Cont.  Cont must
+;;; be LTN-Annotated either as a delayed leaf ref or as a fixed,
+;;; single-value continuation.  If a type check is called for, do it.
 ;;;
-;;;    The primitive-type of the result will always be the same as the
-;;; ir2-continuation-primitive-type, ensuring that VOPs are always called with
-;;; TNs that satisfy the operand primitive-type restriction.  We may have to
-;;; make a temporary of the desired type and move the actual continuation TN
-;;; into it.  This happens when we delete a type check in unsafe code or when
-;;; we locally know something about the type of an argument variable.
+;;; The primitive-type of the result will always be the same as the
+;;; ir2-continuation-primitive-type, ensuring that VOPs are always called
+;;; with TNs that satisfy the operand primitive-type restriction.  We may
+;;; have to make a temporary of the desired type and move the actual
+;;; continuation TN into it.  This happens when we delete a type check in
+;;; unsafe code or when we locally know something about the type of an
+;;; argument variable.
 ;;;
 (defun continuation-tn (node block cont)
   (declare (type node node) (type ir2-block block) (type continuation cont))
   (let* ((2cont (continuation-info cont))
-	 (cont-tn 
+	 (cont-tn
 	  (ecase (ir2-continuation-kind 2cont)
 	    (:delayed
 	     (let ((ref (continuation-use cont)))
@@ -285,7 +623,7 @@
 	     (assert (= (length (ir2-continuation-locs 2cont)) 1))
 	     (first (ir2-continuation-locs 2cont)))))
 	 (ptype (ir2-continuation-primitive-type 2cont)))
-    
+
     (cond ((and (eq (continuation-type-check cont) t)
 		(multiple-value-bind (check types)
 		    (continuation-check-types cont)
@@ -305,18 +643,17 @@
 	     (emit-move node block cont-tn temp)
 	     temp)))))
 
-
 ;;; CONTINUATION-TNS  --  Internal
 ;;;
-;;;    Similar to CONTINUATION-TN, but hacks multiple values.  We return
+;;; Similar to CONTINUATION-TN, but hacks multiple values.  We return
 ;;; continuations holding the values of Cont with Ptypes as their primitive
 ;;; types.  Cont must be annotated for the same number of fixed values are
 ;;; there are Ptypes.
 ;;;
-;;;    If the continuation has a type check, check the values into temps and
-;;; return the temps.  When we have more values than assertions, we move the
-;;; extra values with no check.
-;;; 
+;;; If the continuation has a type check, check the values into temps and
+;;; return the temps.  When we have more values than assertions, we move
+;;; the extra values with no check.
+;;;
 (defun continuation-tns (node block cont ptypes)
   (declare (type node node) (type ir2-block block)
 	   (type continuation cont) (list ptypes))
@@ -348,25 +685,26 @@
 		locs ptypes))))
 
 
-;;;; Utilities for delivering values to continuations:
+;;;; Utilities for delivering values to continuations.
 
 ;;; Continuation-Result-TNs  --  Internal
 ;;;
-;;;    Return a list of TNs with the specifier Types that can be used as result
-;;; TNs to evaluate an expression into the continuation Cont.  This is used
-;;; together with Move-Continuation-Result to deliver fixed values to a
-;;; continuation.
+;;; Return a list of TNs with the specifier Types that can be used as
+;;; result TNs to evaluate an expression into the continuation Cont.  This
+;;; is used together with Move-Continuation-Result to deliver fixed values
+;;; to a continuation.
 ;;;
-;;;    If the continuation isn't annotated (meaning the values are discarded)
-;;; or is unknown-values, the then we make temporaries for each supplied value,
-;;; providing a place to compute the result in until we decide what to do with
-;;; it (if anything.)
+;;; If the continuation isn't annotated (meaning the values are discarded)
+;;; or is unknown-values, the then we make temporaries for each supplied
+;;; value, providing a place to compute the result in until we decide what
+;;; to do with it (if anything.)
 ;;;
-;;;    If the continuation is fixed-values, and wants the same number of values
-;;; as the user wants to deliver, then we just return the
-;;; IR2-Continuation-Locs.  Otherwise we make a new list padded as necessary by
-;;; discarded TNs.  We always return a TN of the specified type, using the
-;;; continuation locs only when they are of the correct type.
+;;; If the continuation is fixed-values, and wants the same number of
+;;; values as the user wants to deliver, then we just return the
+;;; IR2-Continuation-Locs.  Otherwise we make a new list padded as
+;;; necessary by discarded TNs.  We always return a TN of the specified
+;;; type, using the continuation locs only when they are of the correct
+;;; type.
 ;;;
 (defun continuation-result-tns (cont types)
   (declare (type continuation cont) (type list types))
@@ -398,10 +736,9 @@
 	  (:unknown
 	   (mapcar #'make-normal-tn types))))))
 
-
 ;;; Make-Standard-Value-Tns  --  Internal
 ;;;
-;;;    Make the first N standard value TNs, returning them in a list.
+;;; Make the first N standard value TNs, returning them in a list.
 ;;;
 (defun make-standard-value-tns (n)
   (declare (type unsigned-byte n))
@@ -410,18 +747,17 @@
       (res (standard-argument-location i)))
     (res)))
 
-
 ;;; Standard-Result-TNs  --  Internal
 ;;;
-;;;    Return a list of TNs wired to the standard value passing conventions
+;;; Return a list of TNs wired to the standard value passing conventions
 ;;; that can be used to receive values according to the unknown-values
 ;;; convention.  This is used with together Move-Continuation-Result for
 ;;; delivering unknown values to a fixed values continuation.
 ;;;
-;;;    If the continuation isn't annotated, then we treat as 0-values,
+;;; If the continuation isn't annotated, then we treat as 0-values,
 ;;; returning an empty list of temporaries.
 ;;;
-;;;    If the continuation is annotated, then it must be :Fixed.
+;;; If the continuation is annotated, then it must be :Fixed.
 ;;;
 (defun standard-result-tns (cont)
   (declare (type continuation cont))
@@ -432,12 +768,11 @@
 	   (make-standard-value-tns (length (ir2-continuation-locs 2cont)))))
 	())))
 
-
 ;;; Move-Results-Coerced  --  Internal
 ;;;
-;;;    Just move each Src TN into the corresponding Dest TN, defaulting any
-;;; unsupplied source values to NIL.  We let Emit-Move worry about doing the
-;;; appropriate coercions.
+;;; Just move each Src TN into the corresponding Dest TN, defaulting any
+;;; unsupplied source values to NIL.  We let Emit-Move worry about doing
+;;; the appropriate coercions.
 ;;;
 (defun move-results-coerced (node block src dest)
   (declare (type node node) (type ir2-block block) (list src dest))
@@ -453,18 +788,18 @@
 	  dest))
   (undefined-value))
 
-
 ;;; Move-Continuation-Result  --  Internal
 ;;;
-;;;    If necessary, emit coercion code needed to deliver the
-;;; Results to the specified continuation.  Node and block provide context for
-;;; emitting code.  Although usually obtained from Standard-Result-TNs or
-;;; Continuation-Result-TNs, Results my be a list of any type or number of TNs.
+;;; If necessary, emit coercion code needed to deliver the Results to the
+;;; specified continuation.  Node and block provide context for emitting
+;;; code.  Although usually obtained from Standard-Result-TNs or
+;;; Continuation-Result-TNs, Results my be a list of any type or number of
+;;; TNs.
 ;;;
-;;;    If the continuation is fixed values, then move the results into the
-;;; continuation locations.  If the continuation is unknown values, then do the
-;;; moves into the standard value locations, and use Push-Values to put the
-;;; values on the stack.
+;;; If the continuation is fixed values, then move the results into the
+;;; continuation locations.  If the continuation is unknown values, then do
+;;; the moves into the standard value locations, and use Push-Values to put
+;;; the values on the stack.
 ;;;
 (defun move-continuation-result (node block results cont)
   (declare (type node node) (type ir2-block block)
@@ -487,16 +822,15 @@
   (undefined-value))
 
 
-;;;; Template conversion:
-
+;;;; Template conversion.
 
 ;;; Reference-Arguments  --  Internal
 ;;;
-;;;    Build a TN-Refs list that represents access to the values of the
-;;; specified list of continuations Args for Template.  Any :CONSTANT arguments
-;;; are returned in the second value as a list rather than being accessed as a
-;;; normal argument.  Node and Block provide the context for emitting any
-;;; necessary type-checking code.
+;;; Build a TN-Refs list that represents access to the values of the
+;;; specified list of continuations Args for Template.  Any :CONSTANT
+;;; arguments are returned in the second value as a list rather than being
+;;; accessed as a normal argument.  Node and Block provide the context for
+;;; emitting any necessary type-checking code.
 ;;;
 (defun reference-arguments (node block args template)
   (declare (type node node) (type ir2-block block) (list args)
@@ -519,12 +853,11 @@
 
       (values (the (or tn-ref null) first) (info-args)))))
 
-
 ;;; IR2-Convert-Conditional  --  Internal
 ;;;
-;;;    Convert a conditional template.  We try to exploit any drop-through, but
-;;; emit an unconditional branch afterward if we fail.  Not-P is true if the
-;;; sense of the Template's test should be negated.
+;;; Convert a conditional template.  We try to exploit any drop-through,
+;;; but emit an unconditional branch afterward if we fail.  Not-P is true
+;;; if the sense of the Template's test should be negated.
 ;;;
 (defun ir2-convert-conditional (node block template args info-args if not-p)
   (declare (type node node) (type ir2-block block)
@@ -543,10 +876,9 @@
 	   (unless (drop-thru-p if alternative)
 	     (vop branch node block (block-label alternative)))))))
 
-
 ;;; IR2-Convert-IF  --  Internal
 ;;;
-;;;    Convert an IF that isn't the DEST of a conditional template.
+;;; Convert an IF that isn't the DEST of a conditional template.
 ;;;
 (defun ir2-convert-if (node block)
   (declare (type ir2-block block) (type cif node))
@@ -557,14 +889,13 @@
     (ir2-convert-conditional node block (template-or-lose 'if-eq *backend*)
 			     test-ref () node t)))
 
-
 ;;; FIND-TEMPLATE-RESULT-TYPES  --  Internal
 ;;;
-;;;    Return a list of primitive-types that we can pass to
-;;; CONTINUATION-RESULT-TNS describing the result types we want for a template
-;;; call.  We duplicate here the determination of output type that was done in
-;;; initially selecting the template, so we know that the types we find are
-;;; allowed by the template output type restrictions.
+;;; Return a list of primitive-types that we can pass to
+;;; CONTINUATION-RESULT-TNS describing the result types we want for a
+;;; template call.  We duplicate here the determination of output type that
+;;; was done in initially selecting the template, so we know that the types
+;;; we find are allowed by the template output type restrictions.
 ;;;
 (defun find-template-result-types (call cont template rtypes)
   (declare (type combination call) (type continuation cont)
@@ -594,14 +925,13 @@
 	    (t
 	     types)))))
 
-
 ;;; MAKE-TEMPLATE-RESULT-TNS  --  Internal
 ;;;
-;;;    Return a list of TNs usable in a Call to Template delivering values to
+;;; Return a list of TNs usable in a Call to Template delivering values to
 ;;; Cont.  As an efficiency hack, we pick off the common case where the
 ;;; continuation is fixed values and has locations that satisfy the result
-;;; restrictions.  This can fail when there is a type check or a values count
-;;; mismatch.
+;;; restrictions.  This can fail when there is a type check or a values
+;;; count mismatch.
 ;;;
 (defun make-template-result-tns (call cont template rtypes)
   (declare (type combination call) (type continuation cont)
@@ -626,11 +956,10 @@
 	 cont
 	 (find-template-result-types call cont template rtypes)))))
 
-
 ;;; IR2-Convert-Template  --  Internal
 ;;;
-;;;    Get the operands into TNs, make TN-Refs for them, and then call the
-;;; template emit function. 
+;;; Get the operands into TNs, make TN-Refs for them, and then call the
+;;; template emit function.
 ;;;
 (defun ir2-convert-template (call block)
   (declare (type combination call) (type ir2-block block))
@@ -654,10 +983,9 @@
 	    (move-continuation-result call block results cont)))))
   (undefined-value))
 
-
 ;;; %%Primitive IR2 Convert  --  Internal
 ;;;
-;;;    We don't have to do much because operand count checking is done by IR1
+;;; We don't have to do much because operand count checking is done by IR1
 ;;; conversion.  The only difference between this and the function case of
 ;;; IR2-Convert-Template is that there can be codegen-info arguments.
 ;;;
@@ -675,23 +1003,23 @@
       (assert (not (template-more-results-type template)))
       (assert (not (eq rtypes :conditional)))
       (assert (null info-args))
-      
+
       (if info
 	  (emit-template call block template args r-refs info)
 	  (emit-template call block template args r-refs))
-      
+
       (move-continuation-result call block results cont)))
   (undefined-value))
 
 
-;;;; Local call:
+;;;; Local call.
 
 ;;; IR2-Convert-Let  --  Internal
 ;;;
-;;;    Convert a let by moving the argument values into the variables.  Since a
-;;; a let doesn't have any passing locations, we move the arguments directly
-;;; into the variables.  We must also allocate any indirect value cells, since
-;;; there is no function prologue to do this.
+;;; Convert a let by moving the argument values into the variables.  Since
+;;; a a let doesn't have any passing locations, we move the arguments
+;;; directly into the variables.  We must also allocate any indirect value
+;;; cells, since there is no function prologue to do this.
 ;;;
 (defun ir2-convert-let (node block fun)
   (declare (type combination node) (type ir2-block block) (type clambda fun))
@@ -705,20 +1033,19 @@
 	(lambda-vars fun) (basic-combination-args node))
   (undefined-value))
 
-
 ;;; EMIT-PSETQ-MOVES  --  Internal
 ;;;
-;;;    Emit any necessary moves into assignment temps for a local call to Fun.
+;;; Emit any necessary moves into assignment temps for a local call to Fun.
 ;;; We return two lists of TNs: TNs holding the actual argument values, and
-;;; (possibly EQ) TNs that are the actual destination of the arguments.  When
-;;; necessary, we allocate temporaries for arguments to preserve paralell
-;;; assignment semantics.   These lists exclude unused arguments and include
-;;; implicit environment arguments, i.e. they exactly correspond to the
-;;; arguments passed.
+;;; (possibly EQ) TNs that are the actual destination of the arguments.
+;;; When necessary, we allocate temporaries for arguments to preserve
+;;; paralell assignment semantics.  These lists exclude unused arguments
+;;; and include implicit environment arguments, i.e. they exactly
+;;; correspond to the arguments passed.
 ;;;
-;;; OLD-FP is the TN currently holding the value we want to pass as OLD-FP.  If
-;;; null, then the call is to the same environment (an :ASSIGNMENT), so we
-;;; only move the arguments, and leave the environment alone.
+;;; OLD-FP is the TN currently holding the value we want to pass as OLD-FP.
+;;; If null, then the call is to the same environment (an :ASSIGNMENT), so
+;;; we only move the arguments, and leave the environment alone.
 ;;;
 (defun emit-psetq-moves (node block fun old-fp)
   (declare (type combination node) (type ir2-block block) (type clambda fun)
@@ -753,19 +1080,18 @@
 	(dolist (thing (ir2-environment-environment called-env))
 	  (temps (find-in-environment (car thing) this-1env))
 	  (locs (cdr thing)))
-	
+
 	(temps old-fp)
 	(locs (ir2-environment-old-fp called-env)))
 
       (values (temps) (locs)))))
 
-
 ;;; IR2-Convert-Tail-Local-Call   --  Internal
 ;;;
-;;;    A tail-recursive local call is done by emitting moves of stuff into the
-;;; appropriate passing locations.  After setting up the args and environment,
-;;; we just move our return-pc into the called function's passing
-;;; location.
+;;; A tail-recursive local call is done by emitting moves of stuff into the
+;;; appropriate passing locations.  After setting up the args and
+;;; environment, we just move our return-pc into the called function's
+;;; passing location.
 ;;;
 (defun ir2-convert-tail-local-call (node block fun)
   (declare (type combination node) (type ir2-block block) (type clambda fun))
@@ -773,23 +1099,22 @@
     (multiple-value-bind
 	(temps locs)
 	(emit-psetq-moves node block fun (ir2-environment-old-fp this-env))
-      
+
       (mapc #'(lambda (temp loc)
 		(emit-move node block temp loc))
 	    temps locs))
-  
+
     (emit-move node block
 	       (ir2-environment-return-pc this-env)
 	       (ir2-environment-return-pc-pass
 		(environment-info
 		 (lambda-environment fun)))))
-  
-  (undefined-value))
 
+  (undefined-value))
 
 ;;; IR2-CONVERT-ASSIGNMENT  --  Internal
 ;;;
-;;;    Convert an :ASSIGNMENT call.  This is just like a tail local call,
+;;; Convert an :ASSIGNMENT call.  This is just like a tail local call,
 ;;; except that the caller and callee environment are the same, so we don't
 ;;; need to mess with the environment locations, return PC, etc.
 ;;;
@@ -798,19 +1123,18 @@
     (multiple-value-bind
 	(temps locs)
 	(emit-psetq-moves node block fun nil)
-      
+
       (mapc #'(lambda (temp loc)
 		(emit-move node block temp loc))
 	    temps locs))
   (undefined-value))
 
-
 ;;; IR2-CONVERT-LOCAL-CALL-ARGS  --  Internal
 ;;;
-;;;    Do stuff to set up the arguments to a non-tail local call (including
+;;; Do stuff to set up the arguments to a non-tail local call (including
 ;;; implicit environment args.)  We allocate a frame (returning the FP and
-;;; NFP), and also compute the TN-Refs list for the values to pass and the list
-;;; of passing location TNs.
+;;; NFP), and also compute the TN-Refs list for the values to pass and the
+;;; list of passing location TNs.
 ;;;
 (defun ir2-convert-local-call-args (node block fun)
   (declare (type combination node) (type ir2-block block) (type clambda fun))
@@ -825,10 +1149,9 @@
 	   fp nfp)
       (values fp nfp temps (mapcar #'make-alias-tn locs)))))
 
-
 ;;; IR2-Convert-Local-Known-Call  --  Internal
 ;;;
-;;;    Handle a non-TR known-values local call.  We Emit the call, then move
+;;; Handle a non-TR known-values local call.  We Emit the call, then move
 ;;; the results to the continuation's destination.
 ;;;
 (defun ir2-convert-local-known-call (node block fun returns cont start)
@@ -845,18 +1168,17 @@
       (move-continuation-result node block locs cont)))
   (undefined-value))
 
-
 ;;; IR2-Convert-Local-Unknown-Call  --  Internal
 ;;;
-;;;    Handle a non-TR unknown-values local call.  We do different things
+;;; Handle a non-TR unknown-values local call.  We do different things
 ;;; depending on what kind of values the continuation wants.
 ;;;
-;;;    If Cont is :Unknown, then we use the "Multiple-" variant, directly
-;;; specifying the continuation's Locs as the VOP results so that we don't have
-;;; to do anything after the call.
+;;; If Cont is :Unknown, then we use the "Multiple-" variant, directly
+;;; specifying the continuation's Locs as the VOP results so that we don't
+;;; have to do anything after the call.
 ;;;
-;;;    Otherwise, we use Standard-Result-Tns to get wired result TNs, and
-;;; then call Move-Continuation-Result to do any necessary type checks or
+;;; Otherwise, we use Standard-Result-Tns to get wired result TNs, and then
+;;; call Move-Continuation-Result to do any necessary type checks or
 ;;; coercions.
 ;;;
 (defun ir2-convert-local-unknown-call (node block fun cont start)
@@ -879,13 +1201,12 @@
 	    (move-continuation-result node block locs cont)))))
   (undefined-value))
 
-
 ;;; IR2-Convert-Local-Call  --  Internal
 ;;;
-;;;    Dispatch to the appropriate function, depending on whether we have a
-;;; let, tail or normal call.  If the function doesn't return, call it using
-;;; the unknown-value convention.  We could compile it as a tail call, but that
-;;; might seem confusing in the debugger.
+;;; Dispatch to the appropriate function, depending on whether we have a
+;;; let, tail or normal call.  If the function doesn't return, call it
+;;; using the unknown-value convention.  We could compile it as a tail
+;;; call, but that might seem confusing in the debugger.
 ;;;
 (defun ir2-convert-local-call (node block)
   (declare (type combination node) (type ir2-block block))
@@ -912,8 +1233,7 @@
   (undefined-value))
 
 
-;;;; Full call:
-
+;;;; Full call.
 
 ;;; Function-Continuation-TN  --  Internal
 ;;;
@@ -948,10 +1268,9 @@
 				    (specifier-type 'function))
 		   (values temp nil))))))))
 
-
 ;;; MOVE-TAIL-FULL-CALL-ARGS  --  Internal
 ;;;
-;;;    Set up the args to Node in the current frame, and return a tn-ref list
+;;; Set up the args to Node in the current frame, and return a tn-ref list
 ;;; for the passing locations.
 ;;;
 (defun move-tail-full-call-args (node block)
@@ -969,10 +1288,9 @@
 	  (setq last ref))))
       first))
 
-
 ;;; IR2-Convert-Tail-Full-Call  --  Internal
 ;;;
-;;;    Move the arguments into the passing locations and do a (possibly named)
+;;; Move the arguments into the passing locations and do a (possibly named)
 ;;; tail call.
 ;;;
 (defun ir2-convert-tail-full-call (node block)
@@ -999,10 +1317,9 @@
 
   (undefined-value))
 
-
 ;;; IR2-CONVERT-FULL-CALL-ARGS  --  Internal
 ;;;
-;;;    Like IR2-CONVERT-LOCAL-CALL-ARGS, only different.
+;;; Like IR2-CONVERT-LOCAL-CALL-ARGS, only different.
 ;;;
 (defun ir2-convert-full-call-args (node block)
   (declare (type combination node) (type ir2-block block))
@@ -1021,13 +1338,12 @@
 		(setf (tn-ref-across last) ref)
 		(setf first ref))
 	    (setq last ref)))
-	
-	(values fp first (locs) nargs)))))
 
+	(values fp first (locs) nargs)))))
 
 ;;; IR2-Convert-Fixed-Full-Call  --  Internal
 ;;;
-;;;    Do full call when a fixed number of values are desired.  We make
+;;; Do full call when a fixed number of values are desired.  We make
 ;;; Standard-Result-TNs for our continuation, then deliver the result using
 ;;; Move-Continuation-Result.  We do named or normal call, as appropriate.
 ;;;
@@ -1050,10 +1366,9 @@
 	(move-continuation-result node block locs cont))))
   (undefined-value))
 
-
 ;;; IR2-Convert-Multiple-Full-Call  --  Internal
 ;;;
-;;;    Do full call when unknown values are desired.
+;;; Do full call when unknown values are desired.
 ;;;
 (defun ir2-convert-multiple-full-call (node block)
   (declare (type combination node) (type ir2-block block))
@@ -1072,12 +1387,11 @@
 		  arg-locs nargs)))))
   (undefined-value))
 
-
 ;;; IR2-Convert-Full-Call  --  Internal
 ;;;
-;;;    If the call is in a TR position and the return convention is standard,
-;;; then do a tail full call.  If one or fewer values are desired, then use a
-;;; single-value call, otherwise use a multiple-values call.
+;;; If the call is in a TR position and the return convention is standard,
+;;; then do a tail full call.  If one or fewer values are desired, then use
+;;; a single-value call, otherwise use a multiple-values call.
 ;;;
 (defun ir2-convert-full-call (node block)
   (declare (type combination node) (type ir2-block block))
@@ -1092,17 +1406,17 @@
   (undefined-value))
 
 
-;;;; Function entry:
+;;;; Function entry.
 
 ;;; Init-XEP-Environment  --  Internal
 ;;;
-;;;    Do all the stuff that needs to be done on XEP entry:
+;;; Do all the stuff that needs to be done on XEP entry:
 ;;; -- Create frame
 ;;; -- Copy any more arg
 ;;; -- Set up the environment, accessing any closure variables
 ;;; -- Move args from the standard passing locations to their internal
 ;;;    locations.
-;;; 
+;;;
 (defun init-xep-environment (node block fun)
   (declare (type bind node) (type ir2-block block) (type clambda fun))
   (let ((start-label (entry-info-offset (leaf-info fun)))
@@ -1125,7 +1439,7 @@
 	      (dolist (loc (ir2-environment-environment env))
 		(vop closure-ref node block closure (incf n) (cdr loc)))))
 	  (vop setup-environment node block start-label)))
-    
+
     (unless (eq (functional-kind fun) :top-level)
       (let ((vars (lambda-vars fun))
 	    (n 0))
@@ -1140,22 +1454,21 @@
 		  (do-make-value-cell node block pass home)
 		  (emit-move node block pass home))))
 	  (incf n))))
-    
+
     (emit-move node block (make-old-fp-passing-location t)
 	       (ir2-environment-old-fp env)))
-  
-  (undefined-value))
 
+  (undefined-value))
 
 ;;; IR2-Convert-Bind  --  Internal
 ;;;
-;;;    Emit function prolog code.  This is only called on bind nodes for
+;;; Emit function prolog code.  This is only called on bind nodes for
 ;;; functions that allocate environments.  All semantics of let calls are
 ;;; handled by IR2-Convert-Let.
 ;;;
-;;;    If not an XEP, all we do is move the return PC from its passing
-;;; location, since in a local call, the caller allocates the frame and sets up
-;;; the arguments.
+;;; If not an XEP, all we do is move the return PC from its passing
+;;; location, since in a local call, the caller allocates the frame and
+;;; sets up the arguments.
 ;;;
 (defun ir2-convert-bind (node block)
   (declare (type bind node) (type ir2-block block))
@@ -1176,15 +1489,15 @@
     (let ((lab (gen-label)))
       (setf (ir2-environment-environment-start env) lab)
       (vop note-environment-start node block lab)))
-  
+
   (undefined-value))
 
 
-;;;; Function return:
+;;;; Function return.
 
 ;;; IR2-Convert-Return  --  Internal
 ;;;
-;;;    Do stuff to return from a function with the specified values and
+;;; Do stuff to return from a function with the specified values and
 ;;; convention.  If the return convention is :Fixed and we aren't returning
 ;;; from an XEP, then we do a known return (letting representation selection
 ;;; insert the correct move-arg VOPs.)  Otherwise, we use the unknown-values
@@ -1235,7 +1548,7 @@
   (undefined-value))
 
 
-;;;; Debugger hooks:
+;;;; Debugger hooks.
 
 ;;; This is used by the debugger to find the top function on the stack.  It
 ;;; returns the OLD-FP and RETURN-PC for the current function as multiple
@@ -1247,15 +1560,15 @@
 			      (list (ir2-environment-old-fp env)
 				    (ir2-environment-return-pc env))
 			      (node-cont node))))
-			    
+
 
-;;;; Multiple values:
+;;;; Multiple values.
 
 ;;; IR2-Convert-MV-Bind  --  Internal
 ;;;
-;;;    Almost identical to IR2-Convert-Let.  Since LTN annotates the
-;;; continuation for the correct number of values (with the continuation user
-;;; responsible for defaulting), we can just pick them up from the
+;;; Almost identical to IR2-Convert-Let.  Since LTN annotates the
+;;; continuation for the correct number of values (with the continuation
+;;; user responsible for defaulting), we can just pick them up from the
 ;;; continuation.
 ;;;
 (defun ir2-convert-mv-bind (node block)
@@ -1277,14 +1590,13 @@
 	  vars))
   (undefined-value))
 
-
 ;;; IR2-Convert-MV-Call  --  Internal
 ;;;
-;;;    Emit the appropriate fixed value, unknown value or tail variant of
+;;; Emit the appropriate fixed value, unknown value or tail variant of
 ;;; Call-Variable.  Note that we only need to pass the values start for the
 ;;; first argument: all the other argument continuation TNs are ignored.  This
 ;;; is because we require all of the values globs to be contiguous and on stack
-;;; top. 
+;;; top.
 ;;;
 (defun ir2-convert-mv-call (node block)
   (declare (type mv-combination node) (type ir2-block block))
@@ -1316,10 +1628,9 @@
 		((reference-tn-list locs t)) (length locs))
 	  (move-continuation-result node block locs cont)))))))
 
-
 ;;; %Pop-Values IR2 convert  --  Internal
 ;;;
-;;;    Reset the stack pointer to the start of the specified unknown-values
+;;; Reset the stack pointer to the start of the specified unknown-values
 ;;; continuation (discarding it and all values globs on top of it.)
 ;;;
 (defoptimizer (%pop-values ir2-convert) ((continuation) node block)
@@ -1328,10 +1639,9 @@
     (vop reset-stack-pointer node block
 	 (first (ir2-continuation-locs 2cont)))))
 
-
 ;;; Values IR2 convert  --  Internal
 ;;;
-;;;    Deliver the values TNs to Cont using Move-Continuation-Result.
+;;; Deliver the values TNs to Cont using Move-Continuation-Result.
 ;;;
 (defoptimizer (values ir2-convert) ((&rest values) node block)
   (let ((tns (mapcar #'(lambda (x)
@@ -1339,14 +1649,14 @@
 		     values)))
     (move-continuation-result node block tns (node-cont node))))
 
-
 ;;; Values-List IR2 convert  --  Internal
 ;;;
-;;;    In the normal case where unknown values are desired, we use the
-;;; Values-List VOP.  In the relatively unimportant case of Values-List for a
-;;; fixed number of values, we punt by doing a full call to the Values-List
-;;; function.  This gets the full call VOP to deal with defaulting any
-;;; unsupplied values.  It seems unworthwhile to optimize this case.
+;;; In the normal case where unknown values are desired, we use the
+;;; Values-List VOP.  In the relatively unimportant case of Values-List for
+;;; a fixed number of values, we punt by doing a full call to the
+;;; Values-List function.  This gets the full call VOP to deal with
+;;; defaulting any unsupplied values.  It seems unworthwhile to optimize
+;;; this case.
 ;;;
 (defoptimizer (values-list ir2-convert) ((list) node block)
   (let* ((cont (node-cont node))
@@ -1359,7 +1669,6 @@
 	   (vop* values-list node block
 		 ((continuation-tn node block list) nil)
 		 ((reference-tn-list locs t)))))))))
-
 
 (defoptimizer (%more-arg-values ir2-convert) ((context start count) node block)
   (let* ((cont (node-cont node))
@@ -1376,13 +1685,12 @@
 		  nil)
 		 ((reference-tn-list locs t)))))))))
 
-
 
-;;;; Special binding:
+;;;; Special binding.
 
 ;;; %Special-Bind, %Special-Unbind IR2 convert  --  Internal
 ;;;
-;;;    Trivial, given our assumption of a shallow-binding implementation.
+;;; Trivial, given our assumption of a shallow-binding implementation.
 ;;;
 (defoptimizer (%special-bind ir2-convert) ((var value) node block)
   (let ((name (leaf-name (continuation-value var))))
@@ -1391,7 +1699,6 @@
 ;;;
 (defoptimizer (%special-unbind ir2-convert) ((var) node block)
   (vop unbind node block))
-
 
 ;;; PROGV IR1 convert  --  Internal
 ;;;
@@ -1416,13 +1723,14 @@
 	    (%primitive unbind-to-here ,n-save-bs))))))
 
 
-;;;; Non-local exit:
+;;;; Non-local exit.
 
 ;;; IR2-Convert-Exit  --  Internal
 ;;;
-;;;    Convert a non-local lexical exit.  First find the NLX-Info in our
-;;; environment.  Note that this is never called on the escape exits for Catch
-;;; and Unwind-Protect, since the escape functions aren't IR2 converted.
+;;; Convert a non-local lexical exit.  First find the NLX-Info in our
+;;; environment.  Note that this is never called on the escape exits for
+;;; Catch and Unwind-Protect, since the escape functions aren't IR2
+;;; converted.
 ;;;
 (defun ir2-convert-exit (node block)
   (declare (type exit node) (type ir2-block block))
@@ -1440,13 +1748,11 @@
 
   (undefined-value))
 
-
 ;;; Cleanup-point doesn't to anything except prevent the body from being
 ;;; entirely deleted.
 ;;;
 (defoptimizer (%cleanup-point ir2-convert) (() node block) node block)
 
-  
 ;;; This function invalidates a lexical exit on exiting from the dynamic
 ;;; extent.  This is done by storing 0 into the indirect value cell that holds
 ;;; the closed unwind block.
@@ -1456,11 +1762,10 @@
        (find-in-environment (continuation-value info) (node-environment node))
        (emit-constant 0)))
 
-
 ;;; IR2-Convert-Throw  --  Internal
 ;;;
-;;;    We have to do a spurious move of no values to the result continuation so
-;;; that lifetime analysis won't get confused.
+;;; We have to do a spurious move of no values to the result continuation
+;;; so that lifetime analysis won't get confused.
 ;;;
 (defun ir2-convert-throw (node block)
   (declare (type mv-combination node) (type ir2-block block))
@@ -1475,13 +1780,12 @@
   (move-continuation-result node block () (node-cont node))
   (undefined-value))
 
-
 ;;; Emit-NLX-Start  --  Internal
 ;;;
-;;;    Emit code to set up a non-local-exit.  Info is the NLX-Info for the
-;;; exit, and Tag is the continuation for the catch tag (if any.)  We get at
-;;; the target PC by passing in the label to the vop.  The vop is responsible
-;;; for building a return-PC object.
+;;; Emit code to set up a non-local-exit.  Info is the NLX-Info for the
+;;; exit, and Tag is the continuation for the catch tag (if any.)  We get
+;;; at the target PC by passing in the label to the vop.  The vop is
+;;; responsible for building a return-PC object.
 ;;;
 (defun emit-nlx-start (node block info tag)
   (declare (type node node) (type ir2-block block) (type nlx-info info)
@@ -1518,10 +1822,9 @@
 
   (undefined-value))
 
-
 ;;; IR2-Convert-Entry  --  Internal
 ;;;
-;;;    Scan each of Entry's exits, setting up the exit for each lexical exit.
+;;; Scan each of Entry's exits, setting up the exit for each lexical exit.
 ;;;
 (defun ir2-convert-entry (node block)
   (declare (type entry node) (type ir2-block block))
@@ -1533,10 +1836,9 @@
 	(emit-nlx-start node block info nil))))
   (undefined-value))
 
-
 ;;; %Catch, %Unwind-Protect IR2 convert  --  Internal
 ;;;
-;;;    Set up the unwind block for these guys.
+;;; Set up the unwind block for these guys.
 ;;;
 (defoptimizer (%catch ir2-convert) ((info-cont tag) node block)
   (emit-nlx-start node block (continuation-value info-cont) tag))
@@ -1544,18 +1846,17 @@
 (defoptimizer (%unwind-protect ir2-convert) ((info-cont cleanup) node block)
   (emit-nlx-start node block (continuation-value info-cont) nil))
 
-
 ;;; %NLX-Entry IR2 convert  --  Internal
 ;;;
 ;;; Emit the entry code for a non-local exit.  We receive values and restore
 ;;; dynamic state.
 ;;;
-;;; In the case of a lexical exit or Catch, we look at the exit continuation's
-;;; kind to determine which flavor of entry VOP to emit.  If unknown values,
-;;; emit the xxx-MULTIPLE variant to the continuation locs.  If fixed values,
-;;; make the appropriate number of temps in the standard values locations and
-;;; use the other variant, delivering the temps to the continuation using
-;;; Move-Continuation-Result.
+;;; In the case of a lexical exit or Catch, we look at the exit
+;;; continuation's kind to determine which flavor of entry VOP to emit.  If
+;;; unknown values, emit the xxx-MULTIPLE variant to the continuation locs.
+;;; If fixed values, make the appropriate number of temps in the standard
+;;; values locations and use the other variant, delivering the temps to the
+;;; continuation using Move-Continuation-Result.
 ;;;
 ;;; In the Unwind-Protect case, we deliver the first register argument, the
 ;;; argument count and the argument pointer to our continuation as multiple
@@ -1563,9 +1864,9 @@
 ;;; count.
 ;;;
 ;;; After receiving values, we restore dynamic state.  Except in the
-;;; Unwind-Protect case, the values receiving restores the stack pointer.  In
-;;; an Unwind-Protect cleanup, we want to leave the stack pointer alone, since
-;;; the thrown values are still out there.
+;;; Unwind-Protect case, the values receiving restores the stack pointer.
+;;; In an Unwind-Protect cleanup, we want to leave the stack pointer alone,
+;;; since the thrown values are still out there.
 ;;;
 (defoptimizer (%nlx-entry ir2-convert) ((info-cont) node block)
   (let* ((info (continuation-value info-cont))
@@ -1610,7 +1911,7 @@
 	 (car (ir2-nlx-info-dynamic-state 2info)))))
 
 
-;;;; N-arg functions:
+;;;; N-arg functions.
 
 (macrolet ((frob (name)
 	     `(defoptimizer (,name ir2-convert) ((&rest args) node block)
@@ -1626,10 +1927,10 @@
   (frob list*))
 
 
-;;;; Structure accessors:
+;;;; Structure accessors.
 ;;;
-;;;    These guys have to bizarrely determine the slot offset by looking at the
-;;; called function.
+;;; These guys have to bizarrely determine the slot offset by looking at
+;;; the called function.
 
 (defoptimizer (%slot-accessor ir2-convert) ((str) node block)
   (let* ((cont (node-cont node))
@@ -1656,13 +1957,13 @@
 	   (ref-leaf
 	    (continuation-use
 	     (combination-fun node))))))
-  
+
     (move-continuation-result node block (list val) (node-cont node))))
 
 
-;;; IR2-Convert  --  Interface
+;;; IR2-Convert  --  Interfac.
 ;;;
-;;;    Convert the code in a component into VOPs.
+;;; Convert the code in a component into VOPs.
 ;;;
 (defun ir2-convert (component)
   (declare (type component component))
@@ -1702,13 +2003,13 @@
 	    (incf num))))))
   (undefined-value))
 
-
 ;;; Finish-IR2-Block  --  Internal
 ;;;
-;;;    If necessary, emit a terminal unconditional branch to go to the
-;;; successor block.  If the successor is the component tail, then there isn't
-;;; really any successor, but if the end is an unknown, non-tail call, then we
-;;; emit an error trap just in case the function really does return.
+;;; If necessary, emit a terminal unconditional branch to go to the
+;;; successor block.  If the successor is the component tail, then there
+;;; isn't really any successor, but if the end is an unknown, non-tail
+;;; call, then we emit an error trap just in case the function really does
+;;; return.
 ;;;
 (defun finish-ir2-block (block)
   (declare (type cblock block))
@@ -1737,13 +2038,12 @@
 				tn)))))))
 	      ((not (eq (ir2-block-next 2block) (block-info target)))
 	       (vop branch last 2block (block-label target)))))))
-  
-  (undefined-value))
 
+  (undefined-value))
 
 ;;; IR2-Convert-Block  --  Internal
 ;;;
-;;;    Convert the code in a block into VOPs.
+;;; Convert the code in a block into VOPs.
 ;;;
 (defun ir2-convert-block (block)
   (declare (type cblock block))

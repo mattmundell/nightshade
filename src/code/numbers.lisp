@@ -22,16 +22,26 @@
 (in-package "KERNEL")
 
 
+#[ Integers
+
+The \tindexed{fixnum} type is equivalent to \code{(signed-byte 30)}.
+Integers outside this range are represented as a \tindexed{bignum} or a
+word integer ([Word Integers].)  Almost all integers that appear in
+programs can be represented as a \code{fixnum}, so integer number consing
+is rare.
+]#
+
+
 ;;;; Number dispatch macro.
 
 (eval-when (compile load eval)
 
 ;;; PARSE-NUMBER-DISPATCH  --  Internal
 ;;;
-;;;    Grovel an individual case to NUMBER-DISPATCH, augmenting Result with the
-;;; type dispatches and bodies.  Result is a tree built of alists representing
-;;; the dispatching off each arg (in order).  The leaf is the body to be
-;;; executed in that case.
+;;; Grovel an individual case to NUMBER-DISPATCH, augmenting Result with
+;;; the type dispatches and bodies.  Result is a tree built of alists
+;;; representing the dispatching off each arg (in order).  The leaf is the
+;;; body to be executed in that case.
 ;;;
 (defun parse-number-dispatch (vars result types var-types body)
   (cond ((null vars)
@@ -68,7 +78,7 @@
 
 ;;; Type-Test-Order  --  Internal
 ;;;
-;;;    Return true if Type1 should be tested before Type2.
+;;; Return true if Type1 should be tested before Type2.
 ;;;
 (defun type-test-order (type1 type2)
   (let ((o1 (position type1 type-test-ordering))
@@ -80,8 +90,8 @@
 
 ;;; GENERATE-NUMBER-DISPATCH  --  Internal
 ;;;
-;;;    Return an ETYPECASE form that does the type dispatch, ordering the cases
-;;; for efficiency.
+;;; Return an ETYPECASE form that does the type dispatch, ordering the
+;;; cases for efficiency.
 ;;;
 (defun generate-number-dispatch (vars error-tags cases)
   (if vars
@@ -156,7 +166,7 @@
 
 ;;; FLOAT-CONTAGION  --  Internal
 ;;;
-;;;    Return NUMBER-DISPATCH forms for rational X float.
+;;; Return NUMBER-DISPATCH forms for rational X float.
 ;;;
 (defun float-contagion (op x y &optional (rat-types '(fixnum bignum ratio)))
   `(((single-float single-float) (,op ,x ,y))
@@ -179,7 +189,7 @@
 
 ;;; BIGNUM-CROSS-FIXNUM  --  Internal
 ;;;
-;;;    Return NUMBER-DISPATCH forms for bignum X fixnum.
+;;; Return NUMBER-DISPATCH forms for bignum X fixnum.
 ;;;
 (defun bignum-cross-fixnum (fix-op big-op)
   `(((fixnum fixnum) (,fix-op x y))
@@ -197,7 +207,7 @@
 
 ;;; CANONICAL-COMPLEX  --  Internal
 ;;;
-;;;    If imagpart is 0, return realpart, otherwise make a complex.  This is
+;;; If imagpart is 0, return realpart, otherwise make a complex.  This is
 ;;; used when we know that realpart and imagpart are the same type, but
 ;;; rational canonicalization might still need to be done.
 ;;;
@@ -220,9 +230,9 @@
 
 ;;; BUILD-RATIO  --  Internal
 ;;;
-;;;    Given a numerator and denominator with the GCD already divided out, make
-;;; a canonical rational.  We make the denominator positive, and check whether
-;;; it is 1.
+;;; Given a numerator and denominator with the GCD already divided out,
+;;; make a canonical rational.  We make the denominator positive, and check
+;;; whether it is 1.
 ;;;
 (proclaim '(inline build-ratio))
 (defun build-ratio (num den)
@@ -236,7 +246,7 @@
 
 ;;; MAYBE-TRUNCATE  --  Internal
 ;;;
-;;;    Truncate X and Y, but bum the case where Y is 1.
+;;; Truncate X and Y, but bum the case where Y is 1.
 ;;;
 (proclaim '(inline maybe-truncate))
 (defun maybe-truncate (x y)
@@ -489,10 +499,10 @@
 
 ;;; INTEGER-/-INTEGER  --  Internal
 ;;;
-;;;    Divide two integers, producing a canonical rational.  If a fixnum, we
-;;; see if they divide evenly before trying the GCD.  In the bignum case, we
-;;; don't bother, since bignum division is expensive, and the test is not very
-;;; likely to suceed.
+;;; Divide two integers, producing a canonical rational.  If a fixnum, we
+;;; see if they divide evenly before trying the GCD.  In the bignum case,
+;;; we don't bother, since bignum division is expensive, and the test is
+;;; not very likely to suceed.
 ;;;
 (defun integer-/-integer (x y)
   (if (and (typep x 'fixnum) (typep y 'fixnum))
@@ -919,7 +929,7 @@
 ;;;; Logicals.
 
 (defun logior (&rest integers)
-  "Returns the bit-wise or of its arguments.  Args must be integers."
+  "Return the bit-wise or of $integers."
   (declare (list integers))
   (if integers
       (do ((result (pop integers) (logior result (pop integers))))
@@ -927,7 +937,7 @@
       0))
 
 (defun logxor (&rest integers)
-  "Returns the bit-wise exclusive or of its arguments.  Args must be
+  "Return the bit-wise exclusive or of its arguments.  Args must be
    integers."
   (declare (list integers))
   (if integers
@@ -1244,11 +1254,11 @@
 
 ;;; TWO-ARG-GCD  --  Internal
 ;;;
-;;;    Do the GCD of two integer arguments.  With fixnum arguments, we use the
+;;; Do the GCD of two integer arguments.  With fixnum arguments, we use the
 ;;; binary GCD algorithm from Knuth's seminumerical algorithms (slightly
-;;; structurified), otherwise we call BIGNUM-GCD.  We pick off the special case
-;;; of 0 before the dispatch so that the bignum code doesn't have to worry
-;;; about "small bignum" zeros.
+;;; structurified), otherwise we call BIGNUM-GCD.  We pick off the special
+;;; case of 0 before the dispatch so that the bignum code doesn't have to
+;;; worry about "small bignum" zeros.
 ;;;
 (defun two-arg-gcd (u v)
   (cond ((eql u 0) v)
@@ -1306,49 +1316,45 @@
 
 ;;; ISQRT  --  Public
 ;;;
-;;;    From discussion on comp.lang.lisp and Akira Kurihara.
+;;; Integer square root: isqrt(n)**2 <= n
+;;;
+;;; Upper and lower bounds on the result are estimated using integer-length.
+;;; On each iteration, one of the bounds is replaced by their mean.
+;;; The lower bound is returned when the bounds meet or differ by only 1.
+;;; Initial bounds guarantee that lg(sqrt(n)) = lg(n)/2 iterations suffice.
 ;;;
 (defun isqrt (n)
-  "Returns the root of the nearest integer less than n which is a perfect
+  "Return the root of the nearest integer less than $n which is a perfect
    square."
-  (declare (type unsigned-byte n) (values unsigned-byte))
-  ;; theoretically (> n 7) ,i.e., n-len-quarter > 0
-  (if (and (fixnump n) (<= n 24))
-      (cond ((> n 15) 4)
-	    ((> n  8) 3)
-	    ((> n  3) 2)
-	    ((> n  0) 1)
-	    (t 0))
-      (let* ((n-len-quarter (ash (integer-length n) -2))
-	     (n-half (ash n (- (ash n-len-quarter 1))))
-	     (n-half-isqrt (isqrt n-half))
-	     (init-value (ash (1+ n-half-isqrt) n-len-quarter)))
-	(loop
-	  (let ((iterated-value
-		 (ash (+ init-value (truncate n init-value)) -1)))
-	    (unless (< iterated-value init-value)
-	      (return init-value))
-	    (setq init-value iterated-value))))))
+  (if (and (integerp n) (not (minusp n)))
+      (do* ((lg (integer-length n))
+	    (lo (ash 1 (ash (1- lg) -1)))
+	    ;; Tighten by 3/4 if possible.
+	    (hi (+ lo (ash lo (if (oddp lg) -1 0)))))
+	   ((<= (1- hi) lo) lo)
+	(let ((mid (ash (+ lo hi) -1)))
+	  (if (<= (* mid mid) n) (setq lo mid) (setq hi mid))))
+      (error "argument must be an integer >= zero: ~S" n)))
 
 
 ;;;; Miscellaneous number predicates.
 
 (defun zerop (number)
-  "Returns t if NUMBER = 0, () otherwise."
+  "Return t if NUMBER = 0, () otherwise."
   (zerop number))
 
 (defun plusp (number)
-  "Returns t if NUMBER > 0, () otherwise."
+  "Return t if NUMBER > 0, () otherwise."
   (plusp number))
 
 (defun minusp (number)
-  "Returns t if NUMBER < 0, () otherwise."
+  "Return t if NUMBER < 0, () otherwise."
   (minusp number))
 
 (defun oddp (number)
-  "Returns t if NUMBER is odd, () otherwise."
+  "Return t if NUMBER is odd, () otherwise."
   (oddp number))
 
 (defun evenp (number)
-  "Returns t if NUMBER is even, () otherwise."
+  "Return t if NUMBER is even, () otherwise."
   (evenp number))

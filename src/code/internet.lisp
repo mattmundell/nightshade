@@ -99,6 +99,10 @@
   addr-type
   addr-list)
 
+(setf (documentation 'host-entry-name 'function)
+      "Return the primary (first) address from the list returned by
+       `host-entry-addr-list'.")
+
 (defun host-entry-addr (host)
   (declare (type host-entry host))
   (car (host-entry-addr-list host)))
@@ -164,17 +168,22 @@ struct in_addr {
     (length int)
     (addr-list (* (* (unsigned 32))))))
 
+;; FIX should ret system-area-pointer?
 (def-alien-routine "gethostbyname" (* hostent)
   (name c-string))
 
+;; FIX should ret system-area-pointer?
 (def-alien-routine "gethostbyaddr" (* hostent)
   (addr unsigned-long :copy)
   (len int)
   (type int))
 
 (defun lookup-host-entry (host)
-  "Return a host-entry for the given host. The host may be an address
-   string or an IP address in host order."
+ "Search the database for $host and return a host-entry structure for it.
+  On failure to find $host, returns ().
+
+  $host is either the IP address (as an integer) or the name (as a string)
+  of the host."
   (if (typep host 'host-entry)
       host
       (with-alien
@@ -365,6 +374,30 @@ struct in_addr {
 
 ;;;; Out of Band Data.
 
+#[ Out-Of-Band Data
+
+The TCP/IP protocol allows users to send data asynchronously, otherwise
+known as "out-of-band" data.  When using this feature, the operating system
+interrupts the receiving process if this process has chosen to be notified
+about out-of-band data.  The receiver can grab this input without affecting
+any information currently queued on the socket.  Therefore, you can use
+this without interfering with any current activity due to other wire and
+remote interfaces.
+
+Unfortunately, most implementations of TCP/IP are broken, so use of
+out-of-band data is limited for safety reasons.  You can only reliably
+send one character at a time.
+
+This routines in this section provide a mechanism for establishing
+handlers for out-of-band characters and for sending them out-of-band.
+These all take a Unix file descriptor instead of a wire, but you can
+fetch a wire's file descriptor with `wire-fd'.
+
+{function:ext:add-oob-handler}
+{function:ext:remove-all-oob-handlers}
+{function:ext:send-character-out-of-band}
+]#
+
 ;;; Two level AList. First levels key is the file descriptor, second levels
 ;;; key is the character. The datum is the handler to call.
 
@@ -372,9 +405,9 @@ struct in_addr {
 
 ;;; SIGURG-HANDLER -- internal
 ;;;
-;;;   Routine that gets called whenever out-of-band data shows up. Checks each
-;;; file descriptor for any oob data. If there is any, look for a handler for
-;;; that character. If any are found, funcall them.
+;;; Routine that gets called whenever out-of-band data shows up. Checks
+;;; each file descriptor for any oob data. If there is any, look for a
+;;; handler for that character. If any are found, funcall them.
 
 (defun sigurg-handler (signo code scp)
   (declare (ignore signo code scp))
@@ -410,14 +443,14 @@ struct in_addr {
 
 ;;; ADD-OOB-HANDLER -- public
 ;;;
-;;;   First, check to see if we already have any handlers for this file
-;;; descriptor. If so, just add this handler to them. If not, add this
-;;; file descriptor to *oob-handlers*, make sure our interupt handler is
-;;; installed, and that the given file descriptor is "owned" by us (so sigurg
-;;; will be delivered.)
-
+;;; First, check to see if we already have any handlers for this file
+;;; descriptor. If so, just add this handler to them. If not, add this file
+;;; descriptor to *oob-handlers*, make sure our interupt handler is
+;;; installed, and that the given file descriptor is "owned" by us (so
+;;; sigurg will be delivered.)
+;;;
 (defun add-oob-handler (fd char handler)
-  "Arange to funcall HANDLER when CHAR shows up out-of-band on FD."
+  "Arrange to funcall $handler when $char shows up out-of-band on $fd."
   (declare (integer fd)
 	   (base-char char))
   (let ((handlers (assoc fd *oob-handlers*)))
@@ -439,9 +472,9 @@ struct in_addr {
 
 ;;; REMOVE-OOB-HANDLER -- public
 ;;;
-;;;   Delete any handlers for the given char from the list of handlers for the
-;;; given file descriptor. If there are no more, nuke the entry for the file
-;;; descriptor.
+;;; Delete any handlers for the given char from the list of handlers for
+;;; the given file descriptor. If there are no more, nuke the entry for the
+;;; file descriptor.
 
 (defun remove-oob-handler (fd char)
   "Remove any handlers for CHAR on FD."
@@ -464,10 +497,10 @@ struct in_addr {
 
 ;;; REMOVE-ALL-OOB-HANDLERS -- public
 ;;;
-;;;   Delete the entry for the given file descriptor.
-
+;;; Delete the entry for the given file descriptor.
+;;;
 (defun remove-all-oob-handlers (fd)
-  "Remove all handlers for FD."
+  "Remove all handlers for $fd."
   (declare (integer fd))
   (setf *oob-handlers*
 	(delete fd *oob-handlers*
@@ -477,9 +510,8 @@ struct in_addr {
 
 ;;; SEND-CHARACTER-OUT-OF-BAND -- public
 ;;;
-;;;   Sends CHAR across FD out of band.
-
 (defun send-character-out-of-band (fd char)
+  "Send the character $char down the file descriptor $fd out-of-band."
   (declare (integer fd)
 	   (base-char char))
   (let ((buffer (make-string 1 :initial-element char)))

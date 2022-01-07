@@ -3,7 +3,8 @@
 (in-package "EXTENSIONS")
 
 (export '(letf* letf dovector deletef indenting-further file-comment
-	  read-char-no-edit listen-skip-whitespace concat-pnames
+	  read-char-no-edit ; FIX Where is this?
+	  listen-skip-whitespace concat-pnames
 	  iterate once-only collect do-anonymous undefined-value
 	  required-argument define-hash-cache defun-cached
 	  cache-hash-eq do-hash))
@@ -13,7 +14,7 @@
 
 ;;; Undefined-Value  --  Public
 ;;;
-;;;    This is here until we figure out what to do with it.
+;;; FIX This is here until we figure out what to do with it.
 ;;;
 (proclaim '(inline undefined-value))
 (defun undefined-value ()
@@ -23,24 +24,25 @@
 ;;;
 (proclaim '(ftype (function () nil) required-argument))
 (defun required-argument ()
-  "This function can be used as the default value for keyword arguments
-   that must be always be supplied.  Since it is known by the compiler to
-   never return, it will avoid any compile-time type warnings that would
-   result from a default value inconsistent with the declared type.  When
-   this function is called, it signals an error indicating that a required
-   keyword argument was not supplied.  This function is also useful for
-   DEFSTRUCT slot defaults corresponding to required arguments."
-  (error "A required keyword argument was not supplied."))
+  "Signal a \"keyword required\" error.
+
+   This function can be used as the fallback value for keyword arguments
+   that must always be supplied.  This function is also useful for
+   `defstruct' slot fallback corresponding to required arguments.
+
+   \xlref{empty-type}."
+  (error "A keyword argument is required."))
 
 ;;; FILE-COMMENT  --  Public
 ;;;
 (defmacro file-comment (string)
-  "FILE-COMMENT String
-   When COMPILE-FILE sees this form at top-level, it places the constant string
-   in the run-time source location information.  DESCRIBE will print the file
-   comment for the file that a function was defined in.  The string is also
-   textually present in the FASL, so the RCS \"ident\" command can find it,
-   etc."
+  "file-comment $string
+
+   When `compile-file' sees this form at top-level, it places the constant
+   string in the run-time source location information.  `describe' will
+   print the file comment for the file that a function was defined in.  The
+   string is also textually present in the FASL, so the RCS \"ident\"
+   command can find it, etc."
   (declare (ignore string))
   '(undefined-value))
 
@@ -172,10 +174,12 @@
 ;;; Iterate  --  Public
 ;;;
 (defmacro iterate (name binds &body body)
-  "Iterate Name ({(Var Initial-Value)}*) Declaration* Form*
-   Create a local function Name with the specified Vars as arguments and
-   the Declarations and Forms as body.  Then call the function with the
-   Initial-Values, returning the result."
+  "iterate name ({(var initial-value)}*) declaration* form*
+
+   Iterate using `labels'.  Create a local function $name with the
+   specified \"var\"s as arguments and the \"declarations\" and \"forms\"
+   as body.  Then call the function with the \"initial-values\", returning
+   the result."
   (dolist (x binds)
     (or (and (listp x)
 	     (= (length x) 2))
@@ -189,10 +193,10 @@
 
 ;;; Collect-Normal-Expander  --  Internal
 ;;;
-;;;    This function does the real work of macroexpansion for normal collection
-;;; macros.  N-Value is the name of the variable which holds the current
-;;; value.  Fun is the function which does collection.  Forms is the list of
-;;; forms whose values we are supposed to collect.
+;;; This function does the real work of macroexpansion for normal
+;;; collection macros.  N-Value is the name of the variable which holds the
+;;; current value.  Fun is the function which does collection.  Forms is
+;;; the list of forms whose values we are supposed to collect.
 ;;;
 (defun collect-normal-expander (n-value fun forms)
   `(progn
@@ -201,8 +205,9 @@
 
 ;;; Collect-List-Expander  --  Internal
 ;;;
-;;;    This function deals with the list collection case.  N-Tail is the pointer
-;;; to the current tail of the list, which is NIL if the list is empty.
+;;; This function deals with the list collection case.  N-Tail is the
+;;; pointer to the current tail of the list, which is NIL if the list is
+;;; empty.
 ;;;
 (defun collect-list-expander (n-value n-tail forms)
   (let ((n-res (gensym)))
@@ -268,16 +273,17 @@
 
 ;;; Once-Only  --  Interface
 ;;;
-;;;    Once-Only is a utility useful in writing source transforms and macros.
-;;; It provides an easy way to wrap a let around some code to ensure that some
-;;; forms are only evaluated once.
+;;; Once-Only is a utility useful in writing source transforms and macros.
+;;; It provides an easy way to wrap a let around some code to ensure that
+;;; some forms are only evaluated once.
 ;;;
 (defmacro once-only (specs &body body)
   "Once-Only ({(Var Value-Expression)}*) Form*
+
    Create a Let* which evaluates each Value-Expression, binding a temporary
    variable to the result, and wrapping the Let* around the result of the
-   evaluation of Body.  Within the body, each Var is bound to the corresponding
-   temporary variable."
+   evaluation of Body.  Within the body, each Var is bound to the
+   corresponding temporary variable."
   (iterate frob
 	   ((specs specs)
 	    (body body))
@@ -294,60 +300,66 @@
 		  ,,(frob (rest specs) body))))))))
 
 
-;;;; DO-ANONYMOUS.
+;;;; do-*.
 
 ;;; ### Bootstrap hack...  Renamed to avoid clobbering function in bootstrap
 ;;; environment.
 ;;;
-(defun lisp::do-do-body (varlist endlist code decl bind step name block)
+(defun lisp::generate-do-loop (varlist endlist code decl bind step name block exit)
+  (declare (ignore name))
   (let* ((inits ())
 	 (steps ())
 	 (l1 (gensym))
 	 (l2 (gensym)))
-    ;; Check for illegal old-style do.
-    (when (or (not (listp varlist)) (atom endlist))
-      (error "Ill-formed ~S -- possibly illegal old style DO?" name))
+    ;; Check arguments.
+    (or (listp varlist)
+	(error "$varlist (first argument) must be a list."))
+    (or (listp endlist)
+	(error "$endlist (second argument) must be a list."))
     ;; Parse the varlist to get inits and steps.
     (dolist (v varlist)
       (cond ((symbolp v) (push v inits))
 	    ((listp v)
-	     (unless (symbolp (first v))
-	       (error "~S step variable is not a symbol: ~S" name (first v)))
+	     (or (symbolp (first v))
+		 (error "Step variable must be a symbol: ~S" (first v)))
 	     (case (length v)
 	       (1 (push (first v) inits))
 	       (2 (push v inits))
 	       (3 (push (list (first v) (second v)) inits)
 		  (setq steps (list* (third v) (first v) steps)))
-	       (t (error "~S is an illegal form for a ~S varlist." v name))))
-	    (t (error "~S is an illegal form for a ~S varlist." v name))))
+	       (t (error "~S is too long for a variable element." v))))
+	    (t (error "Variable element ~S must be a symbol or a list." v))))
     ;; And finally construct the new form.
-    `(block ,BLOCK
+    `(block ,block
        (,bind ,(nreverse inits)
 	,@decl
 	(tagbody
+	 ;; FIX why jump over the code first?
 	 (go ,L2)
 	 ,L1
 	 ,@code
 	 (,step ,@(nreverse steps))
   	 ,L2
-	 (unless ,(car endlist) (go ,L1))
-	 (return-from ,BLOCK (progn ,@(cdr endlist))))))))
+	 (,exit ,(car endlist) (go ,L1))
+	 (return-from ,block (progn ,@(cdr endlist))))))))
 
 (defmacro do-anonymous (varlist endlist &body (body decls))
-  "DO-ANONYMOUS ({(Var [Init] [Step])}*) (Test Exit-Form*) Declaration* Form*
-   Like DO, but has no implicit NIL block.  Each Var is initialized in parallel
-   to the value of the specified Init form.  On subsequent iterations, the Vars
-   are assigned the value of the Step form (if any) in paralell.  The Test is
-   evaluated before each evaluation of the body Forms.  When the Test is true,
-   the Exit-Forms are evaluated as a PROGN, with the result being the value
-   of the DO."
-  (lisp::do-do-body varlist endlist body decls 'let 'psetq
-		    'do-anonymous (gensym)))
+  "do-anonymous ({(var [init] [step])}*) (test exit-form*) declaration* form*
+
+   Like `do', but has no implicit NIL block.  Each Var is initialized in
+   parallel to the value of the specified Init form.  On subsequent
+   iterations, the Vars are assigned the value of the Step form (if any) in
+   parallel.  The Test is evaluated before each evaluation of the body
+   Forms.  When the Test is true, the Exit-Forms are evaluated as a
+   `progn', with the result being the value of the `do'."
+  (lisp::generate-do-loop varlist endlist body decls 'let 'psetq
+		       'do-anonymous (gensym) 'or))
 
 (defmacro do-hash ((key-var value-var table &optional result)
 		   &body (body decls))
-  "DO-HASH (Key-Var Value-Var Table [Result]) Declaration* Form*
-   Iterate over the entries in a hash-table."
+  "do-hash (key-var value-var table [result]) declaration* form*
+
+   Iterate over the entries in hash-table $table."
   (let ((gen (gensym))
 	(n-more (gensym)))
     `(with-hash-table-iterator (,gen ,table)
@@ -361,7 +373,8 @@
 ;;; Public.
 ;;;
 (defmacro do-strings ((string-var value-var table &optional result) &body forms)
-  "Do-Strings (String-Var Value-Var Table [Result]) {declaration}* {form}*
+  "do-strings ($string-var $value-var $table [$result]) {declaration}* {form}*
+
    Iterate over the strings in a string Table.  String-Var and Value-Var
    are bound to the string and value respectively of each successive entry
    in the string-table Table in alphabetical order.  If supplied, Result is
@@ -378,7 +391,19 @@
 		(,value-var (value-node-value ,value-node))
 		(,string-var (value-node-proper ,value-node)))
 	   (declare (simple-string ,string-var))
+	   (declare (ignorable ,value-var ,string-var))
 	   ,@forms)))))
+
+;;; Public.
+;;;
+(defmacro do-lines ((line-var stream) &body forms)
+  "do-lines (line-var buffer {mark}) {declaration}* {form}*
+
+   Execute $forms for each line in $stream with the line string bound to
+   $line-var."
+  `(loop for ,line-var = (read-line ,stream ())
+     while ,line-var do
+     ,@forms))
 
 
 ;;;; Hash cache utility.
@@ -388,19 +413,20 @@
 
 ;;; DEFINE-HASH-CACHE  --  Public
 ;;;
-;;;    :INIT-FORM passed as COLD-LOAD-INIT in type system definitions so that
+;;; :INIT-FORM passed as COLD-LOAD-INIT in type system definitions so that
 ;;; caches can be created before top-level forms run.
 ;;;
 (defmacro define-hash-cache (name args &key hash-function hash-bits default
 				  (init-form 'progn)
 				  (values 1))
   "DEFINE-HASH-CACHE Name ({(Arg-Name Test-Function)}*) {Key Value}*
+
    Define a hash cache that associates some number of argument values to a
    result value.  The Test-Function paired with each Arg-Name is used to compare
    the value for that arg in a cache entry with a supplied arg.  The
    Test-Function must not error when passed NIL as its first arg, but need not
    return any particular value.  Test-Function may be any thing that can be
-   place in CAR position.
+   place FIX placed? in CAR position.
 
    Name is used to define functions these functions:
 
@@ -564,8 +590,9 @@
 			      &allow-other-keys)
 			args &body (body decls doc))
   "DEFUN-CACHED (Name {Key Value}*) ({(Arg-Name Test-Function)}*) Form*
-  Some syntactic sugar for defining a function whose values are cached by
-  DEFINE-HASH-CACHE."
+
+   FIX Some syntactic sugar for defining a function whose values are cached
+   by DEFINE-HASH-CACHE."
   (let ((default-values (if (and (consp default) (eq (car default) 'values))
 			    (cdr default)
 			    (list default)))
@@ -594,6 +621,6 @@
 ;;; CACHE-HASH-EQ  -- Public
 ;;;
 (defmacro cache-hash-eq (x)
-  "Return an EQ hash of X.  The value of this hash for any given object can (of
-  course) change at arbitary times."
+  "Return an EQ hash of X.  The value of this hash for any given object can
+   (of course) change at arbitary times."
   `(lisp::pointer-hash ,x))

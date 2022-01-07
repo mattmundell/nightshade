@@ -5,17 +5,23 @@
 
 ;;;; Region and File printing commands.
 
-(defhvar "Print Utility"
-  "UNIX(tm) program to invoke (via EXT:RUN-PROGRAM) to do printing.
+#[ Printing
+
+{command:Print Region}
+{command:Print Buffer}
+{command:Print File}
+{evariable:Print Utility}
+{evariable:Print Utility Switches}
+]#
+
+(defevar "Print Utility"
+  "The Unix program the print commands use to send files to the printer.
    The program should act like lpr: if a filename is given as an argument,
-   it should print that file, and if no name appears, standard input should
-   be assumed."
+   it should print that file, otherwise standard input should be assumed."
   :value "lpr")
 
-(defhvar "Print Utility Switches"
-  "Switches to pass to the \"Print Utility\" program.  This should be a list
-   of strings."
-  :value ())
+(defevar "Print Utility Switches"
+  "A list of strings specifying the options to pass to the `Print Utility'.")
 
 ;;; PRINT-SOMETHING calls RUN-PROGRAM on the utility-name and args.  Output
 ;;; and error output are done to the echo area, and errors are ignored for
@@ -49,30 +55,24 @@
   (with-input-from-region (s region)
     (print-something (:input s))))
 
-(defcommand "Print Buffer" (p)
-  "Prints the current buffer using the program defined by the hvar
-   \"Print Utility\" with the options from the hvar \"Print Utility
-   Options\".   Errors appear in the echo area."
-  "Prints the contents of the buffer."
-  (declare (ignore p))
+(defcommand "Print Buffer" ()
+  "Print the current buffer using the program defined by the `Print
+   Utility' with the options from the `Print Utility Options'.  Put errors
+   in the echo area."
   (message "Printing buffer...~%")
   (print-region (buffer-region (current-buffer))))
 
-(defcommand "Print Region" (p)
-  "Prints the current region using the program defined by the hvar
-   \"Print Utility\" with the options from the hvar \"Print Utility
-   Options\".  Errors appear in the echo area."
-  "Prints the current region."
-  (declare (ignore p))
+(defcommand "Print Region" ()
+  "Print the current region using the program defined by `Print Utility'
+   with the options from the `Print Utility Options'.  Put errors in the
+   echo area."
   (message "Printing region...~%")
   (print-region (current-region)))
 
-(defcommand "Print File" (p)
-  "Prompts for a file and prints it usings the program defined by
-   the hvar \"Print Utility\" with the options from the hvar \"Print
-   Utility Options\".  Errors appear in the echo area."
-  "Prints a file."
-  (declare (ignore p))
+(defcommand "Print File" ()
+  "Print a prompted file usings the program defined by the `Print Utility'
+   with the options from the `Print Utility Options'.  Put errors in the
+   echo area."
   (let* ((pn (prompt-for-file :prompt "File to print: "
 			      :help "Name of file to print."
 			      :default (buffer-default-pathname (current-buffer))
@@ -85,33 +85,38 @@
 
 ;;;; Scribe.
 
-(defcommand "Scribe File" (p)
-  "Scribe a file with the default directory set to the directory of the
-   specified file.  The output from running Scribe is sent to the
-   \"Scribe Warnings\" buffer.  See \"Scribe Utility\" and \"Scribe Utility
-   Switches\"."
-  "Scribe a file with the default directory set to the directory of the
-   specified file."
-  (declare (ignore p))
+#[ Scribe
+
+{command:Scribe Buffer File}
+{evariable:Scribe Buffer File Confirm}
+{command:Scribe File}
+{evariable:Scribe Utility}
+{evariable:Scribe Utility Switches}
+{command:Select Scribe Warnings}
+]#
+
+(defcommand "Scribe File" ()
+  "Scribe a prompted file with the default directory set to the directory
+   of the specified file.  Send the output from running Scribe to the
+   \"Scribe Warnings\" buffer.  Build the Scribe command from *Scribe
+   Utility* and *Scribe Utility Switches*.  Before doing anything confirm
+   saving and Scribe'ing the file if `Scribe Buffer File Confirm' is set."
   (scribe-file (prompt-for-file :prompt "Scribe file: "
 				:default
 				(buffer-default-pathname (current-buffer)))))
 
-(defhvar "Scribe Buffer File Confirm"
-  "When set, \"Scribe Buffer File\" prompts for confirmation before doing
+(defevar "Scribe Buffer File Confirm"
+  "When set, `Scribe Buffer File' prompts for confirmation before doing
    anything."
   :value t)
 
-(defcommand "Scribe Buffer File" (p)
-  "Scribe the file associated with the current buffer.  The default directory
-   set to the directory of the file.  The output from running Scribe is sent to
-   the \"Scribe Warnings\" buffer.  See \"Scribe Utility\" and \"Scribe Utility
-   Switches\".  Before doing anything the user is asked to confirm saving and
-   Scribe'ing the file.  This prompting can be inhibited by with \"Scribe Buffer
-   File Confirm\"."
-  "Scribe a file with the default directory set to the directory of the
-   specified file."
-  (declare (ignore p))
+(defcommand "Scribe Buffer File" ()
+  "Scribe the file associated with the current buffer.  The default
+   directory set to the directory of the file.  Send the output from
+   running Scribe to the \"Scribe Warnings\" buffer.  Build the Scribe
+   command from `Scribe Utility' and `Scribe Utility Switches'.  Before
+   doing anything confirm saving and Scribe'ing the file if `Scribe Buffer
+   File Confirm' is set."
   (let* ((buffer (current-buffer))
 	 (pathname (buffer-pathname buffer))
 	 (modified (buffer-modified buffer)))
@@ -123,46 +128,47 @@
       (when modified (write-buffer-file buffer pathname))
       (scribe-file pathname))))
 
-(defhvar "Scribe Utility"
-  "Program name to invoke (via EXT:RUN-PROGRAM) to do text formatting."
+(defevar "Scribe Utility"
+  "The Unix program the Scribe commands use to compile the text
+   formatting."
   :value "scribe")
 
-(defhvar "Scribe Utility Switches"
-  "Switches to pass to the \"Scribe Utility\" program.  This should be a list
-   of strings."
-  :value ())
+(defevar "Scribe Utility Switches"
+  "A list of strings whose contents would be contiguous characters, other
+   than space, had the user invoked this program on a command line outside
+   of the editor.  The Scribe commands supply the file to compile in
+   addition to these switches.")
 
 (defun scribe-file (pathname)
   (let* ((pathname (truename pathname))
 	 (out-buffer (or (getstring "Scribe Warnings" *buffer-names*)
 			 (make-buffer "Scribe Warnings")))
 	 (out-point (buffer-end (buffer-point out-buffer)))
-	 (stream (make-hemlock-output-stream out-point :line))
-	 (orig-cwd (default-directory)))
+	 (stream (make-editor-output-stream out-point :line)))
     (buffer-end out-point)
     (insert-character out-point #\newline)
     (insert-character out-point #\newline)
-    (unwind-protect
-	(progn
-	  (setf (default-directory) (directory-namestring pathname))
-	  (ext:run-program (namestring (value scribe-utility))
-			   (list* (namestring pathname)
-				  (value scribe-utility-switches))
-			   :output stream :error stream
-			   :wait nil))
-      (setf (default-directory) orig-cwd))))
+    (in-directory (directory-namestring pathname)
+      (ext:run-program (namestring (value scribe-utility))
+		       (list* (namestring pathname)
+			      (value scribe-utility-switches))
+		       :output stream :error stream
+		       :wait ()))))
 
 
-;;;; UNIX Filter Region
+#[ Miscellaneous
 
-(defcommand "Unix Filter Region" (p)
-  "Unix Filter Region prompts for a UNIX program and then passes the
-   current region to the program as standard input.  The standard output
-   from the program is used to replace the region.  This command is
-   undo-able."
-  "UNIX-FILTER-REGION-COMMAND is not intended to be called from normal
-   editor commands; use UNIX-FILTER-REGION instead."
-  (declare (ignore p))
+{command:Manual Page}
+{command:Unix Filter Region}
+]#
+
+
+;;;; Unix Filter Region.
+
+(defcommand "Unix Filter Region" ()
+  "Pass the current region to a Unix program as standard input.  The
+   standard output from the program is used to replace the region.  This
+   command is undo-able."
   (let* ((region (current-region))
 	 (filter-and-args (prompt-for-string
 			   :prompt "Filter: "
@@ -179,9 +185,8 @@
     (make-region-undo :twiddle "Unix Filter Region" old-region undo-region)))
 
 (defun unix-filter-region (region command args)
-  "Passes the region REGION as standard input to the program COMMAND
-  with arguments ARGS and returns the standard output as a freshly
-  cons'ed region."
+  "Pass $region as standard input to the program $command with arguments
+   $args and return the standard output as a freshly cons'ed region."
   (let ((new-region (make-empty-region)))
     (with-input-from-region (input region)
       (with-output-to-mark (output (region-end new-region) :full)
@@ -212,10 +217,8 @@
    variable in Lisp programs use (assoc :variable *environment-list*)."
   (print-environment-variable-command p))
 
-(defcommand "Print Environment Variable" (p)
+(defcommand "Print Environment Variable" ()
   "Print value of prompted environment variable."
-  "Print value of prompted environment variable."
-  (declare (ignore p))
   (let ((v (prompt-for-string
 	    :prompt "Environment variable: "
 	    :help "Environment variable of which to print the value (e.g. PATH)."
@@ -226,13 +229,11 @@
 			 *environment-list*
 			 :test #'eq)))))
 
-(defcommand "Setenv" (p &optional variable value)
-  "Set value of prompted environment variable."
+(defcommand "Setenv" (p variable value)
   "Set value of prompted environment variable."
   (set-environment-variable-command p variable value))
 
-(defcommand "Set Environment Variable" (p &optional variable value)
-  "Set value of prompted environment variable."
+(defcommand "Set Environment Variable" (p variable value)
   "Set value of prompted environment variable."
   (declare (ignore p))
   (let ((var (or variable
@@ -264,22 +265,33 @@
 (defcommand "Manual Page from Point" (p)
   "Read the Unix manual pages named at point in a View buffer.
    If given an argument, this will put the man page in a Pop-up display."
-  "Read the Unix manual pages named at point in a View buffer.
-   If given an argument, this will put the man page in a Pop-up display."
   (manual-page-command p (or (manual-name-at-point) nil)))
 
-(defcommand "Manual Page" (p &optional page-name)
-  "Read the Unix manual pages in a View buffer.
-   If given an argument, this will put the man page in a Pop-up display."
-  "Read the Unix manual pages in a View buffer.
-   If given an argument, this will put the man page in a Pop-up display."
+(defcommand "Refresh Manual Page" ()
+  "Refresh the Unix manual in the current buffer."
+  (let ((topic (value manual-page))
+	(buffer (current-buffer)))
+    (if topic
+	(with-writable-buffer (buffer)
+	  (let* ((point (current-point))
+		 (pos (count-characters (region (buffer-start-mark buffer)
+						point))))
+	    (delete-region (buffer-region buffer))
+	    (with-output-to-mark (s point :full)
+	      (execute-man topic s))
+	    (buffer-start point buffer)
+	    (character-offset point pos))))))
+
+(defcommand "Manual Page" (p page-name)
+  "Display a Unix manual page in a buffer in `Manual Page' mode.  When
+   given an argument, pop-up the manual page."
   (let ((topic (or page-name
 		   (prompt-for-string :prompt "Man topic: "
 				      :default (manual-name-at-point)))))
     (if p
 	(with-pop-up-display (stream)
 	  (execute-man topic stream))
-	(let* ((buf-name (format nil "Man Page ~a" topic))
+	(let* ((buf-name (format () "Man Page ~a" topic))
 	       (new-buffer (make-buffer buf-name
 					:modes '("Fundamental" "View" "Manual")))
 	       (buffer (or new-buffer (getstring buf-name *buffer-names*)))
@@ -287,6 +299,10 @@
 	  (change-to-buffer buffer)
 	  (when new-buffer
 	    (setf (value view-return-function) #'(lambda ()))
+	    (defevar "Manual Page"
+	      "The manual page in this buffer."
+	      :buffer buffer
+	      :value topic)
 	    (with-writable-buffer (buffer)
 	      (with-output-to-mark (s point :full)
 		(execute-man topic s))))
@@ -302,7 +318,6 @@
 (defcommand "Next Manual Part" (p)
   "Move to the next part of the Manual Page in the current buffer.
    With a prefix argument move prefix number of parts forwards."
-  "Move to the next part of the Manual Page in the current buffer."
   (or (buffer-minor-mode (current-buffer) "Manual")
       (editor-error "Manual mode must be active in the current buffer."))
   (do ((point (line-start (current-point)))
@@ -317,15 +332,77 @@
 (defcommand "Previous Manual Part" (p)
   "Move to the previous part of the Manual Page in the current buffer.
    With a prefix argument move prefix number of parts backwards."
-  "Move to the previous part of the Manual Page in the current buffer."
   (next-manual-part-command (if p (- p) -1)))
 
-
-;; System process listing
+(defcommand "Next Manual Reference" ()
+  "Move to the next reference to a Manual Page in the current buffer."
+  (let ((mark (copy-mark (current-point))))
+    (if (manual-name-at-point mark) (word-offset mark))
+    (mark-after mark)
+    (loop while (find-character mark #\() do
+      (mark-before mark)
+      (let ((name (manual-name-at-point mark)))
+	(when name
+	  (word-offset mark -1)
+	  (move-mark (current-point) mark)
+	  (return t)))
+      (mark-after (mark-after mark)))))
 
-(defhvar "List System Processes User"
-  "User of which to list processes."
-  :value nil)
+(defcommand "Previous Manual Reference" ()
+  "Move to the previous reference to a Manual Page in the current buffer."
+  (let ((mark (copy-mark (current-point))))
+    (loop while (reverse-find-character mark #\() do
+      (mark-before mark)
+      (let ((name (manual-name-at-point mark)))
+	(when name
+	  (word-offset mark -1)
+	  (move-mark (current-point) mark)
+	  (return t)))
+      (mark-before mark))))
+
+
+;;;; Apropos.
+
+(defmode "SysApropos" :major-p nil
+  :precedence 4.0
+  :documentation
+  "System Apropos Mode -- query the operating system for manual pages
+   related to a word or phrase.")
+
+(defcommand "System Apropos" (p page-name)
+  "Unix apropos in a View buffer.
+   If given an argument, put the apropos results in a Pop-up display."
+  (let ((topic (or page-name
+		   (prompt-for-string :prompt "System Apropos: "
+				      :default (manual-name-at-point)))))
+    (if p
+	(with-pop-up-display (stream)
+	  (execute-man topic stream))
+	(let* ((buf-name (format nil "System Apropos ~a" topic))
+	       (new-buffer (make-buffer buf-name
+					:modes '("Fundamental" "View" "SysApropos")))
+	       (buffer (or new-buffer (getstring buf-name *buffer-names*)))
+	       (point (buffer-point buffer)))
+	  (change-to-buffer buffer)
+	  (when new-buffer
+	    (setf (value view-return-function) #'(lambda ()))
+	    (with-writable-buffer (buffer)
+	      (with-output-to-mark (s point :full)
+		(execute-apropos topic s))))
+	  (buffer-start point buffer)))))
+
+(defun execute-apropos (topic stream)
+  (ext:run-program
+   "/bin/sh"
+   (list "-c"
+	 (format nil "apropos ~a| ul -t adm3" topic))
+   :output stream))
+
+
+;;;; System process listing.
+
+(defevar "List System Processes User"
+  "User of which to list processes.")
 
 (defmode "SysProc" :major-p nil
   :precedence 4.0
@@ -378,22 +455,19 @@
       (with-output-to-mark (stream (buffer-point buffer) :full)
 	(execute-header stream)
 	(font-mark (mark-line (current-point)) 0 7)
-	(execute-ps stream (variable-value 'user :current buffer))))
+	(execute-ps stream (variable-value 'user :current buffer)))
+      (flush-trailing-whitespace buffer))
     (buffer-start (buffer-point buffer) buffer)
     (line-offset (buffer-point buffer) line-num)))
 
-(defcommand "List System Processes" (p)
+(defcommand "List System Processes" ()
   "Pop up a list of system processes."
-  "Pop up a list of system processes."
-  (declare (ignore p))
   (with-pop-up-display (stream)
     (execute-header stream)
     (execute-ps stream (value list-system-processes-user))))
 
-(defcommand "Edit System Processes" (p)
+(defcommand "Edit System Processes" ()
   "Edit system processes."
-  "Edit system processes."
-  (declare (ignore p))
   (let* ((new-buffer (make-buffer (get-sp-list-buffer)
 				  :modes '("Fundamental" "View" "SysProc")))
 	 (buffer (or new-buffer
@@ -401,24 +475,20 @@
     (change-to-buffer buffer)
     (when new-buffer
       (setf (value view-return-function) #'(lambda ()))
-      (defhvar "User"
+      (defevar "User"
 	"User of processes to list; nil for all users."
 	:value (value list-system-processes-user)
 	:buffer buffer)
       (refresh-system-processes buffer))))
 
-(defcommand "Refresh System Processes" (p)
+(defcommand "Refresh System Processes" ()
   "Refresh system process list."
-  "Refresh system process list."
-  (declare (ignore p))
   (or (buffer-minor-mode (current-buffer) "SysProc")
       (editor-error "SysProc mode must be active in the current buffer."))
   (refresh-system-processes (current-buffer)))
 
-(defcommand "Set Current User" (p)
+(defcommand "Set Current User" ()
   "Set the user of which to list processes."
-  "Set the user of which to list processes."
-  (declare (ignore p))
   (or (buffer-minor-mode (current-buffer) "SysProc")
       (editor-error "SysProc mode must be active in the current buffer."))
   (setv user
@@ -429,10 +499,8 @@
 						:test #'eq))))
   (refresh-system-processes (current-buffer)))
 
-(defcommand "Kill Process" (p)
-  "Kill the process at point."
-  "Kill the process at point."
-  (declare (ignore p))
+(defcommand "Signal Process" ()
+  "Signal the process at point."
   (if (or (blank-line-p (mark-line (current-point)))
 	  (< (count-lines (region (buffer-start-mark (current-buffer))
 				  (current-point)))
@@ -451,12 +519,10 @@
     (refresh-system-processes (current-buffer))))
 
 
-;; Dictionary interface.
+;;;; Dictionary interface.
 
-(defcommand "Describe Word" (p)
+(defcommand "Describe Word" ()
   "Describe a prompted word in a pop-up display."
-  "Describe a prompted word in a pop-up display."
-  (declare (ignore p))
   (let ((word (prompt-for-string
 	       :default (word-at-point)
 	       :trim t
@@ -467,3 +533,52 @@
 			`("--pager" "-" ,word)
 			:wait t
 			:output stream))))
+
+
+;;;; Halting, rebooting and suspending.
+
+;; FIX mv bodies to code:
+
+(defun run-halt ()
+  "Sleep for a few seconds, then halt."
+  (ext::run-program "sh" '("-c" "sleep 3 && sudo halt") :wait ()))
+
+(defcommand "Halt" ()
+  "Halt machine."
+  (when (prompt-for-y-or-n
+	 :prompt (format () "Halt ~A? " (machine-instance))
+	 :help "Y to turn off the machine, N to cancel."
+	 :default ())
+    (elet ((save-all-files-confirm ()))
+      (save-all-files-command ()))
+    (add-hook exit-hook 'run-halt :end t)
+    (handler-case
+	(exit-command ())
+      (editor-error () (remove-hook exit-hook 'run-halt)))))
+
+(defun run-reboot ()
+  "Sleep for a few seconds, then reboot."
+  (ext::run-program "sh" '("-c" "sleep 3 && sudo reboot") :wait ()))
+
+(defcommand "Reboot" ()
+  "Reboot machine."
+  (when (prompt-for-y-or-n
+	 :prompt (format () "Reboot ~A? " (machine-instance))
+	 :help "Y to reboot the machine, N to cancel."
+	 :default ())
+    (elet ((save-all-files-confirm ()))
+      (save-all-files-command ()))
+    (add-hook exit-hook 'run-reboot :end t)
+    (handler-case
+	(exit-command ())
+      (editor-error () (remove-hook exit-hook 'run-reboot)))))
+
+(defcommand "Suspend" ()
+  "Suspend to disk."
+  (when (prompt-for-y-or-n
+	 :prompt (format () "Suspend ~A? " (machine-instance))
+	 :help "Y to suspend to disk, N to cancel."
+	 :default ())
+    (elet ((save-all-files-confirm ()))
+      (save-all-files-command ()))
+    (ext::run-program "sudo" '("s2disk"))))

@@ -1,46 +1,26 @@
-;;; -*- Package: RT; Log: c.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/params.lisp,v 1.14 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/rt/params.lisp,v 1.14 1994/10/31 04:45:41 ram Exp $
-;;;
-;;; This file contains some parameterizations of various VM attributes for the
-;;; IBM RT.  This file is separate from other stuff, so we can compile and
-;;; load it earlier.
-;;;
-;;; Written by Rob MacLachlan
-;;; Converted to MIPS by William Lott.
-;;; Converted to IBM RT by William Lott and Bill Chiles.
-;;;
+;;; Some parameterizations of various VM attributes for the IBM RT.  This
+;;; file is separate from other stuff, so we can compile and load it
+;;; earlier.
 
 (in-package "RT")
+
 (use-package "C")
 
 (export '(word-bits byte-bits word-shift word-bytes float-sign-shift
-
+	  ;;
 	  single-float-bias single-float-exponent-byte
 	  single-float-significand-byte single-float-normal-exponent-min
 	  single-float-normal-exponent-max single-float-hidden-bit
 	  single-float-trapping-nan-bit single-float-digits
-
+	  ;;
 	  double-float-bias double-float-exponent-byte
 	  double-float-significand-byte double-float-normal-exponent-min
 	  double-float-normal-exponent-max double-float-hidden-bit
 	  double-float-trapping-nan-bit double-float-digits
-
+	  ;;
 	  float-underflow-trap-bit float-overflow-trap-bit
 	  float-imprecise-trap-bit float-invalid-trap-bit
-	  float-divide-by-zero-trap-bit
-
-))
-
+	  float-divide-by-zero-trap-bit))
 
 
 ;;;; Compiler constants.
@@ -72,9 +52,8 @@
 
 ) ;eval-when
 
-
 
-;;;; Machine Architecture parameters:
+;;;; Machine Architecture parameters.
 
 (eval-when (compile load eval)
 
@@ -125,8 +104,6 @@
 
 ); eval-when
 
-
-
 
 ;;;; Description of the target address space.
 
@@ -135,11 +112,10 @@
 	  target-dynamic-space-start))
 
 ;;; Where to put the different spaces.
-;;; 
+;;;
 (defparameter target-read-only-space-start #x00100000)
 (defparameter target-static-space-start    #x05000000)
 (defparameter target-dynamic-space-start   #x07000000)
-
 
 
 ;;;; Other non-type constants.
@@ -155,12 +131,10 @@
   breakpoint
   function-end-breakpoint)
 
-
 
 ;;;; Static symbols.
 
 (export '(static-symbols exported-static-symbols))
-
 
 ;;; These symbols are loaded into static space directly after NIL so
 ;;; that the system can compute their address by adding a constant
@@ -213,9 +187,8 @@
   (subseq static-symbols 0 (1+ (position 'lisp::*free-interrupt-context-index*
 					 static-symbols))))
 
-
 
-;;;; Assembler parameters:
+;;;; Assembler parameters.
 
 ;;; The number of bits per element in the assemblers code vector.
 ;;;

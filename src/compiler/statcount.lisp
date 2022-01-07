@@ -1,31 +1,15 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/statcount.lisp,v 1.6 1994/10/31 04:27:28 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/statcount.lisp,v 1.6 1994/10/31 04:27:28 ram Exp $
-;;;
 ;;; Functions and utilities for collecting statistics on static vop usages.
-;;;
-;;; Written by William Lott
-;;;
+
 (in-package "C")
 
 (export '(*count-vop-usages*))
 
-
 
-;;;; Vop counting utilities
+;;;; Vop counting utilities.
 
 ;;; T if we should count the number of times we use each vop and the number
 ;;; of instructions that come from each.
-;;; 
+;;;
 (defvar *count-vop-usages* nil)
 
 ;;; Hash table containing all the current counts.  The key is the name of the
@@ -34,14 +18,14 @@
 ;;;   1 - the number of times this vop was emitted.
 ;;;   2 - the number of normal instructions emitted due to this vop.
 ;;;   3 - the number of elsewhere instructions emitted due to this vop.
-;;; 
+;;;
 (defvar *vop-counts* (make-hash-table :test #'eq))
 
 ;;; COUNT-VOPS  --  internal interface.
 ;;;
 ;;; COUNT-VOPS is called by COMPILE-COMPONENT to count the vop usages in
 ;;; component.
-;;; 
+;;;
 (defun count-vops (component)
   (declare (ignore component))
   (error "Vop counting not implemented for the new assembler.")
@@ -73,7 +57,7 @@
 ;;;; Stuff for using the statistics.
 
 ;;; Clear-Vop-Counts -- interface
-;;; 
+;;;
 (defun clear-vop-counts ()
   (clrhash *vop-counts*)
   nil)
@@ -161,4 +145,3 @@
 		 (incf (svref entry 3) (svref stuff 2)))
 		(t
 		 (setf (gethash (svref stuff 0) *vop-counts*) stuff))))))))
-

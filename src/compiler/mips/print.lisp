@@ -1,20 +1,6 @@
-;;; -*- Package: C -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/print.lisp,v 1.10 1994/10/31 04:44:16 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains temporary printing utilities and similar noise.
-;;;
-;;; Written by William Lott.
+;;; Temporary printing utilities and similar noise.
 
 (in-package "MIPS")
-
 
 (define-vop (print)
   (:args (object :scs (descriptor-reg) :target a0))

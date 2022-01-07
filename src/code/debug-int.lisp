@@ -1,11 +1,9 @@
-;;; The implementation of the programmer interface to writing debugging
-;;; tools.
+;;; The programmer interface for writing debugging tools.
 
 (in-package "DEBUG-INTERNALS")
 
-
-;;; The compiler's debug-source structure is almost exactly what we want, so
-;;; just get these symbols and export them.
+;;; The compiler's debug-source structure is almost exactly what we want,
+;;; so just get these symbols and export them.
 ;;;
 (import '(c::debug-source-from c::debug-source-name c::debug-source-created
 	  c::debug-source-compiled c::debug-source-start-positions
@@ -45,7 +43,7 @@
 	  source-path-context debug-source debug-source-p
 
 	  debug-condition no-debug-info no-debug-function-returns
-	  no-debug-blocks lambda-list-unavailable
+	  no-debug-blocks no-debug-variables lambda-list-unavailable
 
 	  debug-error unhandled-condition invalid-control-stack-pointer
 	  unknown-code-location unknown-debug-variable invalid-value
@@ -57,7 +55,72 @@
 	  *debugging-interpreter*))
 
 
+#[ Debugger Programmer Interface
+
+The debugger programmers interface is exported from the "DEBUG-INTERNALS"
+or "DI" package.  This package provides writers of inspection tools with an
+abstract interface to the details of the compiler and run-time system.
+
+Some of the interface routines take a code-location as an argument.  As
+described in the section on code-locations, some code-locations are
+unknown.  When a function calls for a basic-code-location, it takes either
+type, but when it specifically names the argument code-location, the
+routine will signal an error if you give it an unknown code-location.
+
+[ DI Exceptional Conditions    ]
+[ Debug-variables              ]
+[ Frames                       ]
+[ Debug-functions              ]
+[ Debug-blocks                 ]
+[ Breakpoints                  ]
+[ Code-locations               ]
+[ Debug-sources                ]
+[ Source Translation Utilities ]
+]#
+
+
+#[ DI Exceptional Conditions
+
+Some of these operations fail depending on the availability of debugging
+information.  In the most severe case, when someone saved a Lisp image
+stripping all debugging data structures, no operations are valid.  In this
+case, even backtracing and finding frames is impossible.  Some interfaces
+can simply return values indicating the lack of information, or their
+return values are naturally meaningful in light missing data.  Other
+routines, as documented below, will signal serious-condition's when they
+discover awkward situations.  This interface does not provide for programs
+to detect these situations other than by calling a routine that detects
+them and signals a condition.  These are serious-conditions because the
+program using the interface must handle them before it can correctly
+continue execution.  These debugging conditions are not errors since it is
+no fault of the programmers that the conditions occur.
+
+[ Debug-conditions ]
+[ Debug-errors     ]
+]#
+
+
 ;;;; Conditions.
+
+#[ Debug-conditions
+
+The debug internals interface signals conditions when it can't adhere
+to its contract.  These are serious-conditions because the program
+using the interface must handle them before it can correctly continue
+execution.  These debugging conditions are not errors since it is no
+fault of the programmers that the conditions occur.  The interface
+does not provide for programs to detect these situations other than
+calling a routine that detects them and signals a condition.
+
+{condition:di:debug-condition}
+{condition:di:no-debug-info}
+{condition:di:no-debug-function-returns}
+{condition:di:no-debug-blocks}
+{condition:di:no-debug-variables}
+{condition:di:lambda-list-unavailable}
+{condition:di:invalid-value}
+{condition:di:ambiguous-variable-name}
+]#
 
 ;;; The interface to building debugging tools signals conditions that
 ;;; prevent it from adhering to its contract.  These are serious-conditions
@@ -78,8 +141,8 @@
 (define-condition debug-condition (serious-condition)
   ()
   (:documentation
-   "All debug-conditions inherit from this type.  These are serious conditions
-    that must be handled, but they are not programmer errors."))
+   "All debug-conditions inherit from this type.  These are serious
+    conditions that must be handled, but they are not programmer errors."))
 
 (define-condition no-debug-info (debug-condition)
   ()
@@ -107,7 +170,9 @@
 (define-condition no-debug-blocks (debug-condition)
   ((debug-function :reader no-debug-blocks-debug-function
 		   :initarg :debug-function))
-  (:documentation "The debug-function has no debug-block information.")
+  (:documentation "Indicates that a function was not compiled with
+		   debug-block information, and this information is
+		   necessary for some requested operation.")
   (:report (lambda (condition stream)
 	     (format stream "~&~S has no debug-block information."
 		     (no-debug-blocks-debug-function condition)))))
@@ -115,7 +180,9 @@
 (define-condition no-debug-variables (debug-condition)
   ((debug-function :reader no-debug-variables-debug-function
 		   :initarg :debug-function))
-  (:documentation "The debug-function has no debug-variable information.")
+  (:documentation "Indicates that a function was not compiled with
+		   debug-variable information, and this information is
+		   necessary for some requested operation.")
   (:report (lambda (condition stream)
 	     (format stream "~&~S has no debug-variable information."
 		     (no-debug-variables-debug-function condition)))))
@@ -134,6 +201,9 @@
   ((debug-variable :reader invalid-value-debug-variable
 		   :initarg :debug-variable)
    (frame :reader invalid-value-frame :initarg :frame))
+  (:documentation
+   "Indicates a debug-variable has :invalid or :unknown value in a
+    particular frame.")
   (:report (lambda (condition stream)
 	     (format stream "~&~S has :invalid or :unknown value in ~S."
 		     (invalid-value-debug-variable condition)
@@ -142,6 +212,9 @@
 (define-condition ambiguous-variable-name (debug-condition)
   ((name :reader ambiguous-variable-name-name :initarg :name)
    (frame :reader ambiguous-variable-name-frame :initarg :frame))
+  (:documentation
+   "Indicates a user supplied debug-variable name identifies more than one
+    valid variable in a particular frame.")
   (:report (lambda (condition stream)
 	     (format stream "~&~S names more than one valid variable in ~S."
 		     (ambiguous-variable-name-name condition)
@@ -149,6 +222,19 @@
 
 
 ;;;; Errors and DEBUG-SIGNAL.
+
+#[ Debug-errors
+
+These are programmer errors in the use of the debugging tools' programmers'
+interface.  The programmer could have instead used some routine to check
+the use of the routine that generated the error.
+
+{condition:di:debug-error}
+{condition:di:unhandled-condition}
+{condition:di:unknown-code-location}
+{condition:di:unknown-debug-variable}
+{condition:di:frame-function-mismatch}
+]#
 
 ;;; The debug-internals code tries to signal all programmer errors as subtypes
 ;;; of debug-error.  There are calls to ERROR signalling simple-errors, but
@@ -164,6 +250,9 @@
 
 (define-condition unhandled-condition (debug-error)
   ((condition :reader unhandled-condition-condition :initarg :condition))
+  (:documentation
+   "This error results from a signalled debug-condition occurring without
+    anyone handling it.")
   (:report (lambda (condition stream)
 	     (format stream "~&Unhandled debug-condition:~%~A"
 		     (unhandled-condition-condition condition)))))
@@ -171,6 +260,8 @@
 (define-condition unknown-code-location (debug-error)
   ((code-location :reader unknown-code-location-code-location
 		  :initarg :code-location))
+  (:documentation
+   "Indicates the invalid use of an unknown-code-location.")
   (:report (lambda (condition stream)
 	     (format stream "~&Invalid use of an unknown code-location -- ~S."
 		     (unknown-code-location-code-location condition)))))
@@ -180,6 +271,11 @@
 		   :initarg :debug-variable)
    (debug-function :reader unknown-debug-variable-debug-function
 		   :initarg :debug-function))
+  (:documentation
+   "Indicates an attempt to use a debug-variable in conjunction with an
+    inappropriate debug-function; for example, checking the variable's
+    validity using a code-location in the wrong debug-function will signal
+    this error.")
   (:report (lambda (condition stream)
 	     (format stream "~&~S not in ~S."
 		     (unknown-debug-variable-debug-variable condition)
@@ -197,6 +293,9 @@
 		  :initarg :code-location)
    (frame :reader frame-function-mismatch-frame :initarg :frame)
    (form :reader frame-function-mismatch-form :initarg :form))
+  (:documentation
+   "Indicates a call to a function returned by `preprocess-for-eval' on a
+    frame other than the one for which the function had been prepared.")
   (:report (lambda (condition stream)
 	     (format stream
 		     "~&Form was preprocessed for ~S,~% but called on ~S:~%  ~S"
@@ -255,17 +354,16 @@
 	  (debug-variable-id obj)))
 
 (setf (documentation 'debug-variable-name 'function)
-  "Returns the name of the debug-variable.  The name is the name of the symbol
+  "Return the name of $debug-variable.  The name is the name of the symbol
    used as an identifier when writing the code.")
 
 (setf (documentation 'debug-variable-package 'function)
-  "Returns the package name of the debug-variable.  This is the package name of
+  "Return the package name of $debug-variable.  This is the package name of
    the symbol used as an identifier when writing the code.")
 
 (setf (documentation 'debug-variable-id 'function)
-  "Returns the integer that makes debug-variable's name and package name unique
-   with respect to other debug-variable's in the same function.")
-
+  "Return the integer that makes $debug-variable's name and package name
+   unique with respect to other debug-variables in the same function.")
 
 (defstruct (compiled-debug-variable
 	    (:include debug-variable)
@@ -291,7 +389,7 @@
 ;;; Frames
 ;;;
 
-;;; These represents call-frames on the stack.
+;;; These represent call-frames on the stack.
 ;;;
 (defstruct (frame (:constructor nil))
   ;;
@@ -322,17 +420,17 @@
   (number 0 :type index))
 
 (setf (documentation 'frame-up 'function)
-  "Returns the frame immediately above frame on the stack.  When frame is
-   the top of the stack, this returns nil.")
+  "Return the frame immediately above $frame on the stack.  When $frame is
+   the top of the stack, return ().")
 
 (setf (documentation 'frame-debug-function 'function)
-  "Returns the debug-function for the function whose call frame represents.")
+  "Return the debug-function for the function whose call $frame
+   represents.")
 
 (setf (documentation 'frame-code-location 'function)
-  "Returns the code-location where the frame's debug-function will continue
-   running when program execution returns to this frame.  If someone
-   interrupted this frame, the result could be an unknown code-location.")
-
+  "Return the code-location where $frame's debug-function will continue
+   running when program execution returns to this frame.  On interruption
+   of this frame, the result could be an unknown code-location.")
 
 (defstruct (compiled-frame
 	    (:include frame)
@@ -358,7 +456,6 @@
   (format str "#<Compiled-Frame ~S~:[~;, interrupted~]>"
 	  (debug-function-name (frame-debug-function obj))
 	  (compiled-frame-escaped obj)))
-
 
 (defstruct (interpreted-frame
 	    (:include frame)
@@ -416,7 +513,6 @@
 	    (bogus-debug-function "Bogus"))
 	  (debug-function-name obj)))
 
-
 (defstruct (compiled-debug-function
 	    (:include debug-function)
 	    (:constructor %make-compiled-debug-function
@@ -449,7 +545,6 @@
   (or (gethash compiler-debug-fun *compiled-debug-functions*)
       (setf (gethash compiler-debug-fun *compiled-debug-functions*)
 	    (%make-compiled-debug-function compiler-debug-fun component))))
-
 
 (defstruct (interpreted-debug-function
 	    (:include debug-function)
@@ -501,12 +596,17 @@
 	  (debug-block-function-name obj)))
 
 (setf (documentation 'debug-block-successors 'function)
-  "Returns the list of possible code-locations where execution may continue
-   when the basic-block represented by debug-block completes its execution.")
+  "Return the list of possible code-locations where execution may continue
+   when the basic-block represented by debug-block completes its
+   execution.")
 
 (setf (documentation 'debug-block-elsewhere-p 'function)
-  "Returns whether debug-block represents elsewhere code.")
+  "Return whether $debug-block represents elsewhere code.
 
+   This is code the compiler has moved out of a function's code sequence
+   for optimization reasons.  Code-locations in these blocks are unsuitable
+   for stepping tools, and the first code-location has nothing to do with a
+   normal starting location for the block.")
 
 (defstruct (compiled-debug-block (:include debug-block)
 				 (:constructor
@@ -661,14 +761,16 @@
 	      (debug-function (breakpoint-kind obj))))))
 
 (setf (documentation 'breakpoint-hook-function 'function)
-  "Returns the breakpoint's function the system calls when execution encounters
-   the breakpoint, and it is active.  This is SETF'able.")
+  "Return $breakpoint's function the system calls when execution
+   encounters the breakpoint, and it is active.
+
+   This is `setf'able.")
 
 (setf (documentation 'breakpoint-what 'function)
-  "Returns the breakpoint's what specification.")
+  "Return $breakpoint's what specification.")
 
 (setf (documentation 'breakpoint-kind 'function)
-  "Returns the breakpoint's kind specification.")
+  "Return $breakpoint's kind specification.")
 
 ;;;
 ;;; Code-locations.
@@ -713,9 +815,8 @@
 	  (debug-function-name (code-location-debug-function obj))))
 
 (setf (documentation 'code-location-debug-function 'function)
-  "Returns the debug-function representing information about the function
-   corresponding to the code-location.")
-
+  "Return the debug-function representing information about the function
+   corresponding to $code-location.")
 
 (defstruct (compiled-code-location
 	    (:include code-location)
@@ -749,48 +850,103 @@
 ;;; Debug-sources
 ;;;
 
+#[ Debug-sources
+
+Debug-sources represent how to get back the source for some code.  The
+source is either a file (`compile-file' or `load'), a lambda-expression
+(`compile', `defun', `defmacro'), or a stream (`compile-from-stream').
+
+When compiling a source, the compiler counts each top-level form it
+processes, but when the compiler handles multiple files as one block
+compilation, the top-level form count continues past file boundaries.
+Therefore `code-location-top-level-form-offset' returns an offset that does
+not always start at zero for the code-location's debug-source.  The offset
+into a particular source is `code-location-top-level-form-offset' minus
+`debug-source-root-number'.
+
+Inside a top-level form, a code-location's form number indicates the subform
+corresponding to the code-location.
+
+{function:di:debug-source-from}
+{function:di:debug-source-name}
+{function:di:debug-source-created}
+{function:di:debug-source-compiled}
+{function:di:debug-source-root-number}
+]#
+
 (proclaim '(inline debug-source-root-number))
 ;;;
 (defun debug-source-root-number (debug-source)
-  "Returns the number of top-level forms processed by the compiler before
-   compiling this source.  If this source is uncompiled, this is zero.  This
-   may be zero even if the source is compiled since the first form in the first
-   file compiled in one compilation, for example, must have a root number of
-   zero -- the compiler saw no other top-level forms before it."
+  "Return the number of top-level forms processed by the compiler before
+   compiling $debug-source if this is compiled, else zero.
+
+   Return zero even when the source is compiled if the first form in the
+   first file compiled in one compilation (this must have a root number of
+   zero as it was the first top-level form the compiler saw."
   (c::debug-source-source-root debug-source))
 
 (setf (documentation 'c::debug-source-from 'function)
-  "Returns an indication of the type of source.  The following are the possible
-   values:
-      :file    from a file (obtained by COMPILE-FILE if compiled).
-      :lisp    from Lisp (obtained by COMPILE if compiled).
-      :stream  from a non-file stream.")
+  "Return an indication of the type of $source.  The following are the
+   possible values:
+     :file    from a file (obtained by `compile-file' if compiled).
+     :lisp    from Lisp (obtained by `compile' if compiled).
+     :stream  from a stream other than a file.")
 
 (setf (documentation 'c::debug-source-name 'function)
-  "Returns the actual source in some sense represented by debug-source, which
-   is related to DEBUG-SOURCE-FROM:
-      :file    the pathname of the file.
-      :lisp    a lambda-expression.
-      :stream  some descriptive string that's otherwise useless.")
+  "Return the actual source in some sense represented by $debug-source,
+   according to the return from `debug-source-from':
+     :file    the pathname of the file.
+     :lisp    a lambda-expression.
+     :stream  some string describing the stream.")
 
 (setf (documentation 'c::debug-source-created 'function)
-  "Returns the universal time someone created the source.  This may be nil if
-   it is unavailable.")
+  "Return the creation time of the source in universal time if the time is
+   known, else return ().")
 
 (setf (documentation 'c::debug-source-compiled 'function)
-  "Returns the time someone compiled the source.  This is nil if the source
-   is uncompiled.")
+  "Return the compilation time of the source in universal time if the
+   source is compiled, else return ().")
 
 (setf (documentation 'c::debug-source-start-positions 'function)
-  "This function returns the file position of each top-level form as an array
-   if debug-source is from a :file.  If DEBUG-SOURCE-FROM is :lisp or :stream,
-   this returns nil.")
+  "Return the file position of each top-level form as a vector if
+   `debug-source-from' is :file.  If `debug-source-from' is :lisp or
+   :stream, or the file is byte-compiled, then return ().")
 
 (setf (documentation 'c::debug-source-p 'function)
-  "Returns whether object is a debug-source.")
+  "Return true if $object is a debug-source, else ().")
 
 
 ;;;; Frames.
+
+#[ Frames
+
+Frames describe a particular call on the stack for a particular thread.  This
+is the environment for name resolution, getting arguments and locals, and
+returning values.  The stack conceptually grows up, so the top of the stack is
+the most recently called function.
+
+`top-frame', `frame-down', `frame-up', and `frame-debug-function' can only
+fail when there is absolutely no debug information available.  This can
+only happen when someone saved a Lisp image specifying that the system dump
+all debugging data.
+
+{function:di:top-frame}
+{function:di:frame-down}
+{function:di:frame-up}
+{function:di:frame-debug-function}
+{function:di:frame-code-location}
+{function:di:frame-catches}
+{function:di:eval-in-frame}
+]#
+
+#|
+;; FIX Still to be implemented.
+{function:di:return-from-frame}
+This returns the elements in the list \var{values} as multiple values from
+\var{frame} as if the function \var{frame} represents returned these values.
+This signals a \code{no-debug-function-returns} condition when \var{frame}'s
+debug-function lacks information on returning values.
+|#
 
 ;;; This is used in FIND-ESCAPE-FRAME and with the bogus components and LRAs
 ;;; used for :function-end breakpoints.  When a components debug-info slot is
@@ -822,7 +978,6 @@
 (declaim (inline descriptor-sap))
 (defun descriptor-sap (x)
   (system:int-sap (kernel:get-lisp-obj-address x)))
-
 
 (declaim (inline cstack-pointer-valid-p))
 (defun cstack-pointer-valid-p (x)
@@ -965,7 +1120,7 @@
 ;;; TOP-FRAME -- Public.
 ;;;
 (defun top-frame ()
-  "Returns the top frame of the control stack as it was before calling this
+  "Return the top frame of the control stack as it was before calling this
    function."
   (multiple-value-bind (fp pc)
       (kernel:%caller-frame-and-pc)
@@ -978,8 +1133,8 @@
 ;;; FLUSH-FRAMES-ABOVE -- public.
 ;;;
 (defun flush-frames-above (frame)
-  "Flush all of the frames above FRAME, and renumber all the frames below
-   FRAME."
+  "Flush all of the frames above $frame, and renumber all the frames below
+   $frame."
   (setf (frame-up frame) nil)
   (do ((number 0 (1+ number))
        (frame frame (frame-%down frame)))
@@ -992,8 +1147,8 @@
 ;;; COMPUTE-CALLING-FRAME.
 ;;;
 (defun frame-down (frame)
-  "Returns the frame immediately below frame on the stack.  When frame is
-   the bottom of the stack, this returns nil."
+  "Return the frame immediately below frame on the stack.  When frame is
+   the bottom of the stack, return ()."
   (let ((down (frame-%down frame)))
     (if (eq down :unparsed)
 	(let* ((real (frame-real-frame frame))
@@ -1099,7 +1254,6 @@
 	   (setf (kernel:stack-ref pointer stack-slot) value))
 	  (#.vm::lra-save-offset
 	   (setf (sap-ref-sap pointer (- (* (1+ stack-slot) 4))) value))))))
-
 
 (defvar *debugging-interpreter* nil
   "When set, the debugger foregoes making interpreted-frames, so you can
@@ -1574,8 +1728,9 @@
 ;;;
 ;;; This returns a compiled-debug-function for code and pc.  We fetch the
 ;;; c::debug-info and run down its function-map to get a
-;;; c::compiled-debug-function from the pc.  The result only needs to reference
-;;; the component, for function constants, and the c::compiled-debug-function.
+;;; c::compiled-debug-function from the pc.  The result only needs to
+;;; reference the component, for function constants, and the
+;;; c::compiled-debug-function.
 ;;;
 (defun debug-function-from-pc (component pc)
   (let ((info (kernel:%code-debug-info component)))
@@ -1629,9 +1784,9 @@
 ;;; FRAME-CATCHES -- Public.
 ;;;
 (defun frame-catches (frame)
-  "Returns an a-list mapping catch tags to code-locations.  These are
-   code-locations at which execution would continue with frame as the top
-   frame if someone threw to the corresponding tag."
+  "Return an a-list mapping catch tags to code-locations.  These are
+   code-locations at which execution would continue with $frame as the top
+   frame if the corresponding tag was thrown."
   (let ((catch
 	 #-gengc (descriptor-sap lisp::*current-catch-block*)
 	 #+gengc (kernel:mutator-current-catch-block))
@@ -1707,15 +1862,38 @@
 
 ;;;; Debug-functions.
 
+#[ Debug-functions
+
+Debug-functions represent the static information about a function determined at
+compile time --- argument and variable storage, their lifetime information,
+etc.  The debug-function also contains all the debug-blocks representing
+basic-blocks of code, and these contains information about specific
+code-locations in a debug-function.
+
+{function:di:do-debug-function-blocks}
+{function:di:debug-function-lambda-list}
+{function:di:do-debug-function-variables}
+{function:di:debug-variable-info-available}
+{function:di:debug-function-symbol-variables}
+{function:di:ambiguous-debug-variables}
+{function:di:preprocess-for-eval}
+{function:di:function-debug-function}
+{function:di:debug-function-kind}
+{function:di:debug-function-function}
+{function:di:debug-function-name}
+]#
+
 ;;; DO-DEBUG-FUNCTION-BLOCKS -- Public.
 ;;;
 (defmacro do-debug-function-blocks ((block-var debug-function &optional result)
 				    &body body)
-  "Executes the forms in a context with block-var bound to each debug-block in
-   debug-function successively.  Result is an optional form to execute for
-   return values, and DO-DEBUG-FUNCTION-BLOCKS returns nil if there is no
-   result form.  This signals a no-debug-blocks condition when the
-   debug-function lacks debug-block information."
+  "Execute $body in a context with $block-var bound to each debug-block in
+   $debug-function successively.
+
+   Return the value of executing $result.
+
+   Signal a no-debug-blocks condition when the debug-function lacks
+   debug-block information."
   (let ((blocks (gensym))
 	(i (gensym)))
     `(let ((,blocks (debug-function-debug-blocks ,debug-function)))
@@ -1728,9 +1906,12 @@
 ;;;
 (defmacro do-debug-function-variables ((var debug-function &optional result)
 				       &body body)
-  "Executes body in a context with var bound to each debug-variable in
-   debug-function.  This returns the value of executing result (defaults to
-   nil).  This may iterate over only some of debug-function's variables or none
+  "Execute $body in a context with $var bound to each debug-variable in
+   $debug-function.
+
+   Return the value of executing $result.
+
+   This may iterate over only some of $debug-function's variables,
    depending on debug policy; for example, possibly the compilation only
    preserved argument information."
   (let ((vars (gensym))
@@ -1746,9 +1927,9 @@
 ;;; DEBUG-FUNCTION-FUNCTION -- Public.
 ;;;
 (defun debug-function-function (debug-function)
-  "Returns the Common Lisp function associated with the debug-function.  This
-   returns nil if the function is unavailable or is non-existent as a user
-   callable function object."
+  "Return the function associated with $debug-function if the function is
+   defined and available as a user callable function object, else return
+   ()."
   (let ((cached-value (debug-function-%function debug-function)))
     (if (eq cached-value :unparsed)
 	(setf (debug-function-%function debug-function)
@@ -1778,8 +1959,8 @@
 ;;; DEBUG-FUNCTION-NAME -- Public.
 ;;;
 (defun debug-function-name (debug-function)
-  "Returns the name of the function represented by debug-function.  This may
-   be a string or a cons; do not assume it is a symbol."
+  "Return the name of the function represented by $debug-function.  This
+   may be a string, cons or symbol."
   (etypecase debug-function
     (compiled-debug-function
      (c::compiled-debug-function-name
@@ -1792,7 +1973,8 @@
 ;;; FUNCTION-DEBUG-FUNCTION -- Public.
 ;;;
 (defun function-debug-function (fun)
-  "Returns a debug-function that represents debug information for function."
+  "Return a debug-function that represents debug information for function
+   $fun."
   (case (get-type fun)
     (#.vm:closure-header-type
      (function-debug-function (%closure-function fun)))
@@ -1828,8 +2010,22 @@
 ;;; DEBUG-FUNCTION-KIND -- Public.
 ;;;
 (defun debug-function-kind (debug-function)
-  "Returns the kind of the function which is one of :optional, :external,
-   :top-level, :cleanup, nil."
+  "Return the kind of function $debug-function represents.  The value is
+   one of:
+
+     :optional
+         an entry point to an ordinary function.  It handles
+         optional fallbacking, parsing keywords, etc.
+     :external
+         an entry point to an ordinary function.  It checks
+         argument values and count and calls the defined function.
+     :top-level
+         executes one or more random top-level forms
+         from a file.
+     :cleanup
+         represents the cleanup forms in an unwind-protect.
+     ()
+         Any other kind of function."
   (etypecase debug-function
     (compiled-debug-function
      (c::compiled-debug-function-kind
@@ -1842,18 +2038,28 @@
 ;;; DEBUG-VARIABLE-INFO-AVAILABLE -- Public.
 ;;;
 (defun debug-variable-info-available (debug-function)
-  "Returns whether there is any variable information for debug-function."
-  (not (not (debug-function-debug-variables debug-function))))
+  "Return whether there is any variable information for $debug-function.
+
+   This is useful for finding out whether there were locals in a
+   function or whether there was variable information.
+
+   For example, if `do-debug-function-variables' executes its forms zero
+   times, this function can return the reason."
+  (debug-function-debug-variables debug-function))
 
 ;;; DEBUG-FUNCTION-SYMBOL-VARIABLES -- Public.
 ;;;
 (defun debug-function-symbol-variables (debug-function symbol)
-  "Returns a list of debug-variables in debug-function having the same name
-   and package as symbol.  If symbol is uninterned, then this returns a list of
-   debug-variables without package names and with the same name as symbol.  The
-   result of this function is limited to the availability of variable
-   information in debug-function; for example, possibly debug-function only
-   knows about its arguments."
+  "Return a list of debug-variables in $debug-function having the same name
+   and package as $symbol.
+
+   If $symbol is uninterned, then return a
+   list of debug-variables without package names and with the same name as
+   symbol.
+
+   The result of this function is limited to the availability of variable
+   information in $debug-function; for example, possibly $debug-function
+   only knows about its arguments."
   (let ((vars (ambiguous-debug-variables debug-function (symbol-name symbol)))
 	(package (if (symbol-package symbol)
 		     (package-name (symbol-package symbol)))))
@@ -1869,10 +2075,12 @@
 ;;; AMBIGUOUS-DEBUG-VARIABLES -- Public.
 ;;;
 (defun ambiguous-debug-variables (debug-function name-prefix-string)
-   "Returns a list of debug-variables in debug-function whose names contain
-    name-prefix-string as an intial substring.  The result of this function is
-    limited to the availability of variable information in debug-function; for
-    example, possibly debug-function only knows about its arguments."
+  "Return a list of debug-variables in $debug-function, whose names contain
+   $name-prefix-string as an intial substring.
+
+   The result of this function is limited to the availability of variable
+   information in $debug-function; for example, possibly $debug-function
+   only knows about its arguments."
   (declare (simple-string name-prefix-string))
   (let ((variables (debug-function-debug-variables debug-function)))
     (declare (type (or null simple-vector) variables))
@@ -1919,8 +2127,9 @@
 ;;; DEBUG-FUNCTION-LAMBDA-LIST -- Public.
 ;;;
 (defun debug-function-lambda-list (debug-function)
-  "Returns a list representing the lambda-list for debug-function.  The list
-   has the following structure:
+  "Return a list representing the lambda-list for $debug-function.  The
+   list has the following structure:
+
       (required-var1 required-var2
        ...
        (:optional var3 suppliedp-var4)
@@ -1932,16 +2141,17 @@
        (:keyword keyword-symbol var10)
        ...
       )
-   Each VARi is a debug-variable; however it may be the symbol :deleted it
-   is unreferenced in debug-function.  This signals a lambda-list-unavaliable
-   condition when there is no argument list information."
+
+   Each \"vari\" is a debug-variable or the symbol :deleted it is
+   unreferenced in $DEBUG-FUNCTION.  This signals a lambda-list-unavaliable
+   condition if argument list information is missing."
   (etypecase debug-function
     (compiled-debug-function
      (compiled-debug-function-lambda-list debug-function))
     (interpreted-debug-function
      (interpreted-debug-function-lambda-list debug-function))
     (bogus-debug-function
-     nil)))
+     ())))
 
 ;;; INTERPRETED-DEBUG-FUNCTION-LAMBDA-LIST -- Internal.
 ;;;
@@ -2126,7 +2336,6 @@
 (defun compiled-debug-function-debug-info (debug-fun)
   (kernel:%code-debug-info (compiled-debug-function-component debug-fun)))
 
-
 
 ;;;; Unpacking variable and basic block data.
 
@@ -2134,7 +2343,7 @@
   (make-array 20 :adjustable t :fill-pointer t))
 (defvar *other-parsing-buffer*
   (make-array 20 :adjustable t :fill-pointer t))
-;;;
+
 ;;; WITH-PARSING-BUFFER -- Internal.
 ;;;
 ;;; PARSE-DEBUG-BLOCKS, PARSE-DEBUG-VARIABLES and UNCOMPACT-FUNCTION-MAP use
@@ -2220,7 +2429,7 @@
 	 ;; the packed binary representation of the blocks data.
 	 (live-set-len (ceiling var-count 8))
 	 (tlf-number (c::compiled-debug-function-tlf-number debug-fun)))
-    (unless blocks (return-from parse-compiled-debug-blocks nil))
+    (or blocks (return-from parse-compiled-debug-blocks nil))
     (macrolet ((aref+ (a i) `(prog1 (aref ,a ,i) (incf ,i))))
       (with-parsing-buffer (blocks-buffer locations-buffer)
 	(let ((i 0)
@@ -2379,11 +2588,11 @@
 			   (compiled-debug-function-debug-info debug-function)))
 	 (args-minimal (eq (c::compiled-debug-function-arguments debug-fun)
 			   :minimal)))
-    (unless packed-vars
-      (return-from parse-compiled-debug-variables nil))
-    (when (zerop (length packed-vars))
-      ;; Return a simple-vector not whatever packed-vars may be.
-      (return-from parse-compiled-debug-variables '#()))
+    (or packed-vars
+	(return-from parse-compiled-debug-variables nil))
+    (if (zerop (length packed-vars))
+	;; Return a simple-vector not whatever packed-vars may be.
+	(return-from parse-compiled-debug-variables '#()))
     (let ((i 0)
 	  (len (length packed-vars)))
       (with-parsing-buffer (buffer)
@@ -2474,8 +2683,8 @@
 	 (result buf))))
     :return-pc (c::read-var-integer map i)
     :old-fp (c::read-var-integer map i)
-    :nfp (when (logtest flags c::minimal-debug-function-nfp-bit)
-	   (c::read-var-integer map i))
+    :nfp (if (logtest flags c::minimal-debug-function-nfp-bit)
+	     (c::read-var-integer map i))
     :start-pc
     (progn
       (setq code-start-pc (+ code-start-pc (c::read-var-integer map i)))
@@ -2487,7 +2696,7 @@
 
 ;;; UNCOMPACT-FUNCTION-MAP  --  Internal
 ;;;
-;;;    Return a normal function map derived from a minimal debug info function
+;;; Return a normal function map derived from a minimal debug info function
 ;;; map.  This involves looping parsing minimal-debug-functions and then
 ;;; building a vector out of them.
 ;;;
@@ -2518,7 +2727,7 @@
 
 ;;; GET-DEBUG-INFO-FUNCTION-MAP  --  Internal
 ;;;
-;;;    Return a function-map for a given compiled-debug-info object.  If the
+;;; Return a function-map for a given compiled-debug-info object.  If the
 ;;; info is minimal, and has not been parsed, then parse it.
 ;;;
 (defun get-debug-info-function-map (info)
@@ -2533,6 +2742,33 @@
 
 ;;;; Code-locations.
 
+#[ Code-locations
+
+Code-locations represent places in functions where the system has correct
+information about the function's environment and where interesting operations
+can occur --- asking for a local variable's value, setting breakpoints,
+evaluating forms within the function's environment, etc.
+
+Sometimes the interface returns unknown code-locations.  These represent places
+in functions, but there is no debug information associated with them.  Some
+operations accept these since they may succeed even with missing debug data.
+These operations' argument is named basic-code-location indicating they
+take known and unknown code-locations.  If an operation names its argument
+code-location, and you supply an unknown one, it will signal an error.
+For example, frame-code-location may return an unknown code-location if
+someone interrupted Lisp in the given frame.  The system knows where execution
+will continue, but this place in the code may not be a place for which the
+compiler dumped debug information.
+
+{function:di:code-location-debug-function}
+{function:di:code-location-debug-block}
+{function:di:code-location-top-level-form-offset}
+{function:di:code-location-form-number}
+{function:di:code-location-debug-source}
+{function:di:code-location-unknown-p}
+{function:di:code-location=}
+]#
+
 ;;; CODE-LOCATION-UNKNOWN-P -- Public.
 ;;;
 ;;; If we're sure of whether code-location is known, return t or nil.  If we're
@@ -2544,8 +2780,7 @@
 ;;; :unsure part to get the HANDLER-CASE into another function.   FIX?
 ;;;
 (defun code-location-unknown-p (basic-code-location)
-  "Returns whether basic-code-location is unknown.  It returns nil when the
-   code-location is known."
+  "Return () if the code-location is known, else return t."
   (ecase (code-location-%unknown-p basic-code-location)
     ((t) t)
     ((nil) nil)
@@ -2557,9 +2792,10 @@
 ;;; CODE-LOCATION-DEBUG-BLOCK -- Public.
 ;;;
 (defun code-location-debug-block (basic-code-location)
-  "Returns the debug-block containing code-location if it is available.  Some
-   debug policies inhibit debug-block information, and if none is available,
-   then this signals a no-debug-blocks condition."
+  "Return the debug-block containing $basic-code-location if it is
+   available, else signal a no-debug-blocks condition.
+
+   Some debug policies withhold debug-block information."
   (let ((block (code-location-%debug-block basic-code-location)))
     (if (eq block :unparsed)
 	(etypecase basic-code-location
@@ -2625,7 +2861,7 @@
 ;;; CODE-LOCATION-DEBUG-SOURCE -- Public.
 ;;;
 (defun code-location-debug-source (code-location)
-  "Returns the code-location's debug-source."
+  "Return $code-location's debug-source."
   (etypecase code-location
     (compiled-code-location
      (let* ((info (compiled-debug-function-debug-info
@@ -2656,20 +2892,21 @@
 ;;; CODE-LOCATION-TOP-LEVEL-FORM-OFFSET -- Public.
 ;;;
 (defun code-location-top-level-form-offset (code-location)
-  "Returns the number of top-level forms before the one containing
-   code-location as seen by the compiler in some compilation unit.  A
-   compilation unit is not necessarily a single file, see the section on
-   debug-sources."
-  (when (code-location-unknown-p code-location)
-    (error 'unknown-code-location :code-location code-location))
+  "Return the number of top-level forms before the one containing
+   $code-location as seen by the compiler in some compilation unit.
+
+   A compilation unit may be more than a single file, as describe in the
+   section in [FIX] [debug-sources]."
+  (if (code-location-unknown-p code-location)
+      (error 'unknown-code-location :code-location code-location))
   (let ((tlf-offset (code-location-%tlf-offset code-location)))
     (cond ((eq tlf-offset :unparsed)
 	   (etypecase code-location
 	     (compiled-code-location
-	      (unless (fill-in-code-location code-location)
-		;; This check should be unnecessary.  We're missing debug info
-		;; the compiler should have dumped.
-		(error "Unknown code location?  It should be known."))
+	      (or (fill-in-code-location code-location)
+		  ;; This check should be unnecessary.  We're missing debug
+		  ;; info the compiler should have dumped.
+		  (error "Unknown code location?  It should be known."))
 	      (code-location-%tlf-offset code-location))
 	     (interpreted-code-location
 	      (setf (code-location-%tlf-offset code-location)
@@ -2681,19 +2918,22 @@
 ;;; CODE-LOCATION-FORM-NUMBER -- Public.
 ;;;
 (defun code-location-form-number (code-location)
-  "Returns the number of the form corresponding to code-location.  The form
-   number is derived by a walking the subforms of a top-level form in
-   depth-first order."
-  (when (code-location-unknown-p code-location)
-    (error 'unknown-code-location :code-location code-location))
+  "Return the number of the form corresponding to $code-location.
+
+   The form number is derived by walking the subforms of a top-level form
+   in depth-first order.  While walking the top-level form, count one in
+   depth-first order for each subform that is a cons.  Related to
+   `form-number-translations'."
+  (if (code-location-unknown-p code-location)
+      (error 'unknown-code-location :code-location code-location))
   (let ((form-num (code-location-%form-number code-location)))
     (cond ((eq form-num :unparsed)
 	   (etypecase code-location
 	     (compiled-code-location
-	      (unless (fill-in-code-location code-location)
-		;; This check should be unnecessary.  We're missing debug info
-		;; the compiler should have dumped.
-		(error "Unknown code location?  It should be known."))
+	      (or (fill-in-code-location code-location)
+		  ;; This check should be unnecessary.  We're missing debug
+		  ;; info the compiler should have dumped.
+		  (error "Unknown code location?  It should be known."))
 	      (code-location-%form-number code-location))
 	     (interpreted-code-location
 	      (setf (code-location-%form-number code-location)
@@ -2705,12 +2945,12 @@
 ;;; CODE-LOCATION-KIND -- Public
 ;;;
 (defun code-location-kind (code-location)
-  "Return the kind of CODE-LOCATION, one of:
+  "Return the kind of $code-location, one of:
      :interpreted, :unknown-return, :known-return, :internal-error,
      :non-local-exit, :block-start, :call-site, :single-value-return,
      :non-local-entry"
-  (when (code-location-unknown-p code-location)
-    (error 'unknown-code-location :code-location code-location))
+  (if (code-location-unknown-p code-location)
+      (error 'unknown-code-location :code-location code-location))
   (etypecase code-location
     (compiled-code-location
      (let ((kind (compiled-code-location-kind code-location)))
@@ -2744,7 +2984,8 @@
 ;;; CODE-LOCATION= -- Public.
 ;;;
 (defun code-location= (obj1 obj2)
-  "Returns whether obj1 and obj2 are the same place in the code."
+  "Return whether the code-locations $obj1 and $obj2 are the same place in
+   the code."
   (etypecase obj1
     (compiled-code-location
      (etypecase obj2
@@ -2800,12 +3041,22 @@
 
 ;;;; Debug-blocks.
 
+#[ Debug-blocks
+
+Debug-blocks contain information pertinent to a specific range of code in a
+debug-function.
+
+{function:di:do-debug-block-locations}
+{function:di:debug-block-successors}
+{function:di:debug-block-elsewhere-p}
+]#
+
 ;;; DO-DEBUG-BLOCK-LOCATIONS -- Public.
 ;;;
 (defmacro do-debug-block-locations ((code-var debug-block &optional return)
 				    &body body)
-  "Executes forms in a context with code-var bound to each code-location in
-   debug-block.  This returns the value of executing result (defaults to nil)."
+  "Execute $body in a context with $code-var bound to each code-location in
+   $debug-block.  Return the value of executing $result."
   (let ((code-locations (gensym))
 	(i (gensym)))
     `(let ((,code-locations (debug-block-code-locations ,debug-block)))
@@ -2817,14 +3068,14 @@
 ;;; DEBUG-BLOCK-FUNCTION-NAME -- Internal.
 ;;;
 (defun debug-block-function-name (debug-block)
-  "Returns the name of the function represented by debug-function.  This may
-   be a string or a cons; do not assume it is a symbol."
+  "Return the name of the function represented by $debug-function.  This
+   may be a string, cons or symbol."
   (etypecase debug-block
     (compiled-debug-block
      (let ((code-locs (compiled-debug-block-code-locations debug-block)))
        (declare (simple-vector code-locs))
        (if (zerop (length code-locs))
-	   "??? Can't get name of debug-block's function."
+	   "??? Failed to get name of $debug-block's function."
 	   (debug-function-name
 	    (code-location-debug-function (svref code-locs 0))))))
     (interpreted-debug-block
@@ -2860,11 +3111,29 @@
 
 ;;;; Variables.
 
+#[ Debug-variables
+
+Debug-variables represent the constant information about where the system
+stores argument and local variable values.  The system uniquely identifies with
+an integer every instance of a variable with a particular name and package.  To
+access a value, you must supply the frame along with the debug-variable since
+these are particular to a function, not every instance of a variable on the
+stack.
+
+{function:di:debug-variable-name}
+{function:di:debug-variable-package}
+{function:di:debug-variable-symbol}
+{function:di:debug-variable-id}
+{function:di:debug-variable-validity}
+{function:di:debug-variable-value}
+{function:di:debug-variable-valid-value}
+]#
+
 ;;; DEBUG-VARIABLE-SYMBOL -- Public.
 ;;;
 (defun debug-variable-symbol (debug-var)
-  "Returns the symbol from interning DEBUG-VARIABLE-NAME in the package named
-   by DEBUG-VARIABLE-PACKAGE."
+  "Return the symbol from interning `debug-variable-name' of $debug-var in
+   the package named by the `debug-variable-package' of $debug-var."
   (let ((package (debug-variable-package debug-var)))
     (if package
 	(intern (debug-variable-name debug-var) package)
@@ -2873,18 +3142,19 @@
 ;;; DEBUG-VARIABLE-VALID-VALUE -- Public.
 ;;;
 (defun debug-variable-valid-value (debug-var frame)
-  "Returns the value stored for debug-variable in frame.  If the value is not
-   :valid, then this signals an invalid-value error."
-  (unless (eq (debug-variable-validity debug-var (frame-code-location frame))
+  "Return the value stored for debug-variable in $frame if it is valid,
+   else signal an invalid-value error."
+  (or (eq (debug-variable-validity debug-var (frame-code-location frame))
 	      :valid)
-    (error 'invalid-value :debug-variable debug-var :frame frame))
+      (error 'invalid-value :debug-variable debug-var :frame frame))
   (debug-variable-value debug-var frame))
 
 ;;; DEBUG-VARIABLE-VALUE -- Public.
 ;;;
 (defun debug-variable-value (debug-var frame)
-  "Returns the value stored for debug-variable in frame.  The value may be
-   invalid.  This is SETF'able."
+  "Return the value stored for debug-variable in frame.
+
+   This is `setf'able."
   (etypecase debug-var
     (compiled-debug-variable
      (check-type frame compiled-frame)
@@ -3190,7 +3460,6 @@
        (system:sap-ref-sap fp (- (* (1+ (c:sc-offset-offset sc-offset))
 				    vm:word-bytes)))))))
 
-
 ;;; %SET-DEBUG-VARIABLE-VALUE -- Internal.
 ;;;
 ;;; This stores value as the value of debug-var in frame.  In the
@@ -3482,7 +3751,6 @@
 					  vm:word-bytes)))
 	     (the system:system-area-pointer value))))))
 
-
 (defsetf debug-variable-value %set-debug-variable-value)
 
 ;;; INDIRECT-VALUE-CELL-P -- Internal.
@@ -3503,8 +3771,8 @@
 ;;; in the code-location.
 ;;;
 (defun debug-variable-validity (debug-var basic-code-loc)
-  "Returns three values reflecting the validity of debug-variable's value
-   at basic-code-location:
+  "Return three values reflecting the validity of $debug-var's value at
+   $basic-code-location:
       :valid    The value is known to be available.
       :invalid  The value is known to be unavailable.
       :unknown  The value's availability is unknown."
@@ -3522,8 +3790,9 @@
 
 ;;; COMPILED-DEBUG-VARIABLE-VALIDITY -- Internal.
 ;;;
-;;; This is the method for DEBUG-VARIABLE-VALIDITY for compiled-debug-variables.
-;;; For safety, make sure basic-code-loc is what we think.
+;;; This is the method for DEBUG-VARIABLE-VALIDITY for
+;;; compiled-debug-variables.  For safety, make sure basic-code-loc is what
+;;; we think.
 ;;;
 (defun compiled-debug-variable-validity (debug-var basic-code-loc)
   (check-type basic-code-loc compiled-code-location)
@@ -3552,6 +3821,17 @@
 
 
 ;;;; Sources.
+
+#[ Source Translation Utilities
+
+These two functions provide a mechanism for converting the rather obscure
+(but highly compact) representation of source locations into an actual
+source form:
+
+{function:di:debug-source-start-positions}
+{function:di:form-number-translations}
+{function:di:source-path-context}
+]#
 
 ;;; This code produces and uses what we call source-paths.  A source-path is a
 ;;; list whose first element is a form number as returned by
@@ -3584,9 +3864,10 @@
 ;;; last is the top-level-form number.
 ;;;
 (defun form-number-translations (form tlf-number)
-  "This returns a table mapping form numbers to source-paths.  A source-path
+  "Return a table mapping form numbers to source-paths.  A source-path
    indicates a descent into the top-level-form form, going directly to the
-   subform corressponding to the form number."
+   subform corressponding to the form number.  $tlf-number is the
+   top-level-form number of $form."
   (clrhash *form-number-circularity-table*)
   (setf (fill-pointer *form-number-temp*) 0)
   (sub-translate-form-numbers form (list tlf-number))
@@ -3618,11 +3899,11 @@
 ;;; SOURCE-PATH-CONTEXT  --  Public.
 ;;;
 (defun source-path-context (form path context)
-  "Form is a top-level form, and path is a source-path into it.  This
-   returns the form indicated by the source-path.  Context is the number of
+  "$form is a top-level form, and $path is a source-path into it.  Return
+   the form indicated by the source-path.  $context is the number of
    enclosing forms to return instead of directly returning the source-path
-   form.  When context is non-zero, the form returned contains a marker,
-   #:****HERE****, immediately before the form indicated by path."
+   form.  When $context is greater than zero, the form returned contains a
+   marker, #:****HERE****, immediately before the form indicated by path."
   (declare (type unsigned-byte context))
   ;;
   ;; Get to the form indicated by path or the enclosing form indicated by
@@ -3630,8 +3911,8 @@
   (let ((path (reverse (butlast (cdr path)))))
     (dotimes (i (- (length path) context))
       (let ((index (first path)))
-	(unless (and (listp form) (< index (length form)))
-	  (error "Source path no longer exists."))
+	(or (and (listp form) (< index (length form)))
+	    (error "Source path no longer exists."))
 	(setq form (elt form index))
 	(setq path (rest path))))
     ;;
@@ -3646,8 +3927,8 @@
 		       form
 		       `(#:***here*** ,form))
 		   (let ((n (first path)))
-		     (unless (and (listp form) (< n (length form)))
-		       (error "Source path no longer exists."))
+		     (or (and (listp form) (< n (length form)))
+			 (error "Source path no longer exists."))
 		     (let ((res (frob (elt form n) (rest path) (1- level))))
 		       (nconc (subseq form 0 n)
 			      (cons res (nthcdr (1+ n) form))))))))
@@ -3662,28 +3943,36 @@
 ;;; accesses that variable from the frame argument.
 ;;;
 (defun preprocess-for-eval (form loc)
-  "Return a function of one argument that evaluates form in the lexical
-   context of the basic-code-location loc.  PREPROCESS-FOR-EVAL signals a
-   no-debug-variables condition when the loc's debug-function has no
-   debug-variable information available.  The returned function takes the frame
-   to get values from as its argument, and it returns the values of form.
-   The returned function signals the following conditions: invalid-value,
-   ambiguous-variable-name, and frame-function-mismatch"
+  "Return a function of one argument that evaluates $form in the lexical
+   context of the basic-code-location $loc.
+
+   This allows efficient repeated evaluation of $form at a certain place in
+   a function which could be useful for conditional breaking.
+
+   $loc's debug-function must have debug-variable information available,
+   else signal a no-debug-variables condition.
+
+   The returned function takes the frame to get values from as its
+   argument, and returns the values of $FORM.  The returned function
+   signals the following conditions: invalid-value,
+   ambiguous-variable-name, and frame-function-mismatch.
+
+   Related to `eval-in-frame'."
   (declare (type code-location loc))
   (let ((n-frame (gensym))
 	(fun (code-location-debug-function loc)))
-    (unless (debug-variable-info-available fun)
-      (debug-signal 'no-debug-variables :debug-function fun))
+    (or (debug-variable-info-available fun)
+	(debug-signal 'no-debug-variables :debug-function fun))
     (ext:collect ((binds)
 		  (specs))
       (do-debug-function-variables (var fun)
 	(let ((validity (debug-variable-validity var loc)))
-	  (unless (eq validity :invalid)
-	    (let* ((sym (debug-variable-symbol var))
-		   (found (assoc sym (binds))))
-	      (if found
-		  (setf (second found) :ambiguous)
-		  (binds (list sym validity var)))))))
+	  (or (eq validity :invalid)
+	      (let* ((sym (debug-variable-symbol var))
+		     (found (assoc sym (binds))))
+		(if found
+		    (setf (second found) :ambiguous)
+		    (binds (list sym validity var)))))))
       (dolist (bind (binds))
 	(let ((name (first bind))
 	      (var (third bind)))
@@ -3704,21 +3993,43 @@
 	    ;; This prevents these functions from use in any location other
 	    ;; than a function return location, so maybe this should only
 	    ;; check whether frame's debug-function is the same as loc's.
-	    (unless (code-location= (frame-code-location frame) loc)
-	      (debug-signal 'frame-function-mismatch
-			    :code-location loc :form form :frame frame))
+	    (or (code-location= (frame-code-location frame) loc)
+		(debug-signal 'frame-function-mismatch
+			      :code-location loc :form form :frame frame))
 	    (funcall res frame))))))
 
 ;;; EVAL-IN-FRAME  --  Public.
 ;;;
 (defun eval-in-frame (frame form)
   (declare (type frame frame))
-  "Evaluate Form in the lexical context of Frame's current code location,
-   returning the results of the evaluation."
+  "Evaluate $form in the lexical context of $frame's current code location,
+   returning the results of the evaluation.
+
+   Signal several debug-conditions since success relies on a variety of
+   approximate debug information: invalid-value, ambiguous-variable-name,
+   frame-function-mismatch.  Related to `preprocess-for-eval'."
   (funcall (preprocess-for-eval form (frame-code-location frame)) frame))
 
 
 ;;;; Breakpoints.
+
+#[ Breakpoints
+
+A breakpoint represents a function the system calls with the current frame when
+execution passes a certain code-location.  A break point is active or inactive
+independent of its existence.  They also have an extra slot for users to tag
+the breakpoint with information.
+
+{function:di:make-breakpoint}
+{function:di:activate-breakpoint}
+{function:di:deactivate-breakpoint}
+{function:di:breakpoint-active-p}
+{function:di:breakpoint-hook-function}
+{function:di:breakpoint-info}
+{function:di:breakpoint-kind}
+{function:di:breakpoint-what}
+{function:di:delete-breakpoint}
+]#
 
 ;;;
 ;;; User visible interface.
@@ -3726,34 +4037,38 @@
 
 (defun make-breakpoint (hook-function what
 			&key (kind :code-location) info function-end-cookie)
-  "This creates and returns a breakpoint.  When program execution encounters
-   the breakpoint, the system calls hook-function.  Hook-function takes the
+  "Create and return a breakpoint.  When program execution encounters the
+   breakpoint, the system calls $hook-function.  $hook-function takes the
    current frame for the function in which the program is running and the
    breakpoint object.
-      What and kind determine where in a function the system invokes
-   hook-function.  What is either a code-location or a debug-function.  Kind is
-   one of :code-location, :function-start, or :function-end.  Since the starts
-   and ends of functions may not have code-locations representing them,
-   designate these places by supplying what as a debug-function and kind
-   indicating the :function-start or :function-end.  When what is a
-   debug-function and kind is :function-end, then hook-function must take two
-   additional arguments, a list of values returned by the function and a
-   function-end-cookie.
-      Info is information supplied by and used by the user.
-      Function-end-cookie is a function.  To implement :function-end breakpoints,
-   the system uses starter breakpoints to establish the :function-end breakpoint
-   for each invocation of the function.  Upon each entry, the system creates a
-   unique cookie to identify the invocation, and when the user supplies a
-   function for this argument, the system invokes it on the frame and the
-   cookie.  The system later invokes the :function-end breakpoint hook on the
-   same cookie.  The user may save the cookie for comparison in the hook
-   function.
-      This signals an error if what is an unknown code-location."
+
+   $what and $kind determine where in a function the system invokes
+   $hook-function.  $what is either a code-location or a debug-function.
+   $kind is one of :code-location, :function-start, or :function-end.
+   Since the starts and ends of functions may not have code-locations
+   representing them, designate these places by supplying $what as a
+   debug-function and $kind indicating the :function-start or
+   :function-end.  When $what is a debug-function and $kind is
+   :function-end, then $hook-function must take two additional arguments, a
+   list of values returned by the function and a function-end-cookie.
+
+   $info is information supplied by and used by the user.
+
+   $function-end-cookie is a function.  To implement :function-end
+   breakpoints, the system uses starter breakpoints to establish the
+   :function-end breakpoint for each invocation of the function.  Upon each
+   entry, the system creates a unique cookie to identify the invocation,
+   and when the user supplies a function for this argument, the system
+   invokes it on the frame and the cookie.  The system later invokes the
+   :function-end breakpoint hook on the same cookie.  The user may save the
+   cookie for comparison in the hook function.
+
+   Signal an error if $what is an unknown code-location."
   (etypecase what
     (code-location
-     (when (code-location-unknown-p what)
-       (error "Cannot make a breakpoint at an unknown code location -- ~S."
-	      what))
+     (if (code-location-unknown-p what)
+	 (error "Cannot make a breakpoint at an unknown code location -- ~S."
+		what))
      (assert (eq kind :code-location))
      (let ((bpt (%make-breakpoint hook-function what kind info)))
        (etypecase what
@@ -3761,23 +4076,23 @@
 	  (error "Breakpoints in interpreted code are currently unsupported."))
 	 (compiled-code-location
 	  ;; This slot is filled in due to calling CODE-LOCATION-UNKNOWN-P.
-	  (when (eq (compiled-code-location-kind what) :unknown-return)
-	    (let ((other-bpt (%make-breakpoint hook-function what
-					       :unknown-return-partner
-					       info)))
-	      (setf (breakpoint-unknown-return-partner bpt) other-bpt)
-	      (setf (breakpoint-unknown-return-partner other-bpt) bpt)))))
+	  (if (eq (compiled-code-location-kind what) :unknown-return)
+	      (let ((other-bpt (%make-breakpoint hook-function what
+						 :unknown-return-partner
+						 info)))
+		(setf (breakpoint-unknown-return-partner bpt) other-bpt)
+		(setf (breakpoint-unknown-return-partner other-bpt) bpt)))))
        bpt))
     (compiled-debug-function
      (ecase kind
        (:function-start
 	(%make-breakpoint hook-function what kind info))
        (:function-end
-	(unless (eq (c::compiled-debug-function-returns
-		     (compiled-debug-function-compiler-debug-fun what))
-		    :standard)
-	  (error ":FUNCTION-END breakpoints are currently unsupported ~
-		  for the known return convention."))
+	(or (eq (c::compiled-debug-function-returns
+		 (compiled-debug-function-compiler-debug-fun what))
+		:standard)
+	    (error ":FUNCTION-END breakpoints are currently unsupported ~
+		    for the known return convention."))
 
 	(let* ((bpt (%make-breakpoint hook-function what kind info))
 	       (starter (compiled-debug-function-end-starter what)))
@@ -3859,14 +4174,15 @@
 ;;; FUNCTION-END-COOKIE-VALID-P -- Public.
 ;;;
 (defun function-end-cookie-valid-p (frame cookie)
-  "This takes a function-end-cookie and a frame, and it returns whether the
-   cookie is still valid.  A cookie becomes invalid when the frame that
-   established the cookie has exited.  Sometimes cookie holders are unaware
-   of cookie invalidation because their :function-end breakpoint hooks didn't
-   run due to THROW'ing.  This takes a frame as an efficiency hack since the
-   user probably has a frame object in hand when using this routine, and it
-   saves repeated parsing of the stack and consing when asking whether a
-   series of cookies is valid."
+  "Take a function-end-cookie $cookie and a $frame, and return whether the
+   cookie is still valid.
+
+   A cookie is valid until the frame that established the cookie exits.
+   Sometimes cookie holders are unaware of cookie invalidation because
+   their :function-end breakpoint hooks didn't run due to `throw'ing.  Take
+   a frame as an efficiency hack since the user probably has a frame object
+   in hand when using this routine, and it saves repeated parsing of the
+   stack and consing when asking whether a series of cookies is valid."
   (let ((lra (function-end-cookie-bogus-lra cookie))
 	(lra-sc-offset (c::compiled-debug-function-return-pc
 			(compiled-debug-function-compiler-debug-fun
@@ -3888,41 +4204,42 @@
 ;;; ACTIVATE-BREAKPOINT -- Public.
 ;;;
 (defun activate-breakpoint (breakpoint)
-  "This causes the system to invoke the breakpoint's hook-function until the
-   next call to DEACTIVATE-BREAKPOINT or DELETE-BREAKPOINT.  The system invokes
-   breakpoint hook functions in the opposite order that you activate them."
-  (when (eq (breakpoint-status breakpoint) :deleted)
-    (error "Cannot activate a deleted breakpoint -- ~S." breakpoint))
-  (unless (eq (breakpoint-status breakpoint) :active)
-    (ecase (breakpoint-kind breakpoint)
-      (:code-location
-       (let ((loc (breakpoint-what breakpoint)))
-	 (etypecase loc
-	   (interpreted-code-location
-	    (error "Breakpoints in interpreted code are currently unsupported."))
-	   (compiled-code-location
-	    (activate-compiled-code-location-breakpoint breakpoint)
-	    (let ((other (breakpoint-unknown-return-partner breakpoint)))
-	      (when other
-		(activate-compiled-code-location-breakpoint other)))))))
-      (:function-start
-       (etypecase (breakpoint-what breakpoint)
-	 (compiled-debug-function
-	  (activate-compiled-function-start-breakpoint breakpoint))
-	 (interpreted-debug-function
-	  (error "I don't know how you made this, but they're unsupported -- ~S"
-		 (breakpoint-what breakpoint)))))
-      (:function-end
-       (etypecase (breakpoint-what breakpoint)
-	 (compiled-debug-function
-	  (let ((starter (breakpoint-start-helper breakpoint)))
-	    (unless (eq (breakpoint-status starter) :active)
-	      ;; May already be active by some other :function-end breakpoint.
-	      (activate-compiled-function-start-breakpoint starter)))
-	  (setf (breakpoint-status breakpoint) :active))
-	 (interpreted-debug-function
-	  (error "I don't know how you made this, but they're unsupported -- ~S"
-		 (breakpoint-what breakpoint)))))))
+  "Cause the system to invoke the BREAKPOINT's hook-function until the next
+   call to `deactivate-breakpoint' or `delete-breakpoint'.  The system
+   invokes breakpoint hook functions in the opposite order that it
+   activates them."
+  (if (eq (breakpoint-status breakpoint) :deleted)
+      (error "Cannot activate a deleted breakpoint -- ~S." breakpoint))
+  (or (eq (breakpoint-status breakpoint) :active)
+      (ecase (breakpoint-kind breakpoint)
+	(:code-location
+	 (let ((loc (breakpoint-what breakpoint)))
+	   (etypecase loc
+	     (interpreted-code-location
+	      (error "Breakpoints in interpreted code are currently unsupported."))
+	     (compiled-code-location
+	      (activate-compiled-code-location-breakpoint breakpoint)
+	      (let ((other (breakpoint-unknown-return-partner breakpoint)))
+		(if other
+		    (activate-compiled-code-location-breakpoint other)))))))
+	(:function-start
+	 (etypecase (breakpoint-what breakpoint)
+	   (compiled-debug-function
+	    (activate-compiled-function-start-breakpoint breakpoint))
+	   (interpreted-debug-function
+	    (error "I don't know how you made this, but they're unsupported -- ~S"
+		   (breakpoint-what breakpoint)))))
+	(:function-end
+	 (etypecase (breakpoint-what breakpoint)
+	   (compiled-debug-function
+	    (let ((starter (breakpoint-start-helper breakpoint)))
+	      (or (eq (breakpoint-status starter) :active)
+		  ;; May already be active by some other :function-end breakpoint.
+		  (activate-compiled-function-start-breakpoint starter)))
+	    (setf (breakpoint-status breakpoint) :active))
+	   (interpreted-debug-function
+	    (error "I don't know how you made this, but they're unsupported -- ~S"
+		   (breakpoint-what breakpoint)))))))
   breakpoint)
 
 ;;; ACTIVATE-COMPILED-CODE-LOCATION-BREAKPOINT -- Internal.
@@ -3961,7 +4278,7 @@
   (declare (type breakpoint breakpoint)
 	   (type breakpoint-data data))
   (setf (breakpoint-status breakpoint) :active)
-  (system:without-interrupts
+  (system:block-interrupts
    (unless (breakpoint-data-breakpoints data)
      (setf (breakpoint-data-instruction data)
 	   (system:without-gcing
@@ -3979,9 +4296,9 @@
 ;;; DEACTIVATE-BREAKPOINT -- Public.
 ;;;
 (defun deactivate-breakpoint (breakpoint)
-  "This stops the system from invoking the breakpoint's hook-function."
+  "Stop the system from invoking the $breakpoint's hook-function."
   (when (eq (breakpoint-status breakpoint) :active)
-    (system:without-interrupts
+    (system:block-interrupts
      (let ((loc (breakpoint-what breakpoint)))
        (etypecase loc
 	 ((or interpreted-code-location interpreted-debug-function)
@@ -4023,8 +4340,9 @@
 ;;; BREAKPOINT-INFO -- Public.
 ;;;
 (defun breakpoint-info (breakpoint)
-  "This returns the user maintained info associated with breakpoint.  This
-   is SETF'able."
+  "Return the user maintained info associated with $breakpoint.
+
+   This is `setf'able."
   (breakpoint-%info breakpoint))
 ;;;
 (defun %set-breakpoint-info (breakpoint value)
@@ -4042,7 +4360,7 @@
 ;;; BREAKPOINT-ACTIVE-P -- Public.
 ;;;
 (defun breakpoint-active-p (breakpoint)
-  "This returns whether breakpoint is currently active."
+  "Return whether $breakpoint is currently active."
   (ecase (breakpoint-status breakpoint)
     (:active t)
     ((:inactive :deleted) nil)))
@@ -4050,19 +4368,19 @@
 ;;; DELETE-BREAKPOINT -- Public.
 ;;;
 (defun delete-breakpoint (breakpoint)
-  "This frees system storage and removes computational overhead associated with
-   breakpoint.  After calling this, breakpoint is completely impotent and can
-   never become active again."
+  "Free system storage and remove computational overhead associated with
+   breakpoint.  After calling this, breakpoint is completely impotent and
+   can never become active again."
   (let ((status (breakpoint-status breakpoint)))
     (unless (eq status :deleted)
-      (when (eq status :active)
-	(deactivate-breakpoint breakpoint))
+      (if (eq status :active)
+	  (deactivate-breakpoint breakpoint))
       (setf (breakpoint-status breakpoint) :deleted)
       (let ((other (breakpoint-unknown-return-partner breakpoint)))
-	(when other
-	  (setf (breakpoint-status other) :deleted)))
-      (when (eq (breakpoint-kind breakpoint) :function-end)
-	(let* ((starter (breakpoint-start-helper breakpoint))
+	(if other
+	    (setf (breakpoint-status other) :deleted)))
+      (if (eq (breakpoint-kind breakpoint) :function-end)
+	  (let* ((starter (breakpoint-start-helper breakpoint))
 	       (breakpoints (delete breakpoint
 				    (the list (breakpoint-info starter)))))
 	  (setf (breakpoint-info starter) breakpoints)
@@ -4281,10 +4599,10 @@
 ;;; MAKE-BOGUS-LRA -- Interface.
 ;;;
 (defun make-bogus-lra (real-lra &optional known-return-p)
-  "Make a bogus LRA object that signals a breakpoint trap when returned to.  If
-   the breakpoint trap handler returns, REAL-LRA is returned to.  Three values
-   are returned: the bogus LRA object, the code component it is part of, and
-   the PC offset for the trap instruction."
+  "Make a bogus LRA object that signals a breakpoint trap when returned to.
+   If the breakpoint trap handler returns, $real-lra is returned to [FIX]
+   too?.  Return three values: the bogus LRA object, the code component it
+   is part of, and the PC offset for the trap instruction."
   (system:without-gcing
    (let* ((src-start (system:foreign-symbol-address
 		      "function_end_breakpoint_guts"))
@@ -4344,14 +4662,19 @@
 ;;; SET-BREAKPOINT-FOR-EDITOR -- Internal Interface.
 ;;;
 (defun set-breakpoint-for-editor (package name-str path)
-  "The editor calls this remotely in the slave to set breakpoints.  Package is
-   the string name of a package or nil, and name-str is a string representing a
-   function name (for example, \"foo\" or \"(setf foo)\").  After finding
-   package, this READs name-str with *package* bound appropriately.  Path is
-   either a modified source-path or a symbol (:function-start or
-   :function-end).  If it is a modified source-path, it has no top-level-form
-   offset or form-number component, and it is in descent order from the root of
-   the top-level form."
+  "The editor calls this remotely in the slave to set breakpoints.
+
+   $package is the string name of a package or (), and $name-str is a
+   string representing a function name (for example, \"foo\" or \"(setf
+   foo)\").
+
+   After finding package, `read' $name-str with *package* bound
+   appropriately.
+
+   $path is either a modified source-path or a symbol (:function-start or
+   :function-end).  If it is a modified source-path, it has no
+   top-level-form offset or form-number component, and it is in descent
+   order from the root of the top-level form."
   (let* ((name (let ((*package* (if package
 				    (lisp::package-or-lose package)
 				    *package*)))
@@ -4401,12 +4724,12 @@
 	       (sp-ptr (cdr sp) (cdr sp-ptr))
 	       (count 0 (1+ count)))
 	      ((or (null path-ptr) (null sp-ptr))
-	       (when (null sp-ptr)
-		 (maybe-store-match sp count)))
+	       (if (null sp-ptr)
+		   (maybe-store-match sp count)))
 	    (declare (list sp-ptr path-ptr)
 		     (fixnum count))
-	    (unless (= (the fixnum (car path-ptr)) (the fixnum (car sp-ptr)))
-	      (maybe-store-match sp count))))))
+	    (or (= (the fixnum (car path-ptr)) (the fixnum (car sp-ptr)))
+		(maybe-store-match sp count))))))
     ;; If there's just one, set it; otherwise, return the conflict set.
     (cond ((and (= (length matches) 1) (equal path (cdar matches)))
 	   (let* ((bpt (make-breakpoint
@@ -4474,7 +4797,7 @@
 ;;;
 (defun sub-generate-component-source-paths (component)
   (let ((info (kernel:%code-debug-info component)))
-    (unless info (debug-signal 'no-debug-info))
+    (or info (debug-signal 'no-debug-info))
     (let* ((function-map (get-debug-info-function-map info))
 	   (result *source-paths-buffer*))
       (declare (simple-vector function-map)
@@ -4557,8 +4880,8 @@
 	(declare (simple-vector the-real-thing)
 		 (fixnum i count))
 	(dotimes (j count)
-	  (loop (when (wire:remote-object-p (car (aref result (incf i))))
-		  (return)))
+	  (loop (if (wire:remote-object-p (car (aref result (incf i))))
+		    (return)))
 	  (setf (svref the-real-thing j) (aref result i)))
 	the-real-thing))))
 
@@ -4640,9 +4963,9 @@
 ;;; DEBUG-FUNCTION-START-LOCATION -- Public.
 ;;;
 (defun debug-function-start-location (debug-fun)
-  "This returns a code-location before the body of a function and after all
-   the arguments are in place.  If this cannot determine that location due to
-   a lack of debug information, it returns nil."
+  "Return a code-location before the body of $debug-fun and after all the
+   arguments are in place if that location is can be determined, else
+   return nil."
   (etypecase debug-fun
     (compiled-debug-function
      (code-location-from-pc debug-fun
@@ -4657,7 +4980,7 @@
 		       (return-from debug-function-start-location loc)))
        (no-debug-blocks (condx)
 	 (declare (ignore condx))
-	 nil)))))
+	 ())))))
 
 (defun print-code-locations (function)
   (let ((debug-fun (function-debug-function function)))

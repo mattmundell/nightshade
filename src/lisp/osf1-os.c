@@ -62,7 +62,7 @@ os_map(int fd, int offset, os_vm_address_t addr, os_vm_size_t len)
   if((addr=mmap(addr,len,OS_VM_PROT_ALL,MAP_PRIVATE|MAP_FILE|MAP_FIXED,fd,
 		(off_t) offset)) == (os_vm_address_t) -1)
     perror("mmap");
-  
+
   return addr;
 }
 
@@ -110,7 +110,7 @@ sigsegv_handler(int signal, int code, struct sigcontext *context)
     interrupt_handle_now(signal, code, context);
 }
 
-void 
+void
 os_install_interrupt_handlers(void)
 {
   interrupt_install_low_level_handler(SIGSEGV,sigsegv_handler);

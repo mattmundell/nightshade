@@ -1,23 +1,6 @@
-;;; -*- Package: RT -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/rt/array.lisp,v 1.5 1994/10/31 04:57:00 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/assembly/rt/array.lisp,v 1.5 1994/10/31 04:57:00 ram Exp $
-;;;
 ;;; This file contains the support routines for arrays and vectors.
-;;;
-;;; Written by William Lott.
-;;;
 
 (in-package "RT")
-
 
 (define-assembly-routine (allocate-vector
 			  (:policy :fast-safe)
@@ -50,7 +33,6 @@
   (inst tlt ndescr alloc)
   (move result vector))
 
-
 
 ;;;; Hash primitives
 
@@ -69,7 +51,6 @@
   (declare (ignore result accum data temp))
   (inst bx sxhash-simple-substring-entry)
   (loadw length string vm:vector-length-slot vm:other-pointer-type))
-
 
 (define-assembly-routine (sxhash-simple-substring
 			  (:translate %sxhash-simple-substring)

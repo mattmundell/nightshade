@@ -1,18 +1,5 @@
-;;; -*- Package: MIPS -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/mips/array.lisp,v 1.24 1994/10/31 04:56:40 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the support routines for arrays and vectors.
-;;;
-;;; Written by William Lott.
-;;; 
+;;; Support routines for arrays and vectors.
+
 (in-package "MIPS")
 
 #-gengc

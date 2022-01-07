@@ -1,33 +1,19 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/debug.lisp,v 1.26.2.3 2000/07/07 11:04:32 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    Utilities for debugging the compiler.  Currently contains only stuff for
-;;; checking the consistency of the IR1.
-;;; 
-;;; Written by Rob MacLachlan
-;;;
+;;; Utilities for debugging the compiler.  Currently contains only stuff
+;;; for checking the consistency of the IR1.
+
 (in-package "C")
 
 (export '(label-id))
 
-
 (defvar *args* ()
   "This variable is bound to the format arguments when an error is signalled
-  by Barf or Burp.")
+   by Barf or Burp.")
 
 (defvar *ignored-errors* (make-hash-table :test #'equal))
 
 ;;; Barf  --  Interface
 ;;;
-;;;    A definite inconsistency has been detected.  Signal an error with
+;;; A definite inconsistency has been detected.  Signal an error with
 ;;; *args* bound to the list of the format args.
 ;;;
 (defun barf (string &rest *args*)
@@ -42,14 +28,14 @@
 	(setf (gethash string *ignored-errors*) t)))))
 
 (defvar *burp-action* :warn
-  "Action taken by the Burp function when a possible compiler bug is detected.
-  One of :Warn, :Error or :None.")
+  "Action taken by the Burp function when a possible compiler bug is
+   detected.  One of :Warn, :Error or :None.")
 
 (proclaim '(type (member :warn :error :none) *burp-action*))
 
 ;;; Burp  --  Interface
 ;;;
-;;;    Called when something funny but possibly correct is noticed.  Otherwise
+;;; Called when something funny but possibly correct is noticed.  Otherwise
 ;;; similar to Barf.
 ;;;
 (defun burp (string &rest *args*)
@@ -58,7 +44,6 @@
     (:warn (apply #'warn string *args*))
     (:error (apply #'cerror "press on anyway." string *args*))
     (:none)))
-
 
 ;;; *Seen-Blocks* is a hashtable with true values for all blocks which appear
 ;;; in the DFO for one of the specified components.
@@ -70,26 +55,23 @@
 ;;;
 (defvar *seen-functions*)
 
-
 ;;; Check-Node-Reached  --  Internal
 ;;;
-;;;    Barf if Node is in a block which wasn't reached during the graph
-;;; walk.
+;;; Barf if Node is in a block which wasn't reached during the graph walk.
 ;;;
 (defun check-node-reached (node)
   (declare (type node node))
   (unless (gethash (continuation-block (node-prev node)) *seen-blocks*)
     (barf "~S was not reached." node)))
 
-
 ;;; Check-IR1-Consistency  --  Interface
 ;;;
-;;;    Check everything that we can think of for consistency.  When a definite
+;;; Check everything that we can think of for consistency.  When a definite
 ;;; inconsistency is detected, we Barf.  Possible problems just cause us to
 ;;; Burp.  Our argument is a list of components, but we also look at the
 ;;; *free-variables*, *free-functions* and *constants*.
 ;;;
-;;;    First we do a pre-pass which finds all the blocks and lambdas, testing
+;;; First we do a pre-pass which finds all the blocks and lambdas, testing
 ;;; that they are linked together properly and entering them in hashtables.
 ;;; Next, we iterate over the blocks again, looking at the actual code and
 ;;; control flow.  Finally, we scan the global leaf hashtables, looking for
@@ -102,20 +84,20 @@
     (dolist (c components)
       (let* ((head (component-head c))
 	     (tail (component-tail c)))
-	(unless (and (null (block-pred head)) (null (block-succ tail)))
-	  (barf "~S malformed." c))
+	(or (and (null (block-pred head)) (null (block-succ tail)))
+	    (barf "~S malformed." c))
 
 	(do ((prev nil block)
 	     (block head (block-next block)))
 	    ((null block)
-	     (unless (eq prev tail)
-	       (barf "Wrong Tail for DFO, ~S in ~S." prev c)))
+	     (fi (eq prev tail)
+		 (barf "Wrong Tail for DFO, ~S in ~S." prev c)))
 	  (setf (gethash block *seen-blocks*) t)
-	  (unless (eq (block-prev block) prev)
-	    (barf "Bad Prev for ~S, should be ~S." block prev))
-	  (unless (or (eq block tail)
-		      (eq (block-component block) c))
-	    (barf "~S is not in ~S." block c)))
+	  (or (eq (block-prev block) prev)
+	      (barf "Bad Prev for ~S, should be ~S." block prev))
+	  (or (eq block tail)
+	      (eq (block-component block) c)
+	      (barf "~S is not in ~S." block c)))
 #|
 	(when (or (loop-blocks c) (loop-inferiors c))
 	  (do-blocks (block c :both)
@@ -137,11 +119,11 @@
 
     (maphash #'(lambda (k v)
 		 (declare (ignore k))
-		 (unless (or (constant-p v)
-			     (and (global-var-p v)
-				  (member (global-var-kind v)
-					  '(:global :special :constant))))
-		   (barf "Strange *free-variables* entry: ~S." v))
+		 (or (constant-p v)
+		     (and (global-var-p v)
+			  (member (global-var-kind v)
+				  '(:global :special :constant)))
+		     (barf "Strange *free-variables* entry: ~S." v))
 		 (dolist (n (leaf-refs v))
 		   (check-node-reached n))
 		 (when (basic-var-p v)
@@ -151,25 +133,25 @@
 
     (maphash #'(lambda (k v)
 		 (declare (ignore k))
-		 (unless (constant-p v)
-		   (barf "Strange *constants* entry: ~S." v))
+		 (or (constant-p v)
+		     (barf "Strange *constants* entry: ~S." v))
 		 (dolist (n (leaf-refs v))
 		   (check-node-reached n)))
 	     *constants*)
 
     (maphash #'(lambda (k v)
 		 (declare (ignore k))
-		 (unless (or (functional-p v)
-			     (and (global-var-p v)
-				  (eq (global-var-kind v) :global-function)))
-		   (barf "Strange *free-functions* entry: ~S." v))
+		 (or (functional-p v)
+		     (and (global-var-p v)
+			  (eq (global-var-kind v) :global-function))
+		     (barf "Strange *free-functions* entry: ~S." v))
 		 (dolist (n (leaf-refs v))
 		   (check-node-reached n)))
 	     *free-functions*))
   (values))
 
 
-;;;; Function consistency checking:
+;;;; Function consistency checking.
 
 ;;; Observe-Functional  --  Internal
 ;;;
@@ -180,22 +162,20 @@
   (unless (eq (functional-kind x) :deleted)
     (setf (gethash x *seen-functions*) t)))
 
-
 ;;; Check-Function-Reached  --  Internal
 ;;;
-;;;    Check that the specified function has been seen. 
+;;; Check that the specified function has been seen.
 ;;;
 (defun check-function-reached (fun where)
   (declare (type functional fun))
   (unless (gethash fun *seen-functions*)
     (barf "Unseen function ~S in ~S." fun where)))
 
-
 ;;; Check-Function-Stuff  --  Internal
 ;;;
-;;;    In a lambda, check that the associated nodes are in seen blocks.  In an
-;;; optional dispatch, check that the entry points were seen.  If the function
-;;; is deleted, ignore it.
+;;; In a lambda, check that the associated nodes are in seen blocks.  In an
+;;; optional dispatch, check that the entry points were seen.  If the
+;;; function is deleted, ignore it.
 ;;;
 (defun check-function-stuff (functional)
   (ecase (functional-kind functional)
@@ -225,7 +205,7 @@
        (unless (or (member functional (optional-dispatch-entry-points ef))
 		   (eq functional (optional-dispatch-more-entry ef))
 		   (eq functional (optional-dispatch-main-entry ef)))
-	 (barf ":Optional ~S not an e-p for its OPTIONAL-DISPATCH ~S." 
+	 (barf ":Optional ~S not an e-p for its OPTIONAL-DISPATCH ~S."
 	       functional ef))))
     (:top-level
      (unless (eq (functional-entry-function functional) functional)
@@ -238,7 +218,7 @@
 	   (barf "Entry-Function in ~S isn't an XEP: ~S." functional ef)))))
     (:deleted
      (return-from check-function-stuff)))
-  
+
   (case (functional-kind functional)
     ((nil :optional :external :top-level :escape :cleanup)
      (when (lambda-p functional)
@@ -248,14 +228,14 @@
 	 (check-function-reached fun functional))
        (unless (eq (lambda-home functional) functional)
 	 (barf "Home not self-pointer in ~S." functional)))))
-  
+
   (etypecase functional
     (clambda
      (when (lambda-bind functional)
        (check-node-reached (lambda-bind functional)))
      (when (lambda-return functional)
        (check-node-reached (lambda-return functional)))
-     
+
      (dolist (var (lambda-vars functional))
        (dolist (ref (leaf-refs var))
 	 (check-node-reached ref))
@@ -270,7 +250,6 @@
        (when more (check-function-reached more functional)))
      (check-function-reached (optional-dispatch-main-entry functional)
 			     functional))))
-
 
 ;;; Check-Function-Consistency  --  Internal
 ;;;
@@ -298,7 +277,7 @@
 	(check-function-stuff let)))))
 
 
-;;;; Loop consistency checking:
+;;;; Loop consistency checking.
 
 #|
 ;;; Check-Loop-Consistency  --  Internal
@@ -335,7 +314,6 @@
   (dolist (inferior (loop-inferiors loop))
     (check-loop-consistency inferior loop)))
 
-
 ;;; Check-Loop-Block  --  Internal
 ;;;
 ;;;    Check that Block is either in Loop or an inferior.
@@ -351,13 +329,11 @@
 		   (when (walk inferior) (return t))))))
     (unless (walk loop)
       (barf "~S in loop info for ~S but not in the loop." block loop))))
-
 |#
-
 
 ;;; Check-Block-Consistency  --  Internal
 ;;;
-;;;    Check a block for consistency at the general flow-graph level, and call
+;;; Check a block for consistency at the general flow-graph level, and call
 ;;; Check-Node-Consistency on each node to locally check for semantic
 ;;; consistency.
 ;;;
@@ -418,14 +394,14 @@
       (when dest
 	(check-node-reached dest)))
 
-    (loop	
+    (loop
       (unless (eq (continuation-block this-cont) block)
 	(barf "BLOCK in ~S should be ~S." this-cont block))
-      
+
       (let ((dest (continuation-dest this-cont)))
 	(when dest
 	  (check-node-reached dest)))
-      
+
       (let ((node (continuation-next this-cont)))
 	(unless (node-p node)
 	  (barf "~S has strange next." this-cont))
@@ -434,7 +410,7 @@
 
 	(unless fun-deleted
 	  (check-node-consistency node))
-	
+
 	(let ((cont (node-cont node)))
 	  (when (not cont)
 	    (barf "~S has no CONT." node))
@@ -446,13 +422,12 @@
 	  (unless (eq (continuation-use cont) node)
 	    (barf "USE in ~S should be ~S." cont node))
 	  (setq this-cont cont))))
-	
-    (check-block-successors block)))
 
+    (check-block-successors block)))
 
 ;;; Check-Block-Successors  --  Internal
 ;;;
-;;;    Check that Block is properly terminated.  Each successor must be
+;;; Check that Block is properly terminated.  Each successor must be
 ;;; accounted for by the type of the last node.
 ;;;
 (defun check-block-successors (block)
@@ -468,13 +443,13 @@
 	  (barf "Bad successor link ~S in ~S." b block))
 	(unless (eq (block-component b) comp)
 	  (barf "Successor ~S in ~S is in a different component." b block))))
-    
+
     (typecase last
       (cif
        (unless (<= 1 (length succ) 2)
 	 (barf "~S ends in an IF, but doesn't have one or two succesors."
 	       block))
-       (unless (member (if-consequent last) succ) 
+       (unless (member (if-consequent last) succ)
 	 (barf "CONSEQUENT for ~S isn't in SUCC for ~S." last block))
        (unless (member (if-alternative last) succ)
 	 (barf "ALTERNATIVE for ~S isn't in SUCC for ~S." last block)))
@@ -495,11 +470,11 @@
 	       block))))))
 
 
-;;;; Node consistency checking:
+;;;; Node consistency checking.
 
 ;;; Check-Dest  --  Internal
 ;;;
-;;;    Check that the Dest for Cont is the specified Node.  We also mark the
+;;; Check that the Dest for Cont is the specified Node.  We also mark the
 ;;; block Cont is in as Seen.
 ;;;
 (defun check-dest (cont node)
@@ -519,10 +494,9 @@
        (unless (eq (continuation-dest cont) node)
 	 (barf "DEST for ~S should be ~S." cont node))))))
 
-
 ;;; Check-Node-Consistency  --  Internal
 ;;;
-;;;    This function deals with checking for consistency the type-dependent
+;;; This function deals with checking for consistency the type-dependent
 ;;; information in a node.
 ;;;
 (defun check-node-consistency (node)
@@ -590,21 +564,20 @@
 	     (t
 	      (when value
 		(barf "~S has VALUE but no ENTRY." node)))))))
-       
+
   (undefined-value))
 
 
-;;;; IR2 consistency checking:
-
+;;;; IR2 consistency checking.
 
 ;;; Check-TN-Refs  --  Internal
 ;;;
-;;;    Check for some kind of consistency in some Refs linked together by
-;;; TN-Ref-Across.  VOP is the VOP that the references are in.  Write-P is the
-;;; value of Write-P that should be present.  Count is the minimum number of
-;;; operands expected.  If More-P is true, then any larger number will also be
-;;; accepted.  What is a string describing the kind of operand in error
-;;; messages.
+;;; Check for some kind of consistency in some Refs linked together by
+;;; TN-Ref-Across.  VOP is the VOP that the references are in.  Write-P is
+;;; the value of Write-P that should be present.  Count is the minimum
+;;; number of operands expected.  If More-P is true, then any larger number
+;;; will also be accepted.  What is a string describing the kind of operand
+;;; in error messages.
 ;;;
 (defun check-tn-refs (refs vop write-p count more-p what)
   (let ((vop-refs (vop-refs vop)))
@@ -636,13 +609,13 @@
 	  (unless (find-in #'tn-ref-next-ref target vop-refs)
 	    (barf "Target for ~S isn't in Refs for ~S." ref vop)))))))
 
-
 ;;; Check-VOP-Refs  --  Internal
 ;;;
-;;;    Verify the sanity of the VOP-Refs slot in VOP.  This involves checking
-;;; that each referenced TN appears as an argument, result or temp, and also
-;;; basic checks for the plausibility of the specified ordering of the refs.
-;;; 
+;;; Verify the sanity of the VOP-Refs slot in VOP.  This involves checking
+;;; that each referenced TN appears as an argument, result or temp, and
+;;; also basic checks for the plausibility of the specified ordering of the
+;;; refs.
+;;;
 (defun check-vop-refs (vop)
   (declare (type vop vop))
   (do ((ref (vop-refs vop) (tn-ref-next-ref ref)))
@@ -666,13 +639,12 @@
 		tn vop))))))
   (undefined-value))
 
-
 ;;; Check-IR2-Block-Consistency  --  Internal
 ;;;
-;;;    Check the basic sanity of the VOP linkage, then call some other
-;;; functions to check on the TN-Refs.  We grab some info out of the VOP-Info
-;;; to tell us what to expect.
-;;; [### Check that operand type restrictions are met?]
+;;; Check the basic sanity of the VOP linkage, then call some other
+;;; functions to check on the TN-Refs.  We grab some info out of the
+;;; VOP-Info to tell us what to expect.  [### Check that operand type
+;;; restrictions are met?]
 ;;;
 (defun check-ir2-block-consistency (2block)
   (declare (type ir2-block 2block))
@@ -708,14 +680,13 @@
 	(barf "Wrong number of codegen info args in ~S." vop))))
   (undefined-value))
 
-
 ;;; Check-IR2-Consistency  --  Interface
 ;;;
-;;;    Check stuff about the IR2 representation of Component.  This assumes the
-;;; sanity of the basic flow graph.
+;;; Check stuff about the IR2 representation of Component.  This assumes
+;;; the sanity of the basic flow graph.
 ;;;
-;;; [### Also grovel global TN data structures?  Assume pack not
-;;; done yet?  Have separate check-tn-consistency for pre-pack and
+;;; [### Also grovel global TN data structures?  Assume pack not done yet?
+;;; Have separate check-tn-consistency for pre-pack and
 ;;; check-pack-consistency for post-pack?]
 ;;;
 (defun check-ir2-consistency (component)
@@ -725,11 +696,11 @@
   (undefined-value))
 
 
-;;;; Lifetime analysis checking:
+;;;; Lifetime analysis checking.
 
 ;;; Pre-Pack-TN-Stats  --  Interface
 ;;;
-;;;    Dump some info about how many TNs there, and what the conflicts data
+;;; Dump some info about how many TNs there, and what the conflicts data
 ;;; structures are like.
 ;;;
 (defun pre-pack-tn-stats (component &optional (stream *compiler-error-output*))
@@ -780,10 +751,9 @@
        confs))
   (undefined-value))
 
-
 ;;; Check-More-TN-Entry  --  Internal
 ;;;
-;;;    If the entry in Local-TNs for TN in Block is :More, then do some checks
+;;; If the entry in Local-TNs for TN in Block is :More, then do some checks
 ;;; for the validity of the usage.
 ;;;
 (defun check-more-tn-entry (tn block)
@@ -798,7 +768,6 @@
 		       (frob template-more-results-type vop-results)))
 	(barf "Strange :More LTN entry for ~S in ~S." tn block))))
   (undefined-value))
-
 
 ;;; Check-TN-Conflicts  --  Internal
 ;;;
@@ -859,7 +828,6 @@
 		    tn))))))))
   (undefined-value))
 
-
 ;;; Check-Block-Conflicts  --  Internal
 ;;;
 (defun check-block-conflicts (component)
@@ -872,13 +840,13 @@
 	(unless (> (tn-number (global-conflicts-tn conf))
 		   (tn-number (global-conflicts-tn prev)))
 	  (barf "~S and ~S out of order in ~S." prev conf block)))
-      
+
       (unless (find-in #'global-conflicts-tn-next
 		       conf
 		       (tn-global-conflicts
 			(global-conflicts-tn conf)))
 	(barf "~S missing from global conflicts of its TN." conf)))
-    
+
     (let ((map (ir2-block-local-tns block)))
       (dotimes (i (ir2-block-local-tn-count block))
 	(let ((tn (svref map i)))
@@ -888,13 +856,12 @@
 		      (eq (tn-local tn) block))
 	    (barf "Strange TN ~S in LTN map for ~S." tn block)))))))
 
-
 ;;; Check-Environment-Lifetimes  --  Internal
 ;;;
-;;;    All TNs live at the beginning of an environment must be passing
-;;; locations associated with that environment.  We make an exception for wired
-;;; TNs in XEP functions, since we randomly reference wired TNs to access the
-;;; full call passing locations.
+;;; All TNs live at the beginning of an environment must be passing
+;;; locations associated with that environment.  We make an exception for
+;;; wired TNs in XEP functions, since we randomly reference wired TNs to
+;;; access the full call passing locations.
 ;;;
 (defun check-environment-lifetimes (component)
   (dolist (fun (component-lambdas component))
@@ -923,11 +890,10 @@
 	    (barf "Strange TN live at head of ~S: ~S." env tn))))))
   (undefined-value))
 
-
 ;;; Check-Life-Consistency  --  Interface
 ;;;
-;;;    Check for some basic sanity in the TN conflict data structures, and also
-;;; check that no TNs are unexpectedly live at environment entry.
+;;; Check for some basic sanity in the TN conflict data structures, and
+;;; also check that no TNs are unexpectedly live at environment entry.
 ;;;
 (defun check-life-consistency (component)
   (check-tn-conflicts component)
@@ -935,7 +901,7 @@
   (check-environment-lifetimes component))
 
 
-;;;; Pack consistency checking:
+;;;; Pack consistency checking.
 
 ;;; CHECK-PACK-CONSISTENCY  --  Interface
 ;;;
@@ -960,14 +926,14 @@
   (undefined-value))
 
 
-;;;; Data structure dumping routines:
+;;;; Data structure dumping routines.
 
 ;;; Continuation-Number, Number-Continuation, ID-TN, TN-ID  --  Interface
 ;;;
-;;;    When we print Continuations and TNs, we assign them small numeric IDs so
-;;; that we can get a handle on anonymous objects given a printout. Note that
-;;; the variables are bound by the with-debug-counters macro which needs to be
-;;; consistent with the definitions here.
+;;; When we print Continuations and TNs, we assign them small numeric IDs
+;;; so that we can get a handle on anonymous objects given a printout. Note
+;;; that the variables are bound by the with-debug-counters macro which
+;;; needs to be consistent with the definitions here.
 ;;;
 (macrolet ((frob (counter vto vfrom fto ffrom)
 	     `(progn
@@ -976,13 +942,13 @@
 		(proclaim '(hash-table ,vto ,vfrom))
 		(defvar ,counter 0)
 		(proclaim '(fixnum ,counter))
-		
+
 		(defun ,fto (x)
 		  (or (gethash x ,vto)
 		      (let ((num (incf ,counter)))
 			(setf (gethash num ,vfrom) x)
 			(setf (gethash x ,vto) num))))
-		
+
 		(defun ,ffrom (num)
 		  (values (gethash num ,vfrom))))))
   (frob *continuation-number*
@@ -997,7 +963,7 @@
 
 ;;; Print-Leaf  --  Internal
 ;;;
-;;;    Print out a terse one-line description of a leaf.
+;;; Print out a terse one-line description of a leaf.
 ;;;
 (defun print-leaf (leaf &optional (stream *standard-output*))
   (declare (type leaf leaf) (type stream stream))
@@ -1021,7 +987,7 @@
 
 ;;; Block-Or-Lose  --  Interface
 ;;;
-;;;    Attempt to find a block given some thing that has to do with it.
+;;; Attempt to find a block given some thing that has to do with it.
 ;;;
 (defun block-or-lose (thing)
   (declare (values cblock))
@@ -1039,7 +1005,6 @@
     (null (error "Bad thing: ~S." thing))
     (symbol (block-or-lose (gethash thing *free-functions*)))))
 
-
 ;;; Print-Continuation  --  Internal
 ;;;
 ;;;    Print cN.
@@ -1049,11 +1014,10 @@
   (format t " c~D" (cont-num cont))
   (undefined-value))
 
-
 ;;; Print-Nodes  --  Interface
 ;;;
-;;;    Print out the nodes in Block in a format oriented toward representing
-;;; what the code does. 
+;;; Print out the nodes in Block in a format oriented toward representing
+;;; what the code does.
 ;;;
 (defun print-nodes (block)
   (setq block (block-or-lose block))
@@ -1109,10 +1073,9 @@
 	    (mapcar #'(lambda (x) (cont-num (block-start x))) succ)))
   (values))
 
-
 ;;; Print-TN  --  Internal
 ;;;
-;;;    Print a useful representation of a TN.  If the TN has a leaf, then do a
+;;; Print a useful representation of a TN.  If the TN has a leaf, then do a
 ;;; Print-Leaf on that, otherwise print a generated ID.
 ;;;
 (defun print-tn (tn &optional (stream *standard-output*))
@@ -1126,10 +1089,9 @@
     (when (and (tn-sc tn) (tn-offset tn))
       (format stream "[~A]" (location-print-name tn)))))
 
-
 ;;; Print-Operands  --  Internal
 ;;;
-;;;    Print the TN-Refs representing some operands to a VOP, linked by
+;;; Print the TN-Refs representing some operands to a VOP, linked by
 ;;; TN-Ref-Across.
 ;;;
 (defun print-operands (refs)
@@ -1148,8 +1110,7 @@
 	(princ #\space)
 	(pprint-newline :fill)))))
 
-
-;;; Print-Vop -- internal
+;;; Print-Vop -- internal    FIX Interface (used in codegen)
 ;;;
 ;;; Print the vop, putting args, info and results on separate lines, if
 ;;; necessary.
@@ -1174,7 +1135,7 @@
 
 ;;; Print-IR2-Block  --  Internal
 ;;;
-;;;    Print the VOPs in the specified IR2 block.
+;;; Print the VOPs in the specified IR2 block.
 ;;;
 (defun print-ir2-block (block)
   (declare (type ir2-block block))
@@ -1195,10 +1156,9 @@
     (format t "~D: " number)
     (print-vop vop)))
 
-
 ;;; Print-VOPs  --  Interface
 ;;;
-;;;    Like Print-Nodes, but dumps the IR2 representation of the code in Block.
+;;; Like Print-Nodes, but dumps the IR2 representation of the code in Block.
 ;;;
 (defun print-vops (block)
   (setq block (block-or-lose block))
@@ -1209,20 +1169,18 @@
       (print-ir2-block b)))
   (values))
 
-
 ;;; Print-IR2-Blocks  --  Interface
 ;;;
-;;;    Scan the IR2 blocks in emission order.
+;;; Scan the IR2 blocks in emission order.
 ;;;
 (defun print-ir2-blocks (thing)
   (do-ir2-blocks (block (block-component (block-or-lose thing)))
     (print-ir2-block block))
   (values))
 
-
 ;;; Print-Blocks  --  Interface
 ;;;
-;;;    Do a Print-Nodes on Block and all blocks reachable from it by successor
+;;; Do a Print-Nodes on Block and all blocks reachable from it by successor
 ;;; links.
 ;;;
 (defun print-blocks (block)
@@ -1239,10 +1197,9 @@
     (walk block))
   (values))
 
-
 ;;; Print-All-Blocks  --  Interface
 ;;;
-;;;    Print all blocks in Block's component in DFO.
+;;; Print all blocks in Block's component in DFO.
 ;;;
 (defun print-all-blocks (thing)
   (do-blocks (block (block-component (block-or-lose thing)))
@@ -1251,12 +1208,11 @@
         (format t "~&~A...~%" condition))))
   (values))
 
-
 (defvar *list-conflicts-table*)
 
 ;;; Add-Always-Live-TNs  --  Internal
 ;;;
-;;;    Add all Always-Live TNs in Block to the conflicts.  TN is ignored when
+;;; Add all Always-Live TNs in Block to the conflicts.  TN is ignored when
 ;;; it appears in the global conflicts.
 ;;;
 (defun add-always-live-tns (block tn)
@@ -1270,10 +1226,9 @@
 	  (setf (gethash btn *list-conflicts-table*) t)))))
   (undefined-value))
 
-
 ;;; Add-All-Local-TNs  --  Internal
 ;;;
-;;;    Add all local TNs in block to the conflicts.
+;;; Add all local TNs in block to the conflicts.
 ;;;
 (defun add-all-local-tns (block)
   (declare (type ir2-block block))
@@ -1282,10 +1237,9 @@
       (setf (gethash (svref ltns i) *list-conflicts-table*) t)))
   (undefined-value))
 
-
 ;;; Listify-Conflicts-Table  --  Internal
 ;;;
-;;;    Make a list out of all of the recorded conflicts.
+;;; Make a list out of all of the recorded conflicts.
 ;;;
 (defun listify-conflicts-table ()
   (collect ((res))
@@ -1295,13 +1249,12 @@
 		   (res k)))
 	     *list-conflicts-table*)
     (res)))
-  
 
 ;;;  List-Conflicts  --  Interface
 ;;;
 (defun list-conflicts (tn)
   "Return a list of a the TNs that conflict with TN.  Sort of, kind of.  For
-  debugging use only.  Probably doesn't work on :COMPONENT TNs."
+   debugging use only.  Probably doesn't work on :COMPONENT TNs."
   (assert (member (tn-kind tn) '(:normal :environment :debug-environment)))
   (let ((confs (tn-global-conflicts tn)))
     (cond (confs
@@ -1338,7 +1291,6 @@
 			   (/= (sbit confs (global-conflicts-number gtn)) 0))
 		   (res (global-conflicts-tn gtn))))
 	       (res)))))))
-
 
 ;;; Nth-VOP  --  Interface
 ;;;

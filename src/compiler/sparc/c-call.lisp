@@ -1,20 +1,8 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/sparc/c-call.lisp,v 1.11.2.2 1998/07/12 21:51:45 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the VOPs and other necessary machine specific support
-;;; routines for call-out to C.
-;;;
-;;; Written by William Lott.
-;;;
+;;; The VOPs and other necessary machine specific support routines for
+;;; call-out to C.
+
 (in-package "SPARC")
+
 (use-package "ALIEN")
 (use-package "ALIEN-INTERNALS")
 
@@ -53,7 +41,7 @@
   (if (alien-integer-type-signed type)
       (my-make-wired-tn 'signed-byte-32 'signed-reg nl0-offset)
       (my-make-wired-tn 'unsigned-byte-32 'unsigned-reg nl0-offset)))
-  
+
 (def-alien-type-method (system-area-pointer :result-tn) (type)
   (declare (ignore type))
   (my-make-wired-tn 'system-area-pointer 'sap-reg nl0-offset))
@@ -75,7 +63,6 @@
   (mapcar #'(lambda (type)
 	      (invoke-alien-type-method :result-tn type))
 	  (alien-values-type-values type)))
-
 
 (def-vm-support-routine make-call-out-tns (type)
   (declare (type alien-function-type type))
@@ -133,7 +120,6 @@
 			     ,@(new-args))))
 	(c::give-up))))
 
-
 (define-vop (foreign-symbol-address)
   (:translate foreign-symbol-address)
   (:policy :fast-safe)
@@ -168,7 +154,6 @@
       (inst nop)
       (when cur-nfp
 	(load-stack-tn cur-nfp nfp-save)))))
-
 
 (define-vop (alloc-number-stack-space)
   (:info amount)

@@ -2,52 +2,78 @@
 
 (in-package "EDI")
 
-(export '(make-hemlock-output-stream
-	  hemlock-region-stream hemlock-region-stream-p
-	  hemlock-output-stream make-hemlock-region-stream
-	  hemlock-output-stream-p make-kbdmac-stream
+(export '(make-editor-output-stream
+	  editor-region-stream editor-region-stream-p
+	  editor-output-stream make-editor-region-stream
+	  editor-output-stream-p make-kbdmac-stream
 	  modify-kbdmac-stream))
 
+#[ Editor Streams
 
-(defstruct (hemlock-output-stream
+It is possible to create streams which output to or get input from a buffer.
+This mechanism is quite powerful and permits easy interfacing of the editor to
+Lisp.
+
+{function:ed:make-editor-output-stream}
+{function:ed:editor-output-stream-p}
+{function:ed:make-editor-region-stream}
+{function:ed:editor-region-stream-p}
+{function:ed:with-input-from-region}
+{function:ed:with-output-to-mark}
+{function:ed:with-pop-up-display}
+]#
+
+(defstruct (editor-output-stream
 	    (:include sys:lisp-stream
-		      (:misc #'hemlock-output-misc))
-	    (:print-function %print-hemlock-output-stream)
-	    (:constructor internal-make-hemlock-output-stream ()))
+		      (:misc #'editor-output-misc))
+	    (:print-function %print-editor-output-stream)
+	    (:constructor internal-make-editor-output-stream ()))
+  "FIX"
   ;;
   ;; The mark at which the stream inserts.
   mark)
 
-(defun %print-hemlock-output-stream (s stream d)
+(setf (documentation 'editor-output-stream-p 'function)
+  "Return t if x is an editor-output-stream.")
+
+(defun %print-editor-output-stream (s stream d)
   (declare (ignore d s))
-  (write-string "#<Hemlock output stream>" stream))
+  (write-string "#<Editor output stream>" stream))
 
-(defun make-hemlock-output-stream (mark &optional (buffered :line))
-  "Returns an output stream whose output will be inserted at the Mark.
-   Buffered, which indicates to what extent the stream may be buffered
-   is one of the following:
-   :None  -- The screen is brought up to date after each stream operation.
-   :Line  -- The screen is brought up to date when a newline is written.
-   :Full  -- The screen is not updated except explicitly via Force-Output."
-  (modify-hemlock-output-stream (internal-make-hemlock-output-stream)
-				mark
-                                buffered))
+(defun make-editor-output-stream (mark &optional (buffered :line))
+  "Return a stream that inserts at the permanent mark $mark all output
+   directed to it.  $Buffered controls whether the stream is buffered.  Its
+   valid values are:
 
-(defun modify-hemlock-output-stream (stream mark buffered)
+     :none
+	Write characters to the screen immediately.
+
+     :line
+	The buffer is flushed whenever a newline is written or when it is
+	explicitly done with `force-output'.
+
+     :full
+	The screen is only brought up to date when it is explicitly done
+	with `force-output'."
+  (modify-editor-output-stream (internal-make-editor-output-stream)
+			       mark
+			       buffered))
+
+(defun modify-editor-output-stream (stream mark buffered)
   (or (and (markp mark)
 	   (memq (mark-kind mark) '(:right-inserting :left-inserting)))
       (error "~S is a temporary mark." mark))
-  (setf (hemlock-output-stream-mark stream) mark)
+  (setf (editor-output-stream-mark stream) mark)
   (case buffered
     (:none
-     (setf (lisp::lisp-stream-out stream) #'hemlock-output-unbuffered-out
-	   (lisp::lisp-stream-sout stream) #'hemlock-output-unbuffered-sout))
+     (setf (lisp::lisp-stream-out stream) #'editor-output-unbuffered-out
+	   (lisp::lisp-stream-sout stream) #'editor-output-unbuffered-sout))
     (:line
-     (setf (lisp::lisp-stream-out stream) #'hemlock-output-line-buffered-out
-	   (lisp::lisp-stream-sout stream) #'hemlock-output-line-buffered-sout))
+     (setf (lisp::lisp-stream-out stream) #'editor-output-line-buffered-out
+	   (lisp::lisp-stream-sout stream) #'editor-output-line-buffered-sout))
     (:full
-     (setf (lisp::lisp-stream-out stream) #'hemlock-output-buffered-out
-	   (lisp::lisp-stream-sout stream) #'hemlock-output-buffered-sout))
+     (setf (lisp::lisp-stream-out stream) #'editor-output-buffered-out
+	   (lisp::lisp-stream-sout stream) #'editor-output-buffered-sout))
     (t
      (error "~S is a losing value for Buffered." buffered)))
   stream)
@@ -64,64 +90,66 @@
 	 (when ,change
 	   (setf (mark-kind ,var) :right-inserting))))))
 
-(defun hemlock-output-unbuffered-out (stream character)
-  (with-left-inserting-mark (mark (hemlock-output-stream-mark stream))
+(defun editor-output-unbuffered-out (stream character)
+  (with-left-inserting-mark (mark (editor-output-stream-mark stream))
     (insert-character mark character)
     (redisplay-windows-from-mark mark)))
 
-(defun hemlock-output-unbuffered-sout (stream string start end)
-  (with-left-inserting-mark (mark (hemlock-output-stream-mark stream))
+(defun editor-output-unbuffered-sout (stream string start end)
+  (with-left-inserting-mark (mark (editor-output-stream-mark stream))
     (insert-string mark string start end)
     (redisplay-windows-from-mark mark)))
 
-(defun hemlock-output-buffered-out (stream character)
-  (with-left-inserting-mark (mark (hemlock-output-stream-mark stream))
+(defun editor-output-buffered-out (stream character)
+  (with-left-inserting-mark (mark (editor-output-stream-mark stream))
     (insert-character mark character)))
 
-(defun hemlock-output-buffered-sout (stream string start end)
-  (with-left-inserting-mark (mark (hemlock-output-stream-mark stream))
+(defun editor-output-buffered-sout (stream string start end)
+  (with-left-inserting-mark (mark (editor-output-stream-mark stream))
     (insert-string mark string start end)))
 
-(defun hemlock-output-line-buffered-out (stream character)
-  (with-left-inserting-mark (mark (hemlock-output-stream-mark stream))
+(defun editor-output-line-buffered-out (stream character)
+  (with-left-inserting-mark (mark (editor-output-stream-mark stream))
     (insert-character mark character)
     (when (char= character #\newline)
       (redisplay-windows-from-mark mark))))
 
-(defun hemlock-output-line-buffered-sout (stream string start end)
+(defun editor-output-line-buffered-sout (stream string start end)
   (declare (simple-string string))
-  (with-left-inserting-mark (mark (hemlock-output-stream-mark stream))
+  (with-left-inserting-mark (mark (editor-output-stream-mark stream))
     (insert-string mark string start end)
     (when (find #\newline string :start start :end end)
       (redisplay-windows-from-mark mark))))
 
-(defun hemlock-output-misc (stream operation &optional arg1 arg2)
+(defun editor-output-misc (stream operation &optional arg1 arg2)
   (declare (ignore arg1 arg2))
   (case operation
-    (:charpos (mark-charpos (hemlock-output-stream-mark stream)))
+    (:charpos (mark-charpos (editor-output-stream-mark stream)))
     (:line-length
-     (let* ((buffer (line-buffer (mark-line (hemlock-output-stream-mark stream)))))
+     (let* ((buffer (line-buffer (mark-line (editor-output-stream-mark stream)))))
        (when buffer
 	 (do ((w (buffer-windows buffer) (cdr w))
 	      (min most-positive-fixnum (min (window-width (car w)) min)))
 	     ((null w)
 	      (if (/= min most-positive-fixnum) min))))))
     (:file-position
-     (let ((mark (hemlock-output-stream-mark stream)))
+     (let ((mark (editor-output-stream-mark stream)))
        (count-characters (region (buffer-start-mark
 				  (line-buffer (mark-line mark)))
 				 mark))))
     ((:finish-output :force-output)
-     (redisplay-windows-from-mark (hemlock-output-stream-mark stream)))
-    (:close (setf (hemlock-output-stream-mark stream) nil))
+     (redisplay-windows-from-mark (editor-output-stream-mark stream)))
+    (:close (setf (editor-output-stream-mark stream) nil))
     (:element-type 'base-char)))
+
 
-(defstruct (hemlock-region-stream
+(defstruct (editor-region-stream
 	    (:include sys:lisp-stream
 		      (:in #'region-in)
 		      (:misc #'region-misc))
 	    (:print-function %print-region-stream)
-	    (:constructor internal-make-hemlock-region-stream (region mark)))
+	    (:constructor internal-make-editor-region-stream (region mark)))
+  "FIX"
   ;;
   ;; The region read.
   region
@@ -129,19 +157,21 @@
   ;; The mark pointing to the next character to read.
   mark)
 
+(setf (documentation 'editor-region-stream-p 'function)
+  "Return t if x is an editor-region-stream.")
+
 (defun %print-region-stream (s stream d)
   (declare (ignore s d))
-  (write-string "#<Hemlock region stream>" stream))
+  (write-string "#<Editor region stream>" stream))
 
-(defun make-hemlock-region-stream (region)
-  "Returns an input stream that will return successive characters from the
-   given Region when asked for input."
-  (internal-make-hemlock-region-stream
+(defun make-editor-region-stream (region)
+  "Return an input stream from which the text in $region can be read."
+  (internal-make-editor-region-stream
    region (copy-mark (region-start region) :right-inserting)))
 
-(defun modify-hemlock-region-stream (stream region)
-  (setf (hemlock-region-stream-region stream) region)
-  (let* ((mark (hemlock-region-stream-mark stream))
+(defun modify-editor-region-stream (stream region)
+  (setf (editor-region-stream-region stream) region)
+  (let* ((mark (editor-region-stream-mark stream))
 	 (start (region-start region))
 	 (start-line (mark-line start)))
     ;; Make sure it's dead.
@@ -151,9 +181,9 @@
   stream)
 
 (defun region-in (stream eof-errorp eof-value)
-  (let ((mark (hemlock-region-stream-mark stream)))
+  (let ((mark (editor-region-stream-mark stream)))
     (cond ((mark< mark
-		  (region-end (hemlock-region-stream-region stream)))
+		  (region-end (editor-region-stream-region stream)))
 	   (prog1 (next-character mark) (mark-after mark)))
 	  (eof-errorp (error "~A hit end of file." stream))
 	  (t eof-value))))
@@ -161,31 +191,32 @@
 (defun region-misc (stream operation &optional arg1 arg2)
   (declare (ignore arg2))
   (case operation
-    (:listen (mark< (hemlock-region-stream-mark stream)
-		    (region-end (hemlock-region-stream-region stream))))
+    (:listen (mark< (editor-region-stream-mark stream)
+		    (region-end (editor-region-stream-region stream))))
     (:clear-input (move-mark
-                   (hemlock-region-stream-mark stream)
-                   (region-end (hemlock-region-stream-region stream))))
+                   (editor-region-stream-mark stream)
+                   (region-end (editor-region-stream-region stream))))
     (:unread
-     (let ((mark (hemlock-region-stream-mark stream)))
+     (let ((mark (editor-region-stream-mark stream)))
        (unless (mark> mark
-		      (region-start (hemlock-region-stream-region stream)))
+		      (region-start (editor-region-stream-region stream)))
 	 (error "Nothing to unread."))
        (unless (char= arg1 (previous-character mark))
 	 (error "Unreading something not read: ~S" arg1))
        (mark-before mark)))
     (:file-position
-     (let ((start (region-start (hemlock-region-stream-region stream)))
-	   (mark (hemlock-region-stream-mark stream)))
+     (let ((start (region-start (editor-region-stream-region stream)))
+	   (mark (editor-region-stream-mark stream)))
        (cond (arg1
 	      (move-mark mark start)
 	      (character-offset mark arg1))
 	     (t
 	      (count-characters (region start mark))))))
     (:close
-     (delete-mark (hemlock-region-stream-mark stream))
-     (setf (hemlock-region-stream-region stream) nil))
+     (delete-mark (editor-region-stream-mark stream))
+     (setf (editor-region-stream-region stream) nil))
     (:element-type 'base-char)))
+
 
 ;;;; Stuff to support keyboard macros.
 
@@ -217,7 +248,7 @@
 
 ;;; MODIFY-KBDMAC-STREAM  --  Internal
 ;;;
-;;;    Bash the kbdmac-stream Stream so that it will return the Input.
+;;; Bash the kbdmac-stream Stream so that it will return the Input.
 ;;;
 (defun modify-kbdmac-stream (stream input)
   (setf (kbdmac-stream-index stream) 0)

@@ -1,57 +1,76 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/codegen.lisp,v 1.23 1994/10/31 04:27:28 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    The implementation-independent parts of the code generator.  We use
-;;; functions and information provided by the VM definition to convert IR2 into
-;;; assembly code.  After emitting code, we finish the assembly and then do the
-;;; post-assembly phase.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; The implementation-independent parts of the code generator.  We use
+;;; functions and information provided by the VM definition to convert IR2
+;;; into assembly code.  After emitting code, we finish the assembly and
+;;; then do the post-assembly phase.
+
 (in-package :c)
 
 (in-package :new-assem)
+
 (import '(label gen-label emit-label label-position) :c)
 
 (in-package :c)
+
 (export '(component-header-length sb-allocated-size current-nfp-tn
 	  callee-nfp-tn callee-return-pc-tn *code-segment* *elsewhere*
 	  trace-table-entry pack-trace-table note-fixup *assembly-optimize*
 	  fixup fixup-p make-fixup fixup-name fixup-flavor fixup-offset))
 
+#[ Code Generation
+
+    Call the VOP generators to emit assembly code.
+
+Phase position: 20/23 (back)
+
+Presence: required
+
+Files: codegen
+
+Entry functions: `generate-code'
+
+Call sequences:
+
+    native-compile-component
+      generate-code
+        emit-label-elsewhere
+          new-assem:assemble
+          new-assem:gen-label
+          new-assem:emit-label
+          new-assem:append-segment
+          new-assem:finalize-segment
+
+
+This is fairly straightforward.  We call the VOP generators on a per-block
+basis to translate VOPs into instruction sequences.
+
+After code generation, the VMR representation is gone.  Everything is
+represented by the assembler data structures.
+]#
+
 
 ;;;; Utilities used during code generation.
 
-;;; Component-Header-Length   --  Interface
-;;; 
+;;; COMPONENT-HEADER-LENGTH   --  Interface
+;;;
 (defun component-header-length (&optional (component *compile-component*))
-  "Returns the number of bytes used by the code object header."
+  "Return the number of bytes used by the code object header."
   (let* ((2comp (component-info component))
 	 (constants (ir2-component-constants 2comp))
 	 (num-consts (length constants)))
     (ash (logandc2 (1+ num-consts) 1) vm:word-shift)))
 
-;;; SB-Allocated-Size  --  Interface
+;;; SB-ALLOCATED-SIZE  --  Interface
 ;;;
 (defun sb-allocated-size (name)
   "The size of the Name'd SB in the currently compiled component.  Useful
-  mainly for finding the size for allocating stack frames."
+   mainly for finding the size for allocating stack frames."
   (finite-sb-current-size (sb-or-lose name *backend*)))
 
-
-;;; Current-NFP-TN  --  Interface
+;;; CURRENT-NFP-TN  --  Interface
 ;;;
 (defun current-nfp-tn (vop)
-  "Return the TN that is used to hold the number stack frame-pointer in VOP's
-  function.  Returns NIL if no number stack frame was allocated."
+  "Return the TN that is used to hold the number stack frame-pointer in
+   VOP's function.  Returns NIL if no number stack frame was allocated."
   (unless (zerop (sb-allocated-size 'non-descriptor-stack))
     (let ((block (ir2-block-block (vop-block vop))))
     (when (ir2-environment-number-stack-p
@@ -63,23 +82,21 @@
 ;;;
 (defun callee-nfp-tn (2env)
   "Return the TN that is used to hold the number stack frame-pointer in the
-  function designated by 2env.  Returns NIL if no number stack frame was
-  allocated."
+   function designated by 2env.  Returns NIL if no number stack frame was
+   allocated."
   (unless (zerop (sb-allocated-size 'non-descriptor-stack))
     (when (ir2-environment-number-stack-p 2env)
       (ir2-component-nfp (component-info *compile-component*)))))
 
-
 ;;; CALLEE-RETURN-PC-TN  --  Interface
 ;;;
 (defun callee-return-pc-tn (2env)
-  "Return the TN used for passing the return PC in a local call to the function
-  designated by 2env."
+  "Return the TN used for passing the return PC in a local call to the
+   function designated by 2env."
   (ir2-environment-return-pc-pass 2env))
 
-
 
-;;;; Fixups
+;;;; Fixups.
 
 ;;; FIXUP -- A fixup of some kind.
 ;;;
@@ -102,11 +119,11 @@
 
 (defvar *fixups*)
 
-;;; NOTE-FIXUP -- interface.
+;;; NOTE-FIXUP -- Interface
 ;;;
 ;;; This function is called by the (new-assembler) instruction emitters that
 ;;; find themselves trying to deal with a fixup.
-;;; 
+;;;
 (defun note-fixup (segment kind fixup)
   (new-assem:emit-back-patch
    segment 0
@@ -114,7 +131,6 @@
        (declare (ignore segment))
        (push (list kind fixup posn) *fixups*)))
   (undefined-value))
-
 
 
 ;;;; Specials used during code generation.
@@ -125,8 +141,8 @@
 (defvar *elsewhere-label* nil)
 
 (defvar *assembly-optimize* t
-  "Set to NIL to inhibit assembly-level optimization.  For compiler debugging,
-  rather than policy control.")
+  "Set to NIL to inhibit assembly-level optimization.  For compiler
+   debugging, rather than policy control.")
 
 
 ;;;; Noise to emit an instruction trace.
@@ -156,7 +172,6 @@
        (format t "~0,8T~A~@[~0,8T~{~A~^, ~}~]~%" inst args))))
   (undefined-value))
 
-
 
 ;;;; Generate-code and support routines.
 
@@ -171,8 +186,8 @@
 		(or (> speed cspeed) (> space cspeed))))
    :inst-hook (if *compiler-trace-output* #'trace-instruction)))
 
-;;; Init-Assembler  --  Interface
-;;; 
+;;; INIT-ASSEMBLER  --  Interface
+;;;
 (defun init-assembler ()
   (setf *code-segment* (make-segment "Regular"))
   (setf (new-assem:segment-collect-dynamic-statistics *code-segment*)
@@ -180,7 +195,7 @@
   (setf *elsewhere* (make-segment "Elsewhere"))
   (undefined-value))
 
-;;; Generate-Code  --  Interface
+;;; GENERATE-CODE  --  Interface
 ;;;
 (defun generate-code (component)
   (when *compiler-trace-output*
@@ -205,7 +220,8 @@
 	  (let ((env (block-environment 1block)))
 	    (unless (eq env prev-env)
 	      (let ((lab (gen-label)))
-		(setf (ir2-environment-elsewhere-start (environment-info env))
+		(setf (ir2-environment-elsewhere-start
+		       (environment-info env))
 		      lab)
 		(emit-label-elsewhere lab))
 	      (setq prev-env env)))))
@@ -213,11 +229,11 @@
       (do ((vop (ir2-block-start-vop block) (vop-next vop)))
 	  ((null vop))
 	(let ((gen (vop-info-generator-function (vop-info vop))))
-	  (if gen 
+	  (if gen
 	      (funcall gen vop)
 	      (format t "Missing generator for ~S.~%"
 		      (template-name (vop-info vop)))))))
-    
+
     (new-assem:append-segment *code-segment* *elsewhere*)
     (setf *elsewhere* nil)
     (values (new-assem:finalize-segment *code-segment*)
@@ -245,7 +261,7 @@
 ;;; COMPUTE-TRACE-TABLE -- interface.
 ;;;
 ;;; Convert the list of (label . state) entries into an ivector.
-;;; 
+;;;
 (eval-when (compile load eval)
   (defconstant tt-bits-per-state 3)
   (defconstant tt-bits-per-entry 16)

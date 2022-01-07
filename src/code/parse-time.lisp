@@ -5,6 +5,19 @@
 (export '(parse-time parse-iso8601-time
 	  *default-date-time-patterns* *http-date-time-patterns*))
 
+
+#[ Time Parsing and Formatting
+
+Functions are provided to allow parsing strings containing time information
+and printing time in various formats are available.
+
+{function:ext:parse-time}
+{function:ext:format-universal-time}
+{function:ext:format-decoded-time}
+{function:ext:format-time}
+]#
+
+
 (defconstant whitespace-chars '(#\space #\tab #\newline #\, #\' #\` #\"))
 (defconstant time-dividers '(#\: #\.))
 (defconstant date-dividers '(#\\ #\/ #\-))
@@ -12,7 +25,7 @@
 (defconstant open-brackets '(#\())
 (defconstant close-brackets '(#\)))
 
-(defvar *error-on-mismatch* nil
+(defvar *error-on-mismatch* ()
   "If t, an error will be signalled if parse-time is unable to determine
    the time/date format of the string.")
 
@@ -70,20 +83,26 @@
 	  *month-strings*)
 
 ;; FIX eg IST can be indian/israel std time or irish summer time...
+;; FIX Thu, 16 Aug 2007 14:34:18 +0530 (LKT)
 (hashlist '(("brst" . -2) ("brdt" . -2)
-	    ("art" . -3) ("brt" . -3) ("clst" . -3)
-	    ("ast" . -4)
-	    ("gmt" . 0) ("ut" . 0) ("utc" . 0) ("wet" . 0)
-	    ("lcl" . 0)  ;; Possibly for local, from an old mail.
-	    ("bst" . 1) ("cet" . 1) ("met" . 1)
-	    ("cest" . 2) ("eet" . 2) ("ist" . 2) ("sast" . 2)
-	    ("edt" . 4)
-	    ("ist" . 5)  ; +0530
-	    ("cdt" . 5) ("est" . 5) ("yekt" . 5)
-	    ("cst" . 6) ("mdt" . 6) ("yekst" . 6)
-	    ("ict" . 7) ("mst" . 7) ("pdt" . 7)
-	    ("myt" . 8) ("pst" . 8) ("hkt" . 8)
-	    ("jst" . 9) ("kst" . 9) ("wst" . 9)
+	    ("art"  . -3) ("brt"  . -3) ("clst" . -3)
+	    ("ast"  . -4) ("clt"  . -4)
+	    ("pet"  . -5) ("cot"  . -5)
+	    ("akdt" . -8)
+	    ("gmt"  .  0) ("ut"   .  0) ("utc"  .  0) ("wet"  .  0)
+	    ("lcl"  .  0)  ;; Possibly for local, from an old mail.
+	    ("bst"  .  1) ("cet"  .  1) ("met"  .  1) ("west" .  1)
+	    ("cest" .  2) ("eet"  .  2) ("ist"  .  2) ("sast" .  2) ("mest" .  2)
+	    ("cat"  .  2) ("metdst" .  2)
+	    ("msk"  .  3) ("eest" .  3) ("idt"  .  3)
+	    ("edt"  .  4) ("msd"  .  4) ("gest" .  4) ("gst"  .  4)
+	    ("ist"  .  5)  ; +0530
+	    ("cdt"  .  5) ("est"  .  5) ("yekt" .  5) ("pkt"  .  5)
+	    ("cst"  .  6) ("mdt"  .  6) ("yekst" . 6)
+	    ("ict"  .  7) ("mst"  .  7) ("pdt"  .  7) ("wit"  .  7)
+	    ("myt"  .  8) ("pst"  .  8) ("hkt"  .  8) ("sgt"  .  8) ("pht"  .  8)
+	    ("jst"  .  9) ("kst"  .  9) ("wst"  .  9)
+	    ("nzst" . 12)
 	    ("nzdt" . 13))
 	  *zone-strings*)
 
@@ -408,7 +427,7 @@
 	  (and (stringp thing)
 	       (eq (char thing 0) #\+)
 	       (setq thing (parse-integer (subseq thing 1) :errorp ()))))
-      (multiple-value-bind (hours mins)
+      (multiple-value-bind (hours)
 	  (truncate thing 100)
 	(<= -24 hours 24))))
 
@@ -482,8 +501,8 @@
 ;;; list of alphabetic substrings, numbers, and special divider characters.
 ;;; It matches whatever strings it can and replaces them with a dotted pair
 ;;; containing a symbol and value.
-
-(defun decompose-string (string &key (start 0) (end (length string)) (radix 10))
+;;;
+(defun decompose-string (string &key (start 0) (end (length string)) (radix 10) junk-allowed)
   (do ((string-index start)
        (next-negative nil)
        (parts-list nil))
@@ -501,7 +520,11 @@
 				       (subseq string string-index scan-index))))
 		    (if match-symbol
 			(push match-symbol parts-list)
-			(return-from decompose-string nil)))
+			(return-from decompose-string
+				     (values
+				      (if junk-allowed
+					  (nreverse parts-list))
+				      string-index))))
 		  (setf string-index scan-index))))
 	    ((digit-char-p next-char radix)
 	     ;; Numeric digit - convert digit-string to a decimal value.
@@ -560,7 +583,11 @@
 		 (error (concatenate 'simple-string ">>> " string
 				     "~%~VT^-- Bogus character encountered here.")
 			(+ string-index 4))
-		 (return-from decompose-string nil)))))))
+		 (return-from decompose-string
+			      (values (if junk-allowed
+					  (nreverse parts-list))
+				      string-index))))))))
+
 
 ;;; Match-pattern-element tries to match a pattern element with a datum
 ;;; element and returns the symbol associated with the datum element if
@@ -692,40 +719,70 @@
 	(noon-midn (deal-with-noon-midn form-value parsed-values))
 	(special (funcall form-value parsed-values))
 	(t (error "Unrecognized symbol in form list: ~A." form-type))))))
+
 
 (defun parse-time (time-string &key (start 0) (end (length time-string))
-			       (error-on-mismatch nil)
+			       error-on-mismatch
+			       junk-allowed
 			       (patterns *default-date-time-patterns*)
 			       (default-seconds nil) (default-minutes nil)
 			       (default-hours nil) (default-day nil)
 			       (default-month nil) (default-year nil)
 			       (default-zone nil) (default-weekday nil))
-  "Tries very hard to make sense out of the argument time-string and
-   returns a single integer representing the universal time if successful.
-   If not, it returns nil.  If the :error-on-mismatch keyword is true,
-   parse-time will signal an error instead of returning nil.  Default
-   values for each part of the time/date can be specified by the
-   appropriate :default- keyword.  These keywords can be given a numeric
-   value or the keyword :current to set them to the current value.  The
-   default-default values are 00:00:00 on the current date, current
-   time-zone."
+  "Try parse a time from the string $time-string (e.g. \"Jan 12, 1952\").
+
+   Return the universal time represented by the string and the end position
+   of the parse in $time-string, if successful.  On failure either signal
+   an error (if $error-on-mismatch is true), or return ().
+
+   Use the other keyword arguments to fill in the associated time
+   component.  If the argument is () then the current value of that
+   component is used, so if $default-month is () and the month is left out
+   of $time-string then use the current month.  Any of these keywords can
+   be :current which means to use the current value."
   (setq *error-on-mismatch* error-on-mismatch)
-  (let* ((string-parts (decompose-string time-string :start start :end end))
-	 (parts-length (length string-parts))
-	 (string-form (dolist (pattern patterns)
-			(let ((match-result (match-pattern pattern
-							   string-parts
-							   parts-length)))
-			  (if match-result (return match-result))))))
-    (if string-form
-	(let ((parsed-values (make-default-time default-seconds default-minutes
-						default-hours default-day
-						default-month default-year
-						default-zone default-weekday)))
-	  (set-time-values string-form parsed-values)
-	  (convert-to-unitime parsed-values))
-	(if *error-on-mismatch*
-	    (error "\"~A\" is not a recognized time/date format." time-string)))))
+  (multiple-value-bind (string-parts parse-end)
+		       (decompose-string time-string :start start :end end
+					 :junk-allowed junk-allowed)
+    (let* ((parts-length (length string-parts))
+	   (string-form (dolist (pattern patterns)
+			  (let ((match-result (match-pattern pattern
+							     string-parts
+							     parts-length)))
+			    (if match-result (return match-result))))))
+      (if string-form
+	  (let ((parsed-values (make-default-time default-seconds default-minutes
+						  default-hours default-day
+						  default-month default-year
+						  default-zone default-weekday)))
+	    (set-time-values string-form parsed-values)
+	    (values (convert-to-unitime parsed-values) parse-end))
+	  (progn
+	    (if junk-allowed
+		;; Retry with successively shorter portions of the list of
+		;; parts.
+		(loop while string-parts do
+		  ;; FIX adjust parse-end, somehow.
+		  ;;     maybe decompose-string can ret posns of string-parts
+		  ;;(decf parse-end (length (last string-parts)))
+		  (setq string-parts (butlast string-parts))
+		  (decf parts-length)
+		  (let ((string-form (dolist (pattern patterns)
+				       (let ((match-result (match-pattern pattern
+									  string-parts
+									  parts-length)))
+					 (if match-result (return match-result))))))
+		    (if string-form
+			(let ((parsed-values (make-default-time default-seconds default-minutes
+								default-hours default-day
+								default-month default-year
+								default-zone default-weekday)))
+			  (set-time-values string-form parsed-values)
+			  (return-from parse-time
+				       (values (convert-to-unitime parsed-values)
+					       parse-end)))))))
+	    (if *error-on-mismatch*
+		(error "\"~A\" is not a recognized time/date format." time-string)))))))
 
 
 ;; FIX integrate into parse-time
@@ -786,8 +843,8 @@
                                (parse-iso8601-timeonly
                                 (subseq time-string (1+ time-separator)))
             (if zone
-              ;; Tricky:  Sign of time zone is reversed in ISO 8601
-              ;; relative to Common Lisp convention!
+              ;; Tricky: Sign of time zone is reversed in ISO 8601 relative
+              ;; to Lisp convention!
               (encode-universal-time ss mm hh date month year (- zone))
               (encode-universal-time ss mm hh date month year)))
           (encode-universal-time 0 0 0 date month year)))))))

@@ -1,19 +1,5 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/eval-comp.lisp,v 1.27.2.1 2000/05/23 16:37:07 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file represents the current state of on-going development on compiler
-;;; hooks for an interpreter that takes the compiler's IR1 of a program.
-;;;
-;;; Written by Bill Chiles.
-;;;
+;;; The current state of on-going development on compiler hooks for an
+;;; interpreter that takes the compiler's IR1 of a program.
 
 (in-package "C")
 
@@ -43,8 +29,8 @@
 ;;; COMPILE-FOR-EVAL -- Public.
 ;;;
 ;;; This translates form into the compiler's IR1 and performs environment
-;;; analysis.  It is sort of a combination of NCOMPILE-FILE, SUB-COMPILE-FILE,
-;;; COMPILE-TOP-LEVEL, and COMPILE-COMPONENT.
+;;; analysis.  It is sort of a combination of NCOMPILE-FILE,
+;;; SUB-COMPILE-FILE, COMPILE-TOP-LEVEL, and COMPILE-COMPONENT.
 ;;;
 (defun compile-for-eval (form quietly)
   (with-ir1-namespace
@@ -129,7 +115,6 @@
 (defun print-entry-node-info (obj str n)
   (declare (ignore n obj))
   (format str "#<Entry-node-info>"))
-
 
 ;;; Some compiler funny functions have definitions, so the interpreter can
 ;;; call them.  These require special action to coordinate the interpreter,
@@ -241,7 +226,7 @@
 				     entries))))))
 
 ;;; PROCESS-ENTRY-NODE-P -- Internal.
-;;; 
+;;;
 (defun process-entry-node-p (entry)
   (let ((entry-cleanup (entry-cleanup entry)))
     (dolist (nlx (environment-nlx-info (node-environment entry))
@@ -254,10 +239,8 @@
 	    ((:catch :unwind-protect)
 	     (return :blow-it-off))))))))
 
-
-;;; Sometime consider annotations to exclude processign of exit nodes when
-;;; we want to do a tail-p thing.
-;;;
+;;; FIX Sometime consider annotations to exclude processign of exit nodes
+;;; when we want to do a tail-p thing.
 
 
 ;;;; Defining funny functions for interpreter.
@@ -273,7 +256,7 @@
 	   defined-args supplied-args))
   (values))
 
-;;; Use (SETF SYMBOL-FUNCTION) insetad of DEFUN so that the compiler
+;;; Use (SETF SYMBOL-FUNCTION) instead of DEFUN so that the compiler
 ;;; doesn't try to compile the hidden %THROW MV-CALL in the throw below as
 ;;; a local recursive call.
 ;;;

@@ -1,22 +1,6 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/type-vops.lisp,v 1.4.2.2 2000/05/23 16:37:37 pw Exp $")
-;;;
-;;; **********************************************************************
-;;; 
-;;; This file contains the VM definition of type testing and checking VOPs
-;;; for the HPPA
-;;;
-;;; Written by William Lott.
-;;; Signed-array and Complex-float support by Douglas Crosher 1998.
-;;;
-(in-package "HPPA")
+;;; The VM definition of type testing and checking VOPs for the HPPA
 
+(in-package "HPPA")
 
 
 ;;;; Test generation utilities.
@@ -175,7 +159,7 @@
 	(emit-label drop-through)))))
 
 
-;;;; Type checking and testing:
+;;;; Type checking and testing.
 
 (define-vop (check-type)
   (:args (value :target result :scs (any-reg descriptor-reg)))
@@ -438,8 +422,8 @@
 
 ;;;; Other integer ranges.
 
-;;; A (signed-byte 32) can be represented with either fixnum or a bignum with
-;;; exactly one digit.
+;;; A (signed-byte 32) can be represented with either fixnum or a bignum
+;;; with exactly one digit.
 
 (defun signed-byte-32-test (value temp not-p target not-target)
   (multiple-value-bind
@@ -496,7 +480,7 @@
       ;; All zeros, its an (unsigned-byte 32).
       (inst comb (if not-p := :<>) temp zero-tn not-target :nullify t)
       (inst b target :nullify t)
-	
+
       SINGLE-WORD
       ;; Get the single digit.
       (loadw temp value bignum-digits-offset other-pointer-type)
@@ -521,8 +505,8 @@
     (move value result)))
 
 
-;;;; List/symbol types:
-;;; 
+;;;; List/symbol types.
+;;;
 ;;; symbolp (or symbol (eq nil))
 ;;; consp (and list (not (eq nil)))
 
@@ -540,7 +524,7 @@
       (test-type value temp error t symbol-header-type))
     DROP-THRU
     (move value result)))
-  
+
 (define-vop (consp type-predicate)
   (:translate consp)
   (:generator 8

@@ -1,33 +1,210 @@
-;;; -*- Package: eval; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/eval.lisp,v 1.31.2.2 2000/09/26 16:40:37 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; This file contains the interpreter.  We first convert to the compiler's
 ;;; IR1 and interpret that.
-;;;
-;;; Written by Rob MacLachlan and Bill Chiles.
-;;;
 
 (in-package "EVAL")
 
 (export '(internal-eval *eval-stack-trace* *internal-apply-node-trace*
-			*interpreted-function-cache-minimum-size*
-			*interpreted-function-cache-threshold*
-			flush-interpreted-function-cache
-			trace-eval interpreted-function-p
-			interpreted-function-lambda-expression
-			interpreted-function-closure
-			interpreted-function-name
-			interpreted-function-arglist
-			interpreted-function-type
-			make-interpreted-function))
+	  *interpreted-function-cache-minimum-size*
+	  *interpreted-function-cache-threshold*
+	  flush-interpreted-function-cache
+	  trace-eval interpreted-function-p
+	  *interp-source-hack* *interp-position-hack*
+	  interpreted-function-lambda-expression
+	  interpreted-function-closure
+	  interpreted-function-name
+	  interpreted-function-arglist
+	  interpreted-function-type
+	  make-interpreted-function))
+
+#[ Interpreter
+
+    May be worth having a byte-code representation for interpreted code.  This way,
+    an entire system could be compiled into byte-code for debugging (the
+    "check-out" compiler?).
+
+    Given our current inclination for using a stack machine to interpret IR1, it
+    would be straightforward to layer a byte-code interpreter on top of this.
+
+Instead of having no interpreter, or a more-or-less conventional interpreter,
+or byte-code interpreter, how about directly executing IR1?
+
+We run through the IR1 passes, possibly skipping optional ones, until we get
+through environment analysis.  Then we run a post-pass that annotates IR1 with
+information about where values are kept, i.e. the stack slot.
+
+We can lazily convert functions by having FUNCTION make an interpreted function
+object that holds the code (really a closure over the interpreter).  The first
+time that we try to call the function, we do the conversion and processing.
+Also, we can easily keep track of which interpreted functions we have expanded
+macros in, so that macro redefinition automatically invalidates the old
+expansion, causing lazy reconversion.
+
+Probably the interpreter will want to represent MVs by a recognizable structure
+that is always heap-allocated.  This way, we can punt the stack issues involved
+in trying to spread MVs.  So a continuation value can always be kept in a
+single cell.
+
+The compiler can have some special frobs for making the interpreter efficient,
+such as a call operation that extracts arguments from the stack
+slots designated by a continuation list.  Perhaps
+    (values-mapcar fun . lists)
+    =>
+    (values-list (mapcar fun . lists))
+This would be used with MV-CALL.
+
+
+This scheme seems to provide nearly all of the advantages of both the compiler
+and conventional interpretation.  The only significant disadvantage with
+respect to a conventional interpreter is that there is the one-time overhead of
+conversion, but doing this lazily should make this quite acceptable.
+
+With respect to a conventional interpreter, we have major advantages:
+ * Full syntax checking: safety comparable to compiled code.
+ * Semantics similar to compiled code due to code sharing.  Similar diagnostic
+   messages, etc.  Reduction of error-prone code duplication.
+ * Potential for full type checking according to declarations (would require
+   running IR1 optimize?)
+ * Simplifies debugger interface, since interpreted code can look more like
+   compiled code: source paths, edit definition, etc.
+
+For all non-run-time symbol annotations (anything other than SYMBOL-FUNCTION
+and SYMBOL-VALUE), we use the compiler's global database.  MACRO-FUNCTION will
+use INFO, rather than vice-versa.
+
+When doing the IR1 phases for the interpreter, we probably want to suppress
+optimizations that change user-visible function calls:
+ -- Don't do local call conversion of any named functions (even lexical ones).
+    This is so that a call will appear on the stack that looks like the call in
+    the original source.  The keyword and optional argument transformations
+    done by local call mangle things quite a bit.  Also, note local-call
+    converting prevents unreferenced arguments from being deleted, which is
+    another non-obvious transformation.
+ -- Don't run source-transforms, IR1 transforms and IR1 optimizers.  This way,
+    TRACE and BACKTRACE will show calls with the original arguments, rather
+    than the "optimized" form, etc.  Also, for the interpreter it will
+    actually be faster to call the original function (which is compiled) than
+    to "inline expand" it.  Also, this allows implementation-dependent
+    transforms to expand into %PRIMITIVE uses.
+
+There are some problems with stepping, due to our non-syntactic IR1
+representation.  The source path information is the key that makes this
+conceivable.  We can skip over the stepping of a subform by quietly evaluating
+nodes whose source path lies within the form being skipped.
+
+One problem with determining what value has been returned by a form.  With a
+function call, it is theoretically possible to precisely determine this, since
+if we complete evaluation of the arguments, then we arrive at the Combination
+node whose value is synonymous with the value of the form.  We can even detect
+this case, since the Node-Source will be EQ to the form.  And we can also
+detect when we unwind out of the evaluation, since we will leave the form
+without having ever reached this node.
+
+But with macros and special-forms, there is no node whose value is the value of
+the form, and no node whose source is the macro call or special form.  We can
+still detect when we leave the form, but we can't be sure whether this was a
+normal evaluation result or an explicit RETURN-FROM.
+
+But does this really matter?  It seems that we can print the value returned (if
+any), then just print the next form to step.  In the rare case where we did
+unwind, the user should be able to figure it out.
+
+    We can look at this as a side-effect of CPS: there isn't any difference
+    between a "normal" return and a non-local one.
+
+    Note that in any control transfer (normal or otherwise), the stepper may need
+    to unwind out of an arbitrary number of levels of stepping.  This is because a
+    form in a TR position may yield its to a node arbitrarily far our.
+
+Another problem is with deciding what form is being stepped.  When we start
+evaluating a node, we dive into code that is nested somewhere down inside that
+form.  So we actually have to do a loop of asking questions before we do any
+evaluation.  But what do we ask about?
+
+If we ask about the outermost enclosing form that is a subform of the the last
+form that the user said to execute, then we might offer a form that isn't
+really evaluated, such as a LET binding list.
+
+But once again, is this really a problem?  It is certainly different from a
+conventional stepper, but a pretty good argument could be made that it is
+superior.  Haven't you ever wanted to skip the evaluation of all the
+LET bindings, but not the body?  Wouldn't it be useful to be able to skip the
+DO step forms?
+
+All of this assumes that nobody ever wants to step through the guts of a
+macroexpansion.  This seems reasonable, since steppers are for weenies, and
+weenies don't define macros (hence don't debug them).  But there are probably
+some weenies who don't know that they shouldn't be writing macros.
+
+We could handle this by finding the "source paths" in the expansion of each
+macro by sticking some special frob in the source path marking the place where
+the expansion happened.  When we hit code again that is in the source, then we
+revert to the normal source path.  Something along these lines might be a good
+idea anyway (for compiler error messages, for example).
+
+The source path hack isn't guaranteed to work quite so well in generated code,
+though, since macros return stuff that isn't freshly consed.  But we could
+probably arrange to win as long as any given expansion doesn't return two EQ
+forms.
+
+It might be nice to have a command that skipped stepping of the form, but
+printed the results of each outermost enclosed evaluated subform, i.e. if you
+used this on the DO step-list, it would print the result of each new-value
+form.  I think this is implementable.  I guess what you would do is print each
+value delivered to a DEST whose source form is the current or an enclosing
+form.  Along with the value, you would print the source form for the node that
+is computing the value.
+
+The stepper can also have a "back" command that "unskips" or "unsteps".  This
+would allow the evaluation of forms that are pure (modulo lexical variable
+setting) to be undone.  This is useful, since in stepping it is common that you
+skip a form that you shouldn't have, or get confused and want to restart at
+some earlier point.
+
+What we would do is remember the current node and the values of all local
+variables.  heap before doing each step or skip action.  We can then back up
+the state of all lexical variables and the "program counter".  To make this
+work right with set closure variables, we would copy the cell's value, rather
+than the value cell itself.
+
+    To be fair, note that this could easily be done with our current interpreter:
+    the stepper could copy the environment alists.
+
+We can't back up the "program counter" when a control transfer leaves the
+current function, since this state is implicitly represented in the
+interpreter's state, and is discarded when we exit.  We probably want to ask
+for confirmation before leaving the function to give users a chance to "unskip"
+the forms in a TR position.
+
+Another question is whether the conventional stepper is really a good thing to
+imitate...  How about an editor-based mouse-driven interface?  Instead of
+"skipping" and "stepping", you would just designate the next form that you
+wanted to stop at.  Instead of displaying return values, you replace the source
+text with the printed representation of the value.
+
+It would show the "program counter" by highlighting the *innermost* form that
+we are about to evaluate, i.e. the source form for the node that we are stopped
+at.  It would probably also be useful to display the start of the form that was
+used to designate the next stopping point, although I guess this could be
+implied by the mouse position.
+
+
+Such an interface would be a little harder to implement than a dumb stepper,
+but it would be much easier to use.
+    It would be impossible for an evalhook stepper to do this.
+
+
+%PRIMITIVE usage:
+
+Note: %PRIMITIVE can only be used in compiled code.  It is a trapdoor into the
+compiler, not a general syntax for accessing "sub-primitives".  It's main use
+is in implementation-dependent compiler transforms.  It saves us the effort of
+defining a "phony function" (that is not really defined), and also allows
+direct communication with the code generator through codegen-info arguments.
+
+Some primitives may be exported from the VM so that %PRIMITIVE can be used to
+make it explicit that an escape routine or interpreter stub is assuming an
+operation is implemented by the compiler.
+]#
 
 
 ;;;; Interpreter stack.
@@ -35,7 +212,6 @@
 ;;; Setting this causes the stack operations to dump a trace.
 ;;;
 (defvar *eval-stack-trace* nil)
-
 
 ;;; EVAL-STACK-PUSH -- Internal.
 ;;;
@@ -114,7 +290,6 @@
   (when *eval-stack-trace* (format t "setting top to ~D.~%" ptr))
   (setf *eval-stack-top* ptr))
 
-
 ;;; EVAL-STACK-LOCAL -- Internal.
 ;;;
 ;;; This returns a local variable from the current stack frame.  This is used
@@ -125,7 +300,7 @@
   `(svref *eval-stack* (+ ,fp ,offset)))
 
 
-;;;; Interpreted functions:
+;;;; Interpreted functions.
 
 (defvar *interpreted-function-cache-minimum-size* 25
   "If the interpreted function cache has more functions than this come GC time,
@@ -140,21 +315,23 @@
 		 *interpreted-function-cache-minimum-size*
 		 *interpreted-function-cache-threshold*))
 
-
 ;;; The list of INTERPRETED-FUNCTIONS that have translated definitions.
 ;;;
 (defvar *interpreted-function-cache* nil)
 (proclaim '(type list *interpreted-function-cache*))
 
+(proclaim '(special *interp-source-hack* *interp-position-hack*))
 
 ;;; MAKE-INTERPRETED-FUNCTION  --  Interface
 ;;;
-;;;    Return a function that will lazily convert Lambda when called, and will
+;;; Return a function that will lazily convert Lambda when called, and will
 ;;; cache translations.
 ;;;
 (defun make-interpreted-function (lambda)
   (let ((res (%make-interpreted-function :lambda lambda
 					 :arglist (second lambda))))
+    (setf (interpreted-function-source res) *interp-source-hack*)
+    (setf (interpreted-function-position res) *interp-position-hack*)
     (setf (funcallable-instance-function res)
 	  #'(instance-lambda (&rest args)
 	       (let ((fun (interpreted-function-definition res))
@@ -164,10 +341,9 @@
 				 args '#()))))
     res))
 
-
 ;;; CONVERT-INTERPRETED-FUN  --  Internal
 ;;;
-;;;    Eval a FUNCTION form, grab the definition and stick it in.
+;;; Eval a FUNCTION form, grab the definition and stick it in.
 ;;;
 (defun convert-interpreted-fun (fun)
   (declare (type interpreted-function fun))
@@ -183,10 +359,9 @@
     (push fun *interpreted-function-cache*)
     new))
 
-
 ;;; INTERPRETED-FUNCTION-LAMDBA-EXPRESSION  --  Interface
 ;;;
-;;;    Get the CLAMBDA for the XEP, then look at the inline expansion info in
+;;; Get the CLAMBDA for the XEP, then look at the inline expansion info in
 ;;; the real function.
 ;;;
 (defun interpreted-function-lambda-expression (x)
@@ -208,10 +383,9 @@
  			(c::node-block
  			 (c::lambda-bind (c::main-entry fun)))))))))))
 
-
 ;;; INTERPRETED-FUNCTION-TYPE  --  Interface
 ;;;
-;;;    Return a FUNCTION-TYPE describing an eval function.  We just grab the
+;;; Return a FUNCTION-TYPE describing an eval function.  We just grab the
 ;;; LEAF-TYPE of the definition, converting the definition if not currently
 ;;; cached.
 ;;;
@@ -228,8 +402,6 @@
 		       (interpreted-function-definition fun)))))
 	(c::leaf-type (c::functional-entry-function def)))))
 
-
-;;; 
 ;;; INTERPRETED-FUNCTION-NAME  --  Interface
 ;;;
 (defun interpreted-function-name (x)
@@ -248,8 +420,8 @@
 
 ;;; INTERPRETER-GC-HOOK  --  Internal
 ;;;
-;;;    Clear the unused portion of the eval stack, and flush the definitions of
-;;; all functions in the cache that haven't been used enough.
+;;; Clear the unused portion of the eval stack, and flush the definitions
+;;; of all functions in the cache that haven't been used enough.
 ;;;
 (defun interpreter-gc-hook ()
   (let ((len (length (the simple-vector *eval-stack*))))
@@ -273,7 +445,6 @@
     (incf (interpreted-function-gcs fun))))
 ;;;
 (pushnew 'interpreter-gc-hook ext:*before-gc-hooks*)
-
 
 ;;; FLUSH-INTERPRETED-FUNCTION-CACHE  --  Interface
 ;;;
@@ -358,7 +529,7 @@
 		       ;; ext:*before-gc-hook*.
 		       (eval-stack-set-top frame-ptr)
 		       (return-from
-			internal-apply-loop 
+			internal-apply-loop
 			(internal-apply ,lambda ,args ,calling-closure
 					nil)))))))
     `(cond ((c::node-tail-p node)
@@ -397,7 +568,6 @@
      (setf node (c::continuation-next (c::block-start block)))
      (setf last-cont (c::node-cont (c::block-last block)))))
 
-
 ;;; This controls printing visited nodes in INTERNAL-APPLY-LOOP.  We use it
 ;;; here, and INTERNAL-INVOKE uses it to print function call looking output
 ;;; to further describe c::combination nodes.
@@ -408,7 +578,6 @@
   (when *internal-apply-node-trace*
     (format t "(~S ~{ ~S~})  c~S~%"
 	    name args (c::cont-num (c::node-cont node)))))
-
 
 ;;; DO-FUNNY-FUNCTION -- Internal.
 ;;;
@@ -513,7 +682,7 @@
 		     (eval-stack-set-top stack-top)
 		     ;;
 		     ;; Push some bogus values for exit context to keep the
-		     ;; MV-BIND in the UNWIND-PROTECT translation happy. 
+		     ;; MV-BIND in the UNWIND-PROTECT translation happy.
 		     (eval-stack-push '(nil nil 0))
 		     (let ((node (c::continuation-next
 				  (c::block-start
@@ -563,7 +732,6 @@
 	  (eval-stack-pop)
 	  (return-from internal-apply-loop
 		       (values :fell-through block node cont last-cont)))))))
-
 
 ;;; COMBINATION-NODE -- Internal.
 ;;;
@@ -619,19 +787,18 @@
 	      (assert (typep ,kind 'c::function-info))
 	      (do-combination :full nil ,type))))))
 
-
 (defun trace-eval (on)
   (setf *eval-stack-trace* on)
   (setf *internal-apply-node-trace* on))
 
 
-;;;; INTERNAL-EVAL:
+;;;; INTERNAL-EVAL.
 
 (proclaim '(special lisp::*already-evaled-this*))
 
 ;;; INTERNAL-EVAL  --  Interface
 ;;;
-;;;    Evaluate an arbitary form.  We convert the form, then call internal
+;;; Evaluate an arbitary form.  We convert the form, then call internal
 ;;; apply on it.  If *ALREADY-EVALED-THIS* is true, then we bind it to NIL
 ;;; around the apply to limit the inhibition to the lexical scope of the
 ;;; EVAL-WHEN.
@@ -642,7 +809,6 @@
 	(let ((lisp::*already-evaled-this* nil))
 	  (internal-apply res nil '#()))
 	(internal-apply res nil '#()))))
-
 
 ;;; VALUE -- Internal.
 ;;;
@@ -662,7 +828,6 @@
 	  (eval-stack-push (list ,value)))
 	 (t (assert (eq ,info :single))
 	    (eval-stack-push ,value))))
-
 
 (defun maybe-trace-nodes (node)
   (when *internal-apply-node-trace*
@@ -789,13 +954,13 @@
 			   (catch unique-tag
 			     (internal-apply-loop node frame-ptr
 						  lambda args closure)))
-			 
+
 			 (when (eq values :fell-through)
 			   ;; We hit a %LEXICAL-EXIT-BREAKUP.
 			   ;; Interpreting state is set with MV-SETQ above.
 			   ;; Just get out of this branch and go on.
 			   (return))
-			 
+
 			 (unless (eq values :non-local-go)
 			   ;; We know we're non-locally exiting from a
 			   ;; BLOCK with values (saw a RETURN-FROM).
@@ -884,7 +1049,6 @@
 (defun reference-this-var-to-keep-it-alive (node)
   node)
 
-
 ;;; SET-LEAF-VALUE -- Internal.
 ;;;
 ;;; This sets a c::cset node's var to value, returning value.  When var is
@@ -954,7 +1118,7 @@
 ;;;                  functional environment, then we use
 ;;;                  MAKE-INTERPRETED-FUNCTION to make a cached translation.
 ;;;                  Since it is too late to lazily convert, we set up the
-;;;                  INTERPRETED-FUNCTION to be already converted. 
+;;;                  INTERPRETED-FUNCTION to be already converted.
 ;;;
 (defun leaf-value (node frame-ptr closure)
   (let ((leaf (c::ref-leaf node)))
@@ -987,6 +1151,10 @@
 		  (setf (interpreted-function-arglist res) arg-doc)
 		  (setf (interpreted-function-%name res)
 			(c::leaf-name real-fun))
+		  (setf (interpreted-function-source res)
+			*interp-source-hack*)
+		  (setf (interpreted-function-position res)
+ 			*interp-position-hack*)
 		  (setf (c:lambda-eval-info-function (c::leaf-info leaf)) res)
 		  res))
 	       (t
@@ -995,6 +1163,10 @@
 			    :%name (c::leaf-name real-fun)
 			    :arglist arg-doc
 			    :closure calling-closure)))
+		  (setf (interpreted-function-source res)
+			*interp-source-hack*)
+ 		  (setf (interpreted-function-position res)
+ 			*interp-position-hack*)
 		  (setf (funcallable-instance-function res)
 			#'(instance-lambda (&rest args)
 		            (declare (list args))
@@ -1087,11 +1259,11 @@
 
 ;;; INTERNAL-INVOKE -- Internal.
 ;;;
-;;; INTERNAL-APPLY uses this to invoke a function from the interpreter's stack
-;;; on some arguments also taken from the stack.  When tail-p is non-nil,
-;;; control does not return to INTERNAL-APPLY to further interpret the current
-;;; IR1 lambda, so INTERNAL-INVOKE must clean up the current interpreter's
-;;; stack frame.
+;;; INTERNAL-APPLY uses this to invoke a function from the interpreter's
+;;; stack on some arguments also taken from the stack.  When tail-p is
+;;; true, control does not return to INTERNAL-APPLY to further interpret
+;;; the current IR1 lambda, so INTERNAL-INVOKE must clean up the current
+;;; interpreter's stack frame.
 ;;;
 (defun internal-invoke (arg-count &optional tailp)
   (let ((args (eval-stack-args arg-count)) ;LET says this init form runs first.
@@ -1113,7 +1285,6 @@
     (when *internal-apply-node-trace*
       (format t "(~S~{ ~S~})~%" fun args))
     (apply fun args)))
-
 
 ;;; EVAL-STACK-ARGS -- Internal.
 ;;;

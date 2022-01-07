@@ -1,17 +1,6 @@
-;;; -*- Package: ALPHA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/alpha/support.lisp,v 1.2 1994/10/31 04:55:55 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the machine specific support routines needed by
-;;; the file assembler.
-;;;
+;;; This file contains the machine specific support routines needed by the
+;;; file assembler.
+
 (in-package "ALPHA")
 
 (def-vm-support-routine generate-call-sequence (name style vop)
@@ -60,7 +49,6 @@
 	(inst jsr lip-tn temp (make-fixup ',name :assembly-routine)))
       '((:temporary (:scs (non-descriptor-reg)) temp))
       nil))))
-
 
 (def-vm-support-routine generate-return-sequence (style)
   (ecase style

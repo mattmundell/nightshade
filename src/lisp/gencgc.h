@@ -1,4 +1,4 @@
-/* 
+/*
  * Generational Conservative Garbage Collector for CMUCL x86.
  *
  * This code was written by Douglas T. Crosher, based on Public Domain
@@ -107,7 +107,7 @@ struct page {
    * at the begining of the page in which case the offset would be 0
    */
   int	first_object_offset;
-  
+
   /*
    * The number of bytes of this page that are used. This may be less
    * than the actual bytes used for pages within the current
@@ -138,7 +138,7 @@ struct alloc_region {
   /* These two are needed for quick allocation */
   void  *free_pointer;
   void  *end_addr;     /* Pointer to the byte after the last usable byte */
-  
+
   /* Needed when closing the region. */
   int  first_page;
   int  last_page;

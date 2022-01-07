@@ -2,50 +2,93 @@
 
 (in-package "ED")
 
+#[ Dired Mode
+
+The directory editing extension, "Dired", provides file management
+facilities.
+
+These facilities include opening files, descending into directories, and
+processing files and/or directories (copying, renaming, touching, etc).
+Dired also provides a simple wildcard feature and an interface to a few
+version control systems.
+
+{command:Dired Quit}
+
+[ Editing Directories              ]  Entering Dired.
+[ Modifying the Display            ]  Updating.  Hidden and backups files.
+[ Copying Files                    ]
+[ Renaming Files                   ]
+[ Other File Operations            ]  Touch, link, compare, compress, shell.
+[ Marking Files for Deletion       ]     D...
+[ Marking Files for Processing     ]     *...
+[ Manipulating Marks of Both Types ]     *...   or  D...
+[ Version Control Interface        ]  CVS, RCS.
+]#
+
+(declaim (special *mode-highlighters*))
+
+(defun setup-dired-mode (buffer)
+  (highlight-visible-dired-buffer buffer)
+  (pushnew '("Dired" t highlight-visible-dired-buffer) *mode-highlighters*))
 
 (defmode "Dired" :major-p t
+  :setup-function 'setup-dired-mode
   :documentation
   "Dired permits convenient directory browsing and file operations including
    viewing, deleting, copying, renaming, and wildcard specifications.")
-
 
 (defstruct (dired-information (:print-function print-dired-information)
 			      (:conc-name dired-info-))
   pathname	   ; Pathname of directory.
   pattern	   ; FILE-NAMESTRING with wildcard possibly.
-  dot-files-p      ; Whether to include UNIX dot files.
-  backup-files-p   ; Whether to include UNIX backup files.
-  coldefs	   ; Description of columns to display, nil for the usual format.
+  dot-files-p      ; Whether to include Unix dot files.
+  backup-files-p   ; Whether to include Unix backup files.
+  coldefs	   ; Description of columns to display, () for the usual format.
   recurse          ; Whether to recurse into subdirectories.
   write-date	   ; Write date of directory.
   files		   ; Simple-vector of dired-file structures.
   file-list	   ; List of pathnames for files, excluding directories.
   generator        ; Function to generate files.  Called on a dir-info.
-  extra-data)      ; Optn. per-file data: '(file*) or '((file line extra*)*).
+  col-posns        ; Positions of columns, for highlighting.
+  extra-data       ; Optn. per-file data: '(file*) or '((file line extra*)*).
+  extra-data-2)    ; Optn. extra data (used to store version control info).
 
 (defun print-dired-information (obj str n)
   (declare (ignore n))
   (format str "#<Dired Info ~S>" (namestring (dired-info-pathname obj))))
 
-
 (defstruct (dired-file (:print-function print-dired-file)
 		       (:constructor make-dired-file (pathname)))
   pathname
-  (deleted-p nil)
-  (marked-p nil)
-  (write-date nil))
+  (deleted-p ())
+  (marked-p ())
+  (write-date ()))
 
 (defun print-dired-file (obj str n)
   (declare (ignore n))
   (format str "#<Dired-file ~A>" (namestring (dired-file-pathname obj))))
 
+
+#[ Editing Directories
+
+{command:Dired}
+{command:Dired with Pattern}
+{command:Dired from Buffer Pathname}
+{command:Dired Help}
+{command:Dired View File}
+{command:Dired Edit File}
+{command:Dired Up Directory}
+{command:Dired Update Buffer}
+{command:Dired Next File}
+{command:Dired Previous File}
+]#
 
 
 ;;;; "Dired" command.
 
-(defhvar "Create Empty Dired Buffers"
+(defevar "Create Empty Dired Buffers"
   "If true then Dired will enter empty directories."
-  :value nil)
+  :value ())
 
 ;;; *pathnames-to-dired-buffers* is an a-list mapping directory namestrings to
 ;;; buffers that display their contents.
@@ -59,67 +102,41 @@
      (declare (ignore buffer window))
      "  Type ? for help.  "))
 
-;; FIX convert these to keys?
 (defun dired-guts (patternp dot-files-p directory
 		   &optional backup-files-p coldefs recurse-p extra-data
 		             buffer-name generator)
   (let* ((dpn (directory-namestring (or (buffer-pathname (current-buffer))
 					(value pathname-defaults))))
-	 (directory (dired-directorify
-		     (or directory
-			 (prompt-for-file
-			  :prompt (if recurse-p
-				      "Edit Directory Recursively: "
-				      "Edit Directory: ")
-			  :help "Pathname to edit."
-			  :default (make-pathname
-				    :device (pathname-device dpn)
-				    :directory (pathname-directory dpn))
-			  :must-exist t))))
+	 (directory (or directory
+			(prompt-for-file
+			 :prompt (if recurse-p
+				     "Edit Directory Recursively: "
+				     "Edit Directory: ")
+			 :help "Pathname to edit."
+			 :default (make-pathname
+				   :device (pathname-device dpn)
+				   :directory (pathname-directory dpn))
+			 :must-exist t)))
+	 (dir (lisp::directorify directory))
 	 (pattern (if patternp
 		      (prompt-for-string
 		       :prompt "Filename pattern: "
 		       :help "Type a filename with a single asterisk."
-		       :trim t)))
+		       :trim t)
+		      (file-namestring dir)))
 	 (full-name (or buffer-name
 			(namestring (if pattern
-					(merge-pathnames directory pattern)
-					directory))))
+					(merge-pathnames dir pattern)
+					dir))))
 	 (name (or buffer-name
 		   (concatenate 'simple-string "Dired " full-name)))
 	 (buffer (cdr (assoc full-name *pathnames-to-dired-buffers*
 			     :test #'string=))))
     (declare (simple-string full-name))
     ;; FIX pathname-defaults is a global var?
-    (setf (value pathname-defaults) (merge-pathnames directory dpn))
+    (setf (value pathname-defaults) (merge-pathnames dir dpn))
     (change-to-buffer
      (cond (buffer
-	    (let ((dir-info (variable-value 'dired-information
-					    :buffer buffer))
-		  (update nil))
-	      ;; FIX clean this up?
-	      (if dot-files-p
-		  (or (dired-info-dot-files-p dir-info)
-		      (setf (dired-info-dot-files-p dir-info) t
-			    update t)))
-	      (if backup-files-p
-		  (or (dired-info-backup-files-p dir-info)
-		      (setf (dired-info-backup-files-p dir-info) t
-			    update t)))
-	      (if coldefs
-		  (or (dired-info-coldefs dir-info)
-		      (setf (dired-info-coldefs dir-info) coldefs
-			    update t)))
-	      (if recurse-p
-		  (or (dired-info-recurse dir-info)
-		      (setf (dired-info-recurse dir-info) t
-			    update t)))
-	      (if extra-data
-		  (or (dired-info-extra-data dir-info)
-		      (setf (dired-info-extra-data dir-info) extra-data
-			    update t)))
-	      (if update
-		  (update-dired-buffer directory pattern buffer)))
 	    buffer)
 	   (t
 	    (let ((buffer (make-buffer
@@ -128,7 +145,7 @@
 			   (append (value default-modeline-fields)
 				   (list (modeline-field :dired-cmds)))
 			   :delete-hook (list 'dired-buffer-delete-hook))))
-	      (unless (initialize-dired-buffer directory pattern
+	      (unless (initialize-dired-buffer dir pattern
 					       dot-files-p backup-files-p
 					       coldefs recurse-p extra-data
 					       buffer generator)
@@ -137,173 +154,196 @@
 	      (push (cons full-name buffer) *pathnames-to-dired-buffers*)
 	      buffer))))))
 
-(defcommand "Dired" (p &optional directory)
-  "Prompts for a directory and edits it.  If a dired for that directory
-   already exists, goes to that buffer, otherwise creates one.  With an
-   argument, includes UNIX dot files."
-  "Prompts for a directory and edits it.  If a dired for that directory
-   already exists, go to that buffer, otherwise create one.  With an
-   argument, include UNIX dot files."
+(defcommand "Dired" (p directory)
+  "Find a directory into a buffer for editing the directory.  If a dired
+   for that directory already exists, go to that buffer.  With an argument,
+   include hidden (dot) files."
   (let ((info (if (editor-bound-p 'dired-information)
 		  (value dired-information))))
-    (dired-guts nil
+    (dired-guts ()
 		;; Propagate dot-files property to subdirectory edits.
-		(or (and info (dired-info-dot-files-p info))
-		    p)
+		(or (and info (dired-info-dot-files-p info)) p)
 		directory
 		;; Propagate backup-files property to subdirectory edits.
-		(or (and info (dired-info-backup-files-p info))
-		    nil)
+		(and info (dired-info-backup-files-p info))
 		;; Propagate column definitions to subdirectory edits.
-		(or (and info (dired-info-coldefs info))
-		    nil)
+		(and info (dired-info-coldefs info))
 		;; Propagate recurse property to subdirectory edits.
-		(or (and info (dired-info-recurse info))
-		    nil)
-		t)))
+		(and info (dired-info-recurse info))
+		;; Propagate t'ness of extra data slot.  Determines if the
+		;; subdir edit will use print-directory or print-files.
+		(and info (eq (dired-info-extra-data info) t))
+		() ; Buffer name.
+		(and info (dired-info-generator info)))))
 
 (defcommand "Dired with Pattern" (p)
-  "Do a dired, prompting for a pattern which may include a single *.  With an
-   argument, include UNIX dot files."
-  "Do a dired, prompting for a pattern which may include a single *.  With an
-   argument, include UNIX dot files."
-  (dired-guts t p nil t #| FIX should be according to hvar |#
-	      nil nil t))
+  "Prompt for a directory and a pattern that may contain at most one
+   wildcard (an asterisk) and find or create a buffer for editing the files
+   in the directory that matches the pattern, as a list.
+
+   When the prefix argument is supplied, include hidden (dot) files.  If a
+   dired buffer already exists for this directory, then switch to the
+   buffer and makes sure it displays hidden (dot) files if appropriate."
+  (dired-guts t p () t #| FIX should be according to evar |#
+	      () () t))
 
 ;; FIX ~ should propogate recurse only: on update, and via a special key
-(defcommand "Dired Recursively" (p)
-  "Edit a recursively directory listing."
+(defcommand "Dired Recursively" (p directory)
   "Edit a recursively directory listing."
   (let ((info (if (editor-bound-p 'dired-information)
 		  (value dired-information))))
-    (dired-guts nil
+    (dired-guts ()
 		;; Propagate dot-files property to subdirectory edits.
-		(or (and info (dired-info-dot-files-p info))
-		    p)
-		nil
+		(or (and info (dired-info-dot-files-p info)) p)
+		directory
 		;; Propagate backup-files property to subdirectory edits.
-		(or (and info (dired-info-backup-files-p info))
-		    nil)
+		(and info (dired-info-backup-files-p info))
 		;; Propagate column definitions to subdirectory edits.
-		(or (and info (dired-info-coldefs info))
-		    nil)
+		(and info (dired-info-coldefs info))
 		;; Propagate recurse property to subdirectory edits.
-		(or (and info (dired-info-recurse info))
-		    t)
-		t)))
+		(or (and info (dired-info-recurse info)) t)
+		;; Propagate t'ness of extra data slot.  Determines if the
+		;; subdir edit will use print-directory or print-files.
+		(and info (eq (dired-info-extra-data info) t))
+		() ; Buffer name.
+		(and info (dired-info-generator info)))))
 
 ;;; INITIALIZE-DIRED-BUFFER gets a dired in the buffer and defines some
 ;;; variables to make it usable as a dired buffer.  If there are files
 ;;; satisfying directory or CREATE-EMPTY-DIRED-BUFFERS is true, then this
-;;; returns t, otherwise nil.
+;;; returns t, otherwise ().
 ;;;
 (defun initialize-dired-buffer (directory pattern
 			        dot-files-p backup-files-p coldefs recurse
 				extra-data buffer generator)
-  (multiple-value-bind (pathnames dired-files)
-		       (dired-in-buffer directory pattern
-					dot-files-p backup-files-p
-					coldefs recurse extra-data
-					buffer)
-    (or (> (length dired-files) 0)
-	(unix:unix-access (unix-namestring directory) unix:r_ok)
-	(loud-message "Read access to ~A withheld." directory))
-    (setf (buffer-pathname buffer) directory)
-    (if (or (plusp (length dired-files))
-	    (value create-empty-dired-buffers))
-	(defhvar "Dired Information"
-	  "Contains the information necessary to manipulate dired buffers."
-	  :buffer buffer
-	  :value (make-dired-information :pathname directory
-					 :pattern pattern
-					 :dot-files-p dot-files-p
-					 :backup-files-p backup-files-p
-					 :coldefs coldefs
-					 :recurse recurse
-					 :extra-data extra-data
-					 :write-date (file-write-date directory)
-					 :files dired-files
-					 :file-list pathnames
-					 :generator generator)))))
+  (let ((dired-info (make-dired-information :pathname directory
+					    :pattern pattern
+					    :dot-files-p dot-files-p
+					    :backup-files-p backup-files-p
+					    :coldefs coldefs
+					    :recurse recurse
+					    :extra-data extra-data
+					    :write-date (file-write-date
+							 directory)
+					    :generator generator)))
+    (or (eq extra-data t)
+	generator
+	(setq extra-data t))
+    (defevar "Dired Information"
+      "Contains the information necessary to manipulate dired buffers."
+      :buffer buffer
+      :value dired-info)
+    (multiple-value-bind (pathnames dired-files)
+			 (dired-in-buffer directory pattern
+					  dot-files-p backup-files-p
+					  coldefs recurse extra-data
+					  buffer)
+      (or (> (length dired-files) 0)
+	  (multiple-value-bind (res dev ino mode)
+			       (file-stats directory)
+	    (declare (ignore dev ino))
+	    (if res
+		(logand mode unix:readall)
+		(progn
+		  (message "Failed to read mode of ~A." directory)
+		  t)))
+	  (loud-message "Read access to ~A withheld." directory))
+      (setf (buffer-pathname buffer) directory)
+      (when (or (plusp (length dired-files))
+		(value create-empty-dired-buffers))
+	(setf (dired-info-files dired-info) dired-files)
+	(setf (dired-info-file-list dired-info) pathnames)
+	(setf (dired-info-extra-data dired-info) extra-data)
+	t))))
 
-;;; CALL-PRINT-DIRECTORY gives us a nice way to report PRINT-DIRECTORY errors
-;;; to the user and to clean up the dired buffer.
-;;;
 (defun call-print-directory (directory mark dot-files-p backup-files-p
 			     coldefs recurse extra-data)
-  (handler-case (with-output-to-mark (s mark :full)
-		  (if (eq extra-data t)
-		      (print-directory directory s
-				       :all dot-files-p :verbose t :return-list t
-				       :backups backup-files-p :coldefs coldefs
-				       :recurse recurse)
-		      (print-files extra-data s
-				   :verbose t :return-list t :coldefs coldefs)))
+  "Call `print-directory', report errors, clean up the dired buffer."
+  (handler-case
+      (with-output-to-mark (stream mark :full)
+	(if (eq extra-data t)
+	    (multiple-value-bind (unique-part wild-part)
+				 (common-prefix directory)
+	      (in-directory unique-part
+		(print-directory (merge-pathnames wild-part #p"*.*.*")
+				 stream
+				 :all dot-files-p
+				 :verbose t
+				 :return-list t
+				 :backups backup-files-p
+				 :coldefs coldefs
+				 :recurse recurse)))
+	    (print-files directory extra-data stream
+			 :verbose t :return-list t :coldefs coldefs)))
     (error (condx)
 	   (delete-buffer-if-possible (line-buffer (mark-line mark)))
 	   (editor-error "~A" condx))))
 
-;;; DIRED-BUFFER-DELETE-HOOK is called on dired buffers upon deletion.  This
-;;; removes the buffer from the pathnames mapping, and it deletes and buffer
-;;; local variables referring to it.
-;;;
 (defun dired-buffer-delete-hook (buffer)
+  "Called on dired buffers upon deletion.  Remove the buffer from the
+   pathnames mapping, and delete any buffer local variables referring to
+   it."
   (setf *pathnames-to-dired-buffers*
 	(delete buffer *pathnames-to-dired-buffers* :test #'eq :key #'cdr)))
 
+
+#[ Marking files for Deletion
+
+== Marking ==
+
+{command:Dired Delete File and Down Line}
+{command:Dired Delete File with Pattern}
+{command:Dired Delete File}
+
+== Clearing the Marks ==
+
+{command:Dired Undelete File and Down Line}
+{command:Dired Undelete File with Pattern}
+{command:Dired Undelete File}
+
+== Expunging ==
+
+{evariable:Dired File Expunge Confirm}
+{evariable:Dired Directory Expunge Confirm}
+{command:Dired Expunge Files}
+]#
 
 
 ;;;; Dired deletion and undeletion.
 
 (defcommand "Dired Delete File" (p)
-  "Marks a file for deletion; signals an error if not in a dired buffer.
-   With an argument, this prompts for a pattern that may contain at most one
-   wildcard, an asterisk, and all names matching the pattern will be flagged
-   for deletion."
-  "Marks a file for deletion; signals an error if not in a dired buffer."
+  "Mark the current file for deletion.  With an argument, prompt for a
+   pattern that may contain at most one wildcard, an asterisk, and flag all
+   names matching the pattern for deletion."
   (dired-frob-deletion p t))
 
 (defcommand "Dired Undelete File" (p)
-  "Removes a mark for deletion; signals an error if not in a dired buffer.
-   With an argument, this prompts for a pattern that may contain at most one
-   wildcard, an asterisk, and all names matching the pattern will be unflagged
-   for deletion."
-  "Removes a mark for deletion; signals an error if not in a dired buffer."
+  "Remove any delete mark on the current file.  With an argument, prompt
+   for a pattern that may contain at most one wildcard, an asterisk, and
+   clear the delete mark on all names matching the pattern."
   (dired-frob-deletion p nil))
 
 (defcommand "Dired Delete File and Down Line" (p)
-  "Marks file for deletion and moves down a line.
-   See \"Dired Delete File\"."
-  "Marks file for deletion and moves down a line.
-   See \"Dired Delete File\"."
-  (declare (ignore p))
-  (dired-frob-deletion nil t)
+  "Mark the current file for deletion and move down a line.  With an
+   argument, prompt for a pattern that may contain at most one wildcard, an
+   asterisk, and flag all names matching the pattern for deletion."
+  (dired-frob-deletion p t)
   (dired-down-line (current-point)))
 
-(defcommand "Dired Undelete File and Down Line" (p)
-  "Marks file undeleted and moves down a line.
-   See \"Dired Delete File\"."
-  "Marks file undeleted and moves down a line.
-   See \"Dired Delete File\"."
-  (declare (ignore p))
+(defcommand "Dired Undelete File and Down Line" ()
+  "Clear the delete mark on the current file and move down a line."
   (dired-frob-deletion nil nil)
   (dired-down-line (current-point)))
 
-(defcommand "Dired Delete File with Pattern" (p)
-  "Prompts for a pattern and marks matching files for deletion.
-   See \"Dired Delete File\"."
-  "Prompts for a pattern and marks matching files for deletion.
-   See \"Dired Delete File\"."
-  (declare (ignore p))
+(defcommand "Dired Delete File with Pattern" ()
+  "Prompt for a name pattern that may contain at most one wildcard (an
+   asterisk) and mark the names matching the pattern for deletion."
   (dired-frob-deletion t t)
   (dired-down-line (current-point)))
 
-(defcommand "Dired Undelete File with Pattern" (p)
-  "Prompts for a pattern and marks matching files undeleted.
-   See \"Dired Delete File\"."
-  "Prompts for a pattern and marks matching files undeleted.
-   See \"Dired Delete File\"."
-  (declare (ignore p))
+(defcommand "Dired Undelete File with Pattern" ()
+  "Prompt for a name pattern that may contain at most one wildcard (an
+   asterisk) and clear any delete marks on the names matching the pattern."
   (dired-frob-deletion t nil)
   (dired-down-line (current-point)))
 
@@ -314,7 +354,7 @@
 ;;;
 (defun dired-frob-deletion (patternp deletep)
   (or (editor-bound-p 'dired-information)
-      (editor-error "Not in Dired buffer."))
+      (editor-error "Must be in a Dired buffer."))
   (with-mark ((mark (current-point) :left-inserting))
     (let* ((dir-info (value dired-information))
 	   (files (dired-info-files dir-info))
@@ -328,6 +368,7 @@
 		 (dired-info-file-list dir-info))
 		(list (dired-file-pathname
 		       (array-element-from-mark mark files)))))
+	   (directory (dired-info-pathname dir-info))
 	   (note-char (if deletep #\D #\space)))
       (with-writable-buffer ((current-buffer))
 	(dolist (f del-files)
@@ -339,7 +380,10 @@
 	    (setf (dired-file-deleted-p dired-file) deletep)
 	    (if deletep
 		(setf (dired-file-write-date dired-file)
-		      (file-write-date (dired-file-pathname dired-file)))
+		      (file-write-date (merge-pathnames
+					(dired-file-pathname dired-file)
+					directory)
+				       :check-for-links t))
 		(setf (dired-file-write-date dired-file) nil))
 	    (setf (next-character mark) note-char)))))))
 
@@ -347,6 +391,17 @@
   (line-offset point 1)
   (when (blank-line-p (mark-line point))
     (line-offset point -1)))
+
+
+#[ Marking Files for Processing
+
+{command:Dired Mark File}
+{command:Dired Clear File Mark}
+{command:Dired Toggle Marks}
+{command:Dired Mark File and Down Line}
+{command:Dired Clear File Mark and Down Line}
+{command:Dired Mark File with Pattern}
+]#
 
 
 ;;;; Generic Dired marks.
@@ -366,44 +421,35 @@
   "Clears any generic mark from the current file in a Dired buffer."
   (dired-frob-mark p nil))
 
-(defcommand "Dired Mark File and Down Line" (p)
+(defcommand "Dired Mark File and Down Line" ()
   "In a Dired buffer marks the current file and moves down a line.
    With an argument, prompts for a pattern that may contain at most one
    wildcard, an asterisk, and all names matching the pattern will be marked."
   "In a Dired buffer marks the current file and moves down a line."
-  (declare (ignore p))
   (dired-frob-mark nil t)
   (dired-down-line (current-point)))
 
-(defcommand "Dired Clear File Mark and Down Line" (p)
+(defcommand "Dired Clear File Mark and Down Line" ()
   "Clears any generic mark from the current file, and moves down a line."
-  "Clears any generic mark from the current file, and moves down a line."
-  (declare (ignore p))
   (dired-frob-mark nil nil)
   (dired-down-line (current-point)))
 
-(defcommand "Dired Mark File with Pattern" (p)
+(defcommand "Dired Mark File with Pattern" ()
   "Prompts for a pattern and marks matching files."
   "Prompts for a pattern and marks matching files for deletion."
-  (declare (ignore p))
   (dired-frob-mark t t)
   (dired-down-line (current-point)))
 
-(defcommand "Dired Clear File Mark with Pattern" (p)
+(defcommand "Dired Clear File Mark with Pattern" ()
   "Prompts for a pattern and clears any generic marks from matching files."
-  "Prompts for a pattern and clears any generic marks from matching files."
-  (declare (ignore p))
   (dired-frob-mark t nil)
   (dired-down-line (current-point)))
 
-(defcommand "Dired Toggle Marks" (p)
-  "Toggles any generic marks in a Dired buffer.
-   Clears marks from marked files, marks the rest."
-  "Toggles any generic marks in a Dired buffer.
-   Clears marks from marked files, marks the rest."
-  (declare (ignore p))
-  (unless (editor-bound-p 'dired-information)
-    (editor-error "Must be in a Dired buffer."))
+(defcommand "Dired Toggle Marks" ()
+  "Toggle any generic marks in a Dired buffer.  Clear marks from marked
+   files, mark the rest."
+  (or (editor-bound-p 'dired-information)
+      (editor-error "Must be in a Dired buffer."))
   (with-writable-buffer ((current-buffer))
     (with-mark ((mark (buffer-start-mark (current-buffer)) :left-inserting))
       (mark-after mark)
@@ -413,12 +459,10 @@
 	   ((mark= mark end-mark))
 	(let ((file (svref files pos)))
 	  (if (dired-file-marked-p file)
-	      (progn
-		(setf (dired-file-marked-p file) nil)
-		(setf (next-character mark) #\ ))
-	      (progn
-		(setf (dired-file-marked-p file) t)
-		(setf (next-character mark) #\*))))
+	      (setf (dired-file-marked-p file) ()
+		    (next-character mark) #\space)
+	      (setf (dired-file-marked-p file) t
+		    (next-character mark) #\*)))
 	(line-offset mark 1 1)))))
 
 ;;; DIRED-FROB-MARK takes arguments indicating whether to prompt for a
@@ -427,19 +471,20 @@
 ;;; else an error is signalled.
 ;;;
 (defun dired-frob-mark (patternp markp)
-  (unless (editor-bound-p 'dired-information)
-    (editor-error "Must be in a Dired buffer."))
+  (or (editor-bound-p 'dired-information)
+      (editor-error "Must be in a Dired buffer."))
   (with-mark ((mark (current-point) :left-inserting))
     (let* ((dir-info (value dired-information))
 	   (files (dired-info-files dir-info))
 	   (mark-files
 	    (if patternp
-		(dired:pathnames-from-pattern
-		 (prompt-for-string
-		  :prompt "Filename pattern: "
-		  :help "Type a filename with a single asterisk."
-		  :trim t)
-		 (dired-info-file-list dir-info))
+		(in-directory (dired-info-pathname dir-info)
+		  (dired:pathnames-from-pattern
+		   (prompt-for-string
+		    :prompt "Filename pattern: "
+		    :help "Type a filename with a single asterisk."
+		    :trim t)
+		   (dired-info-file-list dir-info)))
 		(list (dired-file-pathname
 		       (array-element-from-mark mark files)))))
 	   (note-char (if markp #\* #\space)))
@@ -456,6 +501,15 @@
 	    (mark-before mark)))))))
 
 
+#[ Manipulating Marks of Both Types
+
+{command:Dired Swap Marks}
+{command:Dired Clear All Marks}
+{command:Dired Clear File Marks with Pattern}
+{command:Dired Clear File Marks and Down Line}
+]#
+
+
 ;;;; Both types of Dired marks.
 
 (defcommand "Dired Clear File Marks" (p)
@@ -467,32 +521,29 @@
   (dired-frob-deletion p nil)
   (dired-frob-mark p nil))
 
-(defcommand "Dired Clear File Marks and Down Line" (p)
+(defcommand "Dired Clear File Marks and Down Line" ()
   "Clears any marks from the current file in a Dired buffer, and moves down
    a line."
   "Clears any mark from the current file, and moves down a line."
-  (declare (ignore p))
   (dired-frob-deletion nil nil)
   (dired-frob-mark nil nil)
   (dired-down-line (current-point)))
 
-(defcommand "Dired Clear File Marks with Pattern" (p)
-  "Prompts for a pattern and clears any marks from matching files."
-  "Prompts for a pattern and clears any generic marks from matching files."
-  (declare (ignore p))
+(defcommand "Dired Clear File Marks with Pattern" ()
+  "Clear any marks from files matching a prompted pattern."
   (dired-frob-mark t nil)
   (dired-frob-deletion t nil)
   (dired-down-line (current-point)))
 
 (defcommand "Dired Clear All Marks" (p)
-  "Clears any generic marks and any delete marks from a Dired buffer.  With
-   a positive prefix clears only generic (*) marks; with a negative prefix
-   clears only delete marks."
-  "Clears any generic marks and any delete marks from a Dired buffer.  If P
-   is positive clears only generic (*) marks; if P is negative clears only
+  "Clear any generic marks and any delete marks from a Dired buffer.  With
+   a positive prefix clear only generic (*) marks; with a negative prefix
+   clear only delete marks."
+  "Clear any generic marks and any delete marks from a Dired buffer.  If P
+   is positive clear only generic (*) marks; if P is negative clear only
    delete marks."
-  (unless (editor-bound-p 'dired-information)
-    (editor-error "Must be in a Dired buffer."))
+  (or (editor-bound-p 'dired-information)
+      (editor-error "Must be in a Dired buffer."))
   (with-writable-buffer ((current-buffer))
     (with-mark ((mark (buffer-start-mark (current-buffer)) :left-inserting))
       (mark-after mark)
@@ -509,64 +560,91 @@
 	    (setf (previous-character mark) #\ )))
 	(line-offset mark 1 1)))))
 
+(defcommand "Dired Swap Marks" ()
+  "Converts any delete (D) marks into generic (*) marks, and vice versa."
+  (or (editor-bound-p 'dired-information)
+      (editor-error "Must be in a Dired buffer."))
+  (with-writable-buffer ((current-buffer))
+    (with-mark ((mark (buffer-start-mark (current-buffer)) :left-inserting))
+      (mark-after mark)
+      (do* ((files (dired-info-files (value dired-information)))
+	    (pos 0 (incf pos))
+	    (end-mark (buffer-end-mark (current-buffer))))
+	   ((mark= mark end-mark))
+	(let ((file (svref files pos)))
+	  (cond
+	   ((dired-file-marked-p file)
+	    (setf (dired-file-marked-p file) ()
+		  (dired-file-deleted-p file) t
+		  (next-character mark) #\D))
+	   ((dired-file-deleted-p file)
+	    (setf (dired-file-marked-p file) t
+		  (dired-file-deleted-p file) ()
+		  (next-character mark) #\*))))
+	(line-offset mark 1 1)))))
+
 
 ;;;; Dired file finding and going to dired buffers.
 
 (defcommand "Dired Edit File" (p)
-  "Read in file or recursively \"Dired\" a directory.  With a prefix
+  "Read in the file on the current line as if by `Find File'.  If the line
+   describes a directory then `Dired' the directory instead.  With a prefix
    argument edit the file in the next window, splitting the window if
    necessary."
-  "Read in file or recursively \"Dired\" a directory.  If P is true edit
-   the file in the next window, splitting the window if necessary."
   (let ((point (current-point)))
-    (when (blank-line-p (mark-line point))
-      (editor-error "Point must be on a file line."))
+    (if (blank-line-p (mark-line point))
+	(editor-error "Point must be on a file line."))
     (let* ((dired-info (value dired-information))
-	   (pathname (dired-file-pathname
+	   (relative (dired-file-pathname
 		      (array-element-from-mark point
-					       (dired-info-files dired-info)))))
+					       (dired-info-files dired-info))))
+	   (pathname (merge-pathnames
+		      relative
+		      (buffer-pathname (current-buffer))))
+	   (pos (count-lines (region (buffer-start-mark (current-buffer))
+				     (current-point)))))
       (if p
 	  (if (eq (next-window (current-window)) (current-window))
-	      (split-window-command nil)
-	      (next-window-command nil)))
+	      (split-window-command)
+	      (next-window-command)))
       (if (directoryp pathname)
-	  (dired-command nil (directory-namestring pathname))
+	  (dired-command () (directory-namestring pathname))
 	  (let ((extra-data (dired-info-extra-data dired-info)))
 	    (change-to-buffer (find-file-buffer pathname))
 	    (if (and extra-data
 		     (consp extra-data)
 		     (listp (car extra-data)))
-		(let ((line-number (cadr (assoc pathname extra-data))))
+		(let ((line-number (cadr (nth (1- pos) extra-data))))
 		  (if line-number
 		      (or (string= line-number "")
 			  (goto-absolute-line-command (read-from-string
 						       line-number)))))))))))
 
-(defcommand "Dired View File" (p)
-  "Read in file as if by \"View File\" or recursively \"Dired\" a directory.
-   This associates the file's buffer with the dired buffer."
-  "Read in file as if by \"View File\".
-   This associates the file's buffer with the dired buffer."
-  (declare (ignore p))
+(defcommand "Dired Edit File Next Window" ()
+  "Read in file or \"Dired\" a directory in next window."
+  (dired-edit-file-command t))
+
+(defcommand "Dired View File" ()
+  "Read in the file on the current line as if by `View File'.  If the line
+   describes a directory then `Dired' the directory instead.  Associate the
+   View buffer with the dired buffer.  If the line describes a known image
+   type then open the image with an external program."
   (let ((point (current-point)))
-    (if (blank-line-p (mark-line point)) (editor-error "Not on a file line."))
-    (let ((pathname (dired-file-pathname
-		     (array-element-from-mark
-		      point (dired-info-files (value dired-information))))))
-      ;; FIX add proper file type handling
-      (when (or (string= (string-downcase (pathname-type pathname)) "png")
-		(string= (string-downcase (pathname-type pathname)) "ppm")
-		(string= (string-downcase (pathname-type pathname)) "gif")
-		(string= (string-downcase (pathname-type pathname)) "jpg"))
-	(message "Opening ~A externally ..." pathname)
-	(view pathname)
-	(return-from dired-view-file-command))
+    (if (blank-line-p (mark-line point))
+	(editor-error "Point must be on a file line."))
+    (let ((pathname (merge-pathnames
+		     (dired-file-pathname
+		      (array-element-from-mark
+		       point (dired-info-files (value dired-information))))
+		     (buffer-pathname (current-buffer)))))
+      (view pathname)
+#|
       (if (directoryp pathname)
-	  (dired-command nil (directory-namestring pathname))
+	  (dired-command () (directory-namestring pathname))
 	  (let* ((dired-buf (current-buffer))
 		 (trial-pathname (or (probe-file pathname)
 				     (merge-pathnames pathname
-						      (default-directory))))
+						      (dired-current-directory))))
 		 (found
 		  ;; Search for an existing view of the file.
 		  (or (let ((start 0))
@@ -592,7 +670,7 @@
 			       (change-to-buffer found)
 			       (if (< (buffer-write-date found)
 				      (file-write-date (buffer-pathname found)))
-				   (revert-file-command nil))
+				   (revert-file-command))
 			       found)
 			     (view-file-command nil pathname))))
 	    (push #'(lambda (buffer)
@@ -603,17 +681,24 @@
 		  #'(lambda ()
 		      (if dired-buf
 			  (change-to-buffer dired-buf)
-			  (dired-from-buffer-pathname-command nil)))))))))
+			  (dired-from-buffer-pathname-command))))))
+|#
+      )))
 
-(defcommand "Dired from Buffer Pathname" (p)
-  "Invokes \"Dired\" on the directory part of the current buffer's pathname.
-   With an argument, also prompts for a file pattern within that directory."
-  "Invokes \"Dired\" on the directory part of the current buffer's pathname.
-   With an argument, also prompts for a file pattern within that directory."
-  (let ((pathname (buffer-pathname (current-buffer))))
-    (or pathname
-	(editor-error "No pathname associated with buffer."))
-    (dired-command p (directory-namestring pathname))
+
+(defcommand "Dired from Buffer Pathname" ()
+  "Invoke `Dired' on the directory part of the current buffer's pathname.
+   With an argument, also prompt for a file pattern within that directory."
+  (let ((pathname (namify (or (buffer-pathname (current-buffer))
+			      (editor-error
+         "Current buffer must have an associate pathname.")))))
+    ;; FIX if hiddenp and dired exists ensure that existing dired shows
+    ;;     hidden files
+    (dired-command (hiddenp pathname)
+		   (directory-namestring pathname))
+    (setq pathname (if (directoryp pathname)
+		       (ensure-trailing-slash (file-namestring pathname))
+		       (file-namestring pathname)))
     (do* ((pos 0 (incf pos))
 	  (files (dired-info-files (value dired-information)))
 	  (end (length files)))
@@ -621,65 +706,77 @@
       (when (equal pathname (dired-file-pathname (aref files pos)))
 	(buffer-start (current-point))
 	(line-offset (current-point) pos)
+	(center-window (current-window) (current-point))
 	(return-from dired-from-buffer-pathname-command)))))
 
-(defcommand "Dired Up Directory" (p)
-  "Invokes \"Dired\" on the directory up one level from the current Dired
-   buffer."
-  "Invokes \"Dired\" on the directory up one level from the current Dired
-   buffer."
-  (declare (ignore p))
-  (unless (editor-bound-p 'dired-information)
-    (editor-error "Not in Dired buffer."))
+(defcommand "Dired Up Directory" ()
+  "Invoke \"Dired\" on the directory up one level from the current
+   directory."
+  (or (editor-bound-p 'dired-information)
+      (editor-error "Must be in a Dired buffer."))
   (let ((dirs (or (pathname-directory
 		   (dired-info-pathname (value dired-information)))
 		  '(:relative))))
-    (dired-command nil
-		   (truename (make-pathname :directory (nconc dirs '(:UP)))))))
+    (dired-command () (truename (make-pathname :directory
+					       (nconc dirs '(:up)))))))
+
+Dired Update Buffer
+
+#[ Modifying the Display
+
+{command:Dired Update Buffer}
+{command:Dired Toggle Recurse}
+{command:Dired Toggle Hidden Files}
+{command:Dired Toggle Backups}
+{command:Dired Toggle All Files}
+]#
 
 
 ;;;; Dired display control commands.
 
-(defcommand "Dired Toggle Backups" (p)
+(defcommand "Dired Toggle Recurse" ()
+  "Toggle recursive display, updating buffer."
+  (or (editor-bound-p 'dired-information)
+      (editor-error "Must be in a Dired buffer."))
+  ;; FIX (decf? ie (- universe universe)
+  (edi::complf (dired-info-recurse (value dired-information)))
+  (dired-update-buffer-command () t))
+
+(defcommand "Dired Toggle Backups" ()
   "Toggle display of backup files, updating buffer."
-  "Toggle display of backup files, updating buffer."
-  (declare (ignore p))
   (or (editor-bound-p 'dired-information)
       (editor-error "Must be in a Dired buffer."))
   ;; FIX (decf? ie (- universe universe)
   (edi::complf (dired-info-backup-files-p (value dired-information)))
-  (dired-update-buffer-command nil t))
+  (dired-update-buffer-command () t))
 
-(defcommand "Dired Toggle Hidden Files" (p)
+(defcommand "Dired Toggle Hidden Files" ()
   "Toggle display of files starting with `.', updating buffer."
-  "Toggle display of files starting with `.', updating buffer."
-  (declare (ignore p))
   (or (editor-bound-p 'dired-information)
       (editor-error "Must be in a Dired buffer."))
   ;; FIX
   (edi::complf (dired-info-dot-files-p (value dired-information)))
-  (dired-update-buffer-command nil t))
+  (dired-update-buffer-command () t))
 
-(defcommand "Dired Toggle All Files" (p)
+(defcommand "Dired Toggle All Files" ()
   "Toggle display of hidden and backup files, updating buffer."
-  "Toggle display of hidden and backup files, updating buffer."
-  (declare (ignore p))
   (or (editor-bound-p 'dired-information)
       (editor-error "Must be in a Dired buffer."))
   ;; FIX
   (edi::complf (dired-info-backup-files-p (value dired-information)))
   (edi::complf (dired-info-dot-files-p (value dired-information)))
-  (dired-update-buffer-command nil t))
+  (dired-update-buffer-command () t))
 
 
 
 ;;;; Dired misc. commands -- update, help, line motion.
 
-(defcommand "Dired Update Buffer" (p &optional regenerate)
-  "Recompute the contents of a dired buffer.
-   This maintains delete flags for files that have not been modified."
-  "Recompute the contents of a dired buffer.
-   This maintains delete flags for files that have not been modified."
+(defcommand "Dired Update Buffer" (p regenerate)
+  "Recompute the contents of the dired buffer in the current buffer.
+   Maintain flags for files that stay the same."
+  "Recompute the contents of the dired buffer in the current buffer.
+   Maintain flags for files that stay the same.  If $regenerate is true and
+   there is a generator then regenerate the listing."
   (declare (ignore p))
   (or (editor-bound-p 'dired-information)
       (editor-error "Must be in Dired buffer."))
@@ -697,138 +794,144 @@
 			 (dired-info-pattern dir-info)
 			 (current-buffer))))
 
-;;; UPDATE-DIRED-BUFFER updates buffer with a dired of directory, deleting
-;;; whatever is in the buffer already.  This assumes buffer was previously
-;;; used as a dired buffer having necessary variables bound.  The new files
-;;; are compared to the old ones propagating any deleted flags if the name
-;;; and the write date is the same for both specifications.
-;;;
 (defun update-dired-buffer (directory pattern buffer)
+  "Update $buffer with a dired of $directory, deleting whatever is in
+   $buffer already.  Assume $buffer was previously used as a dired buffer
+   having necessary variables bound.  Compare the new files to the old
+   ones, propagating any deleted flags if the name and the write date is
+   the same for both specifications."
   (let* ((dir-info (variable-value 'dired-information :buffer buffer))
 	 (point (buffer-point buffer))
 	 (current-file (if (blank-line-p (mark-line point))
-			     nil
+			     ()
 			     (dired-file-pathname
 			      (array-element-from-mark
 			       point
 			       (dired-info-files dir-info))))))
-    (with-writable-buffer (buffer)
-      (delete-region (buffer-region buffer))
-      (multiple-value-bind (pathnames new-dired-files)
-			   (dired-in-buffer directory pattern
-					    (dired-info-dot-files-p dir-info)
-					    (dired-info-backup-files-p dir-info)
-					    (dired-info-coldefs dir-info)
-					    (dired-info-recurse dir-info)
-					    (dired-info-extra-data dir-info)
-					    buffer)
-	(let ((point (buffer-point buffer))
-	      (old-dired-files (dired-info-files dir-info)))
-	  (declare (simple-vector old-dired-files))
-	  (dotimes (i (length old-dired-files))
-	    (let ((old-file (svref old-dired-files i)))
-	      (when (dired-file-deleted-p old-file)
-		(let ((pos (position (dired-file-pathname old-file)
-				     new-dired-files :test #'equal
-				     :key #'dired-file-pathname)))
-		  (when pos
-		    (let* ((new-file (svref new-dired-files pos))
-			   (write-date (file-write-date
-					(dired-file-pathname new-file))))
-		      (when (= (dired-file-write-date old-file) write-date)
-			(setf (dired-file-deleted-p new-file) t)
-			(setf (dired-file-write-date new-file) write-date)
-			(setf (next-character
-			       (line-offset (buffer-start point) pos 0))
-			      #\D))))))
-	      (when (dired-file-marked-p old-file)
-		(let ((pos (position (dired-file-pathname old-file)
-				     new-dired-files :test #'equal
-				     :key #'dired-file-pathname)))
-		  (when pos
-		    (let ((new-file (svref new-dired-files pos)))
-		      (setf (dired-file-marked-p new-file) t)
-		      (setf (next-character
-			     (line-offset (buffer-start point) pos 1))
-			    #\*)))))))
-	  (setf (dired-info-files dir-info) new-dired-files)
-	  (setf (dired-info-file-list dir-info) pathnames)
-	  (setf (dired-info-write-date dir-info) (file-write-date directory))
-	  (move-mark point (buffer-start-mark buffer))
-	  (let ((pos (position current-file
-			       new-dired-files :test #'equal
-			       :key #'dired-file-pathname)))
-	    (if pos (line-offset point pos))))))))
+    (fi (probe-file (dired-info-pathname dir-info))
+	;; Presumably directory was moved/flushed.
+	;; FIX maybe kill the buffer? then also kill edit buffers
+	;;         general style seems to be to let buffers live
+	()
+	(with-writable-buffer (buffer)
+	  (delete-region (buffer-region buffer))
+	  (multiple-value-bind (pathnames new-dired-files)
+			       (dired-in-buffer directory pattern
+						(dired-info-dot-files-p dir-info)
+						(dired-info-backup-files-p dir-info)
+						(dired-info-coldefs dir-info)
+						(dired-info-recurse dir-info)
+						(dired-info-extra-data dir-info)
+						buffer)
+	    (let ((point (buffer-point buffer))
+		  (old-dired-files (dired-info-files dir-info)))
+	      (declare (simple-vector old-dired-files))
+	      (dotimes (i (length old-dired-files))
+		(let ((old-file (svref old-dired-files i)))
+		  (when (dired-file-deleted-p old-file)
+		    (let ((pos (position (dired-file-pathname old-file)
+					 new-dired-files :test #'equal
+					 :key #'dired-file-pathname)))
+		      (when pos
+			(let* ((new-file (svref new-dired-files pos))
+			       (write-date (file-write-date
+					    (dired-file-pathname new-file)
+					    :check-for-links t)))
+			  (when (= (dired-file-write-date old-file) write-date)
+			    (setf (dired-file-deleted-p new-file) t)
+			    (setf (dired-file-write-date new-file) write-date)
+			    (setf (next-character
+				   (line-offset (buffer-start point) pos 0))
+				  #\D))))))
+		  (when (dired-file-marked-p old-file)
+		    (let ((pos (position (dired-file-pathname old-file)
+					 new-dired-files :test #'equal
+					 :key #'dired-file-pathname)))
+		      (when pos
+			(let ((new-file (svref new-dired-files pos)))
+			  (setf (dired-file-marked-p new-file) t)
+			  (setf (next-character
+				 (line-offset (buffer-start point) pos 1))
+				#\*)))))))
+	      (setf (dired-info-files dir-info) new-dired-files)
+	      (setf (dired-info-file-list dir-info) pathnames)
+	      (setf (dired-info-write-date dir-info) (file-write-date directory))
+	      (move-mark point (buffer-start-mark buffer))
+	      (let ((pos (position current-file
+				   new-dired-files :test #'equal
+				   :key #'dired-file-pathname)))
+		(if pos (line-offset point pos)))))))))
 
-;;; DIRED-IN-BUFFER inserts a dired listing of directory in buffer returning
-;;; two values: a list of pathnames of files only, and an array of dired-file
-;;; structures.  This uses FILTER-REGION to insert a space for the indication
-;;; of whether the file is flagged for deletion.  Then we clean up extra header
-;;; and trailing lines known to be in the output (into every code a little
-;;; slime must fall).
-;;;
+(defun true-and-directory-p (pathname)
+  (if pathname (directoryp pathname)))
+
 (defun dired-in-buffer (directory pattern dot-files-p backup-files-p coldefs
 			recurse extra-data buffer)
+  "Insert a dired listing of DIRECTORY in BUFFER, returning two values: a
+   list of pathnames of files only, and an array of dired-file structures.
+   Use FILTER-REGION to insert a space for the indication of whether the
+   file is flagged for deletion.  FIX Then clean up extra header and
+   trailing lines known to be in the output."
   (let ((point (buffer-point buffer)))
     (with-writable-buffer (buffer)
-      (let* ((pathnames (call-print-directory
-			 (if pattern
-			     (merge-pathnames directory pattern)
-			     directory)
-			 point
-			 dot-files-p
-			 backup-files-p
-			 coldefs
-			 recurse
-			 extra-data))
-	     (dired-files (make-array (length pathnames))))
-	(declare (list pathnames) (simple-vector dired-files))
-	(filter-region #'(lambda (str)
-			   (concatenate 'simple-string "  " str))
-		       (buffer-region buffer))
-	(delete-characters point -2)
-	(delete-region (line-to-region (mark-line (buffer-start point))))
-	(delete-characters point)
-	(do ((p pathnames (cdr p))
-	     (i 0 (1+ i)))
-	    ((null p))
-	  (setf (svref dired-files i) (make-dired-file (car p))))
-	(values (delete-if #'directoryp pathnames) dired-files)))))
+      (multiple-value-bind (pathnames col-posns)
+			   (call-print-directory
+			    (if pattern
+				(merge-pathnames directory pattern)
+				directory)
+			    point
+			    dot-files-p
+			    backup-files-p
+			    coldefs
+			    recurse
+			    extra-data)
+	(if (editor-bound-p 'dired-information :buffer buffer)
+	    (setf (dired-info-col-posns (variable-value 'dired-information
+							:buffer buffer))
+		  col-posns))
+	(let ((dired-files (make-array (length pathnames))))
+	  (declare (list pathnames) (simple-vector dired-files))
+	  (filter-region #'(lambda (str)
+			     (concatenate 'simple-string "  " str))
+			 (buffer-region buffer))
+	  (delete-characters point -2)
+	  (delete-region (line-to-region (mark-line (buffer-start point))))
+	  (delete-characters point)
+	  (do ((p pathnames (cdr p))
+	       (i 0 (1+ i)))
+	      ((null p))
+	    (setf (svref dired-files i) (make-dired-file (car p))))
+	  (values (in-directory directory
+		    (delete-if #'true-and-directory-p pathnames))
+		  dired-files))))))
 
-
-(defcommand "Dired Help" (p)
-  "How to use dired."
-  "How to use dired."
-  (declare (ignore p))
-  (describe-mode-command nil "Dired"))
+(defcommand "Dired Help" ()
+  "Pop up a help window listing the various `Dired' commands."
+  (describe-mode-command () "Dired"))
 
 (defcommand "Dired Next File" (p)
-  "Moves to next undeleted file."
-  "Moves to next undeleted file."
-  (unless (dired-line-offset (current-point) (or p 1))
-    (editor-error "Not enough lines.")))
+  "Move to the next file, skipping over delete-marked files."
+  (fi (dired-line-offset (current-point) (or p 1))
+      (editor-error "Too few lines.")))
 
 (defcommand "Dired Previous File" (p)
-  "Moves to previous undeleted file."
-  "Moves to next undeleted file."
-  (unless (dired-line-offset (current-point) (or p -1))
-    (editor-error "Not enough lines.")))
+  "Move to the previous file, skipping over delete-marked files."
+  (fi (dired-line-offset (current-point) (or p -1))
+      (editor-error "Too few lines.")))
 
-;;; DIRED-LINE-OFFSET moves mark n undeleted file lines, returning mark.  If
-;;; there are not enough lines, mark remains unmoved, this returns nil.
-;;;
 (defun dired-line-offset (mark n)
+  "Move mark N undeleted file lines, returning mark.  Only move mark If
+   there are enough lines.  Return ()."
   (with-mark ((m mark))
     (let ((step (if (plusp n) 1 -1)))
       (dotimes (i (abs n) (move-mark mark m))
 	(loop
-	  (unless (line-offset m step 0)
-	    (return-from dired-line-offset nil))
+	  (or (line-offset m step 0)
+	      (return-from dired-line-offset nil))
 	  (when (blank-line-p (mark-line m))
 	    (return-from dired-line-offset nil))
 	  (when (char= (next-character m) #\space)
 	    (return)))))))
-
 
 
 ;;;; Dired user interaction functions.
@@ -843,10 +946,10 @@
 (defun dired-yesp-function (string &rest args)
   (prompt-for-y-or-n :prompt (cons string args) :default t))
 
-
 
 ;;;; Dired expunging and quitting.
 
+#|
 ;; FIX This needs more work to be useful: it only treats buffers of the
 ;; exact same path and name as the given pathname (maybe check what
 ;; find-file-buffer does).  Maybe it's cooler to keep the buffers anyway
@@ -858,37 +961,30 @@
     (when name
       (let ((buffer (getstring (namestring name) *buffer-names*)))
 	(when buffer
-	  (or (buffer-modified buffer)
-	      (delete-buffer buffer)))))))
+	  (or (buffer-modified buffer) (delete-buffer buffer)))))))
+|#
 
-(defcommand "Dired Expunge Files" (p)
-  "Expunges files marked for deletion.
-   Query the user if value of \"Dired File Expunge Confirm\" is non-nil.  Do
-   the same with directories and the value of \"Dired Directory Expunge
-   Confirm\"."
-  "Expunges files marked for deletion.
-   Query the user if value of \"Dired File Expunge Confirm\" is non-nil.  Do
-   the same with directories and the value of \"Dired Directory Expunge
-   Confirm\"."
-  (declare (ignore p))
-  (if (expunge-dired-files) (dired-update-buffer-command nil))
+(defcommand "Dired Expunge Files" ()
+  "Expunge files and directories marked for deletion, recursively.  Ask for
+   confirmation for files if *Dired File Expunge Confirm* is set and for
+   directories if *Dired Directory Expunge Confirm* is set."
+  (if (expunge-dired-files) (dired-update-buffer-command))
   (maintain-dired-consistency))
 
-(defcommand "Dired Quit" (p)
-  "Expunges the files in a dired buffer and then exits."
-  "Expunges the files in a dired buffer and then exits."
-  (declare (ignore p))
+(defcommand "Dired Quit" ()
+  "Expunge any marked files and directories as if by `Expunge Dired Files'
+   then delete the dired buffer."
   (expunge-dired-files)
   (delete-buffer-if-possible (current-buffer)))
 
-(defhvar "Dired File Expunge Confirm"
-  "When set (the default), \"Dired Expunge Files\" and \"Dired Quit\" will ask
-   for confirmation before deleting the marked files."
+(defevar "Dired File Expunge Confirm"
+  "When set, `Dired Expunge Files' and `Dired Quit' ask for confirmation
+   before deleting the marked files."
   :value t)
 
-(defhvar "Dired Directory Expunge Confirm"
-  "When set (the default), \"Dired Expunge Files\" and \"Dired Quit\" will ask
-   for confirmation before deleting each marked directory."
+(defevar "Dired Directory Expunge Confirm"
+  "When set, `Dired Expunge Files' and `Dired Quit' will ask for
+   confirmation before deleting each marked directory."
   :value t)
 
 (defun expunge-dired-files ()
@@ -897,98 +993,143 @@
     (let ((dired:*error-function* #'dired-error-function)
 	  (dired:*report-function* #'dired-report-function)
 	  (dired:*yesp-function* #'dired-yesp-function)
-	  (we-did-something nil)
-	  (really 0))
+	  did-something-p)
       (when (and marked-files
 		 (if (value dired-file-expunge-confirm)
-		     (setq really
-			   (prompt-for-y-or-n :prompt "Really delete file(s)? "
-					      :default t
-					      :must-exist t
-					      :default-string "Y"))
+		     (with-pop-up-window (buffer window)
+		       (let ((point (buffer-point buffer))
+			     (end-line (mark-line
+					(window-display-end
+					 (current-window)))))
+			 (dolist (file-info marked-files)
+			   (insert-string
+			    point
+			    (format () "~A~%"
+				    (file-namestring
+				     (namify (car file-info)))))
+			   (when (equal (mark-line point) end-line)
+			     ;;; FIX check
+			     (insert-string point "...")
+			     (return))))
+		       (prompt-for-y-or-n :prompt
+					  (format () "Really delete file~P? "
+						  (length marked-files))
+					  :default t
+					  :must-exist t
+					  :default-string "Y"))
 		     t))
-	(setf we-did-something t)
+	(setf did-something-p t)
 	(dolist (file-info marked-files)
 	  (let ((pathname (car file-info))
 		(write-date (cdr file-info)))
 	    ;; FIX assuming write-date only nil for broken symlinks
-	    (if (if write-date (= write-date (file-write-date pathname)) t)
+	    (if (if (and write-date
+			 ;; FIX why () when dir a link broken by this loop?
+			 (file-write-date pathname :check-for-links t))
+		    (= write-date
+		       (file-write-date pathname :check-for-links t))
+		    t)
 		(dired:delete-file (namestring pathname) :clobber t
-				   :recursive nil)
+				   :recurse ())
 		(message "~A has been modified, so it remains."
 			 (namestring pathname))))))
-      (when marked-dirs
+      (when (and marked-dirs
+		 (if (value dired-directory-expunge-confirm)
+		     (with-pop-up-window (buffer window)
+		       (let ((point (buffer-point buffer)))
+			 (dolist (dir-info marked-dirs)
+			   (insert-string
+			    point
+			    (format () "~A~%"
+				    (file-namestring
+				     (namify (car dir-info)))))))
+		       (prompt-for-yes-or-no :prompt
+					     (format ()
+						     "Really delete dir~P? "
+						     (length marked-dirs))
+					     :default ()
+					     :must-exist t
+					     :default-string "No"))
+		     t))
 	(dolist (dir-info marked-dirs)
 	  (let ((dir (car dir-info))
 		(write-date (cdr dir-info)))
-	    (if (= write-date (file-write-date dir))
-		(if (symlinkp (dired-namify dir))
-		    (when (or (eq really t)
-			      (if (value dired-file-expunge-confirm)
-				  (if really
-				      (prompt-for-y-or-n
-				       :prompt "Really delete file(s)? "
-				       :default t
-				       :must-exist t
-				       :default-string "Y"))
-				  t))
-		      (dired:delete-file (dired-namify dir)
+	    ;; FIX assuming write-date only nil for broken symlinks
+	    (if (if (and write-date
+			 ;; FIX why () when dir a link broken by this loop?
+			 (file-write-date dir :check-for-links t))
+		    (= write-date
+		       (file-write-date dir :check-for-links t))
+		    t)
+		(if (symlinkp (namify dir))
+		    ;; FIX These are more like files.
+		    (progn
+		      (dired:delete-file (namify dir)
 					 :clobber t
-					 :recursive nil)
-		      (setf we-did-something t))
-		    (when (if (value dired-directory-expunge-confirm)
-			      (prompt-for-yes-or-no
-			       :prompt (list "~a is a directory. Delete it? "
-					     (directory-namestring dir))
-			       :default nil
-			       :must-exist t
-			       :default-string "No")
-			      t)
+					 :recurse nil)
+		      (setf did-something-p t))
+		    (progn
 		      (dired:delete-file (directory-namestring dir)
 					 :clobber t
-					 :recursive t)
-		      (setf we-did-something t)))
-		(message "~A has been modified, so it remains.")))))
-      we-did-something)))
+					 :recurse t)
+		      (setf did-something-p t)))
+		(message "~A has been modified, so it remains."
+			 dir)))))
+      did-something-p)))
 
-(defun clear-marks (files point dired-info-files)
+(defun clear-marks (files point dired-info-files directory)
   (dolist (file files)
     (buffer-start point)
     (line-offset point
 		 (position (pathname (car file)) dired-info-files
 			   :test 'equal
-			   :key 'dired-file-pathname))
+			   :key #'(lambda (pn)
+				    (merge-pathnames
+				     (dired-file-pathname pn)
+				     directory))))
     (dired-frob-deletion nil nil)))
 
 (defcommand "Dired Delete and Expunge" (p)
-  "Expunge any marked files, or mark and expunge the file on the current line."
-  "Expunge any marked files, or mark and expunge the file on the current line."
+  "Expunge any marked files, or mark and expunge the file on the current
+   line."
   (multiple-value-bind (marked-files marked-dirs)
 		       (get-delete-marked-dired-files)
     (if (or marked-files marked-dirs)
-	(dired-expunge-files-command nil)
+	(dired-expunge-files-command)
 	(multiple-value-bind (marked-files marked-dirs)
 			     (get-marked-dired-files)
-	  (let ((file)
-		(point (current-point))
-		(info-files (dired-info-files (value dired-information))))
+	  (let* ((file)
+		 (point (current-point))
+		 (dired-info (value dired-information))
+		 (info-files (dired-info-files dired-info))
+		 (directory (dired-info-pathname dired-info)))
 	    (if (or marked-files marked-dirs)
 		(progn
 		  (if marked-files
 		      (dolist (f marked-files)
 			(buffer-start point)
-			(line-offset point
-				     (position (pathname (car f)) info-files
-					       :test 'equal
-					       :key 'dired-file-pathname))
+			(line-offset
+			 point
+			 (or (position (pathname (car f)) info-files
+				       :test 'equal
+				       :key #'(lambda (pn)
+						(merge-pathnames
+						 (dired-file-pathname pn)
+						 directory)))
+			     (error "Failed to find ~A in directory info"
+				    (pathname (car f)))))
 			(dired-frob-deletion nil t)))
 		  (if marked-dirs
 		      (dolist (f marked-dirs)
 			(buffer-start point)
-			(line-offset point
-				     (position (pathname (car f)) info-files
-					       :test 'equal
-					       :key 'dired-file-pathname))
+			(line-offset
+			 point
+			 (position (pathname (car f)) info-files
+				   :test 'equal
+				   :key #'(lambda (pn)
+					    (merge-pathnames
+					     (dired-file-pathname pn)
+					     directory))))
 			(dired-frob-deletion nil t))))
 		(progn
 		  (setq file
@@ -997,7 +1138,7 @@
 		  ;; Hack to keep point near original position.
 		  (line-offset point -1)))
 	    (unwind-protect
-		(dired-expunge-files-command nil)
+		(dired-expunge-files-command)
 	      (if file
 		  (let ((position (position file info-files)))
 		    (when position
@@ -1006,40 +1147,82 @@
 		      (dired-frob-deletion nil nil)))
 		  (progn
 		    (if marked-files
-			(clear-marks marked-files point info-files))
+			(clear-marks marked-files point
+				     info-files directory))
 		    (if marked-dirs
-			(clear-marks marked-dirs point info-files))))))))))
+			(clear-marks marked-dirs point
+				     info-files directory))))))))))
 
 
-;;;; Dired operations on files.
+#[ Copying Files
 
-(defhvar "Dired Copy File Confirm"
-  "Can be either t, nil, or :update.  T means always query before clobbering an
-   existing file, nil means don't query before clobbering an existing file, and
-   :update means only ask if the existing file is newer than the source."
+{command:Dired Copy File}
+{command:Dired Copy with Wildcard}
+{evariable:Dired Copy File Confirm}
+]#
+
+#[ Renaming Files
+
+{command:Dired Rename File}
+{command:Dired Rename with Wildcard}
+{evariable:Dired Rename File Confirm}
+]#
+
+#[ Other File Operations
+
+{command:Dired Touch File}
+{command:Dired Symlink File}
+{command:Dired Compare Files}
+{command:Dired Toggle File Compression}
+{command:Dired Shell Command on File}
+]#
+
+
+;;;; Dired operations on files and directories.
+
+(defevar "Dired Copy File Confirm"
+  "Control of the interaction when copying:
+
+     true
+	When the destination specification exists, the copying process
+	stops and asks if it should overwrite the destination.
+
+     ()
+	The copying process always copies the source file to the
+	destination specification.
+
+     :update
+	When the destination specification exists, and its write date is
+	newer than the source's write date, then the copying process stops
+	and asks the user if it should overwrite the destination."
   :value t)
 
-(defhvar "Dired Rename File Confirm"
-  "When non-nil, dired will query before clobbering an existing file."
+(defevar "Dired Rename File Confirm"
+  "When true Dired will query before overwriting an existing file."
   :value t)
 
 (defcommand "Dired Copy File" (p)
-  "Copy the file under the point."
-  "Copy the file under the point."
-  (declare (ignore p))
+  "Copy the file on the current line to a prompted destination.  The
+   destination is either a directory specification or a file name.  When it
+   is a directory, copy the source into the directory with its current file
+   name and extension.
+
+   With a prefix follow symbolic links, otherwise preserve symbolic links."
   (multiple-value-bind (marked-files marked-dirs)
 		       (get-marked-dired-files)
     (let* ((point (current-point))
 	   (confirm (value dired-copy-file-confirm))
 	   (dired-info (value dired-information))
 	   (source (if (or marked-files marked-dirs)
-		       nil
-		       (dired-file-pathname
-			(array-element-from-mark
-			 point
-			 (dired-info-files dired-info)))))
+		       ()
+		       (merge-pathnames
+			(dired-file-pathname
+			 (array-element-from-mark
+			  point
+			  (dired-info-files dired-info)))
+			(dired-info-pathname dired-info))))
 	   (files (if source
-		      nil
+		      ()
 		      (mapcar 'car (append marked-files
 					   marked-dirs))))
 	   (dest (merge-pathnames
@@ -1050,39 +1233,45 @@
 			       "Destination Directory Name: "
 			       "Destination Filename: ")
 		   :help "Name of new file."
-		   :default source
-		   :must-exist nil)
+		   :default (if (if source
+				    (directoryp source)
+				    (> (length files) 1))
+				(dired-info-pathname dired-info)
+				source)
+		   :must-exist ())
 		  (dired-info-pathname dired-info)))
 	   (dired:*error-function* #'dired-error-function)
 	   (dired:*report-function* #'dired-report-function)
 	   (dired:*yesp-function* #'dired-yesp-function))
       (if source
-	  (dired:copy-file source dest :update (if (eq confirm :update) t nil)
-			   :clobber (not confirm))
+	  (dired:copy-file source dest :update (if (eq confirm :update) t ())
+			   :clobber (fi confirm)
+			   :check-for-links (fi p))
 	  (dolist (f files)
-	    (dired:copy-file f dest :update (if (eq confirm :update) t nil)
-			     :clobber (not confirm))))
+	    (dired:copy-file f dest :update (if (eq confirm :update) t ())
+			     :clobber (fi confirm)
+			     :check-for-links (fi p))))
       (maintain-dired-consistency))))
 
-(defcommand "Dired Rename File" (p)
+;; FIX need check-for-links?
+(defcommand "Dired Rename File" ()
   "Rename the file or directory under the point."
-  "Rename the file or directory under the point."
-  (declare (ignore p))
   (multiple-value-bind (marked-files marked-dirs)
 		       (get-marked-dired-files)
     (let* ((point (current-point))
 	   (dired-info (value dired-information))
+	   (directory (dired-info-pathname dired-info))
 	   (source
-	    (if (or marked-files marked-dirs)
-		nil
-		(dired-namify (dired-file-pathname
-			       (array-element-from-mark
-				point
-				(dired-info-files dired-info))))))
-	   (files (if source
-		      nil
-		      (mapcar 'car (append marked-files
-					   marked-dirs))))
+	    (fi (or marked-files marked-dirs)
+		(namify
+		 (merge-pathnames (dired-file-pathname
+				   (array-element-from-mark
+				    point
+				    (dired-info-files dired-info)))
+				  directory))))
+	   (files (fi source
+		      (mapcar #'car (append marked-files
+					    marked-dirs))))
 	   (dest (merge-pathnames
 		  (prompt-for-file
 		   :prompt (if (> (length files) 1)
@@ -1092,25 +1281,28 @@
 			     "The destination directory for the marked files."
                              "The new name for this file.")
 		   :default source
-		   :must-exist nil)
+		   :must-exist ())
 		  (dired-info-pathname dired-info)))
 	   (dired:*error-function* #'dired-error-function)
 	   (dired:*report-function* #'dired-report-function)
 	   (dired:*yesp-function* #'dired-yesp-function))
+      (if (> (length files) 1)
+	  (or (directory-name-p dest)
+	      (setq dest (concatenate 'simple-string
+				      (namestring dest) "/"))))
       ;; ARRAY-ELEMENT-FROM-MARK moves mark to line start.
       (if source
 	  (dired:rename-file source dest
-			     :clobber (value dired-rename-file-confirm))
+			     :clobber (fi (value dired-rename-file-confirm)))
 	  (let ((confirm (value dired-rename-file-confirm)))
 	    (dolist (f files)
-	      (dired:rename-file f dest :clobber confirm))))
+	      (dired:rename-file (merge-pathnames f directory)
+				 dest :clobber confirm))))
       ;; FIX It'd be nice if point came out on the new file.
       (maintain-dired-consistency))))
 
-(defcommand "Dired Symlink File" (p)
+(defcommand "Dired Symlink File" ()
   "Symbolic link to the file under the point."
-  "Symbolic link to the file under the point."
-  (declare (ignore p))
   (multiple-value-bind (marked-files marked-dirs)
 		       (get-marked-dired-files)
     (let* ((point (current-point))
@@ -1126,48 +1318,60 @@
 		      (append marked-files marked-dirs)))
 	   (dired:*error-function* #'dired-error-function)
 	   (dired:*report-function* #'dired-report-function)
-	   (dired:*yesp-function* #'dired-yesp-function))
+	   (dired:*yesp-function* #'dired-yesp-function)
+	   ;(directory (dired-info-pathname dired-info))
+	   )
       (flet ((prompt (dest)
-	       (merge-pathnames
+	       ;(merge-pathnames
 		(prompt-for-file
 		 :prompt (format nil "Link to ~A from: " dest)
 		 :help "A name for the link to the file."
-		 :default (dired-namify (namestring dest))
+		 :default (namify (namestring dest))
 		 :must-exist nil)
-		(dired-info-pathname dired-info))))
+		;directory)
+	     ))
 	(if dest
 	    (dired:symlink-file (prompt dest) dest)
 	    (dolist (f files)
-	      (dired:symlink-file (prompt (car f)) f))))
+	      (dired:symlink-file (prompt (car f)) (car f)))))
       (maintain-dired-consistency))))
 
-(defcommand "Dired Touch File" (p)
+(defcommand "Dired Touch File" ()
   "Touch the file under point."
-  "Touch the file under point."
-  (declare (ignore p))
   (multiple-value-bind (marked-files marked-dirs)
 		       (get-marked-dired-files)
-    (let ((dir-info (value dired-information)))
+    (let* ((dir-info (value dired-information))
+	   (directory (dired-info-pathname dir-info)))
       (if (or marked-files marked-dirs)
 	  (dolist (f (append marked-files marked-dirs))
-	    (touch-file (car f)))
-	  (touch-file (dired-file-pathname
-		       (array-element-from-mark
-			(current-point)
-			(dired-info-files dir-info)))))
+	    (touch-file (merge-pathnames (car f) directory)))
+	  (touch-file (merge-pathnames
+		       (dired-file-pathname
+			(array-element-from-mark
+			 (current-point)
+			 (dired-info-files dir-info)))
+		       directory)))
       ;; FIX this should also update other direds of this dir
       ;;     as maitain-d-c depends on dir write-date, which is
       ;;     the same after touching the files
       ;;     maybe m-d-c s/b adjusted
-      (update-dired-buffer (current-directory)
+      (update-dired-buffer (dired-current-directory)
 			   (dired-info-pattern dir-info)
 			   (current-buffer))
       (maintain-dired-consistency))))
 
 (defcommand "Dired Copy with Wildcard" (p)
-  "Copy files that match a pattern containing ONE wildcard."
-  "Copy files that match a pattern containing ONE wildcard."
-  (declare (ignore p))
+  "Prompt for a name pattern that may contain at most one wildcard (an
+   asterisk) and copy all the names matching the pattern.  Prompt for the
+   destination suggesting the `Dired' buffer's directory.  The destination
+   is either a directory specification or a file name with a wildcard.
+   When it is a directory, copy all the source files into the directory
+   under their current file names and extensions.  When it is a file name,
+   for each sources file substitution the matching part of the source
+   wildcard with the corresponding wildcard of the destination pattern.
+   This enables, for example, \"*.txt\" to be copied to \"*.text\".
+
+   With a prefix follow symbolic links, otherwise preserve symbolic links."
   (let* ((dir-info (value dired-information))
 	 (confirm (value dired-copy-file-confirm))
 	 (pattern (prompt-for-string
@@ -1183,15 +1387,15 @@
 	 (dired:*error-function* #'dired-error-function)
 	 (dired:*yesp-function* #'dired-yesp-function)
 	 (dired:*report-function* #'dired-report-function))
-    (dired:copy-file pattern destination :update (if (eq confirm :update) t nil)
-		     :clobber (not confirm)
-		     :directory (dired-info-file-list dir-info)))
+    (in-directory (dired-info-pathname dir-info)
+      (dired:copy-file pattern destination :update (if (eq confirm :update) t nil)
+		       :clobber (not confirm)
+		       :directory (dired-info-file-list dir-info)
+		       :check-for-links (fi p))))
   (maintain-dired-consistency))
 
-(defcommand "Dired Rename with Wildcard" (p)
+(defcommand "Dired Rename with Wildcard" ()
   "Rename files that match a pattern containing ONE wildcard."
-  "Rename files that match a pattern containing ONE wildcard."
-  (declare (ignore p))
   (let* ((dir-info (value dired-information))
 	 (pattern (prompt-for-string
 		   :prompt "Filename pattern: "
@@ -1202,7 +1406,7 @@
 			:prompt "Destination Spec: "
 			:help "Destination spec.  May contain ONE asterisk."
 			:default (dired-info-pathname dir-info)
-			:must-exist nil)))
+			:must-exist ())))
 	 (dired:*error-function* #'dired-error-function)
 	 (dired:*yesp-function* #'dired-yesp-function)
 	 (dired:*report-function* #'dired-report-function))
@@ -1211,71 +1415,168 @@
 		       :directory (dired-info-file-list dir-info)))
   (maintain-dired-consistency))
 
-(defcommand "Dired Compare Files" (p)
+(defcommand "Dired Compare Files" ()
   "Compare Dired files."
-  "Compare Dired files."
-  (declare (ignore p))
   (multiple-value-bind (marked-files marked-dirs)
 		       (get-marked-dired-files)
     (declare (ignore marked-dirs))
     (let* ((point (current-point))
 	   (dired-info (value dired-information))
+	   (directory (dired-info-pathname dired-info))
 	   (one
 	    (if marked-files
-		(car marked-files)
-		(dired-namify (dired-file-pathname
-			       (array-element-from-mark
-				point
-				(dired-info-files dired-info)
-  "Point must be on a file line, or a file must be marked.")))))
-	   (two (or (and marked-files (cadr marked-files))
+		(caar marked-files)
+		(namify (merge-pathnames
+			       (dired-file-pathname
+				(array-element-from-mark
+				 point
+				 (dired-info-files dired-info)
+  "Point must be on a file line, or a file must be marked."))
+			       directory))))
+	   (two (or (and marked-files (caadr marked-files))
 		    (merge-pathnames
-		     (prompt-for-file
-		      :prompt "Second file: "
-		      :help (format nil "File to compare with ~A." one)
-		      :default one
-		      :must-exist t))))
+		     (in-directory directory
+		       (prompt-for-file
+			:prompt "Second file: "
+			:help (format () "File to compare with ~A." one)
+			:default (file-namestring one)
+			:must-exist t))
+		     directory)))
 	   (dired:*error-function* #'dired-error-function)
 	   (dired:*report-function* #'dired-report-function)
 	   (dired:*yesp-function* #'dired-yesp-function))
       ;; ARRAY-ELEMENT-FROM-MARK moves mark to line start.
-      (compare-files-command nil one two))))
+      (compare-files-command () one two))))
 
-(defcommand "Delete File" (p)
-  "Delete a file.  Specify directories with a trailing slash."
-  "Delete a file.  Specify directories with a trailing slash."
+(defcommand "Make Directory" (p pathname)
+  "Make a prompted directory"
   (declare (ignore p))
+  (let* ((pn (or pathname
+		 (prompt-for-file
+		  :prompt "Directory to make: "
+		  :must-exist ()
+		  :help "Name of directory to create."
+		  :default (directory-namestring (buffer-default-pathname
+						  (current-buffer)))))))
+    ;; FIX ensure-d-e should use mode from umask mode
+    (multiple-value-bind (success error)
+			 (ensure-directories-exist (concatenate 'simple-string
+								(namestring pn)
+								"/"))
+      (or success (editor-error "~A" error)))))
+
+(defcommand "Dired Make Directory" (&optional p pathname)
+  "Make directory Pathname, prompting for a name if Pathname is ().
+   Expect to be run in a Dired.  Update buffer afterwards."
+  (make-directory-command p pathname)
+  (maintain-dired-consistency))
+
+(defcommand "Dired Change File Mode" ()
+  "Change the mode of the file under point."
+  (let ((mode (prompt-for-mode)))
+    (multiple-value-bind (marked-files marked-dirs)
+			 (get-marked-dired-files)
+      (let* ((dir-info (value dired-information))
+	     (directory (dired-info-pathname dir-info)))
+	(if (or marked-files marked-dirs)
+	    (dolist (f (append marked-files marked-dirs))
+	      (setf (file-mode (merge-pathnames (car f) directory))
+		    mode))
+	    (setf (file-mode (merge-pathnames
+			      (dired-file-pathname
+			       (array-element-from-mark
+				(current-point)
+				(dired-info-files dir-info)))
+			      directory))
+		  mode))
+	;; FIX Update only modified lines?
+	(update-dired-buffer (dired-current-directory)
+			     (dired-info-pattern dir-info)
+			     (current-buffer))
+	(maintain-dired-consistency)))))
+
+
+#[ File Utility Commands
+
+This section describes some general file operation commands and quick directory
+commands.
+
+[Dired Mode] describes the editor's directory editing mechanism.
+
+{command:Copy File}
+{command:Rename File}
+
+To rename a directory leave the trailing slash off the source specification.
+
+{command:Delete File}
+{command:Directory}
+{command:Verbose Directory}
+]#
+
+(defun calculate-suggestion ()
+  (let ((buffer (current-buffer))
+	(point (current-point)))
+    (if (string= (buffer-major-mode buffer) "Dired")
+	(let ((dired-info (value dired-information)))
+	  (if (blank-line-p (mark-line point))
+	      (file-namestring (dired-info-pathname dired-info))
+	      (dired-file-pathname
+	       (array-element-from-mark
+		point
+		(dired-info-files dired-info)))))
+	(file-namestring (buffer-pathname buffer)))))
+
+;; FIX wildcards: "xx is ambiguous"
+(defcommand "Delete File" ()
+  "Delete a file."
   (let* ((spec (namestring
 		(prompt-for-file
 		 :prompt "Delete File: "
 		 :help '("Name of File or Directory to delete.  ~
 			  One wildcard is permitted.")
-		 :must-exist nil)))
+		 :default (calculate-suggestion)
+		 :must-exist ())))
 	 (directoryp (directoryp spec))
 	 (dired:*error-function* #'dired-error-function)
 	 (dired:*report-function* #'dired-report-function)
-	 (dired:*yesp-function* #'dired-yesp-function)
-	 (dired:*post-delete-function* #'dired-post-delete-function))
+	 (dired:*yesp-function* #'dired-yesp-function))
     (when (or (not directoryp)
 	      (not (value dired-directory-expunge-confirm))
 	      (prompt-for-yes-or-no
 	       :prompt (list "~A is a directory. Delete it? "
 			     (directory-namestring spec))
-	       :default nil :must-exist t :default-string "No")))
-    (dired:delete-file spec :recursive t
+	       :default () :must-exist t :default-string "No")))
+    (dired:delete-file (merge-pathnames spec (dired-current-directory))
+		       :recurse t
 		       :clobber (or directoryp
 				    (value dired-file-expunge-confirm))))
   (maintain-dired-consistency))
 
 (defcommand "Copy File" (p)
-  "Copy a file, allowing ONE wildcard."
-  "Copy a file, allowing ONE wildcard."
-  (declare (ignore p))
+  "Copy a file, allowing one wildcard in the filename.  Prompt for source
+   and destination specifications.
+
+   If these are both directories, then copy recursively on the source,
+   skipping the copying of the destination if it is in the source directory
+   tree.  If the source is dir-spec-1/* then copy only the files in the
+   first level of the source directory instead of recursing into
+   subdirectories.
+
+   If the destination specification is a directory, and the source is a
+   file, then copy the file into the destination with the same filename.
+
+   Maintain the write date of the source when copying.
+
+   When the destination exists interact according to the variable `Dired
+   Copy File Confirm'.
+
+   With a prefix follow symbolic links, otherwise preserve symbolic links."
   (let* ((confirm (value dired-copy-file-confirm))
 	 (source (namestring
 		  (prompt-for-file
 		   :prompt "Source Filename: "
 		   :help "Name of File to copy.  One wildcard is permitted."
+		   :default (calculate-suggestion)
 		   :must-exist nil)))
 	 (dest (namestring
 		(prompt-for-file
@@ -1288,18 +1589,24 @@
 	 (dired:*error-function* #'dired-error-function)
 	 (dired:*report-function* #'dired-report-function)
 	 (dired:*yesp-function* #'dired-yesp-function))
-    (dired:copy-file source dest :update (if (eq confirm :update) t nil)
-		     :clobber (not confirm)))
+    (dired:copy-file (merge-pathnames source (dired-current-directory))
+		     (merge-pathnames dest (dired-current-directory))
+		     :update (if (eq confirm :update) t nil)
+		     :clobber (not confirm)
+		     :check-for-links))
   (maintain-dired-consistency))
 
-(defcommand "Rename File" (p)
-  "Rename a file, allowing ONE wildcard."
-  "Rename a file, allowing ONE wildcard."
-  (declare (ignore p))
+(defcommand "Rename File" ()
+  "Rename a file, allowing one wildcard in the filename.  Prompt for source
+   and destination specifications.
+
+   If the destination is a directory, then move the file(s) indicated by the
+   source into the directory with their original filenames."
   (let* ((source (namestring
 		  (prompt-for-file
 		   :prompt "Source Filename: "
 		   :help "Name of file to rename.  One wildcard is permitted."
+		   :default (calculate-suggestion)
 		   :must-exist nil)))
 	 (dest (namestring
 		(prompt-for-file
@@ -1312,42 +1619,60 @@
 	 (dired:*error-function* #'dired-error-function)
 	 (dired:*report-function* #'dired-report-function)
 	 (dired:*yesp-function* #'dired-yesp-function))
-    (dired:rename-file source dest
+    (dired:rename-file (merge-pathnames source (dired-current-directory))
+		       (merge-pathnames dest (dired-current-directory))
 		       :clobber (not (value dired-rename-file-confirm))))
   (maintain-dired-consistency))
 
-(defcommand "Symlink File" (p)
+(defcommand "Symlink File" ()
   "Create a symbolic link to a file."
-  "Create a symbolic link to a file."
-  (declare (ignore p))
   (let* ((source (namestring
 		  (prompt-for-file
 		   :prompt "Link name: "
 		   :help "Name to link to file."
-		   :must-exist nil)))
+		   :default (calculate-suggestion)
+		   :must-exist ())))
 	 (dest (namestring
 		(prompt-for-file
 		 :prompt "Target name: "
 		 :help "Name of the file to which to link."
 		 :default source
-		 :must-exist nil)))
+		 :must-exist ())))
 	 (dired:*error-function* #'dired-error-function)
 	 (dired:*report-function* #'dired-report-function)
 	 (dired:*yesp-function* #'dired-yesp-function))
-    (dired:symlink-file source dest))
+    (dired:symlink-file (merge-pathnames source (dired-current-directory))
+			(merge-pathnames dest (dired-current-directory))))
   (maintain-dired-consistency))
 
 (defun maintain-dired-consistency ()
   (dolist (info *pathnames-to-dired-buffers*)
-    (let* ((directory (car info)) ; FIX was (directory-namestring (car info)))
+    (let* ((directory (car info))
 	   (buffer (cdr info))
 	   (dir-info (variable-value 'dired-information :buffer buffer)))
       (when (eq (dired-info-extra-data dir-info) t)
 	(or (= (dired-info-write-date dir-info)
-	       (file-write-date directory))
+	       (or (file-write-date directory) 0))
 	    (update-dired-buffer directory
 				 (dired-info-pattern dir-info)
 				 buffer))))))
+
+(defcommand "Make Directory" (p pathname)
+  "Make a prompted directory"
+  (declare (ignore p))
+  (let* ((pn (or pathname
+		 (prompt-for-file
+		  :prompt "Directory to make: "
+		  :must-exist ()
+		  :help "Name of directory to create."
+		  :default (directory-namestring (buffer-default-pathname
+						  (current-buffer)))))))
+    ;; FIX ensure-d-e should use mode from umask mode
+    (multiple-value-bind (success error)
+			 (ensure-directories-exist (concatenate 'simple-string
+								(namestring pn)
+								"/"))
+      (or success (editor-error "~A" error)))))
 
 
 ;;;; Dired and the shell.
@@ -1398,7 +1723,7 @@
   (let ((ret (ext:run-program "tar"
 			      `("jcf"
 				,(concatenate 'simple-string
-					      (dired-namify (namestring name))
+					      (namify (namestring name))
 					      ".tar.bz2")
 				,(namestring name)))))
     (when ret
@@ -1406,12 +1731,9 @@
 	(0)
 	(t (message "tar exited with error."))))))
 
-(defcommand "Dired Toggle File Compression" (p)
+(defcommand "Dired Toggle File Compression" ()
   "Compress or inflate file(s).  Operate on marked files if there are any,
    else on the file at point."
-  "Compress or inflate file(s).  Operate on marked files if there are any,
-   else on the file at point."
-  (declare (ignore p))
   (multiple-value-bind (marked-files marked-dirs)
 		       (get-marked-dired-files)
      (if (or marked-files marked-dirs)
@@ -1432,7 +1754,7 @@
 	       (progn
 		 (dired-toggle-dir-compression name)
 		 (maintain-dired-consistency))
-	       (let ((name (dired-toggle-file-compression (dired-namify name))))
+	       (let ((name (dired-toggle-file-compression (namify name))))
 		 (maintain-dired-consistency)
 		 (let ((files (dired-info-files (value dired-information))))
 ; FIX The pos'n fails when this is run twice in quick succession.
@@ -1446,57 +1768,69 @@
 				     "Failed to find ~A in dired-info-files."
 				     name))))))))))
 
-(defcommand "Dired Shell Command on File" (p)
+(defcommand "Dired Shell Command on File" ()
   "Run a prompted shell command on the marked files or the current file.
    If the command includes \"$A\" or \"${A}\" then export A as the name of
    the file(s) before running the command, otherwise append a space and the
    filename(s) to the command."
-  "Run a prompted shell command on the marked files or the current file.
-   If the command includes \"$A\" or \"${A}\" then export A as the name of
-   the file(s) before running the command, otherwise append a space and the
-   filename(s) to the command."
-  (declare (ignore p))
   (multiple-value-bind (marked-files marked-dirs)
 		       (get-marked-dired-files)
     (let* ((pathname (if (or marked-files marked-dirs)
-			 nil
+			 ()
 			 (dired-file-pathname
 			  (array-element-from-mark
 			   (current-point)
 			   (dired-info-files (value dired-information))))))
 	   (files (if pathname
-		      nil
+		      ()
 		      (string-trim
 		       '(#\space)
 		       (apply 'concatenate
 			      'simple-string
-			      (mapcar (lambda (car) (format nil "~A " (car car)))
+			      (mapcar (lambda (car) (format () "~A " (car car)))
 				      (append marked-files marked-dirs))))))
 	   (command (prompt-for-string
 		     :trim t
-		     :prompt (format nil "Command to execute on ~A: "
+		     :prompt (format () "Command to execute on ~A: "
 				     (if pathname
 					 (or (if (pathname-type pathname)
-						 (format nil "~A.~A"
+						 (format () "~A.~A"
 							 (pathname-name pathname)
 							 (pathname-type pathname))
 						 (pathname-name pathname))
 					     (directory-namestring pathname))
 					 "marked files"))
-		     :help (format nil
+		     :help (format ()
 				   "Shell command line to execute on the ~A."
 				   (if pathname "file" "files"))
 		     :history *shell-command-in-buffer-history*
 		     :history-pointer
 		     '*shell-command-in-buffer-history-pointer*)))
-      (make-new-shell t nil
+      (make-new-shell t ()
 		      (if (or (search "$A" command)
 			      (search "${A}" command))
-			  (format nil "export A=\"~A\"; ~A"
+			  ;; FIX \" correct? check w/ many files
+			  (format () "export A=\"~A\"; ~A"
 				  (or pathname files)
 				  command)
-			  (format nil "~A ~A" command (or pathname
-							  files)))))))
+			  (format () "~A ~A" command (or pathname
+							  files)))
+		      :clear-buffer (value clear-shell-buffers)))))
+
+
+;;;; Command to edit specific directories.
+
+(defcommand "/" (p)
+  "Edit the root of the file system."
+  (dired-command p "/"))
+
+(defcommand "Home" (p)
+  "Edit the home of the current user."
+  (dired-command p "home:"))
+
+(defcommand "Desktop" (p)
+  "Edit the home of the current user."
+  (dired-command p "home:"))
 
 
 ;;;; Dired utilities.
@@ -1509,18 +1843,21 @@
   (let* ((files (dired-info-files (value dired-information)))
 	 (length (length files))
 	 (marked-files ())
-	 (marked-dirs ()))
+	 (marked-dirs ())
+	 (directory (dired-info-pathname (value dired-information))))
     (or files (editor-error "Not in Dired buffer."))
     (do ((i 0 (1+ i)))
 	((= i length) (values (nreverse marked-files) (nreverse marked-dirs)))
       (let* ((thing (svref files i))
-	     (pathname (dired-file-pathname thing)))
+	     (pathname (merge-pathnames (dired-file-pathname thing)
+					directory)))
 	(when (and (dired-file-deleted-p thing) ; file marked for delete
 		   (or (symlinkp pathname)
 		       (probe-file pathname))) 	; file still exists
 	  (if (directoryp pathname)
 	      (push (cons pathname (file-write-date pathname)) marked-dirs)
-	      (push (cons pathname (file-write-date pathname))
+	      (push (cons pathname (file-write-date pathname
+						    :check-for-links t))
 		    marked-files)))))))
 
 ;;; GET-MARKED-DIRED-FILES returns as multiple values a list of file
@@ -1528,20 +1865,25 @@
 ;;; This assumes the current buffer is a "Dired" buffer.
 ;;;
 (defun get-marked-dired-files ()
-  (let* ((files (dired-info-files (value dired-information)))
+  (let* ((dired-info (value dired-information))
+	 (files (dired-info-files dired-info))
 	 (length (length files))
 	 (marked-files ())
-	 (marked-dirs ()))
+	 (marked-dirs ())
+	 (directory (dired-info-pathname dired-info)))
     (do ((i 0 (1+ i)))
 	((= i length) (values (nreverse marked-files) (nreverse marked-dirs)))
-      (let* ((thing (svref files i))
-	     (pathname (dired-file-pathname thing)))
-	(when (and (dired-file-marked-p thing)  ; file marked
-		   (probe-file pathname)) 	; file still exists
-	  (if (directoryp pathname)
-	      (push (cons pathname (file-write-date pathname)) marked-dirs)
-	      (push (cons pathname (file-write-date pathname))
-		    marked-files)))))))
+      (let ((thing (svref files i)))
+	;; The pathname can be false if the stat failed in print-directory.
+	(when (dired-file-pathname thing)
+	  (let ((pathname (merge-pathnames (dired-file-pathname thing) directory)))
+	    (when (and (dired-file-marked-p thing) ; file marked
+		       (nth-value 1 (probe-file pathname :check-for-links t))) ; file still exists
+	      (if (directoryp pathname :check-for-links t)
+		  (push (cons pathname (file-write-date pathname)) marked-dirs)
+		  (push (cons pathname (file-write-date pathname
+							:check-for-links t))
+			marked-files)))))))))
 
 ;;; ARRAY-ELEMENT-FROM-MARK -- Internal Interface.
 ;;;
@@ -1554,30 +1896,18 @@
 				&optional (error-msg "Invalid line."))
   (when (blank-line-p (mark-line mark)) (editor-error error-msg))
   (aref vector
-	 (1- (count-lines (region
-			   (buffer-start-mark (line-buffer (mark-line mark)))
-			   mark)))))
+	(1- (count-lines (region
+			  (buffer-start-mark (line-buffer (mark-line mark)))
+			  mark)))))
 
-;;; DIRED-NAMIFY and DIRED-DIRECTORIFY are implementation dependent slime.
-;;;
-(defun dired-namify (pathname)
-  (let* ((string (namestring pathname))
-	 (last (1- (length string))))
-    (if (char= (schar string last) #\/)
-	(subseq string 0 last)
-	string)))
-;;;
-;;; This is necessary to derive a canonical representation for directory
-;;; names, so "Dired" can map various strings naming one directory to that
-;;; one directory.
-;;;
-(defun dired-directorify (pathname)
-  (let ((directory (ext:unix-namestring (lisp::common-prefix pathname))))
-    (if directory
-	(if (directory-name-p directory)
-	    directory
-	    (pathname (concatenate 'simple-string (namestring directory) "/")))
-	pathname)))
+(defun dired-current-directory ()
+  "Return the current directory."
+  (let ((bpn (buffer-pathname (current-buffer))))
+    (if bpn
+	(directory-namestring bpn)
+	(or (let ((res (current-directory)))
+	      (if res (lisp::directorify bpn)))
+	    (value pathname-defaults)))))
 
 
 ;;;; Locate.
@@ -1586,21 +1916,21 @@
   (ext:run-program
    "/bin/sh"
    (list "-c"
-	 (format nil "locate \"~A\" 2>/dev/null" regex))
+	 (format () "locate \"~A\" 2>/dev/null" regex))
    :output stream))
 
 (defun locate (regex)
   "Return the list of files in the locate database that match REGEX."
   ;; FIX (with-temp-buffer?
-  (let* ((buf-name (format nil "Locate Results ~a" regex))
+  (let* ((buf-name (format () "Locate Results ~a" regex))
 	 (new-buffer (progn
 		       (if (getstring buf-name *buffer-names*)
-			   (kill-buffer-command nil buf-name))
+			   (kill-buffer-command () buf-name))
 		       (make-buffer buf-name
 				    :modes '("Fundamental"))))
 	 (buffer (or new-buffer (error "Failed to create temp buffer.")))
 	 (point (buffer-point buffer))
-	 (files nil))
+	 files)
     (with-writable-buffer (buffer)
       (with-output-to-mark (s point :full)
 	(execute-locate regex s)))
@@ -1613,17 +1943,13 @@
 			  (cons (line-string line) files))))
       (or (string= line-string "")
 	  (setq files (cons line-string files))))
-    (kill-buffer-command nil buf-name)
+    (kill-buffer-command () buf-name)
     files))
 
-(defcommand "Locate" (p)
+(defcommand "Locate" ()
   "Prompt for a regex and edit the result of a locate on the regex.  If a
    dired of that search already exists, go to and update that buffer,
    otherwise create one."
-  "Prompt for a regex and edit the result of a locate on the regex.  If a
-   dired of that search already exists, go to and update that buffer,
-   otherwise create one."
-  (declare (ignore p))
   (let ((regex (prompt-for-string
 		:prompt "Locate: "
 		:help "Regular expression describing files to locate."
@@ -1632,18 +1958,18 @@
 	    (prompt-for-y-or-n
 	     :prompt "Locate every file in the file system? "
 :help "Y to confirm locate of every file (which usually takes a very long time)."
-	     :default nil :must-exist t :default-string "N")
+	     :default () :must-exist t :default-string "N")
 	    t)
-	(let* ((name (format nil "Locate \"~A\"" regex))
+	(let* ((name (format () "Locate \"~A\"" regex))
 	       (buffer (cdr (assoc name *pathnames-to-dired-buffers*
 				   :test #'string=))))
 	  (if buffer
 	      (progn
 		(change-to-buffer buffer)
-		(dired-update-buffer-command nil))
+		(dired-update-buffer-command))
 	      (let ((files (locate regex)))
 		(if files
-		    (dired-guts nil nil "/" nil nil nil files name
+		    (dired-guts () () "/" () () () files name
 				(eval `(lambda (info)
 					 (declare (ignore info))
 					 (locate ,regex))))
@@ -1663,21 +1989,21 @@
 		      (if recurse "" " -maxdepth 1")
 		      (if (string= exp "")
  			  " 2>/dev/null"
-			  (format nil " \\( ~A \\) 2>/dev/null" exp))))
+			  (format () " \\( ~A \\) 2>/dev/null" exp))))
    :output stream))
 
 (defun find-files (pathname exp &optional recurse)
   "Return the list of files in PATHNAME that match EXP."
   ;; FIX (with-temp-buffer?
-  (let* ((buf-name (format nil "Find Results ~a" exp))
+  (let* ((buf-name (format () "Find Results ~a" exp))
 	 (new-buffer (progn
 		       (if (getstring buf-name *buffer-names*)
-			   (kill-buffer-command nil buf-name))
+			   (kill-buffer-command () buf-name))
 		       (make-buffer buf-name
 				    :modes '("Fundamental"))))
 	 (buffer (or new-buffer (error "Failed to create temp buffer.")))
 	 (point (buffer-point buffer))
-	 (files nil))
+	 (files ()))
     (with-writable-buffer (buffer)
       (with-output-to-mark (s point :full)
 	(execute-find pathname exp s recurse)))
@@ -1691,7 +2017,7 @@
 			  (cons (line-string line) files))))
       (or (string= line-string "")
 	  (setq files (cons line-string files))))
-    (kill-buffer-command nil buf-name)
+    (kill-buffer-command () buf-name)
     files))
 
 (defun dired-find (&optional recurse)
@@ -1713,9 +2039,9 @@
 	    (prompt-for-y-or-n
 	     :prompt (list "Find every file in ~A? " pathname)
 :help "Confirm find of every file (can take long time for large dirs)."
-	     :default nil :must-exist t :default-string "N")
+	     :default () :must-exist t :default-string "N")
 	    t)
-	(let* ((name (format nil "Dired find \"~A\" in ~A~A"
+	(let* ((name (format () "Dired find \"~A\" in ~A~A"
 			     exp pathname
 			     (if recurse " Recursively" "")))
 	       (buffer (cdr (assoc name *pathnames-to-dired-buffers*
@@ -1723,10 +2049,10 @@
 	  (if buffer
 	      (progn
 		(change-to-buffer buffer)
-		(dired-update-buffer-command nil))
+		(dired-update-buffer-command))
 	      (let ((files (find-files pathname exp recurse)))
 		(if files
-		    (dired-guts nil nil "/" nil nil nil
+		    (dired-guts () () "/" () () ()
 				files name
 				(eval `(lambda (info)
 					 (declare (ignore info))
@@ -1748,7 +2074,7 @@
 			      :directory (pathname-directory dpn))
 		    :must-exist t))
 	 (exp (prompt-for-expression
-	       :must-exist nil
+	       :must-exist ()
 	       :prompt "Expression: "
 	       ;; FIX comes out in upper case
 	       :default `(string= (pathname-name ,(read-from-string "file")) "")
@@ -1757,9 +2083,9 @@
 	    (prompt-for-y-or-n
 	     :prompt (list "Find every file in ~A? " pathname)
 :help "Confirm find of every file (can take a long time for large dirs)."
-             :default nil :must-exist t :default-string "N")
+             :default () :must-exist t :default-string "N")
 	    t)
-	(let* ((name (format nil "Dired find ~A in ~A~A"
+	(let* ((name (format () "Dired find ~A in ~A~A"
 			     exp pathname
 			     (if recurse " Recursively" "")))
 	       (buffer (cdr (assoc name *pathnames-to-dired-buffers*
@@ -1767,90 +2093,98 @@
 	  (if buffer
 	      (progn
 		(change-to-buffer buffer)
-		(dired-update-buffer-command nil))
+		(dired-update-buffer-command))
 	      (let* ((predicate
 		      (eval (list 'lambda (list (read-from-string "file"))
 				  (if (equal exp "")
 				      `(declare (ignore ,(read-from-string "file")))
 				      exp))))
-		     (files (list-files pathname predicate :recurse recurse)))
+		     (files (list-files pathname predicate :recurse recurse
+					:follow-links t)))
 		(if files
-		    (dired-guts nil nil "/" nil nil nil
+		    (dired-guts () () pathname () () ()
 				files name
 				(eval `(lambda (info)
 					 (declare (ignore info))
 					 (list-files ,pathname
 						     ,predicate
-						     :recurse ,recurse))))
+						     :recurse ,recurse
+						     :follow-links t))))
 		    (message "Failed to find any files."))))))))
 
-(defcommand "Dired Find" (p)
+(defcommand "Dired Find" ()
   "Find files in a single directory, and dired the resulting files.  If a
    dired of such a search already exists then go to and update the existing
    dired."
-  "Find files in a single directory, and dired the resulting files.  If a
-   dired of such a search already exists then go to and update the existing
-   dired."
-  (declare (ignore p))
   (dired-find))
 
-(defcommand "Dired Find Recursively" (p)
+(defcommand "Dired Find Recursively" ()
   "Find files in a directory tree, and dired the resulting files.  If a
    dired of such a search already exists then go to and update the existing
    dired."
-  "Find files in a directory tree, and dired the resulting files.  If a
-   dired of such a search already exists then go to and update the existing
-   dired."
-  (declare (ignore p))
   (dired-find t))
-
 
 
 ;;;; Search files.
 
-(defun execute-search (pathname exp stream &optional print-match recurse)
+(defun execute-search (pathname exp stream &optional print-match recurse backups)
   (ext:run-program
    "/bin/sh"
    (list "-c"
 	 (if recurse
-	     (format nil
-		     "find ~A 2>/dev/null | xargs grep ~A -I -e \"~A\" 2>/dev/null"
+	     (format ()
+		     "cd ~A && find . ~A 2>/dev/null | xargs grep ~A -I -e \"~A\" 2>/dev/null"
 		     (namestring (truename pathname))
+		     (if backups "" " -not -name \\*.BAK -not -name \\*.CKP -not -name \\*~")
 		     (if print-match "-Hn" "-l")
 		     exp)
-	     (format nil
-		     "grep ~A -I -e \"~A\" ~A\* 2>/dev/null"
+	     (format ()
+		     "cd ~A && find . ~A -maxdepth 1 2>/dev/null | xargs grep ~A -I -e \"~A\" 2>/dev/null"
+		     (namestring (truename pathname))
+		     (if backups "" " -not -name \\*.BAK -not -name \\*.CKP -not -name \\*~")
 		     (if print-match "-Hn" "-l")
 		     exp
 		     (namestring (truename pathname)))))
    :output stream))
 
-(defun search-files (pathname exp &optional recurse display-matches)
+(defun search-files (pathname string &optional recurse display-matches backups)
+  "Return the list of files in $pathname that match $string."
+  (remove-duplicates
+   (with-group (pathname)
+	       (if display-matches
+		   (search-group string recurse backups)
+		   (let (matches)
+		     (dolist (item (search-group string recurse backups))
+		       (pushnew (car item) matches))
+		     matches)))))
+
+(defun search-files-for-exp (pathname exp &optional recurse display-matches backups)
   "Return the list of files in PATHNAME that match EXP."
   ;; FIX (with-temp-buffer?
-  (let* ((buf-name (format nil "Search Results ~a" exp))
+  (let* ((buf-name (format () "Search Results ~a" exp))
 	 (new-buffer (progn
 		       (if (getstring buf-name *buffer-names*)
-			   (kill-buffer-command nil buf-name))
+			   (kill-buffer-command () buf-name))
 		       (make-buffer buf-name
 				    :modes '("Fundamental"))))
 	 (buffer (or new-buffer (error "Failed to create temp buffer.")))
 	 (point (buffer-point buffer))
-	 (files nil))
+	 (files))
     (with-writable-buffer (buffer)
       (with-output-to-mark (s point :full)
-	(execute-search pathname exp s display-matches recurse)))
+	(execute-search pathname exp s display-matches recurse backups)))
     ;; FIX use this style in others?
     (flet ((convert-line-string (line-string)
 	     (or (string= line-string "")
 		 (if display-matches
 		     ;; FIX could use split
 		     (let* ((sep1-start (search ":" line-string))
-			    (sep2-start (search ":" line-string
-						:start2 (+ sep1-start 1))))
-		       (when (and sep1-start sep2-start)
+			    (sep2-start (if sep1-start
+					    (search ":" line-string
+						    :start2 (+ sep1-start 1)))))
+		       (when (and sep1-start (> sep1-start 1) sep2-start)
 			 (setq files
-			       (cons (list (subseq line-string 0 sep1-start)
+			       (cons (list (subseq line-string 2 sep1-start)
 					   (subseq line-string
 						   (+ sep1-start 1)
 						   sep2-start)
@@ -1864,7 +2198,7 @@
 	   ((eq line first-line)
 	    (convert-line-string line-string))
 	(convert-line-string line-string)))
-    (kill-buffer-command nil buf-name)
+    (kill-buffer-command () buf-name)
     files))
 
 #|  FIX start at full lisp version (too slow)
@@ -1920,15 +2254,15 @@
 ; 	       :default (word-at-point)
 ; 	       :trim t)))
 	 (exp (prompt-for-expression
-	       :must-exist nil :prompt "Search rule: "
+	       :must-exist () :prompt "Search rule: "
 	       :help "Parser rule with which to search files.")))
     (if (if (and (stringp exp) (string= exp ""))
 	    (prompt-for-y-or-n
 	     :prompt "Proceed with empty search expression? "
-	     :default nil :must-exist t :default-string "N")
+	     :default () :must-exist t :default-string "N")
 	    t)
 	(let* ((exp (list exp))
-	       (name (format nil "~ASearch ~A for \"~A\"~A"
+	       (name (format () "~ASearch ~A for \"~A\"~A"
 			     (if display-matches "" "Dired ")
 			     pathname exp
 			     (if recurse " Recursively" "")))
@@ -1938,14 +2272,14 @@
 	      (progn
 		(push buffer *last-search-buffer-stack*)
 		(change-to-buffer buffer)
-		(dired-update-buffer-command nil))
+		(dired-update-buffer-command))
 	      (let ((files (search-files pathname exp
 					 recurse display-matches)))
 		(if files
-		    (push (dired-guts nil nil "/" nil
+		    (push (dired-guts () () "/" ()
 				      (if display-matches
 					  '(:name ": " 1 ": " 2))
-				      nil files name
+				      () files name
 				      (eval `(lambda (info)
 					       (declare (ignore info))
 					       (search-files ,pathname
@@ -1956,8 +2290,13 @@
 		    (message "Failed to match in any files."))))))))
 |#
 
-(defun dired-search-files (&optional recurse display-matches)
-  "Search and dired a dir.  Recursively search subdirs if RECURSE is true."
+(defevar "Dired Search Fill Column"
+  "The width of the text in a Search buffer.  If () then \"Fill
+   Column\" will be used instead."
+  :value ())
+
+(defun dired-search-files (&optional recurse display-matches backups)
+  "Search and dired a dir.  Recursively search subdirs if $recurse is true."
   (let* ((dpn (directory-namestring (or (buffer-pathname (current-buffer))
 					(value pathname-defaults))))
 	 (pathname (prompt-for-file
@@ -1968,16 +2307,16 @@
 			      :directory (pathname-directory dpn))
 		    :must-exist t))
  	 (exp (prompt-for-string
- 	       :prompt "Search regexp: "
- 	       :help "Regular expression with which to search files."
+ 	       :prompt "Search string: "
+ 	       :help "String for which to search in files."
  	       :default (word-at-point)
  	       :trim t)))
     (if (if (and (stringp exp) (string= exp ""))
 	    (prompt-for-y-or-n
 	     :prompt "Proceed with empty search expression? "
-	     :default nil :must-exist t :default-string "N")
+	     :default () :must-exist t :default-string "N")
 	    t)
-	(let* ((name (format nil "~ASearch ~A for \"~A\"~A"
+	(let* ((name (format () "~ASearch ~A for \"~A\"~A"
 			     (if display-matches "" "Dired ")
 			     pathname exp
 			     (if recurse " Recursively" "")))
@@ -1987,66 +2326,70 @@
 	      (progn
 		(push buffer *last-search-buffer-stack*)
 		(change-to-buffer buffer)
-		(dired-update-buffer-command nil))
-	      (let ((files (search-files pathname exp recurse display-matches)))
-		(if files
-		    (push (dired-guts nil nil "/" nil
-				      (if display-matches
-					  '(:name ": " 1 ": " 2))
-				      nil files name
-				      (eval `(lambda (info)
-					       (declare (ignore info))
-					       (search-files ,pathname ,exp
-							     ,recurse ,display-matches))))
-			  *last-search-buffer-stack*)
-		    (message "Failed to match in any files."))))))))
+		(dired-update-buffer-command))
+	      (multiple-value-bind (prefix suffix)
+				   (common-prefix pathname)
+		(let ((files (in-directory prefix
+			       (search-files suffix exp recurse
+					     display-matches backups
+					     ))))
+		  (if files
+		      (push (dired-guts () () pathname ()
+					(if display-matches
+					    '(:name ":" 1 ": " 2))
+					() files name
+					(eval `(lambda (info)
+						 (declare (ignore info))
+						 (search-files ,pathname ,exp
+							       ,recurse ,display-matches))))
+			    *last-search-buffer-stack*)
+		      (message "Failed to match in any files.")))))))))
 
 (defcommand "Dired Search" (p)
   "Search the files in a single directory for a regex, and dired the files
    containing matches.  If a dired of such a search already exists then go
-   to and update the existing dired."
+   to and update the existing dired.  With an argument search also in
+   backup files."
   "Search the files in a single directory for a regex, and dired the files
    containing matches.  If a dired of such a search already exists then go
-   to and update the existing dired."
-  (declare (ignore p))
-  (dired-search-files))
+   to and update the existing dired.  If P is true search also in backup
+   files."
+  (dired-search-files () () p))
 
 (defcommand "Dired Search Recursively" (p)
   "Search the files in a directory tree for a regex, and Dired the files
    containing matches.  If a dired of such a search already exists then go
-   to and update the existing dired."
+   to and update the existing dired.  With an argument search also in
+   backup files."
   "Search the files in a directory tree for a regex, and Dired the files
    containing matches.  If a dired of such a search already exists then go
-   to and update the existing dired."
-  (declare (ignore p))
-  (dired-search-files t))
+   to and update the existing dired.  If P is true search also in backup
+   files."
+  (dired-search-files t () p))
 
 (defcommand "Search" (p)
   "Search the files in a single directory for a regex, and edit the
    matching lines.  If an edit of such a search already exists then go to
-   the existing edit."
+   the existing edit.  With an argument search also in backup files."
   "Search the files in a single directory for a regex, and dired the
    matching lines.  If an edit of such a search already exists then go to
-   and update the existing edit."
-  (declare (ignore p))
-  (dired-search-files nil t))
+   and update the existing edit.  If P is true search also in backup
+   files."
+  (dired-search-files () t p))
 
 (defcommand "Search Recursively" (p)
   "Search the files in a directory tree for a regex, and edit the matching
    lines.  If an edit of such a search already exists then go to the
-   existing edit."
+   existing edit.  With an argument search also in backup files."
   "Search the files in a directory tree for a regex, and dired the matching
    lines.  If an edit of such a search already exists then go to and update
-   the existing edit."
-  (declare (ignore p))
-  (dired-search-files t t))
+   the existing edit.  If P is true search also in backup files."
+  (dired-search-files t t p))
 
 ;; FIX Maybe this should be per-search (dired/normal and single/recursive).
 ;;     Add "Last Find" and "Next Find Match" too?
-(defcommand "Last Search" (p)
+(defcommand "Last Search" ()
   "Switch to the most recently performed search, if there is one."
-  "Switch to the most recently performed search, if there is one."
-  (declare (ignore p))
   (when *last-search-buffer-stack*
     (do ((buf (car *last-search-buffer-stack*) (car *last-search-buffer-stack*)))
 	((if buf (memq (car *last-search-buffer-stack*) *buffer-list*) t)
@@ -2059,36 +2402,35 @@
 	   buf))
       (pop *last-search-buffer-stack*))))
 
-(defcommand "Next Search Match" (p)
+(defcommand "Next Search Match" ()
   "Switch to the next match from the most recent search."
-  "Switch to the next match from the most recent search."
-  (declare (ignore p))
-  (when (last-search-command nil)
+  (when (last-search-command)
     (let ((point (current-point)))
       (line-offset point 1)
       (if (blank-line-p (mark-line point))
 	  (editor-error "Past last match."))
       (dired-edit-file-command t))))
 
-
 
 ;;;; Version control.
 
-; (defmode "VC" :major-p nil
+; (defmode "VC" :major-p ()
 ;   :documentation
 ;   "Version control \"sub-mode\" of Dired.")
 
-(defun list-files-with-vc (dir-info)
-  (let ((files) (max-version 0) (max-status 0)
-	(pathname (dired-info-pathname dir-info))
-	(all (dired-info-dot-files-p dir-info))
-	(backups (dired-info-backup-files-p dir-info))
-	(recurse (dired-info-recurse dir-info)))
+(defun list-files-with-vc (dir-info &optional connect)
+  (let* ((files) (max-version 0) (max-status 0)
+	 (pathname (dired-info-pathname dir-info))
+	 (all (dired-info-dot-files-p dir-info))
+	 (backups (dired-info-backup-files-p dir-info))
+	 (recurse (dired-info-recurse dir-info))
+	 (root-len (length (namestring pathname))))
+    (if connect (message "Connecting to VC server."))
     (do-files (file pathname
 	       :follow-links t
 	       :all all :backups backups
 	       :recurse recurse)
-      (let ((vc-info (make-vc-info file t)))
+      (let ((vc-info (make-vc-info file connect)))
 	(when vc-info
 	  (let ((version (or (vc-info-version vc-info) ""))
 		(status (string (or (vc-info-status vc-info)
@@ -2098,68 +2440,65 @@
 	    (if (> (length status) max-status)
 		(setq max-status (length status)))
 	    ;; Empty string dummy line number.
-	    (push (list file "" vc-info version status)
+	    (push (list (subseq file root-len) "" vc-info version status)
 		  files)))))
     ;; Normalise string widths.
     (mapcar #'(lambda (list)
 		(rplaca (nthcdr 3 list)
-			(format nil
-				(format nil "~~~DA" max-version)
+			(format ()
+				(format () "~~~DA" max-version)
 				(nth 3 list)))
 		(rplaca (nthcdr 4 list)
-			(format nil
-				(format nil "~~~DA" max-status)
+			(format ()
+				(format () "~~~DA" max-status)
 				(nth 4 list))))
 	    files)
     (nreverse files)))
 
-(defcommand "Dired Toggle Version Control" (p)
+(defcommand "Dired Toggle Version Control" ()
   "Toggles version control format."
-  "Toggles version control format."
-  (declare (ignore p))
   (or (editor-bound-p 'dired-information)
       (editor-error "Must be in Dired buffer."))
   (let* ((dir-info (value dired-information))
 	 (generator (dired-info-generator dir-info)))
     (if (and generator (eq generator #'list-files-with-vc))
-	(setf (dired-info-extra-data dir-info) t
-	      (dired-info-generator dir-info) nil
-;	      (buffer-minor-mode (current-buffer) "VC") nil
-	      (dired-info-coldefs dir-info) nil)
+	(setf (dired-info-extra-data-2 dir-info)
+	      (dired-info-extra-data dir-info)
+	      (dired-info-extra-data dir-info) t
+	      (dired-info-generator dir-info) ()
+	      ;(buffer-minor-mode (current-buffer) "VC") ()
+	      (dired-info-coldefs dir-info) ())
 	(let ((generator #'list-files-with-vc))
-	  (setf (dired-info-extra-data dir-info)
-		(funcall generator dir-info))
+	  (if (dired-info-extra-data-2 dir-info)
+	      (setf (dired-info-extra-data dir-info)
+		    (dired-info-extra-data-2 dir-info))
+	      (setf (dired-info-extra-data dir-info)
+		    (list-files-with-vc dir-info)))
 	  (setf (dired-info-generator dir-info) generator)
-;	  (setf (buffer-minor-mode (current-buffer) "VC") t)
-	  (setf (dired-info-coldefs dir-info) '("  " 4 " " 3 " /" :name))))
+	  ;(setf (buffer-minor-mode (current-buffer) "VC") t)
+	  (setf (dired-info-coldefs dir-info) '("  " 4 " " 3 " " :name))))
     (update-dired-buffer (dired-info-pathname dir-info)
 			 (dired-info-pattern dir-info)
 			 (current-buffer))))
 
-(defcommand "Dired VC Log Entry" (p)
+(defcommand "Dired VC Log Entry" ()
   "Show the log of the current file."
-  "Show the log of the current file."
-  (declare (ignore p))
   (let ((pathname (dired-file-pathname
 		   (array-element-from-mark
 		    (current-point)
 		    (dired-info-files (value dired-information))))))
-    (vc-file-log-entry-command nil pathname)))
+    (vc-file-log-entry-command () pathname)))
 
-(defcommand "Dired VC Compare File" (p)
+(defcommand "Dired VC Compare File" ()
   "Compare the file at point with the repository version."
-  "Compare the file at point with the repository version."
-  (declare (ignore p))
   (let ((pathname (dired-file-pathname
 		   (array-element-from-mark
 		    (current-point)
 		    (dired-info-files (value dired-information))))))
-    (vc-compare-file-command nil pathname)))
+    (vc-compare-file-command () pathname)))
 
-(defcommand "Dired VC Update File" (p)
+(defcommand "Dired VC Update File" ()
   "Update marked files if any, otherwise the file at point."
-  "Update marked files if any, otherwise the file at point."
-  (declare (ignore p))
   (multiple-value-bind (marked-files marked-dirs)
 		       (get-marked-dired-files)
     (let* ((dir-info (value dired-information))
@@ -2177,7 +2516,7 @@
 			       (append marked-files marked-dirs)
 			       marked-files)
 			   marked-dirs)))))
-      (vc-update-file-command nil pathname files nil)
+      (vc-update-file-command () pathname files ())
       (setf (dired-info-extra-data dir-info)
 	    (funcall (dired-info-generator dir-info) dir-info))
       (update-dired-buffer (dired-info-pathname dir-info)
@@ -2188,14 +2527,12 @@
 
 (declaim (special *cvs-update-file-recurse*))
 
-(defcommand "Dired VC Update Directory" (p)
+(defcommand "Dired VC Update Directory" ()
   "Update all the files listed in the current buffer."
-  "Update all the files listed in the current buffer."
-  (declare (ignore p))
   (let* ((dir-info (value dired-information))
 	 (pathname (dired-info-pathname dir-info))
 	 (*cvs-update-file-recurse* (dired-info-recurse dir-info)))
-    (vc-update-file-command nil (namestring pathname) nil nil)
+    (vc-update-file-command () (namestring pathname) () ())
     (setf (dired-info-extra-data dir-info)
 	  (funcall (dired-info-generator dir-info) dir-info))
     (update-dired-buffer (dired-info-pathname dir-info)
@@ -2204,10 +2541,8 @@
     ;; FIX update other vc eds of this dir too
     (maintain-dired-consistency)))
 
-(defcommand "Dired VC Commit File" (p)
+(defcommand "Dired VC Commit File" ()
   "Commit marked files if any, otherwise the file at point."
-  "Commit marked files if any, otherwise the file at point."
-  (declare (ignore p))
   (multiple-value-bind (marked-files marked-dirs)
 		       (get-marked-dired-files)
     (let* ((dir-info (value dired-information))
@@ -2225,7 +2560,7 @@
 			       (append marked-files marked-dirs)
 			       marked-files)
 			   marked-dirs)))))
-      (vc-commit-file-command nil pathname files)
+      (vc-commit-file-command () pathname files)
       (setf (dired-info-extra-data dir-info)
 	    (funcall (dired-info-generator dir-info) dir-info))
       (update-dired-buffer (dired-info-pathname dir-info)
@@ -2237,26 +2572,95 @@
 
 ;;;; WWW.
 
-(defcommand "Dired WWW File" (p)
+(defcommand "Dired WWW File" ()
   "Browse the file at point."
-  "Browse the file at point."
-  (declare (ignore p))
   (multiple-value-bind (marked-files marked-dirs)
 		       (get-marked-dired-files)
-    (let ((files (if (or marked-files marked-dirs)
-		     (append marked-files marked-dirs)
-		     (list (dired-file-pathname
-			    (array-element-from-mark
-			     (current-point)
-			     (dired-info-files (value dired-information))))))))
+    (let* ((dir-info (value dired-information))
+	   (files (if (or marked-files marked-dirs)
+		      (append marked-files marked-dirs)
+		      (list (dired-file-pathname
+			     (array-element-from-mark
+			      (current-point)
+			      (dired-info-files dir-info))))))
+	   (file (merge-pathnames (car files) (dired-info-pathname dir-info))))
       ;; FIX also browse rest
-      (message "~A" (car files))
-      (www-command nil (car files)))))
+      (message "~A" file)
+      (www-command () file))))
+
+
+#[ View Mode
+
+`View' mode provides for scrolling through a file read-only, terminating
+the buffer upon reaching the end.
+
+{command:View File}
+{command:View Help}
+{command:View Edit File}
+{command:View Scroll Down}
+{evariable:View Scroll Deleting Buffer}
+{command:View Return}
+{command:View Quit}
+
+Also, bound in `View' mode are the following commands:
+
+  backspace, delete
+     Scrolls the window up.
+
+  <
+     Goes to the beginning of the buffer.
+
+  >
+     Goes to the end of the buffer.
+]#
+
+#[ Using View Mode
+
+`View' mode supports scrolling through files automatically terminating the
+buffer at end-of-file as well as commands for quitting the mode and popping
+back to the buffer that spawned the `View' mode buffer.  Modes such as
+`Dired' use this to view files and description of library entries.
+
+Modes that want similar commands should use view-file-command to view a
+file and get a handle on the view buffer.  To allow the `View Return' and
+`View Quit' commands to return to the originating buffer, you must set the
+variable `View Return Function' in the viewing buffer to a function that
+knows how to do this.  Furthermore, since you now have a reference to the
+originating buffer, you must add a buffer local delete hook to it that will
+clear the view return function's reference.  This needs to happen for two
+reasons in case the user deletes the originating buffer:
+
+You don't want the return function to go to a non-existing, invalid buffer.
+
+Since the viewing buffer still exists, its `View Return Function' buffer
+local variable still exists.  This means the function still references the
+deleted originating buffer, and garbage collection cannot reclaim the memory
+locked down by the deleted buffer.
+
+The following is a piece of code that could implement part of `Dired View
+File' that uses two closures to accomplish that described above:
+
+    (let* ((dired-buf (current-buffer))
+	   (buffer (view-file-command () pathname)))
+      (push #'(lambda (buffer)
+		(declare (ignore buffer))
+		(setf dired-buf ()))
+	    (buffer-delete-hook dired-buf))
+      (setf (variable-value 'view-return-function :buffer buffer)
+	    #'(lambda ()
+		(if dired-buf
+		    (change-to-buffer dired-buf)
+		    (dired-from-buffer-pathname-command)))))
+
+The `Dired' buffer's delete hook clears the return function's reference to
+the `Dired' buffer.  The return function tests the variable to see if it
+still holds a buffer when the function executes.
+]#
 
 
 ;;;; View Mode.
 
-(defmode "View" :major-p nil
+(defmode "View" :major-p ()
   :setup-function 'setup-view-mode
   :cleanup-function 'cleanup-view-mode
   :precedence 5.0
@@ -2265,92 +2669,107 @@
    Scrolling off the end optionally deletes the buffer.")
 
 (defun setup-view-mode (buffer)
-  (defhvar "View Return Function"
+  (defevar "View Return Function"
     "Function that gets called when quitting or returning from view mode."
-    :value nil
+    :value ()
     :buffer buffer)
-  (setf (buffer-writable buffer) nil))
+  (setf (buffer-writable buffer) ()))
 ;;;
 (defun cleanup-view-mode (buffer)
   (delete-variable 'view-return-function :buffer buffer)
   (setf (buffer-writable buffer) t))
 
-(defcommand "View File" (p &optional pathname)
-  "Reads a file in as if by \"Find File\", but read-only.  Commands exist
-   for scrolling convenience."
-  "Reads a file in as if by \"Find File\", but read-only.  Commands exist
-   for scrolling convenience."
+(defcommand "View File" (p pathname)
+  "Reads a file into a buffer in `View Mode' as if by `Visit File' and set
+   the buffer read-only."
   (declare (ignore p))
   (let* ((pn (or pathname
 		 (prompt-for-file
 		  :prompt "View File: " :must-exist t
 		  :help "Name of existing file to read into its own buffer."
 		  :default (buffer-default-pathname (current-buffer)))))
-	 (buffer (make-buffer (format nil "View File ~A" (gensym)))))
-    (visit-file-command nil pn buffer)
+	 (buffer (make-buffer (format () "View File ~A" (gensym)))))
+    (visit-file-command () pn buffer)
     (setf (buffer-minor-mode buffer "View") t)
     (change-to-buffer buffer)
     buffer))
 
-(defcommand "View Return" (p)
-  "Return to a parent buffer, if it exists."
-  "Return to a parent buffer, if it exists."
-  (declare (ignore p))
-  (unless (call-view-return-fun)
-    (editor-error "No View return method for this buffer.")))
+(defcommand "View Return" ()
+  "Return to the buffer that created the current buffer in `View' mode."
+  (fi (call-view-return-fun)
+      (editor-error "No View return method for this buffer.")))
 
-(defcommand "View Quit" (p)
-  "Delete a buffer in view mode."
-  "Delete a buffer in view mode, invoking VIEW-RETURN-FUNCTION if it exists for
-   this buffer."
-  (declare (ignore p))
+(defcommand "View Quit" ()
+  "Return to the buffer that created the current buffer in `View' mode.
+
+   After invoking the viewing return function, if there is one, delete the
+   buffer that was current initially."
   (let* ((buf (current-buffer))
 	 (funp (call-view-return-fun)))
     (delete-buffer-if-possible buf)
-    (unless funp (editor-error "No View return method for this buffer."))))
+    (fi funp (editor-error "No View return method for this buffer."))))
 
-;;; CALL-VIEW-RETURN-FUN returns nil if there is no current
-;;; view-return-function.  If there is one, it calls it and returns t.
-;;;
 (defun call-view-return-fun ()
+  "If there is a current view-return-function call it and return t,
+   otherwise return ()."
   (if (editor-bound-p 'view-return-function)
       (let ((fun (value view-return-function)))
-	(cond (fun
-	       (funcall fun)
-	       t)))))
+	(when fun
+	  (funcall fun)
+	  t))))
 
-
-(defhvar "View Scroll Deleting Buffer"
-  "When this is set, \"View Scroll Down\" deletes the buffer when the end
-   of the file is visible."
+(defevar "View Scroll Deleting Buffer"
+  "When set, \"View Scroll Down\" deletes the buffer when the end of the
+   file is visible."
   :value t)
 
 (defcommand "View Scroll Down" (p)
-  "Scroll the current window down through its buffer.
-   If the end of the file is visible, then delete the buffer if \"View Scroll
-   Deleting Buffer\" is set.  If the buffer is associated with a dired buffer,
-   this returns there instead of to the previous buffer."
-  "Scroll the current window down through its buffer.
-   If the end of the file is visible, then delete the buffer if \"View Scroll
-   Deleting Buffer\" is set.  If the buffer is associated with a dired buffer,
-   this returns there instead of to the previous buffer."
+  "Scroll the current window down through its buffer.  If the end of the
+   file is visible, then delete the buffer if `View Scroll Deleting Buffer'
+   is set.  If the buffer is associated with a dired buffer, then return
+   there instead of to the previous buffer."
   (if (and (not p)
 	   (displayed-p (buffer-end-mark (current-buffer))
 			(current-window))
 	   (value view-scroll-deleting-buffer))
-      (view-quit-command nil)
+      (view-quit-command)
       (scroll-window-down-command p)))
 
-(defcommand "View Edit File" (p)
-  "Turn off \"View\" mode in this buffer."
-  "Turn off \"View\" mode in this buffer."
-  (declare (ignore p))
+(defcommand "View Edit File" ()
+  "Make a `View' mode buffer a normal editing buffer, warning if the file
+   exists in another buffer simultaneously."
   (let ((buf (current-buffer)))
-    (setf (buffer-minor-mode buf "View") nil)
+    (setf (buffer-minor-mode buf "View") ())
     (warn-about-visit-file-buffers buf)))
 
-(defcommand "View Help" (p)
-  "Shows \"View\" mode help message."
-  "Shows \"View\" mode help message."
-  (declare (ignore p))
-  (describe-mode-command nil "View"))
+(defcommand "View Help" ()
+  "Show the \"View\" mode help message."
+  (describe-mode-command () "View"))
+
+
+;;;; Highlighting.
+
+(defun highlight-dired-line (line chi-info)
+  (when (and (plusp (line-length line))
+	     (editor-bound-p 'dired-information))
+    (let ((dired-info (value dired-information)))
+      (and dired-info
+	   (dired-info-files dired-info)
+	   (in-directory (dired-current-directory) ; FIX
+	     (let ((col-posns (dired-info-col-posns dired-info))
+		   (file (array-element-from-mark
+			  (mark line 0)
+			  (dired-info-files dired-info))))
+	       (and file
+		    col-posns
+		    (directoryp (dired-file-pathname file))
+		    (assoc :name col-posns)
+		    (chi-mark line (+ (cdr (assoc :name col-posns)) 2)
+			      *special-form-font* :special-form
+			      chi-info))))))))
+
+(defun highlight-dired-buffer (buffer)
+  (highlight-chi-buffer buffer highlight-dired-line))
+
+(defun highlight-visible-dired-buffer (buffer)
+  (highlight-visible-chi-buffer buffer highlight-dired-line))

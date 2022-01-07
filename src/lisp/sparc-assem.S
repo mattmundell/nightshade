@@ -297,14 +297,9 @@ _function_end_breakpoint_end:
 	.global _flush_icache
 	FUNCDEF(_flush_icache)
 _flush_icache:
-        add %o0,%o1,%o2
-1:      iflush %o0			! flush instruction cache
-        add %o0,8,%o0
-        cmp %o0,%o2
-        blt 1b
-        nop
+	iflush %i0			! flush instruction cache
 	retl				! return from leaf routine
-        nop
+	nop
 	SET_SIZE(_flush_icache)
 
 #ifndef SOLARIS
@@ -566,5 +561,5 @@ save_context:
  * Local variables:
  * tab-width: 8
  * End:
- */						
-		
+ */
+

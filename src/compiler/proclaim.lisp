@@ -1,20 +1,6 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/proclaim.lisp,v 1.30.2.2 2000/07/07 11:04:32 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains load-time support for declaration processing.  It is
-;;; split off from the compiler so that the compiler doesn'thave to be in the
-;;; cold load.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; Load-time support for declaration processing.  Split off from the
+;;; compiler so that the compiler doesn't have to be in the cold load.
+
 (in-package "C")
 
 (in-package "EXTENSIONS")
@@ -24,7 +10,9 @@
 	  *type-system-initialized* %note-type-defined))
 (in-package "LISP")
 (export '(declaim proclaim))
+
 (in-package "C")
+
 (export '(&more))
 
 ;;; True if the type system has been properly initialized, and thus is o.k. to
@@ -43,7 +31,6 @@
   (brevity nil :type (or (rational 0 3) null))
   (debug nil :type (or (rational 0 3) null)))
 
-
 ;;; The *default-cookie* represents the current global compiler policy
 ;;; information.  Whenever the policy is changed, we copy the structure so that
 ;;; old uses will still get the old values.  *default-interface-cookie* holds
@@ -55,9 +42,9 @@
 
 ;;; PROCLAIM-INIT -- sorta interface.
 ;;;
-;;; %Initial-function (in lispinit) calls this after running all the
-;;; initial top level forms to reset the cookies.  We also use it in place
-;;; of supplying initial values in the DEFVARs above so that we don't
+;;; %initial-function (in code:lispinit.lisp) calls this after running all
+;;; the initial top level forms to reset the cookies.  We also use it in
+;;; place of supplying initial values in the DEFVARs above so that we don't
 ;;; have to put the initial default cookie in two places.
 ;;;
 (defun proclaim-init ()
@@ -77,9 +64,9 @@
 
 ;;; NOTE-NAME-DEFINED  --  Interface
 ;;;
-;;;    Delete any undefined warnings for Name and Kind.  We do the BOUNDP check
-;;; because this function can be called when not in a compilation unit (as when
-;;; loading top-level forms.)
+;;; Delete any undefined warnings for Name and Kind.  We do the BOUNDP
+;;; check because this function can be called when not in a compilation
+;;; unit (as when loading top-level forms.)
 ;;;
 (defun note-name-defined (name kind)
   (when (boundp '*undefined-warnings*)
@@ -90,21 +77,15 @@
 		     *undefined-warnings*)))
   (undefined-value))
 
-
 ;;; Parse-Lambda-List  --  Interface
 ;;;
-;;;    Break a lambda-list into its component parts.  We return eleven values:
-;;;  1] A list of the required args.
-;;;  2] A list of the optional arg specs.
-;;;  3] True if a rest arg was specified.
-;;;  4] The rest arg.
-;;;  5] A boolean indicating whether keywords args are present.
-;;;  6] A list of the keyword arg specs.
-;;;  7] True if &allow-other-keys was specified.
-;;;  8] A list of the &aux specifiers.
-;;;  9] True if a more arg was specified.
-;;; 10] The &more context var
-;;; 11] The &more count var
+;;; Break a lambda-list into its component parts.  We return eleven values:
+;;; 1] A list of the required args.  2] A list of the optional arg specs.
+;;; 3] True if a rest arg was specified.  4] The rest arg.  5] A boolean
+;;; indicating whether keywords args are present.  6] A list of the keyword
+;;; arg specs.  7] True if &allow-other-keys was specified.  8] A list of
+;;; the &aux specifiers.  9] True if a more arg was specified.  10] The
+;;; &more context var 11] The &more count var
 ;;;
 ;;; The top-level lambda-list syntax is checked for validity, but the arg
 ;;; specifiers are just passed through untouched.  If something is wrong, we
@@ -132,26 +113,26 @@
 			(char= (char name 0) #\&))))
 	    (case arg
 	      (&optional
-	       (unless (eq state :required)
-		 (compiler-error "Misplaced &optional in lambda-list: ~S." list))
+	       (or (eq state :required)
+		   (compiler-error "Misplaced &optional in lambda-list: ~S." list))
 	       (setq state '&optional))
 	      (&rest
-	       (unless (member state '(:required &optional))
-		 (compiler-error "Misplaced &rest in lambda-list: ~S." list))
+	       (or (member state '(:required &optional))
+		   (compiler-error "Misplaced &rest in lambda-list: ~S." list))
 	       (setq state '&rest))
 	      (&more
-	       (unless (member state '(:required &optional))
-		 (compiler-error "Misplaced &more in lambda-list: ~S." list))
+	       (or (member state '(:required &optional))
+		   (compiler-error "Misplaced &more in lambda-list: ~S." list))
 	       (setq morep t  state '&more-context))
 	      (&key
-	       (unless (member state '(:required &optional :post-rest
-						 :post-more))
-		 (compiler-error "Misplaced &key in lambda-list: ~S." list))
+	       (or (member state '(:required &optional :post-rest
+					     :post-more))
+		   (compiler-error "Misplaced &key in lambda-list: ~S." list))
 	       (setq keyp t)
 	       (setq state '&key))
 	      (&allow-other-keys
-	       (unless (eq state '&key)
-		 (compiler-error "Misplaced &allow-other-keys in lambda-list: ~S." list))
+	       (or (eq state '&key)
+		   (compiler-error "Misplaced &allow-other-keys in lambda-list: ~S." list))
 	       (setq allowp t  state '&allow-other-keys))
 	      (&aux
 	       (when (member state '(&rest &more-context &more-count))
@@ -176,20 +157,20 @@
       (values (required) (optional) restp rest keyp (keys) allowp (aux)
 	      morep more-context more-count))))
 
-
 ;;; Check-Function-Name  --  Interface
 ;;;
-;;;    Check that Name is a valid function name, returning the name if OK, and
-;;; doing an error if not.  In addition to checking for basic well-formedness,
-;;; we also check that symbol names are not NIL or the name of a special form.
+;;; Check that Name is a valid function name, returning the name if OK, and
+;;; doing an error if not.  In addition to checking for basic
+;;; well-formedness, we also check that symbol names are not NIL or the
+;;; name of a special form.
 ;;;
 (defun check-function-name (name)
   (typecase name
     (list
-     (unless (and (consp name) (consp (cdr name))
-		  (null (cddr name)) (eq (car name) 'setf)
-		  (symbolp (cadr name)))
-       (compiler-error "Illegal function name: ~S." name))
+     (or (and (consp name) (consp (cdr name))
+	      (null (cddr name)) (eq (car name) 'setf)
+	      (symbolp (cadr name)))
+	 (compiler-error "Illegal function name: ~S." name))
      name)
     (symbol
      (when (eq (info function kind name) :special-form)
@@ -198,10 +179,9 @@
     (t
      (compiler-error "Illegal function name: ~S." name))))
 
-
 ;;; NOTE-IF-SETF-FUNCTION-AND-MACRO  --  Interface
 ;;;
-;;;    Called to do something about SETF functions that overlap with setf
+;;; Called to do something about SETF functions that overlap with setf
 ;;; macros.  Perhaps we should interact with the user to see if the macro
 ;;; should be blown away, but for now just give a warning.  Due to the weak
 ;;; semantics of the (SETF FUNCTION) name, we can't assume that they aren't
@@ -218,10 +198,9 @@
        name)))
   (undefined-value))
 
-
 ;;; Define-Function-Name  --  Interface
 ;;;
-;;;    Check the legality of a function name that is being introduced.
+;;; Check the legality of a function name that is being introduced.
 ;;; -- If it names a macro, then give a warning and blast the macro
 ;;;    information.
 ;;; -- If it is a structure slot accessor, give a warning and blast the
@@ -248,21 +227,19 @@
     ((nil)
      (setf (info function kind name) :function)))
 
-
   (note-if-setf-function-and-macro name)
   name)
 
-
 ;;; UNDEFINE-FUNCTION-NAME  --  Interface
 ;;;
-;;;    Make Name no longer be a function name: clear everything back to the
+;;; Make Name no longer be a function name: clear everything back to the
 ;;; default.
 ;;;
 (defun undefine-function-name (name)
   (when name
     (macrolet ((frob (type &optional val)
-		 `(unless (eq (info function ,type name) ,val)
-		    (setf (info function ,type name) ,val))))
+		 `(or (eq (info function ,type name) ,val)
+		      (setf (info function ,type name) ,val))))
       (frob info)
       (frob type (specifier-type 'function))
       (frob where-from :assumed)
@@ -274,12 +251,11 @@
       (frob assumed-type)))
   (undefined-value))
 
-
 ;;; Process-Optimize-Declaration  --  Interface
 ;;;
-;;;    Return a new cookie containing the policy information represented by the
-;;; optimize declaration Spec.  Any parameters not specified are defaulted from
-;;; Cookie.
+;;; Return a new cookie containing the policy information represented by
+;;; the optimize declaration Spec.  Any parameters not specified are
+;;; defaulted from Cookie.
 ;;;
 (defun process-optimize-declaration (spec cookie)
   (declare (list spec) (type cookie cookie) (values cookie))
@@ -304,22 +280,21 @@
 	     quality spec))))
     res))
 
-
 ;;; DECLAIM  --  Public
 ;;;
-;;;    For now, just PROCLAIM without any EVAL-WHEN.
+;;; For now, just PROCLAIM without any EVAL-WHEN.
 ;;;
 (defmacro declaim (&rest specs)
-  "DECLAIM Declaration*
+  "declaim declaration*
+
    Do a declaration for the global environment."
   `(progn ,@(mapcar #'(lambda (x)
 			`(proclaim ',x))
 		    specs)))
 
-
-;;; %Proclaim  --  Interface
+;;; %proclaim  --  Interface
 ;;;
-;;;    This function is the guts of proclaim, since it does the global
+;;; This function is the guts of proclaim, since it does the global
 ;;; environment updating.
 ;;;
 (defun %proclaim (form)
@@ -336,13 +311,13 @@
 	 (clear-info variable constant-value name)
 	 (setf (info variable kind name) :special)))
       (type
-       (when *type-system-initialized*
-	 (let ((type (specifier-type (first args))))
-	   (dolist (name (rest args))
-	     (or (symbolp name)
-		 (error "Variable name is not a symbol: ~S." name))
-	     (setf (info variable type name) type)
-	     (setf (info variable where-from name) :declared)))))
+       (if *type-system-initialized*
+	   (let ((type (specifier-type (first args))))
+	     (dolist (name (rest args))
+	       (or (symbolp name)
+		   (error "Variable name is not a symbol: ~S." name))
+	       (setf (info variable type name) type)
+	       (setf (info variable where-from name) :declared)))))
       (ftype
        (when *type-system-initialized*
 	 (let ((type (specifier-type (first args))))
@@ -415,7 +390,7 @@
 
 ;;; %NOTE-TYPE-DEFINED  --  Interface
 ;;;
-;;;    Note that the type Name has been (re)defined, updating the undefined
+;;; Note that the type Name has been (re)defined, updating the undefined
 ;;; warnings and VALUES-SPECIFIER-TYPE cache.
 ;;;
 (defun %note-type-defined (name)
@@ -428,7 +403,7 @@
 
 ;;;; Dummy definitions of COMPILER-ERROR, etc.
 ;;;
-;;;    Until the compiler is properly loaded, we make the compiler error
+;;; Until the compiler is properly loaded, we make the compiler error
 ;;; functions synonyms for the obvious standard error function.
 ;;;
 
@@ -443,4 +418,3 @@
 
 (defun compiler-error-message (string &rest args)
   (apply #'warn string args))
-

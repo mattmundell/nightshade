@@ -1,51 +1,75 @@
 ;;; A ring-buffer type and access functions.
+;;;
+;;; FIX mv to code:?
 
 (in-package "EDI")
 
 (export '(ring ringp make-ring ring-push ring-pop ring-length ring-ref
 	  rotate-ring))
 
+#[ Ring Functions
 
-(defun %print-hring (obj stream depth)
+There are various purposes in an editor for which a ring of values can be
+used, so the editor provides a general ring buffer type.  It is used for
+maintaining a ring of killed regions (see section [Kill Ring]), a ring of
+marks (see section [The Mark Stack]), or a ring of command strings which
+various modes and commands maintain as a history mechanism.
+
+{function:ed:make-ring}
+{function:ed:ringp}
+{function:ed:ring-length}
+{function:ed:ring-ref}
+{function:ed:ring-push}
+{function:ed:ring-pop}
+{function:ed:rotate-ring}
+]#
+
+(defun %print-ring (obj stream depth)
   (declare (ignore depth obj))
   (write-string "#<Editor Ring>" stream))
 
-;;;; The ring data structure:
+;;;; The ring data structure.
 ;;;
-;;;    An empty ring is indicated by an negative First value.
-;;; The Bound is made (1- (- Size)) to make length work.  Things are
-;;; pushed at high indices first.
+;;; An empty ring is indicated by an negative First value.  The Bound is
+;;; made (1- (- Size)) to make length work.  Things are pushed at high
+;;; indices first.
 ;;;
 (defstruct (ring (:predicate ringp)
 		 (:constructor internal-make-ring)
-		 (:print-function %print-hring))
-  "Used with Ring-Push and friends to implement ring buffers."
-  (first -1 :type fixnum)	   ;The index of the first position used.
-  (bound (required-argument) :type fixnum)   ;The index after the last element.
-  delete-function ;The function  to be called on deletion.
-  (vector (required-argument) :type simple-vector)) ;The vector.
+		 (:print-function %print-ring))
+  "Used with `ring-push' and other ring functions to implement ring
+   buffers."
+  (first -1 :type fixnum)	   ; The index of the first position used.
+  (bound (required-argument) :type fixnum)   ; The index after the last element.
+  delete-function ; The function  to be called on deletion.
+  (vector (required-argument) :type simple-vector)) ; The vector.
+
+(setf (documentation 'ringp 'function)
+  "Return true if ring is a ring object, else ().")
 
 ;;; make-ring  --  Public
 ;;;
-;;;    Make a new empty ring with some maximum size and type.
+;;; Make a new empty ring with some maximum size and type.
 ;;;
 (defun make-ring (size &optional (delete-function #'identity))
-  "Make a ring-buffer which can hold up to Size objects.  Delete-Function
-  is a function which is called with each object that falls off the
-  end."
-  (unless (and (fixnump size) (> size 0))
-    (error "Ring size, ~S is not a positive fixnum." size))
+  "Makes an empty ring object capable of holding up to $size values.
+   $delete-function is a function that each value is passed to before it
+   falls off the end.  $size must be greater than zero."
+  (or (and (fixnump size) (> size 0))
+      (error "Ring size, ~S is not a positive fixnum." size))
   (internal-make-ring :delete-function delete-function
 		      :vector (make-array size)
 		      :bound  (1- (- size))))
+
 
 ;;; ring-push  --  Public
 ;;;
-;;;    Decrement first modulo the maximum size, delete any old
-;;; element, and add the new one.
+;;; Decrement first modulo the maximum size, delete any old element, and
+;;; add the new one.
 ;;;
 (defun ring-push (object ring)
-  "Push an object into a ring, deleting an element if necessary."
+  "Push $object into $ring, possibly releasing the oldest element in the
+   ring."
   (let ((first (ring-first ring))
 	(vec (ring-vector ring))
 	(victim 0))
@@ -66,13 +90,13 @@
     (setf (ring-first ring) victim)
     (setf (aref vec victim) object)))
 
-
 ;;; ring-pop  --  Public
 ;;;
-;;;    Increment first modulo the maximum size.
+;;; Increment first modulo the maximum size.
 ;;;
 (defun ring-pop (ring)
-  "Pop an object from a ring and return it."
+  "Pop the most recently pushed element from $ring and return it.  If the
+   ring is empty then signal an error."
   (let* ((first (ring-first ring))
 	 (vec (ring-vector ring))
 	 (new (if (= first (1- (length vec))) 0 (1+ first)))
@@ -87,25 +111,26 @@
       (setf (ring-first ring) new)))
     (shiftf (aref vec first) nil)))
 
-
 ;;; ring-length  --  Public
 ;;;
-;;;    Return the current and maximum size.
+;;; Return the current and maximum size.
 ;;;
 (defun ring-length (ring)
-  "Return as values the current and maximum size of a ring."
+  "Return as the current and maximum size of a ring."
   (let ((diff (- (ring-bound ring) (ring-first ring)))
 	(max (length (ring-vector ring))))
     (declare (fixnum diff max))
     (values (if (plusp diff) diff (+ max diff)) max)))
+
 
 ;;; ring-ref  --  Public
 ;;;
-;;;    Do modulo arithmetic to find the correct element.
+;;; Do modulo arithmetic to find the correct element.
 ;;;
 (defun ring-ref (ring index)
+  "Return the index'th item in the ring, where zero is the index of the
+   most recently pushed.  This may be set with setf."
   (declare (fixnum index))
-  "Return the index'th element of a ring.  This can be set with Setf."
   (let ((first (ring-first ring)))
     (declare (fixnum first))
     (cond
@@ -122,10 +147,9 @@
 	  (error "Ring index ~D out of bounds." index))
 	(aref vec (if (>= sum max) (- sum max) sum)))))))
 
-
 ;;; %set-ring-ref  --  Internal
 ;;;
-;;;    Setf form for ring-ref, set a ring element.
+;;; Setf form for ring-ref, set a ring element.
 ;;;
 (defun %set-ring-ref (ring index value)
   (declare (fixnum index))
@@ -138,6 +162,7 @@
     (when (or (>= index (if (plusp diff) diff (+ max diff))) (minusp index))
       (error "Ring index ~D out of bounds." index))
     (setf (aref vec (if (>= sum max) (- sum max) sum)) value)))
+
 
 (eval-when (compile eval)
 (defmacro 1+m (exp base)
@@ -148,11 +173,14 @@
 
 ;;; rotate-ring  --  Public
 ;;;
-;;;    Rotate a ring, blt'ing elements as necessary.
+;;; Rotate a ring, releasing elements as necessary.
 ;;;
 (defun rotate-ring (ring offset)
-  "Rotate a ring forward, i.e. second -> first, with positive offset,
-  or backwards with negative offset."
+  "With a positive $offset, rotate $ring forward $offset times: Move the
+   element at the front of the ring to the end of the ring, and reduce the
+   index of each element by one.
+
+   With a negative offset rotate $ring the other way."
   (declare (fixnum offset))
   (let* ((first (ring-first ring))
 	 (bound (ring-bound ring))

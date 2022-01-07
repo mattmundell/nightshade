@@ -1,18 +1,4 @@
-;;; -*- Package: hppa -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/vm.lisp,v 1.3.2.2 2000/05/23 16:37:37 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the VM definition for the HP-PA.
-;;;
-;;; Written by William Lott.
-;;;
+;;; The VM definition for the HP-PA.
 
 (in-package "HPPA")
 
@@ -34,13 +20,11 @@
 
 ); eval-when (compile eval)
 
-
 (eval-when (compile load eval)
 
 (defvar *register-names* (make-array 32 :initial-element nil))
 
 ); eval-when (compile load eval)
-
 
 ;; Wired-zero
 (defreg zero 0)
@@ -94,7 +78,6 @@
 (defregset register-arg-offsets
   a0 a1 a2 a3 a4 a5)
 
-
 (define-storage-base registers :finite :size 32)
 (define-storage-base float-registers :finite :size 64)
 (define-storage-base control-stack :unbounded :size 8)
@@ -102,10 +85,9 @@
 (define-storage-base constant :non-packed)
 (define-storage-base immediate-constant :non-packed)
 
-;;;
 ;;; Handy macro so we don't have to keep changing all the numbers whenever
 ;;; we insert a new storage class.
-;;; 
+;;;
 (defmacro define-storage-classes (&rest classes)
   (do ((forms (list 'progn)
 	      (let* ((class (car classes))
@@ -154,8 +136,7 @@
   (complex-single-stack non-descriptor-stack :element-size 2)
   (complex-double-stack non-descriptor-stack :element-size 4 :alignment 2)
 
-
-  ;; **** Things that can go in the integer registers.
+  ;;;; Things that can go in the integer registers.
 
   ;; Immediate descriptor objects.  Don't have to be seen by GC, but nothing
   ;; bad will happen if they are.  (fixnums, characters, header values, etc).
@@ -207,8 +188,7 @@
   (interior-reg registers
    :locations (#.lip-offset))
 
-
-  ;; **** Things that can go in the floating point registers.
+  ;;;; Things that can go in the floating point registers.
 
   ;; Non-Descriptor single-floats.
   (single-reg float-registers
@@ -331,11 +311,10 @@
 (defconstant register-arg-count 6)
 
 ;;; Names to use for the argument registers.
-;;; 
+;;;
 (defconstant register-arg-names '(a0 a1 a2 a3 a4 a5))
 
 ); Eval-When (Compile Load Eval)
-
 
 ;;; A list of TN's describing the register arguments.
 ;;;
@@ -356,8 +335,9 @@
 
 ;;; LOCATION-PRINT-NAME  --  Interface
 ;;;
-;;;    This function is called by debug output routines that want a pretty name
-;;; for a TN's location.  It returns a thing that can be printed with PRINC.
+;;; This function is called by debug output routines that want a pretty
+;;; name for a TN's location.  It returns a thing that can be printed with
+;;; PRINC.
 ;;;
 (def-vm-support-routine location-print-name (tn)
   (declare (type tn tn))

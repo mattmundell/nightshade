@@ -1,27 +1,13 @@
-;;; -*- Package: VM -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/generic/primtype.lisp,v 1.15.2.2 2000/05/23 16:37:33 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the machine independent aspects of the object
-;;; representation and primitive types.
-;;;
-;;; Written by William Lott.
-;;; Alpha conversion by Sean Hallgren.
-;;;
+;;; The machine independent aspects of the object representation and
+;;; primitive types.
+
 (in-package "VM")
 
 
-;;;; Primitive Type Definitions
+;;;; Primitive Type Definitions.
 
 ;;; *Anything*
-;;; 
+;;;
 (def-primitive-type t (descriptor-reg))
 (defvar *any-primitive-type* (primitive-type-or-lose 't))
 (setf (backend-any-primitive-type *target-backend*) *any-primitive-type*)
@@ -70,7 +56,7 @@
 (def-primitive-type base-char (base-char-reg any-reg))
 
 ;;; Primitive pointer types.
-;;; 
+;;;
 (def-primitive-type function (descriptor-reg))
 (def-primitive-type list (descriptor-reg))
 (def-primitive-type instance (descriptor-reg))
@@ -78,7 +64,7 @@
 (def-primitive-type funcallable-instance (descriptor-reg))
 
 ;;; Primitive other-pointer number types.
-;;; 
+;;;
 (def-primitive-type bignum (descriptor-reg))
 (def-primitive-type ratio (descriptor-reg))
 (def-primitive-type complex (descriptor-reg))
@@ -95,7 +81,7 @@
   :type (complex long-float))
 
 ;;; Primitive other-pointer array types.
-;;; 
+;;;
 (def-primitive-type simple-string (descriptor-reg) :type simple-base-string)
 (def-primitive-type simple-bit-vector (descriptor-reg))
 (def-primitive-type simple-vector (descriptor-reg))
@@ -132,25 +118,24 @@
 (def-primitive-type simple-array-complex-long-float (descriptor-reg)
   :type (simple-array (complex long-float) (*)))
 
-;;; Note: The complex array types are not inclueded, 'cause it is pointless to
-;;; restrict VOPs to them.
+;;; Note: The complex array types are not inclueded, 'cause it is pointless
+;;; to restrict VOPs to them.
 
 ;;; Other primitive other-pointer types.
-;;; 
+;;;
 (def-primitive-type system-area-pointer (sap-reg descriptor-reg))
 (def-primitive-type weak-pointer (descriptor-reg))
 
 ;;; Random primitive types that don't exist at the LISP level.
-;;; 
+;;;
 (def-primitive-type catch-block (catch-block) :type nil)
-
 
 
 ;;;; Primitive-type-of and friends.
 
 ;;; Primitive-Type-Of  --  Interface
 ;;;
-;;;    Return the most restrictive primitive type that contains Object.
+;;; Return the most restrictive primitive type that contains Object.
 ;;;
 (def-vm-support-routine primitive-type-of (object)
   (let ((type (ctype-of object)))
@@ -160,7 +145,7 @@
 	  (t
 	   *any-primitive-type*))))
 
-;;; 
+;;;
 (defvar *simple-array-primitive-types*
   '((base-char . simple-string)
     (bit . simple-bit-vector)
@@ -181,20 +166,19 @@
     #+long-float
     ((complex long-float) . simple-array-complex-long-float)
     (t . simple-vector))
-  "An a-list for mapping simple array element types to their
-  corresponding primitive types.")
+  "An a-list for mapping simple array element types to their corresponding
+   primitive types.")
 
-
-;;; Return the primitive type corresponding to a type descriptor
-;;; structure. The second value is true when the primitive type is
-;;; exactly equivalent to the argument Lisp type.
+;;; Return the primitive type corresponding to a type descriptor structure.
+;;; The second value is true when the primitive type is exactly equivalent
+;;; to the argument Lisp type.
 ;;;
-;;; In a bootstrapping situation, we should be careful to use the
-;;; correct values for the system parameters.
+;;; In a bootstrapping situation, we should be careful to use the correct
+;;; values for the system parameters.
 ;;;
-;;; We need an aux function because we need to use both def-vm-support-routine
-;;; and defun-cached.
-;;; 
+;;; We need an aux function because we need to use both
+;;; def-vm-support-routine and defun-cached.
+;;;
 (def-vm-support-routine primitive-type (type)
   (primitive-type-aux type))
 ;;;
@@ -227,7 +211,7 @@
 		 (fixnum
 		  (case t2-name
 		    (#-alpha signed-byte-32 #+alpha signed-byte-64 t2)
-		    (#-alpha unsigned-byte-31 #+alpha unsigned-byte-63 
+		    (#-alpha unsigned-byte-31 #+alpha unsigned-byte-63
 		     (primitive-type-or-lose
 		      #-alpha 'signed-byte-32 #+alpha 'signed-byte-64
 		      *backend*))))

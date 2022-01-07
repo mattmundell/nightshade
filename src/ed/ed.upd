@@ -83,7 +83,6 @@ highlight.lisp
 dired.lisp
 diredcoms.lisp
 bufed.lisp
-lisp-lib.lisp
 completion.lisp
 shell.lisp
 debug.lisp

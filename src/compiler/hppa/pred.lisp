@@ -1,26 +1,12 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/pred.lisp,v 1.2 1994/10/31 04:42:45 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the VM definition of predicate VOPs for the HPPA
-;;;
-;;; Written by William Lott.
-;;; 
+;;; The VM definition of predicate VOPs for the HPPA
 
 (in-package "HPPA")
 
 
 ;;;; The Branch VOP.
 
-;;; The unconditional branch, emitted when we can't drop through to the desired
-;;; destination.  Dest is the continuation we transfer control to.
+;;; The unconditional branch, emitted when we can't drop through to the
+;;; desired destination.  Dest is the continuation we transfer control to.
 ;;;
 (define-vop (branch)
   (:info dest)
@@ -28,7 +14,7 @@
     (inst b dest :nullify t)))
 
 
-;;;; Conditional VOPs:
+;;;; Conditional VOPs.
 
 (define-vop (if-eq)
   (:args (x :scs (any-reg descriptor-reg zero null))

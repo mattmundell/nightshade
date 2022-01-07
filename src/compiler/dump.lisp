@@ -1,21 +1,171 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/dump.lisp,v 1.64.2.2 2000/05/23 16:37:04 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains stuff that knows about dumping FASL files.
-;;;
+;;; Stuff that knows about dumping FASL files.
+
 (in-package "C")
 
 (proclaim '(special compiler-version))
+
+#[ Dumping
+
+    Convert the compiled code into an object file or in-core function.
+
+Phase position: 23/23 (back)
+
+Presence: required
+
+Files: debug-dump, dump, generic/core
+
+Entry functions: `fasl-dump-component'
+
+Call sequences:
+
+    native-compile-component
+      fasl-dump-component
+        fasl-validate-structure
+        dump-code-object
+        dump-one-entry
+        alter-code-object
+
+    native-compile-component
+      make-core-component
+        do-core-fixups
+          vm:fixup-code-object
+        make-function-entry
+          note-function
+        vm:sanctify-for-execution
+        reference-core-function
+
+
+[Fasload File Format]
+
+    So far as input to the dumper/loader, how about having a list of Entry-Info
+    structures in the VMR-Component?  These structures contain all information
+    needed to dump the associated function objects, and are only implicitly
+    associated with the functional/XEP data structures.  Load-time constants that
+    reference these function objects should specify the Entry-Info, rather than the
+    functional (or something).  We would then need to maintain some sort of
+    association so VMR conversion can find the appropriate Entry-Info.
+    Alternatively, we could initially reference the functional, and then later
+    clobber the reference to the Entry-Info.
+
+    We have some kind of post-pass that runs after assembly, going through the
+    functions and constants, annotating the VMR-Component for the benefit of the
+    dumper:
+	Resolve :Label load-time constants.
+	Make the debug info.
+	Make the entry-info structures.
+
+    Fasl dumper and in-core loader are implementation (but not instruction set)
+    dependent, so we want to give them a clear interface.
+
+    open-fasl-file name => fasl-file
+	Returns a "fasl-file" object representing all state needed by the dumper.
+	We objectify the state, since the fasdumper should be reentrant.  (but
+	could fail to be at first.)
+
+    close-fasl-file fasl-file abort-p
+	Close the specified fasl-file.
+
+    fasl-dump-component component code-vector length fixups fasl-file
+	Dump the code, constants, etc. for component.  Code-Vector is a vector
+	holding the assembled code.  Length is the number of elements of Vector
+	that are actually in use.  Fixups is a list of conses (offset . fixup)
+	describing the locations and things that need to be fixed up at load time.
+	If the component is a top-level component, then the top-level lambda will
+	be called after the component is loaded.
+
+    load-component component code-vector length fixups
+	Like Fasl-Dump-Component, but directly installs the code in core, running
+	any top-level code immediately.  (???) but we need some way to glue
+	together the componenents, since we don't have a fasl table.
+
+Dumping:
+
+Dump code for each component after compiling that component, but defer dumping
+of other stuff.  We do the fixups on the code vectors, and accumulate them in
+the table.
+
+We have to grovel the constants for each component after compiling that
+component so that we can fix up load-time constants.  Load-time constants are
+values needed by the code that are computed after code generation/assembly
+time.  Since the code is fixed at this point, load-time constants are always
+represented as non-immediate constants in the constant pool.  A load-time
+constant is distinguished by being a cons (Kind . What), instead of a Constant
+leaf.  Kind is a keyword indicating how the constant is computed, and What is
+some context.
+
+Some interesting load-time constants:
+
+    (:label . <label>)
+        Is replaced with the byte offset of the label within the code-vector.
+
+    (:code-vector . <component>)
+        Is replaced by the component's code-vector.
+
+    (:entry . <function>)
+    (:closure-entry . <function>)
+	Is replaced by the function-entry structure for the specified function.
+	:Entry is how the top-level component gets a handle on the function
+	definitions so that it can set them up.
+
+We also need to remember the starting offset for each entry, although these
+don't in general appear as explicit constants.
+
+We then dump out all the :Entry and :Closure-Entry objects, leaving any
+constant-pool pointers uninitialized.  After dumping each :Entry, we dump some
+stuff to let genesis know that this is a function definition.  Then we dump all
+the constant pools, fixing up any constant-pool pointers in the already-dumped
+function entry structures.
+
+The debug-info *is* a constant: the first constant in every constant pool.  But
+the creation of this constant must be deferred until after the component is
+compiled, so we leave a (:debug-info) placeholder.
+    Or maybe this is implicitly added in by the dumper, being supplied in a
+    VMR-component slot.
+
+
+    Work out details of the interface between the back-end and the
+    assembler/dumper.
+
+    Support for multiple assemblers concurrently loaded?  (for byte code)
+
+    We need various mechanisms for getting information out of the assembler.
+
+    We can get entry PCs and similar things into function objects by making a
+    Constant leaf, specifying that it goes in the closure, and then
+    setting the value after assembly.
+
+    We have an operation Label-Value which can be used to get the value of a
+    label after assembly and before the assembler data structures are
+    deallocated.
+
+    The function map can be constructed without any special help from the
+    assembler.  Codegen just has to note the current label when the function
+    changes from one block to the next, and then use the final value of these
+    labels to make the function map.
+
+    Probably we want to do the source map this way too.  Although this will
+    make zillions of spurious labels, we would have to effectively do that
+    anyway.
+
+    With both the function map and the source map, getting the locations right
+    for uses of Elsewhere will be a bit tricky.  Users of Elsewhere will need
+    to know about how these maps are being built, since they must record the
+    labels and corresponding information for the elsewhere range.  It would be
+    nice to have some cooperation from Elsewhere so that this isn't necessary,
+    otherwise some VOP writer will break the rules, resulting in code that is
+    nowhere.
+
+    The Debug-Info and related structures are dumped by consing up the
+    structure and making it be the value of a constant.
+
+    Getting the code vector and fixups dumped may be a bit more interesting.  I
+    guess we want a Dump-Code-Vector function which dumps the code and fixups
+    accumulated by the current assembly, returning a magic object that will
+    become the code vector when it is dumped as a constant.
+]#
+
 
-;;;; Fasl dumper state:
+;;;; Fasl dumper state.
 
 ;;; We do some buffering in front of the stream that represents the output file
 ;;; so as to speed things up a bit.
@@ -37,7 +187,7 @@
   (stream (required-argument) :type stream)
   ;;
   ;; The buffer we accumulate output in before blasting it out to the stream
-  ;; with SYS:OUTPUT-RAW-BYTES.
+  ;; with `sys:output-raw-bytes'.
   (buffer (make-array fasl-buffer-size :element-type '(unsigned-byte 8))
 	  :type (simple-array (unsigned-byte 8) (*)))
   ;;
@@ -111,30 +261,27 @@
   ;; is the object that we look up in the EQ-TABLE to locate Value.
   enclosing-object)
 
-
 ;;; A list of the Circularity structures for all of the circularities detected
 ;;; in the current top-level call to Dump-Object.  Setting this lobotomizes
 ;;; circularity detection as well, since circular dumping uses the table.
 ;;;
 (defvar *circularities-detected*)
 
-
 ;;; Used to inhibit table access when dumping forms to be read by the cold
 ;;; loader.
 ;;;
 (defvar *cold-load-dump* nil)
-
 
 ;;; Used to turn off the structure validation during dumping of source info.
 ;;;
 (defvar *dump-only-valid-structures* t)
 
 
-;;;; Utilities:
+;;;; Utilities.
 
 ;;; FLUSH-FASL-FILE-BUFFER  --  Internal
 ;;;
-;;;    Write out the contents of File's buffer to its stream.
+;;; Write out the contents of File's buffer to its stream.
 ;;;
 (defun flush-fasl-file-buffer (file)
   (system:output-raw-bytes (fasl-file-stream file)
@@ -144,10 +291,9 @@
   (setf (fasl-file-buffer-index file) 0)
   (undefined-value))
 
-
 ;;; Dump-Byte  --  Internal
 ;;;
-;;;    Write the byte B to the specified fasl-file stream.
+;;; Write the byte B to the specified fasl-file stream.
 ;;;
 (declaim (maybe-inline dump-byte))
 (defun dump-byte (b file)
@@ -162,10 +308,9 @@
 	(flush-fasl-file-buffer file))))
   (undefined-value))
 
-
 ;;; DUMP-UNSIGNED-32  --  Internal
 ;;;
-;;;    Dump a 4 byte unsigned integer.
+;;; Dump a 4 byte unsigned integer.
 ;;;
 (defun dump-unsigned-32 (num file)
   (declare (type (unsigned-byte 32) num) (type fasl-file file)
@@ -183,10 +328,9 @@
     (setf (fasl-file-buffer-index file) new))
   (undefined-value))
 
-
 ;;; Dump-Var-Signed   --  Internal
 ;;;
-;;;    Dump Num to the fasl stream, represented by the specified number of
+;;; Dump Num to the fasl stream, represented by the specified number of
 ;;; bytes.
 ;;;
 (defun dump-var-signed  (num bytes file)
@@ -199,10 +343,9 @@
     (dump-byte (logand n #xFF) file))
   (undefined-value))
 
-
 ;;; DUMP-BYTES  --  Internal
 ;;;
-;;;    Dump the first N bytes in Vec out to File.  Vec is some sort of unboxed
+;;; Dump the first N bytes in Vec out to File.  Vec is some sort of unboxed
 ;;; vector-like thing that we can BLT from.
 ;;;
 (defun dump-bytes (vec n file)
@@ -230,10 +373,9 @@
 		  (setf (fasl-file-buffer-index file) n))))))
   (undefined-value))
 
-
 ;;; Dump-FOP  --  Internal
 ;;;
-;;;    Dump the FOP code for the named FOP to the specified fasl-file.
+;;; Dump the FOP code for the named FOP to the specified fasl-file.
 ;;;
 (defmacro dump-fop (fs file)
   (let* ((fs (eval fs))
@@ -241,10 +383,9 @@
     (assert val () "Compiler bug: ~S not a legal fasload operator." fs)
     `(dump-byte ',val ,file)))
 
-
 ;;; Dump-FOP*  --  Internal
 ;;;
-;;;    Dump a FOP-Code along with an integer argument, choosing the FOP based
+;;; Dump a FOP-Code along with an integer argument, choosing the FOP based
 ;;; on whether the argument will fit in a single byte.
 ;;;
 (defmacro dump-fop* (n byte-fop word-fop file)
@@ -257,20 +398,18 @@
 	    (dump-fop ',word-fop ,n-file)
 	    (dump-unsigned-32 ,n-n ,n-file)))))
 
-
 ;;; Dump-Push  --  Internal
 ;;;
-;;;    Push the object at table offset Handle on the fasl stack.
+;;; Push the object at table offset Handle on the fasl stack.
 ;;;
 (defun dump-push (handle file)
   (declare (type index handle) (type fasl-file file))
   (dump-fop* handle lisp::fop-byte-push lisp::fop-push file)
   (undefined-value))
 
-
 ;;; Dump-Pop  --  Internal
 ;;;
-;;;    Pop the object currently on the fasl stack top into the table, and
+;;; Pop the object currently on the fasl stack top into the table, and
 ;;; return the table index, incrementing the free pointer.
 ;;;
 (defun dump-pop (file)
@@ -278,10 +417,9 @@
     (dump-fop 'lisp::fop-pop file)
     (incf (fasl-file-table-free file))))
 
-
 ;;; EQUAL-CHECK-TABLE  --  Internal
 ;;;
-;;;    If X is in File's EQUAL-TABLE, then push the object and return T,
+;;; If X is in File's EQUAL-TABLE, then push the object and return T,
 ;;; otherwise NIL.  If *COLD-LOAD-DUMP* is true, then do nothing and return
 ;;; NIL.
 ;;;
@@ -295,12 +433,12 @@
 	    (t
 	     nil)))))
 
-
 ;;; EQ-SAVE-OBJECT, EQUAL-SAVE-OBJECT  --  Internal
 ;;;
-;;;    These functions are called after dumping an object to save the object in
-;;; the table.  The object (also passed in as X) must already be on the top of
-;;; the FOP stack.  If *COLD-LOAD-DUMP* is true, then we don't do anything.
+;;; These functions are called after dumping an object to save the object
+;;; in the table.  The object (also passed in as X) must already be on the
+;;; top of the FOP stack.  If *COLD-LOAD-DUMP* is true, then we don't do
+;;; anything.
 ;;;
 (defun eq-save-object (x file)
   (declare (type fasl-file file))
@@ -319,12 +457,11 @@
       (dump-push handle file)))
   (undefined-value))
 
-
 ;;; NOTE-POTENTIAL-CIRCULARITY  --  Internal
 ;;;
-;;;    Record X in File's CIRCULARITY-TABLE unless *COLD-LOAD-DUMP* is true.
-;;; This is called on objects that we are about to dump might have a circular
-;;; path through them.
+;;; Record X in File's CIRCULARITY-TABLE unless *COLD-LOAD-DUMP* is true.
+;;; This is called on objects that we are about to dump might have a
+;;; circular path through them.
 ;;;
 ;;; The object must not currently be in this table, since the dumper should
 ;;; never be recursively called on a circular reference.  Instead, the dumping
@@ -338,10 +475,9 @@
       (setf (gethash x circ) x)))
   (undefined-value))
 
-
 ;;; Fasl-Dump-Cold-Load-Form  --  Interface
 ;;;
-;;;    Dump Form to a fasl file so that it evaluated at load time in normal
+;;; Dump Form to a fasl file so that it evaluated at load time in normal
 ;;; load and at cold-load time in cold load.  This is used to dump package
 ;;; frobbing forms.
 ;;;
@@ -355,14 +491,14 @@
   (undefined-value))
 
 
-;;;; Opening and closing:
+;;;; Opening and closing.
 
 ;;; Open-Fasl-File  --  Interface
 ;;;
-;;;    Return a Fasl-File object for dumping to the named file.  Some
-;;; information about the source is specified by the string Where.  If byte-p
-;;; is true, this file will contain no native code, and is thus largely
-;;; implementation independent.
+;;; Return a Fasl-File object for dumping to the named file.  Some
+;;; information about the source is specified by the string Where.  If
+;;; byte-p is true, this file will contain no native code, and is thus
+;;; largely implementation independent.
 ;;;
 (defun open-fasl-file (name where &optional byte-p)
   (declare (type pathname name))
@@ -387,7 +523,7 @@
 	      where
 	      (ext:format-universal-time nil (get-universal-time))
 	      (machine-instance) compiler-version
-	      (lisp-implementation-version)
+	      (version)
 	      version f-vers)
       ;;
       ;; Terminate header.
@@ -399,10 +535,9 @@
       (dump-byte f-vers res))
     res))
 
-
 ;;; Close-Fasl-File  --  Interface
 ;;;
-;;;    Close the specified Fasl-File, aborting the write if Abort-P is true.
+;;; Close the specified Fasl-File, aborting the write if Abort-P is true.
 ;;; We do various sanity checks, then end the group.
 ;;;
 (defun close-fasl-file (file abort-p)
@@ -417,7 +552,7 @@
   (undefined-value))
 
 
-;;;; Component (function) dumping:
+;;;; Component (function) dumping.
 
 (defun dump-segment (segment code-length file)
   (declare (type new-assem:segment segment)
@@ -440,17 +575,17 @@
 
 ;;; Dump-Code-Object  --  Internal
 ;;;
-;;;    Dump out the constant pool and code-vector for component, push the
+;;; Dump out the constant pool and code-vector for component, push the
 ;;; result in the table and return the offset.
 ;;;
-;;;    The only tricky thing is handling constant-pool references to functions.
-;;; If we have already dumped the function, then we just push the code pointer.
-;;; Otherwise, we must create back-patching information so that the constant
-;;; will be set when the function is eventually dumped.  This is a bit awkward,
-;;; since we don't have the handle for the code object being dumped while we
-;;; are dumping its constants.
+;;; The only tricky thing is handling constant-pool references to
+;;; functions.  If we have already dumped the function, then we just push
+;;; the code pointer.  Otherwise, we must create back-patching information
+;;; so that the constant will be set when the function is eventually
+;;; dumped.  This is a bit awkward, since we don't have the handle for the
+;;; code object being dumped while we are dumping its constants.
 ;;;
-;;;    We dump trap objects in any unused slots or forward referenced slots.
+;;; We dump trap objects in any unused slots or forward referenced slots.
 ;;;
 (defun dump-code-object (component code-segment code-length
 				   trace-table fixups file)
@@ -536,7 +671,6 @@
 		(gethash (car patch) (fasl-file-patch-table file))))
 	handle))))
 
-
 (defun dump-assembler-routines (code-segment length fixups routines file)
   (dump-fop 'lisp::fop-assembler-code file)
   (dump-unsigned-32 (if (backend-featurep :gengc)
@@ -600,10 +734,9 @@
       (dump-unsigned-32 offset file)))
   (undefined-value))
 
-
 ;;; Dump-One-Entry  --  Internal
 ;;;
-;;;    Dump a function-entry data structure corresponding to Entry to File.
+;;; Dump a function-entry data structure corresponding to Entry to File.
 ;;; Code-Handle is the table offset of the code object for the component.
 ;;;
 ;;; If the entry is a DEFUN, then we also dump a FOP-FSET so that the cold
@@ -629,8 +762,8 @@
 
 ;;; Alter-Code-Object  --  Internal
 ;;;
-;;;    Alter the code object referenced by Code-Handle at the specified Offset,
-;;; storing the object referenced by Entry-Handle.
+;;; Alter the code object referenced by Code-Handle at the specified
+;;; Offset, storing the object referenced by Entry-Handle.
 ;;;
 (defun alter-code-object (code-handle offset entry-handle file)
   (declare (type index code-handle entry-handle offset) (type fasl-file file))
@@ -639,10 +772,9 @@
   (dump-fop* offset lisp::fop-byte-alter-code lisp::fop-alter-code file)
   (undefined-value))
 
-
 ;;; Fasl-Dump-Component  --  Interface
 ;;;
-;;;    Dump the code, constants, etc. for component.  We pass in the assembler
+;;; Dump the code, constants, etc. for component.  We pass in the assembler
 ;;; fixups, code vector and node info.
 ;;;
 (defun fasl-dump-component (component code-segment length trace-table
@@ -673,9 +805,8 @@
 	    (remhash entry (fasl-file-patch-table file)))))))
   (undefined-value))
 
-
 ;;; DUMP-BYTE-CODE-OBJECT -- internal.
-;;; 
+;;;
 (defun dump-byte-code-object (segment length constants file)
   (declare (type new-assem:segment segment)
 	   (type index length)
@@ -714,7 +845,7 @@
 		   (handle
 		    (dump-push handle file))
 		   (t
-		    (entry-patches (cons info (+ i vm:code-constants-offset))) 
+		    (entry-patches (cons info (+ i vm:code-constants-offset)))
 		    (dump-fop 'lisp::fop-misc-trap file)))))
 	       (:load-time-value
 		(dump-push (cdr entry) file))
@@ -761,12 +892,11 @@
 		(gethash (car patch) patch-table)))
 	code-handle))))
 
-
 ;;; DUMP-BYTE-FUNCTION  --  Internal
 ;;;
-;;;    Dump a BYTE-FUNCTION object.  We dump the layout and
-;;; funcallable-instance info, but rely on the loader setting up the correct
-;;; funcallable-instance-function.
+;;; Dump a BYTE-FUNCTION object.  We dump the layout and
+;;; funcallable-instance info, but rely on the loader setting up the
+;;; correct funcallable-instance-function.
 ;;;
 (defun dump-byte-function (xep code-handle file)
   (let ((nslots (- (get-closure-length xep)
@@ -781,7 +911,6 @@
     (dump-byte nslots file))
   (undefined-value))
 
-
 ;;; FASL-DUMP-BYTE-COMPONENT  --  Interface
 ;;;
 ;;; Dump a byte-component.  This is similar to FASL-DUMP-COMPONENT, but
@@ -793,7 +922,7 @@
 	   (type vector constants)
 	   (type list xeps)
 	   (type fasl-file file))
-  
+
   (let ((code-handle (dump-byte-code-object segment length constants file)))
     (dolist (noise xeps)
       (let* ((lambda (car noise))
@@ -811,11 +940,10 @@
 	    (remhash info patch-table))))))
   (undefined-value))
 
-
 ;;; FASL-DUMP-TOP-LEVEL-LAMBDA-CALL  --  Interface
 ;;;
-;;;    Dump a FOP-FUNCALL to call an already dumped top-level lambda at load
-;;; time.  
+;;; Dump a FOP-FUNCALL to call an already dumped top-level lambda at load
+;;; time.
 ;;;
 (defun fasl-dump-top-level-lambda-call (fun file)
   (declare (type clambda fun) (type fasl-file file))
@@ -826,17 +954,17 @@
     (dump-byte 0 file))
   (undefined-value))
 
-
 ;;; FASL-DUMP-SOURCE-INFO  --  Interface
 ;;;
-;;;    Compute the correct list of DEBUG-SOURCE structures and backpatch all of
-;;; the dumped DEBUG-INFO structures.  We clear the FASL-FILE-DEBUG-INFO,
-;;; so that subsequent components with different source info may be dumped.
+;;; Compute the correct list of DEBUG-SOURCE structures and backpatch all
+;;; of the dumped DEBUG-INFO structures.  We clear the
+;;; FASL-FILE-DEBUG-INFO, so that subsequent components with different
+;;; source info may be dumped.
 ;;;
 (defun fasl-dump-source-info (info file)
   (declare (type source-info info) (type fasl-file file))
   (let ((res (debug-source-for-info info))
-	(*dump-only-valid-structures* nil))
+	*dump-only-valid-structures*)
     (dump-object res file)
     (let ((res-handle (dump-pop file)))
       (dolist (info-handle (fasl-file-debug-info file))
@@ -849,17 +977,17 @@
   (undefined-value))
 
 
-;;;; Main entries to object dumping:
+;;;; Main entries to object dumping.
 
 ;;; Dump-Non-Immediate-Object  --  Internal
 ;;;
-;;;    This function deals with dumping objects that are complex enough so that
-;;; we want to cache them in the table, rather than repeatedly dumping them.
-;;; If the object is in the EQ-TABLE, then we push it, otherwise, we do a type
-;;; dispatch to a type specific dumping function.  The type specific branches
-;;; do any appropriate EQUAL-TABLE check and table entry.
+;;; This function deals with dumping objects that are complex enough so
+;;; that we want to cache them in the table, rather than repeatedly dumping
+;;; them.  If the object is in the EQ-TABLE, then we push it, otherwise, we
+;;; do a type dispatch to a type specific dumping function.  The type
+;;; specific branches do any appropriate EQUAL-TABLE check and table entry.
 ;;;
-;;;    When we go to dump the object, we enter it in the CIRCULARITY-TABLE.
+;;; When we go to dump the object, we enter it in the CIRCULARITY-TABLE.
 ;;;
 (defun dump-non-immediate-object (x file)
   (let ((index (gethash x (fasl-file-eq-table file))))
@@ -900,10 +1028,9 @@
 		     x))))))
   (undefined-value))
 
-
 ;;; Sub-Dump-Object  --  Internal
 ;;;
-;;;    Dump an object of any type by dispatching to the correct type-specific
+;;; Dump an object of any type by dispatching to the correct type-specific
 ;;; dumping function.  We pick off immediate objects, symbols and and magic
 ;;; lists here.  Other objects are handled by Dump-Non-Immediate-Object.
 ;;;
@@ -925,12 +1052,11 @@
 	(t
 	 (dump-non-immediate-object x file))))
 
-
 ;;; Dump-Circularities  --  Internal
 ;;;
-;;;    Dump stuff to backpatch already dumped objects.  Infos is the list of
-;;; Circularity structures describing what to do.  The patching FOPs take the
-;;; value to store on the stack.  We compute this value by fetching the
+;;; Dump stuff to backpatch already dumped objects.  Infos is the list of
+;;; Circularity structures describing what to do.  The patching FOPs take
+;;; the value to store on the stack.  We compute this value by fetching the
 ;;; enclosing object from the table, and then CDR'ing it if necessary.
 ;;;
 (defun dump-circularities (infos file)
@@ -946,7 +1072,7 @@
 	       (dump-fop 'lisp::fop-nthcdr file)
 	       (dump-unsigned-32 i file))
 	    (declare (type index i)))))
-      
+
       (ecase (circularity-type info)
 	(:rplaca (dump-fop 'lisp::fop-rplaca file))
 	(:rplacd (dump-fop 'lisp::fop-rplacd file))
@@ -955,15 +1081,14 @@
       (dump-unsigned-32 (gethash (circularity-object info) table) file)
       (dump-unsigned-32 (circularity-index info) file))))
 
-
 ;;; Dump-Object  -- Interface
 ;;;
-;;;    Set up stuff for circularity detection, then dump an object.  All shared
-;;; and circular structure will be exactly preserved within a single call to
-;;; Dump-Object.  Sharing between objects dumped by separate calls is only
-;;; preserved when convenient.
+;;; Set up stuff for circularity detection, then dump an object.  All
+;;; shared and circular structure will be exactly preserved within a single
+;;; call to Dump-Object.  Sharing between objects dumped by separate calls
+;;; is only preserved when convenient.
 ;;;
-;;;    We peek at the objec type so that we only pay the circular detection
+;;; We peek at the object type so that we only pay the circular detection
 ;;; overhead on types of objects that might be circular.
 ;;;
 (defun dump-object (x file)
@@ -997,7 +1122,7 @@
 ;;;
 ;;; Return T iff CONSTANT has not already been dumped.  It's been dumped
 ;;; if it's in the EQ table.
-;;; 
+;;;
 (defun fasl-constant-already-dumped (constant file)
   (if (or (gethash constant (fasl-file-eq-table file))
 	  (gethash constant (fasl-file-valid-structures file)))
@@ -1020,14 +1145,13 @@
 ;;;
 ;;; Note that the specified structure can just be dumped by enumerating the
 ;;; slots.
-;;; 
+;;;
 (defun fasl-validate-structure (structure file)
   (setf (gethash structure (fasl-file-valid-structures file)) t)
   (undefined-value))
 
-
 
-;;;; Number Dumping:
+;;;; Number Dumping.
 
 ;;; Dump a ratio
 
@@ -1075,7 +1199,7 @@
 	   (dump-var-signed exp-bits 4 file))
 	  (t
 	   (error "Unable to dump long-float")))))
-	   
+
 ;;; Or a complex...
 
 (defun dump-complex (x file)
@@ -1139,13 +1263,13 @@
      (dump-long-float x file))))
 
 
-;;;; Symbol Dumping:
+;;;; Symbol Dumping.
 
 ;;; Dump-Package  --  Internal
 ;;;
-;;;    Return the table index of Pkg, adding the package to the table if
-;;; necessary.  During cold load, we read the string as a normal string so that
-;;; we can do the package lookup at cold load time.
+;;; Return the table index of Pkg, adding the package to the table if
+;;; necessary.  During cold load, we read the string as a normal string so
+;;; that we can do the package lookup at cold load time.
 ;;;
 (defun dump-package (pkg file)
   (declare (type package pkg) (type fasl-file file) (values index)
@@ -1162,13 +1286,12 @@
 	   (push (cons pkg entry) (fasl-file-packages file))
 	   entry))))
 
-
 ;;; Dump-Symbol  --  Internal
 ;;;
-;;;    If we get here, it is assumed that the symbol isn't in the table, but we
-;;; are responsible for putting it there when appropriate.  To avoid too much
-;;; special-casing, we always push the symbol in the table, but don't record
-;;; that we have done so if *Cold-Load-Dump* is true.
+;;; If we get here, it is assumed that the symbol isn't in the table, but
+;;; we are responsible for putting it there when appropriate.  To avoid too
+;;; much special-casing, we always push the symbol in the table, but don't
+;;; record that we have done so if *Cold-Load-Dump* is true.
 ;;;
 (defun dump-symbol (s file)
   (let* ((pname (symbol-name s))
@@ -1212,7 +1335,7 @@
 
 ;;; Dump-List  --  Internal
 ;;;
-;;;    Dump a list, setting up patching information when there are
+;;; Dump a list, setting up patching information when there are
 ;;; circularities.  We scan down the list, checking for CDR and CAR
 ;;; circularities.
 ;;;
@@ -1262,7 +1385,6 @@
 	    (t
 	     (sub-dump-object obj file))))))
 
-
 (defun terminate-dotted-list (n file)
   (declare (type index n) (type fasl-file file))
   (case n
@@ -1309,7 +1431,7 @@
 		  (dump-byte 255 file)))))))
 
 
-;;;; Array dumping:
+;;;; Array dumping.
 
 ;;; DUMP-ARRAY  --  Internal.
 ;;;
@@ -1324,7 +1446,7 @@
 ;;;
 ;;; Dump the vector object.  If it's not simple, then actually dump a simple
 ;;; version of it.  But we enter the original in the EQ or EQUAL tables.
-;;; 
+;;;
 (defun dump-vector (x file)
   (let ((simple-version (if (array-header-p x)
 			    (coerce x 'simple-array)
@@ -1365,7 +1487,7 @@
 
 ;;; DUMP-SIMPLE-VECTOR  --  Internal
 ;;;
-;;;    Dump a SIMPLE-VECTOR, handling any circularities.
+;;; Dump a SIMPLE-VECTOR, handling any circularities.
 ;;;
 (defun dump-simple-vector (v file)
   (declare (type simple-vector v) (type fasl-file file))
@@ -1387,7 +1509,7 @@
 
 ;;; DUMP-SIMPLE-STRING  --  Internal
 ;;;
-;;;    Dump a SIMPLE-BASE-STRING.
+;;; Dump a SIMPLE-BASE-STRING.
 ;;;
 (defun dump-simple-string (s file)
   (declare (type simple-base-string s))
@@ -1443,7 +1565,7 @@
 	 (dump-signed 32 32 (* 4 len)))))))
 
 ;;; DUMP-SINGLE-FLOAT-VECTOR  --  internal.
-;;; 
+;;;
 (defun dump-single-float-vector (vec file)
   (let ((length (length vec)))
     (dump-fop 'lisp::fop-single-float-vector file)
@@ -1452,7 +1574,7 @@
 				   vm:word-bytes file)))
 
 ;;; DUMP-DOUBLE-FLOAT-VECTOR  --  internal.
-;;; 
+;;;
 (defun dump-double-float-vector (vec file)
   (let ((length (length vec)))
     (dump-fop 'lisp::fop-double-float-vector file)
@@ -1461,7 +1583,7 @@
 				   (* vm:word-bytes 2) file)))
 
 ;;; DUMP-LONG-FLOAT-VECTOR  --  internal.
-;;; 
+;;;
 #+long-float
 (defun dump-long-float-vector (vec file)
   (let ((length (length vec)))
@@ -1472,7 +1594,7 @@
      (* vm:word-bytes #+x86 3 #+sparc 4) file)))
 
 ;;; DUMP-COMPLEX-SINGLE-FLOAT-VECTOR  --  internal.
-;;; 
+;;;
 (defun dump-complex-single-float-vector (vec file)
   (let ((length (length vec)))
     (dump-fop 'lisp::fop-complex-single-float-vector file)
@@ -1481,7 +1603,7 @@
 				   vm:word-bytes file)))
 
 ;;; DUMP-COMPLEX-DOUBLE-FLOAT-VECTOR  --  internal.
-;;; 
+;;;
 (defun dump-complex-double-float-vector (vec file)
   (let ((length (length vec)))
     (dump-fop 'lisp::fop-complex-double-float-vector file)
@@ -1490,7 +1612,7 @@
 				   (* vm:word-bytes 2) file)))
 
 ;;; DUMP-COMPLEX-LONG-FLOAT-VECTOR  --  internal.
-;;; 
+;;;
 #+long-float
 (defun dump-complex-long-float-vector (vec file)
   (let ((length (length vec)))
@@ -1504,7 +1626,7 @@
 ;;;
 ;;; Dump BYTES of data from DATA-VECTOR (which must be some unboxed vector)
 ;;; byte-swapping if necessary.
-;;; 
+;;;
 (defun dump-data-maybe-byte-swapping (data-vector bytes element-size file)
   (declare (type (simple-array * (*)) data-vector)
 	   (type unsigned-byte bytes)
@@ -1641,3 +1763,566 @@
   (sub-dump-object (layout-inheritance-depth obj) file)
   (sub-dump-object (layout-length obj) file)
   (dump-fop 'lisp::fop-layout file))
+
+
+#[ Fasload File Format
+
+== General ==
+
+The purpose of Fasload files is to allow concise storage and rapid
+loading of Lisp data, particularly function definitions.  The intent
+is that loading a Fasload file has the same effect as loading the
+ASCII file from which the Fasload file was compiled, but accomplishes
+the tasks more efficiently.  One noticeable difference, of course, is
+that function definitions may be in compiled form rather than
+S-expression form.  Another is that Fasload files may specify in what
+parts of memory the Lisp data should be allocated.  For example,
+constant lists used by compiled code may be regarded as read-only.
+
+In some Lisp implementations, Fasload file formats are designed to
+allow sharing of code parts of the file, possibly by direct mapping
+of pages of the file into the address space of a process.  This
+technique produces great performance improvements in a paged
+time-sharing system.  Since the Mach project is to produce a
+distributed personal-computer network system rather than a
+time-sharing system, efficiencies of this type are explicitly {\it not}
+a goal for the CMU Common Lisp Fasload file format.
+
+On the other hand, CMU Common Lisp is intended to be portable, as it will
+eventually run on a variety of machines.  Therefore an explicit goal
+is that Fasload files shall be transportable among various
+implementations, to permit efficient distribution of programs in
+compiled form.  The representations of data objects in Fasload files
+shall be relatively independent of such considerations as word
+length, number of type bits, and so on.  If two implementations
+interpret the same macrocode (compiled code format), then Fasload
+files should be completely compatible.  If they do not, then files
+not containing compiled code (so-called "Fasdump" data files) should
+still be compatible.  While this may lead to a format which is not
+maximally efficient for a particular implementation, the sacrifice of
+a small amount of performance is deemed a worthwhile price to pay to
+achieve portability.
+
+The primary assumption about data format compatibility is that all
+implementations can support I/O on finite streams of eight-bit bytes.
+By "finite" we mean that a definite end-of-file point can be detected
+irrespective of the content of the data stream.  A Fasload file will
+be regarded as such a byte stream.
+
+== Strategy ==
+
+A Fasload file may be regarded as a human-readable prefix followed by
+code in a funny little language.  When interpreted, this code will
+cause the construction of the encoded data structures.  The virtual
+machine which interprets this code has a {\it stack} and a {\it table},
+both initially empty.  The table may be thought of as an expandable
+register file; it is used to remember quantities which are needed
+more than once.  The elements of both the stack and the table are
+Lisp data objects.  Operators of the funny language may take as
+operands following bytes of the data stream, or items popped from the
+stack.  Results may be pushed back onto the stack or pushed onto the
+table.  The table is an indexable stack that is never popped; it is
+indexed relative to the base, not the top, so that an item once
+pushed always has the same index.
+
+More precisely, a Fasload file has the following macroscopic
+organization.  It is a sequence of zero or more groups concatenated
+together.  End-of-file must occur at the end of the last group.  Each
+group begins with a series of seven-bit ASCII characters terminated
+by one or more bytes of all ones \verb|#xFF|; this is called the
+{\it header}.  Following the bytes which terminate the header is the
+{\it body}, a stream of bytes in the funny binary language.  The body
+of necessity begins with a byte other than \verb|#xFF|.  The body is
+terminated by the operation {\tt FOP-END-GROUP}.
+
+The first nine characters of the header must be "{\tt FASL FILE}" in
+upper-case letters.  The rest may be any ASCII text, but by convention it
+is formatted in a certain way.  The header is divided into lines, which are
+grouped into paragraphs.  A paragraph begins with a line which does {\it
+not} begin with a space or tab character, and contains all lines up to, but
+not including, the next such line.  The first word of a paragraph, defined
+to be all characters up to but not including the first space, tab, or
+end-of-line character, is the {\it name} of the paragraph.  A Fasload file
+header might look something like this:
+
+    FASL FILE >SteelesPerq>User>Guy>IoHacks>Pretty-Print.Slisp
+    Package Pretty-Print
+    Compiled 31-Mar-1988 09:01:32 by some random luser
+    Compiler Version 1.6, Lisp Version 3.0.
+    Functions: INITIALIZE DRIVER HACK HACK1 MUNGE MUNGE1 GAZORCH
+	       MINGLE MUDDLE PERTURB OVERDRIVE GOBBLE-KEYBOARD
+	       FRY-USER DROP-DEAD HELP CLEAR-MICROCODE
+		%AOS-TRIANGLE %HARASS-READTABLE-MAYBE
+    Macros:    PUSH POP FROB TWIDDLE
+
+{\it one or more bytes of \verb|#xFF|}
+
+The particular paragraph names and contents shown here are only intended as
+suggestions.
+
+== Fasload Language ==
+
+Each operation in the binary Fasload language is an eight-bit
+(one-byte) opcode.  Each has a name beginning with "{\tt FOP-}".  In
+the following descriptions, the name is followed by operand
+descriptors.  Each descriptor denotes operands that follow the opcode
+in the input stream.  A quantity in parentheses indicates the number
+of bytes of data from the stream making up the operand.  Operands
+which implicitly come from the stack are noted in the text.  The
+notation "$\Rightarrow$ stack" means that the result is pushed onto the
+stack; "$\Rightarrow$ table" similarly means that the result is added to the
+table.  A construction like "{\it n}(1) {\it value}({\it n})" means that
+first a single byte {\it n} is read from the input stream, and this
+byte specifies how many bytes to read as the operand named {\it value}.
+All numeric values are unsigned binary integers unless otherwise
+specified.  Values described as "signed" are in two's-complement form
+unless otherwise specified.  When an integer read from the stream
+occupies more than one byte, the first byte read is the least
+significant byte, and the last byte read is the most significant (and
+contains the sign bit as its high-order bit if the entire integer is
+signed).
+
+Some of the operations are not necessary, but are rather special
+cases of or combinations of others.  These are included to reduce the
+size of the file or to speed up important cases.  As an example,
+nearly all strings are less than 256 bytes long, and so a special
+form of string operation might take a one-byte length rather than a
+four-byte length.  As another example, some implementations may
+choose to store bits in an array in a left-to-right format within
+each word, rather than right-to-left.  The Fasload file format may
+support both formats, with one being significantly more efficient
+than the other for a given implementation.  The compiler for any
+implementation may generate the more efficient form for that
+implementation, and yet compatibility can be maintained by requiring
+all implementations to support both formats in Fasload files.
+
+Measurements are to be made to determine which operation codes are
+worthwhile; little-used operations may be discarded and new ones
+added.  After a point the definition will be "frozen", meaning that
+existing operations may not be deleted (though new ones may be added;
+some operations codes will be reserved for that purpose).
+
++ 0: FOP-NOP
+No operation.  (This is included because it is recognized
+that some implementations may benefit from alignment of operands to some
+operations, for example to 32-bit boundaries.  This operation can be used
+to pad the instruction stream to a desired boundary.)
+
++ 1: FOP-POP -> table
+One item is popped from the stack and added to the table.
+
++ 2: FOP-PUSH index(4) -> stack
+Item number index of the table is pushed onto the stack.
+The first element of the table is item number zero.
+
++ 3: FOP-BYTE-PUSH index(1) -> stack
+Item number index of the table is pushed onto the stack.
+The first element of the table is item number zero.
+
++ 4: FOP-EMPTY-LIST -> stack
+The empty list (()) is pushed onto the stack.
+
++ 5: FOP-TRUTH -> stack
+The standard truth value (T) is pushed onto the stack.
+
++ 6: FOP-SYMBOL-SAVE n(4) name(n) -> stack and table
+The four-byte operand n specifies the length of the print name
+of a symbol.  The name follows, one character per byte,
+with the first byte of the print name being the first read.
+The name is interned in the default package,
+and the resulting symbol is both pushed onto the stack and added to the table.
+
++ 7: FOP-SMALL-SYMBOL-SAVE n(1) name(n) -> stack and table
+The one-byte operand n specifies the length of the print name
+of a symbol.  The name follows, one character per byte,
+with the first byte of the print name being the first read.
+The name is interned in the default package,
+and the resulting symbol is both pushed onto the stack and added to the table.
+
++ 8: FOP-SYMBOL-IN-PACKAGE-SAVE index(4)
+n(4) name(n) -> stack and table
+The four-byte index specifies a package stored in the table.
+The four-byte operand n specifies the length of the print name
+of a symbol.  The name follows, one character per byte,
+with the first byte of the print name being the first read.
+The name is interned in the specified package,
+and the resulting symbol is both pushed onto the stack and added to the table.
+
++ 9: FOP-SMALL-SYMBOL-IN-PACKAGE-SAVE  index(4)
+n(1) name(n) -> stack and table
+The four-byte index specifies a package stored in the table.
+The one-byte operand n specifies the length of the print name
+of a symbol.  The name follows, one character per byte,
+with the first byte of the print name being the first read.
+The name is interned in the specified package,
+and the resulting symbol is both pushed onto the stack and added to the table.
+
++ 10: FOP-SYMBOL-IN-BYTE-PACKAGE-SAVE index(1)
+n(4) name(n) -> stack and table
+The one-byte index specifies a package stored in the table.
+The four-byte operand n specifies the length of the print name
+of a symbol.  The name follows, one character per byte,
+with the first byte of the print name being the first read.
+The name is interned in the specified package,
+and the resulting symbol is both pushed onto the stack and added to the table.
+
++ 11:]FOP-SMALL-SYMBOL-IN-BYTE-PACKAGE-SAVE index(1)
+n(1) name(n) -> stack and table
+The one-byte index specifies a package stored in the table.
+The one-byte operand n specifies the length of the print name
+of a symbol.  The name follows, one character per byte,
+with the first byte of the print name being the first read.
+The name is interned in the specified package,
+and the resulting symbol is both pushed onto the stack and added to the table.
+
++ 12: FOP-UNINTERNED-SYMBOL-SAVE n(4) name(n) -> stack and table
+Like FOP-SYMBOL-SAVE, except that it creates an uninterned symbol.
+
++ 13: FOP-UNINTERNED-SMALL-SYMBOL-SAVE n(1)
+name(n) -> stack
+and table
+Like FOP-SMALL-SYMBOL-SAVE, except that it creates an uninterned symbol.
+
++ 14: FOP-PACKAGE -> table
+An item is popped from the stack; it must be a symbol.	The package of
+that name is located and pushed onto the table.
+
++ 15: FOP-LIST length(1) -> stack
+The unsigned operand length specifies a number of
+operands to be popped from the stack.  These are made into a list
+of that length, and the list is pushed onto the stack.
+The first item popped from the stack becomes the last element of
+the list, and so on.  Hence an iterative loop can start with
+the empty list and perform "pop an item and cons it onto the list"
+length times.
+(Lists of length greater than 255 can be made by using FOP-LIST*
+repeatedly.)
+
++ 16: FOP-LIST* length(1) -> stack
+This is like FOP-LIST except that the constructed list is terminated
+not by () (the empty list), but by an item popped from the stack
+before any others are.	Therefore length+1 items are popped in all.
+Hence an iterative loop can start with
+a popped item and perform "pop an item and cons it onto the list"
+length+1 times.
+
++ 17-24: FOP-LIST-1, FOP-LIST-2, ..., FOP-LIST-8
+FOP-LIST-k is like FOP-LIST with a byte containing k
+following it.  These exist purely to reduce the size of Fasload files.
+Measurements need to be made to determine the useful values of k.
+
++ 25-32: FOP-LIST*-1, FOP-LIST*-2, ..., FOP-LIST*-8
+FOP-LIST*-k is like FOP-LIST* with a byte containing k
+following it.  These exist purely to reduce the size of Fasload files.
+Measurements need to be made to determine the useful values of k.
+
++ 33: FOP-INTEGER n(4) value(n) -> stack
+A four-byte unsigned operand specifies the number of following
+bytes.	These bytes define the value of a signed integer in two's-complement
+form.  The first byte of the value is the least significant byte.
+
++ 34: FOP-SMALL-INTEGER n(1) value(n) -> stack
+A one-byte unsigned operand specifies the number of following
+bytes.	These bytes define the value of a signed integer in two's-complement
+form.  The first byte of the value is the least significant byte.
+
++ 35: FOP-WORD-INTEGER value(4) -> stack
+A four-byte signed integer (in the range $-2^{31$ to $2^{31-1$) follows the
+operation code.  A LISP integer (fixnum or bignum) with that value
+is constructed and pushed onto the stack.
+
++ 36: FOP-BYTE-INTEGER value(1) -> stack
+A one-byte signed integer (in the range -128 to 127) follows the
+operation code.  A LISP integer (fixnum or bignum) with that value
+is constructed and pushed onto the stack.
+
++ 37: FOP-STRING n(4) name(n) -> stack
+The four-byte operand n specifies the length of a string to
+construct.  The characters of the string follow, one per byte.
+The constructed string is pushed onto the stack.
+
++ 38: FOP-SMALL-STRING n(1) name(n) -> stack
+The one-byte operand n specifies the length of a string to
+construct.  The characters of the string follow, one per byte.
+The constructed string is pushed onto the stack.
+
++ 39: FOP-VECTOR n(4) -> stack
+The four-byte operand n specifies the length of a vector of LISP objects
+to construct.  The elements of the vector are popped off the stack;
+the first one popped becomes the last element of the vector.
+The constructed vector is pushed onto the stack.
+
++ 40: FOP-SMALL-VECTOR n(1) -> stack
+The one-byte operand n specifies the length of a vector of LISP objects
+to construct.  The elements of the vector are popped off the stack;
+the first one popped becomes the last element of the vector.
+The constructed vector is pushed onto the stack.
+
++ 41: FOP-UNIFORM-VECTOR n(4) -> stack
+The four-byte operand n specifies the length of a vector of LISP objects
+to construct.  A single item is popped from the stack and used to initialize
+all elements of the vector.  The constructed vector is pushed onto the stack.
+
++ 42: FOP-SMALL-UNIFORM-VECTOR n(1) -> stack
+The one-byte operand n specifies the length of a vector of LISP objects
+to construct.  A single item is popped from the stack and used to initialize
+all elements of the vector.  The constructed vector is pushed onto the stack.
+
++ 43: FOP-INT-VECTOR len(4)
+size(1) data($\left\lceil len*count/8\right\rceil$) -> stack
+The four-byte operand n specifies the length of a vector of
+unsigned integers to be constructed.   Each integer is size
+bits long, and is packed according to the machine's native byte ordering.
+size must be a directly supported i-vector element size.  Currently
+supported values are 1,2,4,8,16 and 32.
+
++ 44: FOP-UNIFORM-INT-VECTOR n(4) size(1)
+value(@ceiling<size/8>) -> stack
+The four-byte operand n specifies the length of a vector of unsigned
+integers to construct.
+Each integer is size bits big, and is initialized to the value
+of the operand value.
+The constructed vector is pushed onto the stack.
+
++ 45: Unused
+
++ 46: FOP-SINGLE-FLOAT data(4) -> stack
+The data bytes are read as an integer, then turned into an IEEE single
+float (as though by make-single-float).
+
++ 47: FOP-DOUBLE-FLOAT data(8) -> stack
+The data bytes are read as an integer, then turned into an IEEE double
+float (as though by make-double-float).
+
++ 48: FOP-STRUCT n(4) -> stack
+The four-byte operand n specifies the length structure to construct.  The
+elements of the vector are popped off the stack; the first one popped becomes
+the last element of the structure.  The constructed vector is pushed onto the
+stack.
+
++ 49: FOP-SMALL-STRUCT n(1) -> stack
+The one-byte operand n specifies the length structure to construct.  The
+elements of the vector are popped off the stack; the first one popped becomes
+the last element of the structure.  The constructed vector is pushed onto the
+stack.
+
++ 50-52: Unused
+
++ 53: FOP-EVAL -> stack
+Pop an item from the stack and evaluate it (give it to EVAL).
+Push the result back onto the stack.
+
++ 54: FOP-EVAL-FOR-EFFECT
+Pop an item from the stack and evaluate it (give it to EVAL).
+The result is ignored.
+
++ 55: FOP-FUNCALL nargs(1) -> stack
+Pop nargs+1 items from the stack and apply the last one popped
+as a function to
+all the rest as arguments (the first one popped being the last argument).
+Push the result back onto the stack.
+
++ 56: FOP-FUNCALL-FOR-EFFECT nargs(1)
+Pop nargs+1 items from the stack and apply the last one popped
+as a function to
+all the rest as arguments (the first one popped being the last argument).
+The result is ignored.
+
++ 57: FOP-CODE-FORMAT implementation(1)
+version(1)
+This FOP specifiers the code format for following code objects.  The operations
+FOP-CODE and its relatives may not occur in a group until after {\tt
+FOP-CODE-FORMAT has appeared; there is no default format.  The {\it
+implementation is an integer indicating the target hardware and environment.
+See compiler/generic/vm-macs.lisp for the currently defined
+implementations.  version for an implementation is increased whenever
+there is a change that renders old fasl files unusable.
+
++ 58: FOP-CODE nitems(4) size(4)
+code(size) -> stack
+A compiled function is constructed and pushed onto the stack.
+This object is in the format specified by the most recent
+occurrence of FOP-CODE-FORMAT.
+The operand nitems specifies a number of items to pop off
+the stack to use in the "boxed storage" section.  The operand code
+is a string of bytes constituting the compiled executable code.
+
++ 59: FOP-SMALL-CODE nitems(1) size(2)
+code(size) -> stack
+A compiled function is constructed and pushed onto the stack.
+This object is in the format specified by the most recent
+occurrence of FOP-CODE-FORMAT.
+The operand nitems specifies a number of items to pop off
+the stack to use in the "boxed storage" section.  The operand code
+is a string of bytes constituting the compiled executable code.
+
++ 60-61: Unused
+
++ 62: FOP-VERIFY-TABLE-SIZE size(4)
+If the current size of the table is not equal to size,
+then an inconsistency has been detected.  This operation
+is inserted into a Fasload file purely for error-checking purposes.
+It is good practice for a compiler to output this at least at the
+end of every group, if not more often.
+
++ 63: FOP-VERIFY-EMPTY-STACK
+If the stack is not currently empty,
+then an inconsistency has been detected.  This operation
+is inserted into a Fasload file purely for error-checking purposes.
+It is good practice for a compiler to output this at least at the
+end of every group, if not more often.
+
++ 64: FOP-END-GROUP
+This is the last operation of a group.	If this is not the
+last byte of the file, then a new group follows; the next
+nine bytes must be "FASL FILE".
+
++ 65: FOP-POP-FOR-EFFECT stack ->
+One item is popped from the stack.
+
++ 66: FOP-MISC-TRAP -> stack
+A trap object is pushed onto the stack.
+
++ 67: Unused
+
++ 68: FOP-CHARACTER character(3) -> stack
+The three bytes are read as an integer then converted to a character.  This FOP
+is currently rather useless, as extended characters are not supported.
+
++ 69: FOP-SHORT-CHARACTER character(1) -> stack
+The one byte specifies the code of a Common Lisp character object.  A character
+is constructed and pushed onto the stack.
+
++ 70: FOP-RATIO -> stack
+Creates a ratio from two integers popped from the stack.
+The denominator is popped first, the numerator second.
+
++ 71: FOP-COMPLEX -> stack
+Creates a complex number from two numbers popped from the stack.
+The imaginary part is popped first, the real part second.
+
++ 72-73: Unused
+
++ 74: FOP-FSET
+Except in the cold loader (Genesis), this is a no-op with two stack arguments.
+In the initial core this is used to make DEFUN functions defined at cold-load
+time so that global functions can be called before top-level forms are run
+(which normally installs definitions.)  Genesis pops the top two things off of
+the stack and effectively does (SETF SYMBOL-FUNCTION).
+
++ 75: FOP-LISP-SYMBOL-SAVE n(4) name(n) -> stack and table
+Like FOP-SYMBOL-SAVE, except that it creates a symbol in the LISP
+package.
+
++ 76: FOP-LISP-SMALL-SYMBOL-SAVE n(1)
+name(n) -> stack
+and table
+Like FOP-SMALL-SYMBOL-SAVE, except that it creates a symbol in the LISP
+package.
+
++ 77: FOP-KEYWORD-SYMBOL-SAVE n(4) name(n) -> stack and table
+Like FOP-SYMBOL-SAVE, except that it creates a symbol in the
+KEYWORD package.
+
++ 78: FOP-KEYWORD-SMALL-SYMBOL-SAVE n(1)
+name(n) -> stack and table
+Like FOP-SMALL-SYMBOL-SAVE, except that it creates a symbol in the
+KEYWORD package.
+
++ 79-80: Unused
+
++ 81: FOP-NORMAL-LOAD
+This FOP is used in conjunction with the cold loader (Genesis) to read
+top-level package manipulation forms.  These forms are to be read as though by
+the normal loaded, so that they can be evaluated at cold load time, instead of
+being dumped into the initial core image.  A no-op in normal loading.
+
++ 82: FOP-MAYBE-COLD-LOAD
+Undoes the effect of FOP-NORMAL-LOAD.
+
++ 83: FOP-ARRAY rank(4) -> stack
+This operation creates a simple array header (used for simple-arrays with rank
+/= 1).  The data vector is popped off of the stack, and then rank
+dimensions are popped off of the stack (the highest dimensions is on top.)
+
++ 84-139: Unused
+
++ 140: FOP-ALTER-CODE index(4)
+This operation modifies the constants part of a code object (necessary for
+creating certain circular function references.)  It pops the new value and code
+object are off of the stack, storing the new value at the specified index.
+
++ 141: FOP-BYTE-ALTER-CODE index(1)
+Like FOP-ALTER-CODE, but has only a one byte offset.
+
++ 142: FOP-FUNCTION-ENTRY index(4) -> stack
+Initializes a function-entry header inside of a pre-existing code object, and
+returns the corresponding function descriptor.  index is the byte offset
+inside of the code object where the header should be plunked down.  The stack
+arguments to this operation are the code object, function name, function debug
+arglist and function type.
+
++ 143: Unused
+
++ 144: FOP-ASSEMBLER-CODE length(4) -> stack
+This operation creates a code object holding assembly routines.  length
+bytes of code are read and placed in the code object, and the code object
+descriptor is pushed on the stack.  This FOP is only recognized by the cold
+loader (Genesis.)
+
++ 145: FOP-ASSEMBLER-ROUTINE offset(4) -> stack
+This operation records an entry point into an assembler code object (for use
+with FOP-ASSEMBLER-FIXUP).  The routine name (a symbol) is on stack top.
+The code object is underneath.  The entry point is defined at offset
+bytes inside the code area of the code object, and the code object is left on
+stack top (allowing multiple uses of this FOP to be chained.)  This FOP is only
+recognized by the cold loader (Genesis.)
+
++ 146: Unused
+
++ 147: FOP-FOREIGN-FIXUP len(1)
+name(len)
+offset(4) -> stack
+This operation resolves a reference to a foreign (C) symbol.  len bytes
+are read and interpreted as the symbol name.  First the kind and the
+code-object to patch are popped from the stack.  The kind is a target-dependent
+symbol indicating the instruction format of the patch target (at offset
+bytes from the start of the code area.)  The code object is left on
+stack top (allowing multiple uses of this FOP to be chained.)
+
++ 148: FOP-ASSEMBLER-FIXUP offset(4) -> stack
+This operation resolves a reference to an assembler routine.  The stack args
+are (routine-name, kind and code-object).  The kind is a
+target-dependent symbol indicating the instruction format of the patch target
+(at offset bytes from the start of the code area.)  The code object is
+left on stack top (allowing multiple uses of this FOP to be chained.)
+
++ 149-199: Unused
+
++ 200: FOP-RPLACA table-idx(4)
+cdr-offset(4)
+
++ 201: FOP-RPLACD table-idx(4)
+cdr-offset(4)
+These operations destructively modify a list entered in the table.  {\it
+table-idx is the table entry holding the list, and cdr-offset designates
+the cons in the list to modify (like the argument to nthcdr.)  The new
+value is popped off of the stack, and stored in the car or cdr,
+respectively.
+
++ 202: FOP-SVSET table-idx(4)
+vector-idx(4)
+Destructively modifies a simple-vector entered in the table.  Pops the
+new value off of the stack, and stores it in the vector-idx element of
+the contents of the table entry table-idx.
+
++ 203: FOP-NTHCDR cdr-offset(4) -> stack
+Does nthcdr on the top-of stack, leaving the result there.
+
++ 204: FOP-STRUCTSET table-idx(4)
+vector-idx(4)
+Like FOP-SVSET, except it alters structure slots.
+
++ 255: FOP-END-HEADER Indicates the end of a group header,
+as described above.
+]#

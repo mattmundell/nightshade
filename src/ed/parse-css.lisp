@@ -6,7 +6,7 @@
 
 (eval-when (compile eval load)
 
-(defparser
+(parse:defparser
     ;; FIX too much of this is spent handling the space cases
     `((:css            (any :css-space :css-style :css-space))
       (:css-style      :css-style-name :css-space
@@ -24,45 +24,53 @@
       (:css-property   (group (many :css-namechar)) #\:
 		       :css-space (group (many :css-valchar)) :css-space)
       (:css-space      (group (any (or #\space #\newline #\tab))))
-      (:css-style-char (cond (fi (memq ch '(#\, #\. #\{ #\} #\space #\newline #\tab)))))
-      (:css-namechar   (cond (fi (memq ch '(#\: #\} #\space #\newline #\tab)))))
-      (:css-valchar    (cond (fi (memq ch '(#\; #\} #\newline)))))))
+      (:css-style-char (cond (fi (memq parse:ch '(#\, #\. #\{ #\} #\space #\newline #\tab)))))
+      (:css-namechar   (cond (fi (memq parse:ch '(#\: #\} #\space #\newline #\tab)))))
+      (:css-valchar    (cond (fi (memq parse:ch '(#\; #\} #\newline)))))))
 
 ) ; eval-when (compile eval load)
 
 (defun style (styles type class)
   "Return the style of CLASS of TYPE in STYLES, as a string."
-  (loop for node = (node-content styles) then (node-next node) while node do
+  (loop for node = (parse:node-content styles) then (parse:node-next node)
+    while node do
     (etypecase node
       (css-space-node)
       (css-style-node
-       (let ((name (node-content node)))
+       (let ((name (parse:node-content node)))
 	 (if name
-	     (loop for cont = name then (node-next cont) while cont do
+	     (loop for cont = name then (parse:node-next cont)
+	       while cont do
 	       (typecase cont
 		 (css-style-name-node
-		  (let ((content (node-content name)))
+		  (let ((content (parse:node-content name)))
 		    (and content
-			 (string= (string-upcase (region-to-string (node-content content)))
+			 (string= (string-upcase
+				   (parse:node-content content))
 				  (format () "~A" type))
-			 (let ((dot (node-next content)))
+			 (let ((dot (parse:node-next content)))
 			   (if dot
-			       (let ((styles-class (node-next dot)))
+			       (let ((styles-class (parse:node-next dot)))
 				 (and styles-class
-				      (string= (string-upcase (region-to-string (node-content styles-class)))
+				      (string= (string-upcase
+						(parse:node-content styles-class))
 					       (format () "~A" class))
 				      (return-from style node))))))))
-		 (char-node
-		  (if (char= (node-content cont) #\{) (return)))))))))))
+		 (parse:char-node
+		  (if (char= (parse:node-content cont) #\{) (return)))))))))))
 
+;; FIX sounds like style (verb) property (noun). get/return-style-property?
 (defun style-property (style property)
-  "Return PROPERTY from STYLE."
-  (loop for node = (node-content style) then (node-next node) while node do
+  "Return $property from $style."
+  (loop for node = (parse:node-content style) then (parse:node-next node)
+    while node do
     (typecase node
       (css-property-node
-       (let ((content (node-content node)))
-	 (if (string= (string-upcase (region-to-string (node-content content)))
+       (let ((content (parse:node-content node)))
+	 (if (string= (string-upcase (parse:node-content content))
 		      (format () "~A" property))
 	     (return (string-trim '(#\space #\tab #\newline)
-				  (region-to-string
-				   (node-content (node-next (node-next (node-next content)))))))))))))
+				  (parse:node-content
+				   (parse:node-next
+				    (parse:node-next
+				     (parse:node-next content))))))))))))

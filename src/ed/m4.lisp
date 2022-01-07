@@ -1,39 +1,38 @@
 ;;; M4 mode.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 (defmode "M4" :major-p t)
 
-(defcommand "M4 Mode" (p)
+(defcommand "M4 Mode" ()
   "Put the current buffer into M4 mode."
-  "Put the current buffer into M4 mode."
-  (declare (ignore p))
   (setf (buffer-major-mode (current-buffer)) "M4"))
 
-(defhvar "Indent Function"
-  "Indentation function which is invoked by \"Indent\" command.
-   It must take one argument that is the prefix argument."
+(defevar "Indent Function"
+  "Indentation function invoked by the `Indent' command.  The function
+   takes a :left-inserting mark that may be moved, and indents the line
+   that the mark is on."
   :value #'generic-indent
   :mode "M4")
 
-(defhvar "Auto Fill Space Indent"
-  "When non-nil, uses \"Indent New Comment Line\" to break lines instead of
-   \"New Line\"."
+(defevar "Auto Fill Space Indent"
+  "When true, uses `Indent New Comment Line' to break lines instead of `New
+   Line'."
   :mode "M4" :value t)
 
-(defhvar "Comment Start"
+(defevar "Comment Start"
   "String that indicates the start of a comment."
   :mode "M4" :value "dnl")
 
-(defhvar "Comment End"
-  "String that ends comments.  Nil indicates #\newline termination."
-  :mode "M4" :value nil)
+(defevar "Comment End"
+  "String that ends comments.  () indicates #\newline termination."
+  :mode "M4")
 
-(defhvar "Comment Begin"
+(defevar "Comment Begin"
   "String that is inserted to begin a comment."
   :mode "M4" :value "dnl ")
 
-(defhvar "Highlight Comments"
+(defevar "Highlight Comments"
   "If true single-line comments will be highlighted."
   :mode "M4" :value t)
 

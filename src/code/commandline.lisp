@@ -10,25 +10,52 @@
 	  defswitch cmd-switch-arg get-command-line-switch))
 
 
+#[ Reading the Command Line
+
+The shell parses the command line with which Nightshade is invoked, and
+passes a data structure containing the parsed information to Nightshade.
+This information is then extracted from that data structure and put into a
+set of data structures.
+
+{variable:ext:*command-line-strings*}
+{variable:ext:*command-line-utility-name*}
+{variable:ext:*command-line-words*}
+{variable:ext:*command-line-switches*}
+{function:ext:defswitch}
+
+The following functions may be used to examine `command-line-switch'
+structures.
+
+{function:ext:cmd-switch-name}
+{function:ext:cmd-switch-value}
+{function:ext:cmd-switch-words}
+{function:ext:cmd-switch-arg}
+{function:ext:get-command-line-switch}
+]#
+
+
 (defvar *command-line-switches* ()
-  "A list of cmd-switch's representing the arguments used to invoke
-  this process.")
+  "A list of command-line-switch structures, with a structure for each word
+   on the command line starting with a hyphen.")
 
 (defvar *command-line-utility-name* ""
-  "The string name that was used to invoke this process.")
+  "The first word on the command line, i.e. the name of the program invoked
+   (usually \"nightshade\").")
 
 (defvar *command-line-words* ()
-  "A list of words between the utility name and the first switch.")
+  "A list of all the command line words between the program name and the
+   first switch")
 
 (defvar *command-line-strings* ()
-  "A list of strings obtained from the command line that invoked this process.")
+  "A list of strings that make up the command line, one word per string.")
 
 (defvar *command-switch-demons* ()
   "An Alist of (\"argument-name\" . demon-function)")
 
 (defvar *batch-mode* nil
-  "When True runs lisp with its input coming from standard-input.
-   If an error is detected returns error code 1, otherwise 0.")
+  "When true run lisp with its input coming from standard-input and exit on
+   reaching the end of the input.  If an error is detected return error
+   code 1, otherwise 0.")
 
 (defstruct (command-line-switch (:conc-name cmd-switch-)
 				(:constructor make-cmd-switch
@@ -39,6 +66,18 @@
   words                 ;random words dangling between switches assigned to the
                         ;preceeding switch
   )
+
+(setf (documentation 'cmd-switch-name 'function)
+  "Return the name of $switch between the preceding hyphen and any trailing
+   equal sign.")
+
+(setf (documentation 'cmd-switch-value 'function)
+  "Return the value designated using an embedded equal sign of $switch if
+   there is one, else ().")
+
+(setf (documentation 'cmd-switch-words 'function)
+  "Return a list of words between $switch and the next switch or the end of
+   the command line.")
 
 (defun print-command-line-switch (object stream n)
   (declare (ignore n))
@@ -68,7 +107,7 @@
     ;; Set initial command line words.
     ;;
     (loop
-      (unless str (return nil))
+      (or str (return nil))
       (unless (zerop (length (the simple-string str)))
 	(when (char= (schar str 0) #\-)
 	  (setq *command-line-words* (reverse *command-line-words*))
@@ -78,9 +117,9 @@
     ;; Set command line switches.
     ;;
     (loop
-      (unless str
-	(return (setf *command-line-switches*
-		      (nreverse *command-line-switches*))))
+      (or str
+	  (return (setf *command-line-switches*
+			(nreverse *command-line-switches*))))
       (let* ((position (position #\= (the simple-string str) :test #'char=))
 	     (switch (subseq (the simple-string str) 1 position))
 	     (value (if position
@@ -104,10 +143,9 @@
 	    (setq str (pop cmd-strings))))))))
 
 (defun get-command-line-switch (sname)
-  "Accepts the name of a switch as a string and returns the value of the
-   switch.  If no value was specified, then any following words are returned.
-   If there are no following words, then t is returned.  If the switch was not
-   specified, then nil is returned."
+  "Return the value of the switch named by string $sname if the value was
+   specified, otherwise any following words if there were any, otherwise t
+   if the switch was specified, otherwise ()."
   (let* ((name (if (char= (schar sname 0) #\-) (subseq sname 1) sname))
 	 (switch (find name *command-line-switches*
 		       :test #'string-equal
@@ -115,7 +153,7 @@
     (when switch
       (or (cmd-switch-value switch)
 	  (cmd-switch-words switch)
-	  T))))
+	  t))))
 
 
 ;;;; Defining Switches and invoking demons.
@@ -146,11 +184,14 @@
       (lisp::finish-standard-output-streams))))
 
 (defmacro defswitch (name &optional function)
-  "Associates function with the switch name in *command-switch-demons*.  Name
-   is a simple-string that does not begin with a hyphen, unless the switch name
-   really does begin with one.  Function is optional, but defining the switch
-   is necessary to keep invoking switch demons from complaining about illegal
-   switches.  This can be inhibited with *complain-about-illegal-switches*."
+  "Cause $function to be called when the switch $name appears in the
+   command line.  Name is a simple-string that need only begin with a
+   hyphen if switch name really does begin with one.
+
+   If $function is (), then the switch is simply included in
+   *command-line-switches*.  This suppresses the warning which would
+   otherwise take place.  The warning can also be globally suppressed via
+   *complain-about-illegal-switches*."
   (let ((gname (gensym))
 	(gfunction (gensym)))
     `(let ((,gname ,name)
@@ -161,6 +202,98 @@
        (when ,gfunction
 	 (push (cons ,gname ,gfunction) *command-switch-demons*)))))
 
+#[ Command Line Options
+
+The following switches can occur on the command line:
+
+  % -quiet
+
+    decrease verbosity of output.
+
+  % -batch
+
+    specifies batch mode, where all input is directed
+    from standard input. An error code of 0 is returned upon
+    encountering the end of input and 1 on error.  Any files
+    given as arguments are loaded before standard input is processed.
+
+  % -core
+
+    requires an argument that should be the name of a
+    core file.  Rather than using the default core file
+    (\file{lib/lisp.core}), the specified core file is
+    loaded.
+
+  % -edit
+
+    specifies to enter the editor.  A file to edit may be
+    specified by placing the name of the file between the program name
+    (usually \"nightshade\") and the first switch.
+
+  % -eval
+
+    accepts one argument which should be a Lisp form to evaluate during
+    the start up sequence.  The value of the form will not be printed
+    unless it is wrapped in a form that does output.
+
+  % -einit
+
+    accepts an argument that should be the name of the editor init file
+    to load the first time the function `ed' is invoked.  The default is
+    to load "nightshade-ed.fasl", or failing that "nightshade-ed.lisp",
+    from the user's home directory.  If the file is in any other
+    directory, the full path must be specified.
+
+  % -init
+
+    accepts an argument that should be the name of an init file to load
+    during the normal start up sequence.  The default is to load
+    "nightshade.fasl" or, failing that, "nightshade.lisp" from the user's
+    home directory.  If the file is in any other directory, the full path
+    must be specified.
+
+  % -noinit
+
+    accepts no arguments and specifies that an init file should not
+    be loaded during the normal start up sequence.  Also, this switch
+    suppresses the loading of an editor init file when the editor is
+    started up with the -edit switch.
+
+  % -load
+
+    accepts an argument which should be the name of a file to load
+    into Lisp before entering the Lisp read-eval-print loop.
+
+  % -slave
+
+    specifies that Lisp should start up as a slave Lisp and try to
+    connect to an editor Lisp.  The name of the editor to connect to must
+    be specified -- to find the editor's name, use the editor "Accept
+    Slave Connections" command.  The name for
+    the editor Lisp is of the form:
+
+        machine-name:socket
+
+    where machine-name is the internet host name for the machine and
+    socket is the decimal number of the socket to connect to.
+
+[Editor Command Line Options] details the use of the -edit and -slave
+switches.
+
+Arguments to the above switches can be specified in one of two ways:
+
+    switch=value
+
+ or
+
+    switch value
+
+For example, either of the following two commands start up the saved core
+file test.core:
+
+    lisp -core=test.core
+    lisp -core test.core
+]#
 
 (defun eval-switch-demon (switch)
   (let ((cmds (cmd-switch-arg switch)))
@@ -179,23 +312,27 @@
 (defswitch "load" #'load-switch-demon)
 
 (defun quiet-switch-demon (switch)
+  (declare (ignore switch))
   (setq *load-verbose* nil
         *compile-verbose* nil
         *compile-print* nil
         *compile-progress* nil
-        *require-verbose* nil
         *gc-verbose* nil
         *herald-items* nil))
 (defswitch "quiet" #'quiet-switch-demon)
 
 (defun cmd-switch-arg (switch)
+  "Return the first value that true out of `cmd-switch-value', the first
+   element in `cmd-switch-words', or the first word in
+   `command-line-words', each called on $switch."
   (or (cmd-switch-value switch)
       (car (cmd-switch-words switch))
       (car *command-line-words*)))
 
+(defswitch "batch")
 (defswitch "core")
 (defswitch "init")
 (defswitch "noinit")
 (defswitch "einit")
-(defswitch "batch")
 (defswitch "dynamic-space-size")
+(defswitch "edit")

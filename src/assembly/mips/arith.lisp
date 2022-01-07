@@ -1,21 +1,6 @@
-;;; -*- Package: MIPS -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/mips/arith.lisp,v 1.14.2.2 2000/05/23 16:35:50 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Stuff to handle simple cases for generic arithmetic.
-;;;
-;;; Written by William Lott.
-;;;
 
 (in-package "MIPS")
-
 
 (define-assembly-routine (generic-+
 			  (:cost 10)
@@ -55,7 +40,6 @@
   (inst j lip)
   (inst move cfp-tn csp-tn))
 
-
 (define-assembly-routine (generic--
 			  (:cost 10)
 			  (:return-style :full-call)
@@ -93,7 +77,6 @@
   (inst move ocfp cfp-tn)
   (inst j lip)
   (inst move cfp-tn csp-tn))
-
 
 (define-assembly-routine (generic-*
 			  (:cost 25)
@@ -205,7 +188,6 @@
 
   DONE)
 
-
 
 ;;;; Comparison routines.
 
@@ -219,9 +201,9 @@
 				  (:save-p t))
 				 ((:arg x (descriptor-reg any-reg) a0-offset)
 				  (:arg y (descriptor-reg any-reg) a1-offset)
-				  
+
 				  (:res res descriptor-reg a0-offset)
-				  
+
 				  (:temp temp non-descriptor-reg nl0-offset)
 				  (:temp lip interior-reg lip-offset)
 				  (:temp nargs any-reg nargs-offset)
@@ -231,14 +213,14 @@
 	  (inst and temp y 3)
 	  (inst beq temp DO-COMPARE)
 	  ,cmp
-	  
+
 	  DO-STATIC-FN
 	  (inst lw lip null-tn (static-function-offset ',static-fn))
 	  (inst li nargs (fixnum 2))
 	  (inst move ocfp cfp-tn)
 	  (inst j lip)
 	  (inst move cfp-tn csp-tn)
-	  
+
 	  DO-COMPARE
 	  (inst ,(if not-p 'bne 'beq) temp done)
 	  (inst move res null-tn)
@@ -248,7 +230,6 @@
   (define-cond-assem-rtn generic-< < two-arg-< (inst slt temp x y) nil)
   (define-cond-assem-rtn generic-> > two-arg-> (inst slt temp y x) nil))
 
-
 (define-assembly-routine (generic-eql
 			  (:cost 10)
 			  (:return-style :full-call)
@@ -257,9 +238,9 @@
 			  (:save-p t))
 			 ((:arg x (descriptor-reg any-reg) a0-offset)
 			  (:arg y (descriptor-reg any-reg) a1-offset)
-			  
+
 			  (:res res descriptor-reg a0-offset)
-			  
+
 			  (:temp temp non-descriptor-reg nl0-offset)
 			  (:temp lip interior-reg lip-offset)
 			  #-gengc (:temp lra descriptor-reg lra-offset)
@@ -301,9 +282,9 @@
 			  (:save-p t))
 			 ((:arg x (descriptor-reg any-reg) a0-offset)
 			  (:arg y (descriptor-reg any-reg) a1-offset)
-			  
+
 			  (:res res descriptor-reg a0-offset)
-			  
+
 			  (:temp temp non-descriptor-reg nl0-offset)
 			  (:temp lip interior-reg lip-offset)
 			  #-gengc (:temp lra descriptor-reg lra-offset)
@@ -344,9 +325,9 @@
 			  (:save-p t))
 			 ((:arg x (descriptor-reg any-reg) a0-offset)
 			  (:arg y (descriptor-reg any-reg) a1-offset)
-			  
+
 			  (:res res descriptor-reg a0-offset)
-			  
+
 			  (:temp temp non-descriptor-reg nl0-offset)
 			  (:temp lip interior-reg lip-offset)
 			  #-gengc (:temp lra descriptor-reg lra-offset)

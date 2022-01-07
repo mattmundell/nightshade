@@ -1,20 +1,4 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/sparc/values.lisp,v 1.5 1994/10/31 04:46:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the implementation of unknown-values VOPs.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Converted for SPARC by William Lott.
-;;; 
+;;; The implementation of unknown-values VOPs.
 
 (in-package "SPARC")
 
@@ -22,7 +6,6 @@
   (:args (ptr :scs (any-reg)))
   (:generator 1
     (move csp-tn ptr)))
-
 
 ;;; Push some values onto the stack, returning the start and number of values
 ;;; pushed as results.  It is assumed that the Vals are wired to the standard
@@ -86,8 +69,6 @@
 
       (emit-label done)
       (inst sub count csp-tn start))))
-
-
 
 ;;; Copy the more arg block to the top of the stack so we can use them
 ;;; as function arguments.

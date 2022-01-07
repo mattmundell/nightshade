@@ -2,24 +2,43 @@
 
 (in-package "ED")
 
+#[ Comment Manipulation
+
+The editor has commenting commands which can be used in almost any
+language.  The behavior of these commands is determined by several the
+editor variables which language modes should define appropriately.
+
+{command:Indent for Comment}
+{command:Indent New Comment Line}
+{command:Up Comment Line}
+{command:Down Comment Line}
+{command:Kill Comment}
+{command:Set Comment Column}
+
+The following variables determine the behavior of the comment commands.
+
+{evariable:Comment Start}
+{evariable:Comment End}
+{evariable:Comment Begin}
+{evariable:Comment Column}
+]#
+
 
 ;;;; Variables
 
-(defhvar "Comment Column"
-  "Colmun to start comments in."
+(defevar "Comment Column"
+  "Column at which normal comments start."
   :value 0)
 
-(defhvar "Comment Start"
-  "String that indicates the start of a comment."
-  :value nil)
+(defevar "Comment Start"
+  "String that indicates the start of a comment.")
 
-(defhvar "Comment End"
-  "String that ends comments.  Nil indicates #\newline termination."
-  :value nil)
+(defevar "Comment End"
+  "String that ends comments.  If () then lines are terminated by
+   #\newline's.")
 
-(defhvar "Comment Begin"
-  "String that is inserted to begin a comment."
-  :value nil)
+(defevar "Comment Begin"
+  "String that is inserted to begin a comment.")
 
 
 ;;;; Internal Specials
@@ -45,7 +64,6 @@
   (or (value comment-end) " ")
   "Previous comment end used to make *comment-end-pattern*.")
 
-
 (eval-when (compile eval)
 (defmacro get-comment-pattern (string kind) ;kind is either :start or :end
   (let (pattern-var last-var)
@@ -65,82 +83,93 @@
 ;;;;  Commands
 
 (defcommand "Set Comment Column" (p)
-  "Set Comment Column to current column or argument.
-   If argument is provided use its absolute value."
-  "Set Comment Column to current column or argument.
-   If argument is provided use its absolute value."
+  "Set Comment Column to current column or argument.  If argument is
+   provided use its absolute value."
   (let ((new-column (or (and p (abs p))
 			(mark-column (current-point)))))
-    (defhvar "Comment Column" "This buffer's column to start comments."
+    (defevar "Comment Column" "This buffer's column to start comments."
       :value new-column  :buffer (current-buffer))
     (message "Comment Column = ~D" new-column)))
 
 (defcommand "Indent for Comment" (p)
-  "Move to or create a comment.  Moves to the start of an existing comment
-   and indents it to start in Comment Column.  An existing double semicolon
-   comment is aligned like a line of code.  An existing triple semicolon
-   comment or any that start in column 0 is not moved.  With argument,
-   aligns any comments on the next argument lines but does not create any.
-   If characters extend past comment column, a space is added before
-   starting comment."
-  "Create comment or move to beginning of existing one aligning it."
+  "Move to or create a comment.  If there is already a comment on the
+   current line, then move point to the start of the comment.  Otherwise,
+   create an empty one.
+
+   Indent the comment to start at `Comment Column', except in the following
+   cases:
+
+     # If the comment currently starts at the beginning of the line, or if the last
+       character in the `Comment Start' appears three times, then leave the comment
+       in place.
+
+     # If the last character in the `Comment Start' appears two times, then indent the
+       comment like a line of code.
+
+     # If text on the line prevents the comment occurring in the desired position,
+       then place the comment at the end of the line, separated from the text by a
+       space.
+
+   Although the rules about replication in the comment start are oriented
+   toward Lisp commenting styles, these properties can be used for other
+   languages.
+
+   With a prefix argument, indent any existing comment on that many
+   consecutive lines.  This is useful for fixing up the indentation of a
+   group of comments."
   (let* ((column (value comment-column))
 	 (start (value comment-start))
 	 (begin (value comment-begin))
 	 (end (value comment-end)))
-    (unless (stringp start) (editor-error "No comment start string -- ~S." start))
+    (or (stringp start)
+	(editor-error "Comment start must be a string -- ~S." start))
     (indent-for-comment (current-point) column start begin end (or p 1))))
 
-
 (defcommand "Up Comment Line" (p)
-  "Equivalent to Previous Line followed by Indent for Comment (C-P ALT-;)."
-  "Equivalent to Previous Line followed by Indent for Comment (C-P ALT-;)."
+  "Equivalent to `Previous Line' followed by `Indent for Comment'.  Any empty
+   comment on the current line is deleted before moving to the new line."
   (let ((column (value comment-column))
 	(start (value comment-start))
 	(begin (value comment-begin))
 	(end (value comment-end)))
-    (unless (stringp start) (editor-error "No comment start string -- ~S." start))
+    (or (stringp start)
+	(editor-error "Comment start must be a string -- ~S." start))
     (change-comment-line (current-point) column start
 			 begin end (or (and p (- p)) -1))))
 
 (defcommand "Down Comment Line" (p)
-  "Equivalent to Next Line followed by Indent for Comment (C-N ALT-;)."
-  "Equivalent to Next Line followed by Indent for Comment (C-N ALT-;)."
+  "Equivalent to `Next Line' followed by `Indent for Comment'.  Any empty
+   comment on the current line is deleted before moving to the new line."
   (let ((column (value comment-column))
 	(start (value comment-start))
 	(begin (value comment-begin))
 	(end (value comment-end)))
-    (unless (stringp start) (editor-error "No comment start string -- ~S." start))
+    (or (stringp start)
+	(editor-error "Comment start must be a string -- ~S." start))
     (change-comment-line (current-point) column start begin end (or p 1))))
 
-
 (defcommand "Kill Comment" (p)
-  "Kills the comment (if any) on the current line.
-   With argument, applies to specified number of lines, and moves past them."
-  "Kills the comment (if any) on the current line.
-   With argument, applies to specified number of lines, and moves past them."
+  "Kill any comment on the current line.  With an argument, kill comments
+   on that many consecutive number of lines, and move past them."
   (let ((start (value comment-start)))
     (when start
-      (if (not (stringp start))
-	  (editor-error "Comment start not string or nil -- ~S." start))
+      (or (stringp start)
+	  (editor-error "Comment start must be a string or () -- ~S." start))
       (kill-comment (current-point) start (or p 1)))))
 
-
 (defcommand "Indent New Comment Line" (p)
-  "Inserts comment end and then starts a comment on a new line.
-   The indentation and number of additional comment-start characters are
-   copied from the previous line's comment.  Acts like Linefeed, when done
-   while not inside a comment, assuming a comment is the last thing on a line."
-  "complete a current comment and start another a new line, copying indentation
-   and start characters.  If no comment, call Linefeed command."
+  "If in a comment end the current comment and starts a new comment on a
+   blank line, indenting the comment the same way that `Indent for Comment'
+   does.  Otherwise, behave like `Indent New Line'."
   (let ((start (value comment-start))
 	(begin (value comment-begin))
 	(end (value comment-end))
 	(point (current-point)))
     (with-mark ((tmark point :left-inserting))
       (if start
-	  (cond ((not (stringp start))
-		 (editor-error "Comment start not string or nil -- ~S." start))
+	  (cond ((fi (stringp start))
+		 (editor-error "Comment start must be a string or () -- ~S."
+			       start))
 		((and (to-line-comment tmark start) (mark> point tmark))
 		 (with-mark ((emark tmark))
 		   (let ((endp (if end (to-comment-end emark end))))
@@ -158,11 +187,8 @@
 		(t (indent-new-line-command p)))
 	  (indent-new-line-command p)))))
 
-
-(defcommand "Set Comment Start" (p)
-  "Set \"Comment Start\" for the current mode."
-  "Set \"Comment Start\" for the current mode."
-  (declare (ignore p))
+(defcommand "Set Comment Start" ()
+  "Set *Comment Start* for the current mode."
   (and (check-comment-start)
        (setv comment-start (prompt-for-comment-start (value comment-start)))))
 
@@ -170,7 +196,7 @@
   "Comment the region in the current buffer, saving the region to the kill
    ring beforehand.  With a prefix clear the comments."
   "Comment the region in the current buffer, saving the region to the kill
-   ring beforehand.  If p is true thane clear the comments."
+   ring beforehand.  If $p is true thane clear the comments."
   (let* ((start (copy-mark (region-start (current-region))))
 	 (end (copy-mark (region-end (current-region))))
 	 (region (region start end))
@@ -217,12 +243,12 @@
    :help "A string which starts comments for this mode."))
 
 (defun check-comment-start ()
-  "Ensure \"Comment Start\" is defined.
-   Return t if the variable was already bound, else nil."
+  "Ensure *Comment Start* is defined.  Return t if the variable was already
+   bound, else nil."
   (let ((major-mode (buffer-major-mode (current-buffer))))
     (or (editor-bound-p 'comment-start :mode major-mode)
 	(progn
-	  (defhvar "Comment Start"
+	  (defevar "Comment Start"
 	    "String prefix for single line comments."
  	    :mode major-mode
  	    :value (prompt-for-comment-start))
@@ -242,8 +268,7 @@
 	  (zerop ,var))
        ,@forms
        (setf ,next-line-p (line-offset ,mark1 1)))))
-) ;eval-when
-
+) ; eval-when
 
 ;;; CHANGE-COMMENT-LINE closes any comment on the current line, deleting
 ;;; an empty comment.  After offsetting by lines, a comment is either
@@ -261,7 +286,7 @@
 	(find-attribute tmark2 :whitespace #'zerop)
 	(cond ((mark>= tmark2 tmark1)
 	       (if end-len (character-offset tmark1 end-len))
-	       ;; even though comment is blank, the line might not be blank
+	       ;; Even though comment is blank, the line might not be blank
 	       ;; after it in languages that have comment terminators.
 	       (when (blank-after-p tmark1)
 		 (reverse-find-attribute mark :whitespace #'zerop)
@@ -271,8 +296,7 @@
 	      ((and end (not end-len)) (insert-string tmark1 end))))
       (if (line-offset mark lines)
 	  (indent-for-comment mark column start begin end 1)
-	  (editor-error)))))
-
+	  (editor-error "Too few lines.")))))
 
 (defun indent-for-comment (mark column start begin end times)
   (with-mark ((tmark mark :left-inserting))
@@ -286,11 +310,10 @@
 		  (let ((start-len (to-line-comment mark start)))
 		    (if start-len (align-comment mark start start-len column))))
 	  (buffer-end mark)
-	  (editor-error)))))
-
+	  (editor-error "Too few lines.")))))
 
 ;;; KILL-COMMENT assumes a comment is the last thing on a line, so it does
-;;; not deal with comment-end.  The Tao of EMACS.
+;;; not deal with comment-end.
 (defun kill-comment (mark start times)
   (with-mark ((tmark mark :left-inserting))
     (if (= times 1)
@@ -326,7 +349,7 @@
 			    (region u-start u-end) undo-region)
 	  (unless n-times-p
 	    (buffer-end mark)
-	    (editor-error))))))
+	    (editor-error "Too few lines."))))))
 
 (defun comment-line (point column start begin end)
   (let* ((open (or begin start))
@@ -340,7 +363,6 @@
     (adjust-comment point column)
     (character-offset point open-len)))
 
-
 (eval-when (compile eval)
 (defmacro count-extra-last-chars (mark start-len start-char)
   (let ((count (gensym))
@@ -351,7 +373,6 @@
 	   ((char/= (next-character ,tmark) ,start-char) ,count)
 	 (mark-after ,tmark)))))
 )
-
 
 ;;; ALIGN-COMMENT sets a comment starting at mark to start in column
 ;;; column.  If the comment starts at the beginning of the line, it is not
@@ -369,7 +390,6 @@
 		 (zerop (character-attribute
 			 :whitespace (previous-character mark))))
 	     (adjust-comment mark column))))))
-
 
 ;;; ADJUST-COMMENT moves the comment starting at mark to start in column
 ;;; column, inserting a space if the line extends past column.
@@ -401,11 +421,10 @@
 		      (dotimes (i spaces)
 			(insert-character mark #\space))))))))
 
-
 ;;; INDENT-NEW-COMMENT-LINE makes a new line at point starting a comment
 ;;; in the same way as the one at start-mark.
 (defun indent-new-comment-line (point start-mark start begin end)
-  (new-line-command nil)
+  (new-line-command)
   (insert-string point (gen-comment-prefix start-mark start begin))
   (if end
       (when (not (to-comment-end (move-mark start-mark point) end))
@@ -415,7 +434,6 @@
 	    ;; both marks are left-inserting.
 	    (character-offset
 	     point (- (length (the simple-string end))))))))
-
 
 ;;; GEN-COMMENT-PREFIX returns a string suitable for beginning a line
 ;;; with a comment lined up with mark and starting the same as the comment
@@ -436,7 +454,6 @@
 		   (make-string extra-start-chars :initial-element last-char)
 		   begin-end))))
 
-
 ;;; TO-LINE-COMMENT moves mark to the first comment start character on its
 ;;; line if there is a comment and returns the length of start, otherwise
 ;;; nil is returned.  Start must be a string.  This is used by the auto
@@ -448,7 +465,6 @@
       (when (and start-len (same-line-p mark tmark))
 	(move-mark mark tmark)
 	start-len))))
-
 
 ;;; TO-COMMENT-END moves mark to the first comment end character on its
 ;;; line if end is there and returns the length of comment end, otherwise

@@ -1,18 +1,5 @@
-;;; -*- Mode: Lisp; Package: Lisp -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/tools/worldbuild.lisp,v 1.35.2.1 1998/06/23 11:25:45 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; When loaded, this file builds a core image from all the .fasl files that
-;;; are part of the kernel CMU Common Lisp system.
+;;; Build a core image from all the .fasl files that are part of the Lisp
+;;; kernel.
 
 (in-package "LISP")
 
@@ -81,6 +68,7 @@
     "target:code/byte-interp"
     "target:code/array"
     "target:code/char"
+    "target:code/table"
     "target:code/lispinit"
     "target:code/seq"
     "target:code/numbers"
@@ -162,9 +150,12 @@
     "target:code/debug-int"
     "target:code/debug"
 
+    ,@(when (c:backend-featurep :clx)
+	'("target:code/xlib"
+	  "target:code/clx-ext"))
+
     ,@(when (c:backend-featurep :mp)
-	'("target:code/multi-proc"))
-    ))
+	'("target:code/multi-proc"))))
 
 (setf *genesis-core-name*
       #+(and mach sparc) "/usr/tmp/kernel.core"

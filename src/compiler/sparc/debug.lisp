@@ -1,18 +1,5 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/sparc/debug.lisp,v 1.4 1994/10/31 04:46:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Compiler support for the new whizzy debugger.
-;;;
-;;; Written by William Lott.
-;;; 
+;;; Compiler support for the debugger.
+
 (in-package "SPARC")
 
 (defknown di::current-sp () system-area-pointer (movable flushable))
@@ -113,7 +100,6 @@
   (:result-types unsigned-num)
   (:generator 1
     (move result thing)))
-
 
 (define-vop (function-word-offset)
   (:policy :fast-safe)

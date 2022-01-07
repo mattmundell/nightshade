@@ -1,18 +1,4 @@
-;;; -*- Package: USER -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please
-;;; contact Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/tools/worldcom.lisp,v 1.72.2.3 2000/08/12 07:33:09 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains noise to compile the lisp world.
-;;;
+;;; Noise to compile the Lisp world.
 
 (in-package "USER")
 
@@ -39,7 +25,11 @@
 
 ;;; Set the version of the core.
 ;;;
-(set '*lisp-implementation-version* (read-line (open "target:VERSION")))
+(set '*version* (read-line (open "target:VERSION")))
+
+;;; Set the build time.
+;;;
+(set '*build-time* (get-universal-time))
 
 ;;; these guys need to be first.
 (comf "target:code/struct") ; For structures.
@@ -119,6 +109,11 @@
   (:optimize '(optimize (safety 2) (debug 2)))
   (comf "target:code/class"))
 
+;; FIX
+(comf "target:code/exports" :proceed t)
+(load "target:code/exports")
+
+(comf "target:code/eval")   ; FIX
 (comf "target:code/type")
 (comf "target:compiler/generic/vm-type")
 (comf "target:code/type-init")
@@ -139,7 +134,7 @@
 (with-compilation-unit
   (:optimize '(optimize (safety 1)))
   (comf "target:code/list")
-  (comf "target:code/seq" #|FIX|# :load t)) ; seq must come after list
+  (comf "target:code/seq")) ; seq must come after list
 
 (comf "target:code/string")
 (comf "target:code/mipsstrops")
@@ -215,6 +210,7 @@
 #-no-runtime (comf "target:code/pprint" :byte-compile t)
 (comf "target:code/format")
 #-no-runtime (comf "target:code/format" :byte-compile t)
+
 (comf "target:code/package")
 (comf "target:code/reader")
 #-no-runtime (comf "target:code/reader" :byte-compile t)
@@ -225,10 +221,9 @@
 (comf "target:code/fd-stream")
 (comf "target:code/pathname")
 #-no-runtime (comf "target:code/pathname" :byte-compile t)
-(comf "target:code/filesys" :load t) ; FIX load for do-directories
+(comf "target:code/filesys")
 #-no-runtime (comf "target:code/filesys" :byte-compile t)
 (comf "target:code/load")
-(comf "target:code/module" :byte-compile *byte-compile*)
 
 (comf "target:code/eval")
 
@@ -250,6 +245,8 @@
 (comf "target:code/time")
 (comf "target:code/weak")
 (comf "target:code/final")
+
+;; FIX most rest libs? libs required by ed? make ed a lib?
 
 ;;; Later so that miscellaneous structures are defined (not crucial, but nice.)
 (comf "target:code/describe" :byte-compile *byte-compile*)
@@ -274,7 +271,7 @@
     (rename-package "INTERNET" "INTERNET" nil)
     (make-package "INTERNET" :nicknames 'nil :use nil))
 (use-package '("LISP" "EXTENSIONS") "INTERNET")
-(comf "target:code/inet")
+(comf "target:code/inet" :load t) ; FIX load for do-remote-directory
 
 ;; FIX
 (if (find-package "FTP")
@@ -283,24 +280,37 @@
 (use-package '("LISP") "FTP")
 
 (comf "target:code/ftp")
+(comf "target:code/shell")
 (comf "target:code/base64")
 
 (when (c:backend-featurep :mp)
   (comf "target:code/multi-proc"))
 
 (comf "target:code/table")
-(comf "target:code/mh")
 (comf "target:code/doc")
-(comf "target:code/db")
 (comf "target:code/build")
 
+(comf "target:code/dired")
+(comf "target:code/deftest")
+(comf "target:code/config")
+(comf "target:code/mh")
+(comf "target:code/db")
+(comf "target:code/terminal")
+(comf "target:code/sync")
+(comf "target:code/parse")
+(comf "target:code/packagem")
+(comf "target:code/docnode")
+
+#+clx (comf "target:code/xlib" :load t) ; FIX load
+#+clx (comf "target:code/clx-ext" :load t) ; FIX load
+
 (comf "target:code/setf-funs")
-(comf "target:code/exports" :proceed t)
+;(comf "target:code/exports" :proceed t)
 
 ;;; Compile basic macros that we assume are already in the compilation
-;;; environment.  We inhibit compile-time definition to prevent these functions
-;;; from becoming interpreted.  In some cases, this is necessary for
-;;; compilation to work at all, since the expander functions are lazily
+;;; environment.  Inhibit compile-time definition to prevent these
+;;; functions from becoming interpreted.  In some cases, this is necessary
+;;; for compilation to work at all, since the expander functions are lazily
 ;;; converted: we could go into an infinite recursion trying to convert the
 ;;; definition of a macro which uses itself.
 ;;;
@@ -310,6 +320,11 @@
   (comf "target:compiler/globaldb")
   (comf "target:code/macros")
   #-no-runtime (comf "target:code/macros" :byte-compile t))
+
+;;; Install the site init file.
+;;;
+(or (probe-file "target:site-init.lisp")
+    (dired::copy-file "target:code/dist-site-init.lisp" "target:site-init.lisp"))
 
 ); let *byte-compile-top-level*
 

@@ -1,26 +1,9 @@
-;;; -*- Package: RT; Log: c.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/char.lisp,v 1.4 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/rt/char.lisp,v 1.4 1994/10/31 04:45:41 ram Exp $
-;;; 
-;;; This file contains the RT VM definition of character operations.
-;;;
-;;; Written by Rob MacLachlan and Bill Chiles.
-;;;
+;;; The RT VM definition of character operations.
 
 (in-package "RT")
 
-
 
-;;;; Moves and coercions:
+;;;; Moves and coercions.
 
 ;;; MOVE-TO-BASE-CHAR -- VOP.
 ;;;
@@ -36,7 +19,6 @@
 ;;;
 (define-move-vop move-to-base-char :move
   (any-reg descriptor-reg) (base-char-reg))
-
 
 ;;; MOVE-FROM-BASE-CHAR -- VOP.
 ;;;
@@ -73,7 +55,6 @@
 (define-move-vop base-char-move :move
   (base-char-reg) (base-char-reg))
 
-
 ;;; MOVE-BASE-CHAR-ARGUMENT -- VOP.
 ;;;
 ;;; Move untagged base-char arguments/return-values.
@@ -94,16 +75,14 @@
 (define-move-vop move-base-char-argument :move-argument
   (any-reg base-char-reg) (base-char-reg))
 
-
 ;;; Use standard MOVE-ARGUMENT + coercion to move an untagged base-char
 ;;; to a descriptor passing location.
 ;;;
 (define-move-vop move-argument :move-argument
   (base-char-reg) (any-reg descriptor-reg))
 
-
 
-;;;; Other operations:
+;;;; Other operations.
 
 ;;; CHAR-CODE -- VOP.
 ;;;
@@ -137,10 +116,9 @@
     (move res code)
     (inst sr res 2)))
 
-
 
 ;;; Comparison of base-chars.
-;;;
+
 (define-vop (base-char-compare)
   (:args (x :scs (base-char-reg))
 	 (y :scs (base-char-reg)))

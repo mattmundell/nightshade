@@ -1,13 +1,15 @@
 ;;; -*- Package: Spell -*-
 ;;;
 ;;; This file contains system dependent primitives for the spelling
-;;; checking/ correcting code in Spell-Correct.Lisp, Spell-Augment.Lisp,
-;;; and Spell-Build.Lisp.
+;;; checking/correcting code in spell-correct.lisp, spell-augment.lisp,
+;;; and spell-build.lisp.
 
 (defpackage "SPELL"
   (:use "LISP" "EXTENSIONS" "SYSTEM")
-  (:export spell-try-word spell-root-word spell-collect-close-words
-	   maybe-read-spell-dictionary correct-spelling max-entry-length
+  (:export correct-spelling
+	   maybe-read-spell-dictionary max-entry-length
+	   read-dictionary
+	   spell-try-word spell-root-word spell-collect-close-words
 	   spell-read-dictionary spell-add-entry spell-root-flags
 	   spell-remove-entry)
   (:documentation "Spelling checker, including spelling correction and
@@ -50,7 +52,6 @@ dictionary handling."))
 (defmacro string-sapref (sap index)
   `(system:sap-ref-8 ,sap ,index))
 
-
 
 ;;;; Primitive String Hashing
 
@@ -66,20 +67,18 @@ dictionary handling."))
 
 ) ;eval-when
 
-
 
 ;;;; Binary Dictionary File I/O
 
 (defun open-dictionary (f)
-  (let* ((filename (ext:unix-namestring f))
-	 (kind (and filename (unix:unix-file-kind filename))))
-    (unless kind (error "Cannot find dictionary -- ~S." filename))
+  (let* ((filename (ext:os-namestring f))
+	 (kind (and filename (file-kind filename))))
+    (or kind (error "Cannot find dictionary -- ~S." filename))
     (multiple-value-bind (fd err)
 			 (unix:unix-open filename unix:o_rdonly 0)
-      (unless fd
-	(error "Opening ~S failed: ~A." filename err))
+      (or fd (error "Opening ~S failed: ~A." filename err))
       (multiple-value-bind (winp dev-or-err) (unix:unix-fstat fd)
-	(unless winp (error "Opening ~S failed: ~A." filename dev-or-err))
+	(or winp (error "Opening ~S failed: ~A." filename dev-or-err))
 	fd))))
 
 (defun close-dictionary (fd)
@@ -89,7 +88,9 @@ dictionary handling."))
   (let* ((structure (allocate-bytes bytes)))
     (multiple-value-bind (read-bytes err)
 			 (unix:unix-read fd structure bytes)
-      (when (or (null read-bytes) (not (= bytes read-bytes)))
-	(deallocate-bytes (system-address structure) bytes)
-	(error "Reading dictionary structure failed: ~A." err))
+      (or read-bytes
+	  (= bytes read-bytes)
+	  (progn
+	    (deallocate-bytes (system-address structure) bytes)
+	    (error "Reading dictionary structure failed: ~A." err)))
       structure)))

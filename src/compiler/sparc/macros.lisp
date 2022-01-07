@@ -1,20 +1,4 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/sparc/macros.lisp,v 1.10 1994/10/31 04:46:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/sparc/macros.lisp,v 1.10 1994/10/31 04:46:41 ram Exp $
-;;;
-;;; This file contains various useful macros for generating SPARC code.
-;;;
-;;; Written by William Lott.
-;;; 
+;;; Various useful macros for generating SPARC code.
 
 (in-package "SPARC")
 
@@ -78,7 +62,7 @@
        `(inst ldub ,n-target ,n-source (+ ,n-offset 3))))))
 
 ;;; Macros to handle the fact that we cannot use the machine native call and
-;;; return instructions. 
+;;; return instructions.
 
 (defmacro lisp-jump (function)
   "Jump to the lisp function FUNCTION.  LIP is an interior-reg temporary."
@@ -103,13 +87,12 @@
      (emit-label ,label)
      (inst lra-header-word)))
 
-
 
-;;;; Stack TN's
+;;;; Stack TN's.
 
 ;;; Load-Stack-TN, Store-Stack-TN  --  Interface
 ;;;
-;;;    Move a stack TN to a register and vice-versa.
+;;; Move a stack TN to a register and vice-versa.
 ;;;
 (defmacro load-stack-tn (reg stack)
   `(let ((reg ,reg)
@@ -127,7 +110,6 @@
 	 ((control-stack)
 	  (storew reg cfp-tn offset))))))
 
-
 ;;; MAYBE-LOAD-STACK-TN  --  Interface
 ;;;
 (defmacro maybe-load-stack-tn (reg reg-or-stack)
@@ -143,7 +125,7 @@
 	   (loadw ,n-reg cfp-tn (tn-offset ,n-stack))))))))
 
 
-;;;; Storage allocation:
+;;;; Storage allocation.
 
 (defmacro with-fixed-allocation ((result-tn temp-tn type-code size)
 				 &body body)
@@ -168,7 +150,7 @@
 ;;; Generate code that branches to TARGET iff REG contains one of VALUES.
 ;;; If NOT-P is true, invert the test.  Jumping to NOT-TARGET is the same
 ;;; as falling out the bottom.
-;;; 
+;;;
 (defun gen-range-test (reg target not-target not-p min seperation max values)
   (let ((tests nil)
 	(start nil)
@@ -243,7 +225,6 @@
 		  (- other-immediate-1-type other-immediate-0-type)
 		  (ash 1 type-bits)
 		  values))
-
 
 (defun test-type-aux (reg temp target not-target not-p lowtags immed hdrs
 			  function-p)
@@ -326,7 +307,7 @@
 	(error "Can't test for mix of function subtypes and normal ~
 		header types."))
       (setq function-p t))
-      
+
     (let ((n-reg (gensym))
 	  (n-temp (gensym))
 	  (n-target (gensym))
@@ -352,7 +333,7 @@
 	 (emit-label ,not-target)))))
 
 
-;;;; Error Code
+;;;; Error Code.
 
 (defvar *adjustable-vectors* nil)
 
@@ -394,7 +375,6 @@
   (cons 'progn
 	(emit-error-break vop error-trap error-code values)))
 
-
 (defmacro cerror-call (vop label error-code &rest values)
   "Cause a continuable error.  If the error is continued, execution resumes at
   LABEL."
@@ -425,7 +405,6 @@
 	   (emit-label ,error)
 	   (cerror-call ,vop ,continue ,error-code ,@values)
 	   ,error)))))
-
 
 
 ;;; PSEUDO-ATOMIC -- Handy macro for making sequences look atomic.

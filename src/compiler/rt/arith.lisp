@@ -1,25 +1,6 @@
-;;; -*- Package: RT; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/arith.lisp,v 1.11 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/rt/arith.lisp,v 1.11 1994/10/31 04:45:41 ram Exp $
-;;;
-;;; This file contains the VM definition arithmetic VOPs for the IBM RT.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Converted by Bill Chiles.
-;;;
+;;; The VM definition arithmetic VOPs for the IBM RT.
 
 (in-package "RT")
-
 
 
 ;;;; Unary operations.
@@ -64,11 +45,10 @@
   (:generator 1
     (inst not res x)))
 
-
 
 ;;;; Binary fixnum operations (+, -, LOGIOR, LOGAND, LOGXOR).
 
-;;; Assume that any constant operand is the second arg...
+;;; Assume that any constant operand is the second arg.
 
 (define-vop (fast-fixnum-binop)
   (:args (x :target r :scs (any-reg))
@@ -155,7 +135,6 @@
 
 ) ;EVAL-WHEN
 
-
 (define-binop + 3 a
   (cond ((typep value '(signed-byte 16))
 	 (inst a r x value))
@@ -214,7 +193,6 @@
 	  (t
 	   (inst nilo r x low)
 	   (inst niuo r r high)))))
-
 
 
 ;;;; Binary fixnum operations.
@@ -275,7 +253,6 @@
 	       (t
 		(move result number)
 		(inst sl result (min amount 31)))))))))
-
 
 ;;; SIGNED-BYTE-32-LEN -- VOP.
 ;;;
@@ -353,11 +330,10 @@
       (inst bncx :eq loop)
       (inst a res (fixnum 1))
       ;; We're done and res already has result.
-      (emit-label done))))      
-
+      (emit-label done))))
 
 
-;;;; Binary conditional VOPs:
+;;;; Binary conditional VOPs.
 
 (define-vop (fast-conditional)
   (:conditional)
@@ -450,10 +426,8 @@
       (inst bnc :eq target)
       (inst bc :eq target)))
 
-
 ;;; EQL/FIXNUM is funny because the first arg can be of any type, not just a
 ;;; known fixnum.
-;;;
 
 (define-vop (fast-eql/fixnum fast-conditional)
   (:args (x :scs (any-reg descriptor-reg))
@@ -479,9 +453,8 @@
 	(inst bnc :eq target)
 	(inst bc :eq target))))
 
-
 
-;;;; 32-bit logical operations
+;;;; 32-bit logical operations.
 
 (define-vop (32bit-logical)
   (:args (x :scs (unsigned-reg) :target r)
@@ -563,8 +536,6 @@
     (inst nilz temp #x1f)
     (move r num)
     (inst sr r temp)))
-
-
 
 
 ;;;; Bignum stuff.
@@ -710,7 +681,7 @@
       (unsigned-reg
        (inst a low carry-in)))
     (inst ae high 0)
-    
+
     ;; Add in digit from accumulating result.
     (sc-case carry-in
       (unsigned-stack
@@ -754,7 +725,7 @@
 (defun unsigned-multiply (x y high low)
   ;; Setup system register for multiply.
   (inst mtmqscr x)
-  
+
   ;; Do the multiply.
   ;; Subtract high from high to set it to zero and to set the C0 condition
   ;; bit appropriately for the m instruction.
@@ -773,10 +744,9 @@
     (inst bnc :lt y-pos)
     (inst a high x)
     (emit-label y-pos))
-  
+
   ;; Get the low 32 bits of the product.
   (inst mfmqscr low))
-
 
 (define-vop (bignum-lognot)
   (:translate bignum::%lognot)
@@ -851,11 +821,10 @@
       (inst mfmqscr quo)
       (inst inc quo 1)
       (inst s rem divisor)
-      
+
       (emit-label move-results))
 
     (inst mfmqscr quo)))
-
 
 ;;; SIGNIFY-DIGIT -- VOP.
 ;;;
@@ -905,7 +874,6 @@
 	  (sc-case count
 	    (unsigned-reg count)
 	    (immediate (tn-value count))))))
-
 
 
 ;;;; Static functions.

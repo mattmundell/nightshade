@@ -1,25 +1,6 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/move.lisp,v 1.2.2.1 1998/06/23 11:24:09 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the x86 VM definition of operand loading/saving and
-;;; the Move VOP.
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; Enhancements/debugging by Douglas T. Crosher 1996,1997.
-;;;
-(in-package :x86)
+;;; The x86 VM definition of operand loading/saving and the Move VOP.
+
+(in-package "X86")
 
 (define-move-function (load-immediate 1) (vop x y)
   ((immediate)
@@ -69,7 +50,7 @@
   (inst mov y x))
 
 
-;;;; The Move VOP:
+;;;; The Move VOP.
 ;;;
 (define-vop (move)
   (:args (x :scs (any-reg descriptor-reg immediate) :target y
@@ -101,14 +82,13 @@
   (any-reg descriptor-reg immediate)
   (any-reg descriptor-reg))
 
-
 ;;; Make Move the check VOP for T so that type check generation doesn't think
 ;;; it is a hairy type.  This also allows checking of a few of the values in a
 ;;; continuation to fall out.
 ;;;
 (primitive-type-vop move (:check) t)
 
-;;;    The Move-Argument VOP is used for moving descriptor values into another
+;;; The Move-Argument VOP is used for moving descriptor values into another
 ;;; frame for argument or known value passing.
 ;;;
 ;;; Note: It is not going to be possible to move a constant directly
@@ -174,7 +154,6 @@
   (any-reg descriptor-reg)
   (any-reg descriptor-reg))
 
-
 
 ;;;; ILLEGAL-MOVE
 
@@ -192,9 +171,8 @@
   (:generator 666
     (error-call vop object-not-type-error x type)))
 
-
 
-;;;; Moves and coercions:
+;;;; Moves and coercions.
 
 ;;; These MOVE-TO-WORD VOPs move a tagged integer to a raw full-word
 ;;; representation.  Similarly, the MOVE-FROM-WORD VOPs converts a raw integer
@@ -228,7 +206,6 @@
 (define-move-vop move-to-word-c :move
   (constant) (signed-reg unsigned-reg))
 
-
 ;;; Arg is a fixnum or bignum, figure out which and load if necessary.
 (define-vop (move-to-word/integer)
   (:args (x :scs (descriptor-reg) :target eax))
@@ -249,7 +226,6 @@
 ;;;
 (define-move-vop move-to-word/integer :move
   (descriptor-reg) (signed-reg unsigned-reg))
-
 
 ;;; Result is a fixnum, so we can just shift.  We need the result type
 ;;; restriction because of the control-stack ambiguity noted above.
@@ -274,8 +250,8 @@
 (define-move-vop move-from-word/fixnum :move
   (signed-reg unsigned-reg) (any-reg descriptor-reg))
 
-;;; Result may be a bignum, so we have to check.  Use a worst-case cost to make
-;;; sure people know they may be number consing.
+;;; Result may be a bignum, so we have to check.  Use a worst-case cost to
+;;; make sure people know they may be number consing.
 ;;;
 #+nil
 (define-vop (move-from-signed)
@@ -319,7 +295,6 @@
 ;;;
 (define-move-vop move-from-signed :move
   (signed-reg) (descriptor-reg))
-
 
 ;;; Check for fixnum, and possibly allocate one or two word bignum result.  Use
 ;;; a worst-case cost to make sure people know they may be number consing.
@@ -387,7 +362,6 @@
 (define-move-vop move-from-unsigned :move
   (unsigned-reg) (descriptor-reg))
 
-
 ;;; Move untagged numbers.
 ;;;
 (define-vop (word-move)
@@ -426,7 +400,6 @@
 ;;;
 (define-move-vop move-word-argument :move-argument
   (descriptor-reg any-reg signed-reg unsigned-reg) (signed-reg unsigned-reg))
-
 
 ;;; Use standard MOVE-ARGUMENT + coercion to move an untagged number to a
 ;;; descriptor passing location.

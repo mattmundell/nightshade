@@ -9,33 +9,35 @@
 ;;;; Listing events.
 
 (defun list-events (events stream)
-  (flet ((format-event-time (event)
-	   ; FIX if today just print time, if this year just print month and day
-	   (format-universal-time ; FIX format-internal-time?
-	    nil
-	    (internal-real-to-universal-time
-	     (edi::tq-event-time event))
-	    :style :abbreviated
-	    :print-weekday nil
-	    :print-timezone nil)))
-    (mapc (lambda (event)
-	    (let ((period (edi::tq-event-interval event)))
-	      (format stream "~:[Once at ~A~;Every ~A secs from ~A~]: ~A"
-		      period
-		      (if period
-			  (/ period internal-time-units-per-second)
-			  (format-event-time event))
-		      (if period
-			  (format-event-time event)
-			  (edi::tq-event-function event))
-		      (edi::tq-event-function event)))
-	    (write-char #\newline stream))
-	  events)))
+  (multiple-value-bind (sec min hr date month yr day ds tz)
+		       (get-decoded-time)
+    (declare (ignore sec min hr date month yr day ds))
+    (flet ((format-event-time (event)
+	     ; FIX if today just print time, if this year just print month and day
+	     (format-universal-time ; FIX format-internal-time?
+	      ()
+	      (internal-real-to-universal-time
+	       (edi::tq-event-time event))
+	      :timezone (- (* tz 60))
+	      :style :rfc1123
+	      :print-weekday nil
+	      :print-timezone nil)))
+      (mapc (lambda (event)
+	      (let ((period (edi::tq-event-interval event)))
+		(format stream "~:[Once at ~A~;Every ~A secs from ~A~]: ~A"
+			period
+			(if period
+			    (/ period internal-time-units-per-second)
+			    (format-event-time event))
+			(if period
+			    (format-event-time event)
+			    (edi::tq-event-function event))
+			(edi::tq-event-function event)))
+	      (write-char #\newline stream))
+	    events))))
 
-(defcommand "List Events" (p)
+(defcommand "List Events" ()
   "List events."
-  "List events."
-  (declare (ignore p))
   (with-pop-up-display (stream)
     (list-events edi::*time-queue* stream)))
 
@@ -58,13 +60,10 @@
 
 (defcommand "Edit Events" (p)
   "Create or switch to the event editing buffer."
-  "Create or switch to the event editing buffer."
   (evented-command p))
 
-(defcommand "Evented" (p)
+(defcommand "Evented" ()
   "Create or switch to the event editing buffer."
-  "Create or switch to the event editing buffer."
-  (declare (ignore p))
   (let ((buf (or *evented-buffer*
 		 (make-buffer "Evented" :modes '("Evented")
 			      :delete-hook (list #'delete-evented-buffers)))))
@@ -91,20 +90,15 @@
     (change-to-buffer buf)))
 
 ;; FIX rotate instead? (same in pack*ed)
-(defcommand "Evented Quit" (p)
+(defcommand "Evented Quit" ()
   "Kill the Evented buffer."
-  "Kill the Evented buffer."
-  (declare (ignore p))
   (when *evented-buffer* (delete-buffer-if-possible *evented-buffer*)))
 
-(defcommand "Evented Help" (p)
+(defcommand "Evented Help" ()
   "Show Evented mode help."
-  "Show Evented mode help."
-  (declare (ignore p))
   (describe-mode-command nil "Evented"))
 
-(defcommand "Evented Refresh" (p &optional (buffer (current-buffer)))
-  "Refresh the current buffer."
+(defcommand "Evented Refresh" (p (buffer (current-buffer)))
   "Refresh the current buffer."
   (declare (ignore p))
   (when (string= (buffer-major-mode buffer) "Evented")
@@ -124,17 +118,15 @@
 				mark)))
        *evented-events*))
 
-(defcommand "Evented Cancel Event" (p)
+(defcommand "Evented Cancel Event" ()
   "Cancel the event at point."
-  "Cancel the event at point."
-  (declare (ignore p))
   (when (prompt-for-y-or-n
        :prompt "Cancel event? "
        :default nil :must-exist t)
     (remove-scheduled-event
      (edi::tq-event-function
       (event-at-mark (current-point))))
-    (evented-refresh-command nil)))
+    (evented-refresh-command)))
 
 (defun refresh-evented-buffer (&optional event)
   (declare (ignore event))

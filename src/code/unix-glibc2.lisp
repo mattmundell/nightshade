@@ -1,4 +1,4 @@
-;;; UNIX low-level support for glibc2.
+;;; Unix low-level support for glibc2.
 ;;;
 ;;; FIX All the functions with #+nil in front are work in progress,
 ;;; and mostly don't work.
@@ -40,7 +40,8 @@
 	  l_set l_incr l_xtnd unix-mkdir unix-open o_rdonly o_wronly o_rdwr
 	  o_ndelay
 	  o_noctty
-	  o_append o_creat o_trunc o_excl unix-pipe unix-read unix-readlink
+	  o_append o_creat o_trunc o_excl unix-openpty
+	  unix-pipe unix-read unix-readlink
 	  unix-rename unix-rmdir unix-fast-select fd-setsize fd-set fd-clr
 	  fd-isset fd-zero unix-select unix-sync unix-fsync unix-truncate
 	  unix-ftruncate unix-symlink unix-unlink unix-write unix-ioctl
@@ -123,11 +124,14 @@
 	  KBDSCLICK FIONREAD	  unix-exit unix-stat unix-lstat unix-fstat
 	  unix-getrusage unix-fast-getrusage rusage_self rusage_children
 	  get-timezone unix-gettimeofday
-	  unix-utimes unix-sched-yield unix-setreuid
+	  unix-utimes
+	  unix-user-full-name unix-user-name unix-user-shell
+	  unix-sched-yield unix-setreuid
 	  unix-setregid
 	  unix-getpid unix-getppid
 	  unix-getgid unix-getegid unix-getpgrp unix-setpgrp unix-getuid
-	  unix-getpagesize unix-gethostname unix-gethostid unix-fork
+	  unix-getpagesize unix-getdomainname unix-gethostname unix-gethostid
+	  unix-fork
 	  unix-current-directory unix-isatty unix-ttyname unix-execve
 	  unix-socket unix-connect unix-bind unix-listen unix-accept
 	  unix-recv unix-send unix-getpeername unix-getsockname
@@ -135,6 +139,29 @@
 
 (pushnew :unix *features*)
 (pushnew :glibc2 *features*)
+
+#[ Unix Interface
+
+Nightshade attempts to make the full power of the underlying environment
+available to the programmer.  This is done using a combination of
+hand-coded interfaces and foreign function calls to C libraries.  Although
+the techniques differ, the style of interface is similar.  This chapter
+provides an overview of the facilities available and general rules for
+using them, as well as describing specific features in detail.  It is
+assumed that the reader has a working familiarity with Unix and X, as well
+as access to the standard system documentation.
+
+[ Reading the Command Line          ]
+[ Lisp Equivalents for C Routines   ]
+[ Type Translations                 ]
+[ System Area Pointers              ]
+[ Unix System Calls                 ]
+[ File Descriptor Streams           ]
+[ Unix Interrupts                   ]
+]#
+#|
+[ Making Sense of Mach Return Codes ]
+|#
 
 
 ;;;; Common machine independent structures.
@@ -168,6 +195,24 @@
     `(progn ,@(mapcar #'defform names))))
 
 
+#[ Unix System Calls
+
+All the Unix system calls are available.  These functions are in the unix
+package.  The name of the interface for a particular system call is the
+name of the system call prepended with unix-.  The associated constants are
+usually defined with the same name as the unix constant.  The editor
+"Editor Describe Function" command or the `describe' function can describe
+a particular system call.  Alternatively, the functions are defined in
+"code:syscall.lisp".
+
+The Unix system calls indicate an error by returning () as the first value
+and the Unix error number as the second value.  If the call succeeds, then
+the first value will always be true, often t.
+
+{function:unix:get-unix-error-msg}
+]#
+
+
 ;;;; Lisp types used by syscalls.
 
 (deftype unix-pathname () 'simple-string)
@@ -187,14 +232,13 @@
 ;;; GET-UNIX-ERROR-MSG -- public.
 ;;;
 (defun get-unix-error-msg (&optional (error-number unix-errno))
-  "Returns a string describing the error number which was returned by a
-   UNIX system call."
+  "Return a string describing the Unix error $error-number."
   (declare (type integer error-number))
 
   (unix-get-errno)
   (if (array-in-bounds-p *unix-errors* error-number)
       (svref *unix-errors* error-number)
-      (format nil "Unknown error [~d]" error-number)))
+      (format nil "Error number ~d out of bounds" error-number)))
 
 (defmacro syscall ((name &rest arg-types) success-form &rest args)
   `(let ((result (alien-funcall (extern-alien ,name (function int ,@arg-types))
@@ -321,8 +365,8 @@
 
 (defun open-dir (pathname)
   (declare (type unix-pathname pathname))
-  (when (string= pathname "")
-    (setf pathname "."))
+  (if (string= pathname "")
+      (setf pathname "."))
   (let ((kind (unix-file-kind pathname)))
     (case kind
       (:directory
@@ -448,7 +492,6 @@
    or NIL and an error number otherwise.
 
    This interface is made obsolete by UNIX-OPEN."
-
   (declare (type unix-pathname name)
 	   (type unix-file-mode mode))
   (int-syscall ("creat" c-string int) name mode))
@@ -1146,11 +1189,10 @@
 
 ;;;; pty.h
 
-#+nil
 (defun unix-openpty (amaster aslave name termp winp)
   "Create pseudo tty master slave pair with NAME and set terminal
-   attributes according to TERMP and WINP and return handles for both
-   ends in AMASTER and ASLAVE."
+   attributes according to TERMP and WINP and return handles for both ends
+   in AMASTER and ASLAVE."
   (int-syscall ("openpty" (* int) (* int) c-string (* (struct termios))
 			  (* (struct winsize)))
 	       amaster aslave name termp winp))
@@ -1164,7 +1206,7 @@
 	       amaster name termp winp))
 
 
-;;; pwd.h
+;;;; pwd.h
 ;; POSIX Standard: 9.2.2 User Database Access <pwd.h>
 
 (def-alien-type nil
@@ -1190,12 +1232,43 @@
 #+nil
 (defun unix-getpwent ()
   "Read an entry from the password-file stream, opening it if necessary."
-    (let ((result (alien-funcall (extern-alien "getpwent"
+  (let ((result (alien-funcall (extern-alien "getpwent"
 					     (function (* (struct passwd)))))))
     (declare (type system-area-pointer result))
     (if (zerop (sap-int result))
 	nil
 	result)))
+
+(defun unix-getpwnam (name)
+  "Return a password entry for user $name."
+  (let ((result (alien-funcall (extern-alien "getpwnam"
+					     (function (* (struct passwd))
+						       c-string))
+			       name)))
+    (fi (zerop (sap-int (alien:alien-sap result))) result)))
+
+(defun unix-getpwuid (uid)
+  "Return a password entry for UID."
+  (let ((result (alien-funcall (extern-alien "getpwuid"
+					     (function (* (struct passwd))
+						       int))
+			       uid)))
+    (fi (zerop (sap-int (alien:alien-sap result))) result)))
+
+(defun unix-user-shell (user)
+  "Return the shell used by USER."
+  (slot (deref (or (unix-getpwnam user) (return-from unix-user-shell ())))
+	'pw-shell))
+
+(defun unix-user-name (uid)
+  "Return the name associated with $uid."
+  (let ((entry (unix-getpwuid uid)))
+    (if entry (slot (deref entry) 'pw-name))))
+
+(defun unix-user-full-name (uid)
+  "Return the full name associated with $uid."
+  (let ((entry (unix-getpwuid uid)))
+    (if entry (car (split (slot (deref entry) 'pw-gecos) #\,)))))
 
 
 ;;;; resourcebits.h
@@ -1713,15 +1786,11 @@
 
 ;; Values for the second argument to access.
 
-;;; Unix-access accepts a path and a mode.  It returns two values the
-;;; first is T if the file is accessible and NIL otherwise.  The second
-;;; only has meaning in the second case and is the unix errno value.
-
 (defun unix-access (path mode)
-  "Given a file path (a string) and one of four constant modes,
-   unix-access returns T if the file is accessible with that
-   mode and NIL if not.  It also returns an errno value with
-   NIL which determines why the file was not accessible.
+  "Given a file path (a string) and one of four constant modes, unix-access
+   returns T if the file is accessible with that mode and NIL if not.  It
+   also returns an errno value with NIL which details why access is
+   withheld.
 
    The access modes are:
 	r_ok     Read permission.
@@ -1748,7 +1817,6 @@
 	   (type (unsigned-byte 32) offset)
 	   (type (integer 0 2) whence))
   (int-syscall ("lseek" int off-t int) fd offset whence))
-
 
 ;;; Unix-read accepts a file descriptor, a buffer, and the length to read.
 ;;; It attempts to read len bytes from the device associated with fd
@@ -2030,10 +2098,9 @@
   (void-syscall ("symlink" c-string c-string) name1 name2))
 
 (defun unix-readlink (path)
-  "Unix-readlink invokes the readlink system call on the file name
-  specified by the simple string path.  It returns up to two values:
-  the contents of the symbolic link if the call is successful, or
-  NIL and the Unix error number."
+  "Invoke the readlink system call on the file name specified by the simple
+   string $path.  Return up to two values: the contents of the symbolic
+   link if the call is successful, or () and the Unix error number."
   (declare (type unix-pathname path))
   (with-alien ((buf (array char 1024)))
     (syscall ("readlink" c-string (* char) int)
@@ -2049,21 +2116,21 @@
 ;;; name and the file if this is the last link.
 
 (defun unix-unlink (name)
-  "Unix-unlink removes the directory entry for the named file.
-   NIL and an error code is returned if the call fails."
+  "Remove the directory entry for the file $name.  Return () and an error
+   code if the call fails."
   (declare (type unix-pathname name))
   (void-syscall ("unlink" c-string) name))
 
 ;;; Unix-rmdir accepts a name and removes the associated directory.
 
 (defun unix-rmdir (name)
-  "Unix-rmdir attempts to remove the directory name.  NIL and
-   an error number is returned if an error occured."
+  "Remove the directory NAME.  Return NIL and an error number if an error
+   occurs."
   (declare (type unix-pathname name))
   (void-syscall ("rmdir" c-string) name))
 
 (defun tcgetpgrp (fd)
-  "Get the tty-process-group for the unix file-descriptor FD."
+  "Get the tty-process-group for the unix file-descriptor $FD."
   (alien:with-alien ((alien-pgrp c-call:int))
     (multiple-value-bind (ok err)
 	(unix-ioctl fd
@@ -2144,9 +2211,11 @@
 (defun unix-sethostid (id)
   (int-syscall ("sethostid" long) id))
 
-#+nil
-(defun unix-getdomainname (name len)
-  (int-syscall ("getdomainname" c-string size-t) name len))
+(defun unix-getdomainname ()
+  (with-alien ((buf (array char 256)))
+    (syscall ("getdomainname" (* char) int)
+	     (cast buf c-string)
+	     (cast buf (* char)) 256)))
 
 #+nil
 (defun unix-setdomainname (name len)
@@ -2265,15 +2334,14 @@
 	    (actime time-t) ; Access time.
 	    (modtime time-t))) ; Modification time.
 
-;;; Unix-utimes changes the accessed and updated times on UNIX
-;;; files.  The first argument is the filename (a string) and
-;;; the second argument is a list of the 4 times- accessed and
-;;; updated seconds and microseconds.
-
+;;; Unix-utimes changes the accessed and updated times on Unix files.  The
+;;; first argument is the filename (a string) and the second argument is a
+;;; list of the 4 times- accessed and updated seconds and microseconds.
+;;;
 (defun unix-utimes (file atime-sec atime-usec mtime-sec mtime-usec)
-  "Unix-utimes sets the 'last-accessed' and 'last-updated'
-   times on a specified file.  NIL and an error number is
-   returned if the call is unsuccessful."
+  "Unix-utimes sets the 'last-accessed' and 'last-updated' times on a
+   specified file.  NIL and an error number is returned if the call is
+   unsuccessful."
   (declare (type unix-pathname file)
 	   (type (alien unsigned-long)
 		 atime-sec atime-usec
@@ -2299,7 +2367,7 @@
 
 (defun unix-ioctl (fd cmd arg)
   "Unix-ioctl performs a variety of operations on open i/o descriptors.
-   See the FIX UNIX Programmer's Manual for more information."
+   See the FIX Unix Programmer's Manual for more information."
   (declare (type unix-fd fd)
 	   (type (unsigned-byte 32) cmd))
   (void-syscall ("ioctl" int unsigned-int (* char)) fd cmd arg))
@@ -2338,7 +2406,7 @@
 
 ;; Event types always implicitly polled for.  These bits need not be set in
 ;;`events', but they will appear in `revents' to indicate the status of
-;; the file descriptor.  */
+;; the file descriptor.  */  // FIX */ !!! is this copied from somewhere copyrighted?
 
 (defconstant POLLERR  #o10 "Error condition.")
 (defconstant POLLHUP  #o20 "Hung up.")
@@ -2525,7 +2593,7 @@ in at a time in poll.")
 (defmacro unix-fast-select (num-descriptors
 			    read-fds write-fds exception-fds
 			    timeout-secs &optional (timeout-usecs 0))
-  "Perform the UNIX select(2) system call."
+  "Perform the Unix select(2) system call."
   (declare (type (integer 0 #.FD-SETSIZE) num-descriptors)
 	   (type (or (alien (* (struct fd-set))) null)
 		 read-fds write-fds exception-fds)
@@ -2565,9 +2633,9 @@ in at a time in poll.")
 			    ,(* index nfdbits))))))
 
 (defun unix-select (nfds rdfds wrfds xpfds to-secs &optional (to-usecs 0))
-  "Unix-select examines the sets of descriptors passed as arguments
-   to see if they are ready for reading and writing.  See the UNIX
-   Programmers Manual for more information."
+  "Unix-select examines the sets of descriptors passed as arguments to see
+   if they are ready for reading and writing.  FIX See the Unix Programmers
+   Manual for more information."
   (declare (type (integer 0 #.FD-SETSIZE) nfds)
 	   (type unsigned-byte rdfds wrfds xpfds)
 	   (type (or (unsigned-byte 31) null) to-secs)
@@ -2626,14 +2694,12 @@ in at a time in poll.")
 	   (slot ,buf 'st-blocks)))
 
 (defun unix-stat (name)
-  "Unix-stat retrieves information about the specified
-   file returning them in the form of multiple values.
-   See the UNIX Programmer's Manual for a description
-   of the values returned.  If the call fails, then NIL
-   and an error number is returned instead."
+  "Unix-stat retrieves information about the specified file returning them
+   in the form of multiple values.  FIX See the Unix Programmer's Manual
+   for a description of the values returned.  If the call fails, then NIL
+   and an error number are returned instead."
   (declare (type unix-pathname name))
-  (when (string= name "")
-    (setf name "."))
+  (if (string= name "") (setf name "."))
   (with-alien ((buf (struct stat)))
     (syscall ("stat" c-string (* (struct stat)))
 	     (extract-stat-results buf)
@@ -2649,8 +2715,8 @@ in at a time in poll.")
 	     fd (addr buf))))
 
 (defun unix-lstat (name)
-  "Unix-lstat is similar to unix-stat except the specified
-   file must be a symbolic link."
+  "Unix-lstat is similar to unix-stat except the specified file FIX must be
+   a symbolic link."
   (declare (type unix-pathname name))
   (with-alien ((buf (struct stat)))
     (syscall ("lstat" c-string (* (struct stat)))
@@ -2711,9 +2777,8 @@ in at a time in poll.")
 ;;; corresponding directory with mode mode.
 
 (defun unix-mkdir (name mode)
-  "Unix-mkdir creates a new directory with the specified name and mode.
-   (Same as those for unix-chmod.)  It returns T upon success, otherwise
-   NIL and an error number."
+  "Creates a new directory named $name with $mode.  (Same as those for
+   unix-chmod.)  Return T upon success, otherwise NIL and an error number."
   (declare (type unix-pathname name)
 	   (type unix-file-mode mode))
   (void-syscall ("mkdir" c-string int) name mode))
@@ -3055,7 +3120,7 @@ in at a time in poll.")
 (def-unix-error EEXIST 17 "File exists")
 (def-unix-error EXDEV 18 "Cross-device link")
 (def-unix-error ENODEV 19 "No such device")
-(def-unix-error ENOTDIR 20 "Not a director")
+(def-unix-error ENOTDIR 20 "Not a directory")
 (def-unix-error EISDIR 21 "Is a directory")
 (def-unix-error EINVAL 22 "Invalid argument")
 (def-unix-error ENFILE 23 "File table overflow")
@@ -3166,7 +3231,7 @@ in at a time in poll.")
 (emit-unix-errors)
 
 
-;;; the ioctl's.
+;;;; The ioctl's.
 ;;;
 ;;; I've deleted all the stuff that wasn't in the header files.
 ;;; This is what survived.
@@ -3234,27 +3299,21 @@ in at a time in poll.")
 
 (defconstant setuidexec #o4000 "Set user ID on execution")
 (defconstant setgidexec #o2000 "Set group ID on execution")
-(defconstant savetext #o1000 "Save text image after execution")
-(defconstant readown #o400 "Read by owner")
-(defconstant writeown #o200 "Write by owner")
-(defconstant execown #o100 "Execute (search directory) by owner")
-(defconstant readgrp #o40 "Read by group")
-(defconstant writegrp #o20 "Write by group")
-(defconstant execgrp #o10 "Execute (search directory) by group")
-(defconstant readoth #o4 "Read by others")
-(defconstant writeoth #o2 "Write by others")
-(defconstant execoth #o1 "Execute (search directory) by others")
-(defconstant writeall (logior writeown
-			      writegrp
-			      writeoth)
+(defconstant savetext   #o1000 "Save text image after execution")
+(defconstant readown     #o400 "Read by owner")
+(defconstant writeown    #o200 "Write by owner")
+(defconstant execown     #o100 "Execute (search directory) by owner")
+(defconstant readgrp      #o40 "Read by group")
+(defconstant writegrp     #o20 "Write by group")
+(defconstant execgrp      #o10 "Execute (search directory) by group")
+(defconstant readoth       #o4 "Read by others")
+(defconstant writeoth      #o2 "Write by others")
+(defconstant execoth       #o1 "Execute (search directory) by others")
+(defconstant writeall (logior writeown writegrp writeoth)
   "Write by all.")
-(defconstant readall (logior readown
-			     readgrp
-			     readoth)
+(defconstant readall (logior readown readgrp readoth)
   "Read by all.")
-(defconstant execall (logior execown
-			     execgrp
-			     execoth)
+(defconstant execall (logior execown execgrp execoth)
   "Execute (search directory) by all.")
 
 
@@ -3269,7 +3328,7 @@ in at a time in poll.")
 	  unix-resolve-links unix-simplify-pathname))
 
 (defun unix-file-kind (name &optional check-for-links)
-  "Returns either :file, :directory, :link, :special, or NIL."
+  "Return the type of $name: :file, :directory, :link, :special, or ()."
   (declare (simple-string name))
   (multiple-value-bind (res dev ino mode)
 		       (if check-for-links
@@ -3293,14 +3352,17 @@ in at a time in poll.")
 	    (concatenate 'simple-string dir "/" name)
 	    name))))
 
-(defun unix-resolve-links (pathname)
-  "Returns the pathname with all symbolic links resolved."
-  (declare (simple-string pathname))
-  (let ((len (length pathname))
-	(pending pathname))
+(defun unix-resolve-links (filename)
+  "Return $filename with all symbolic links resolved."
+  (declare (simple-string filename))
+  (let ((len (length filename))
+	(pending filename))
     (declare (fixnum len) (simple-string pending))
     (if (zerop len)
-	pathname
+	filename
+	;; FIX 1024 must be dynamic, in case of very deep dirs
+	;;         eg if accidentally copy-file circular dir with :check-for-links ()
+	;;   at least must handle reaching end of array
 	(let ((result (make-string 1024 :initial-element (code-char 0)))
 	      (fill-ptr 0)
 	      (name-start 0))
@@ -3313,19 +3375,26 @@ in at a time in poll.")
 		       :start2 name-start
 		       :end2 name-end)
 	      (let ((kind (unix-file-kind (if (zerop name-end) "/" result) t)))
-		(unless kind (return nil))
+		(or kind (return nil))
 		(cond ((eq kind :link)
 		       (multiple-value-bind (link err) (unix-readlink result)
-			 (unless link
-			   (error "Error reading link ~S: ~S"
-				  (subseq result 0 fill-ptr)
-				  (get-unix-error-msg err)))
+			 (or link
+			     (error "Error reading link ~S: ~S"
+				    (subseq result 0 fill-ptr)
+				    (get-unix-error-msg err)))
 			 (cond ((or (zerop (length link))
 				    (char/= (schar link 0) #\/))
-				;; It's a relative link
-				(fill result (code-char 0)
-				      :start fill-ptr
-				      :end new-fill-ptr))
+				(if (string= result link
+					     :start1 fill-ptr
+					     :end1 new-fill-ptr)
+				    ;; It's a self-referencing link.
+				    (if (= name-end len)
+					(return (subseq result 0 new-fill-ptr))
+					(error "Self-referencing link before end of filename."))
+				    ;; It's a relative link.
+				    (fill result (code-char 0)
+					  :start fill-ptr
+					  :end new-fill-ptr)))
 			       ((string= result "/../" :end1 4)
 				;; It's across the super-root.
 				(let ((slash (or (position #\/ result :start 4)
@@ -3336,6 +3405,7 @@ in at a time in poll.")
 				  (setf fill-ptr slash)))
 			       (t
 				;; It's absolute.
+				;; FIX was this sexp the test?
 				(and (> (length link) 0)
 				     (char= (schar link 0) #\/))
 				(fill result (code-char 0) :end new-fill-ptr)
@@ -3488,7 +3558,7 @@ in at a time in poll.")
       (values vec-sap total-bytes))))
 
 
-;;; Stuff not yet found in the header files...
+;;;; Stuff not yet found in the header files...
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

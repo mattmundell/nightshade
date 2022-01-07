@@ -2,26 +2,30 @@
 
 (in-package "ED")
 
+#[ Overwrite Mode
 
-(defmode "Overwrite")
+`Overwrite' mode is a minor mode which is useful for creating figures and
+tables out of text.  In this mode, typing a key-event with a corresponding
+graphic character replaces the character at the point instead of inserting the
+character.  `Quoted Insert' can be used to insert characters normally.
 
+{mode:Overwrite}
+{command:Self Overwrite}
+{command:Overwrite Delete Previous Character}
+]#
 
-(defcommand "Overwrite Mode" (p)
-  "Printing characters overwrite characters instead of pushing them to the right.
-   A positive argument turns Overwrite mode on, while zero or a negative
-   argument turns it off.  With no arguments, it is toggled.  Use C-Q to
-   insert characters normally."
-  "Determine if in Overwrite mode or not and set the mode accordingly."
-  (setf (buffer-minor-mode (current-buffer) "Overwrite")
-	(if p
-	    (plusp p)
-	    (not (buffer-minor-mode (current-buffer) "Overwrite")))))
-
+(defmode "Overwrite"
+  :documentation
+  "Mode in which printing characters overwrite characters instead of
+   pushing them to the right.  `Quoted Insert' inserts characters
+   normally.")
 
 (defcommand "Self Overwrite" (p)
-  "Replace the next character with the last character typed,
-   but insert at end of line.  With prefix argument, do it that many times."
-  "Implements ``Self Overwrite'', calling this function is not meaningful."
+  "Replace the next character with the last character typed, then move past
+   the inserted character.  With prefix argument, do it that many times.
+   If the next character is a tab, first expands the tab into the
+   appropriate number of spaces, replacing just the next space character.
+   At the end of the line, insert the character and keep the newline."
   (let ((char (ext:key-event-char *last-key-event-typed*))
 	(point (current-point)))
     (unless char (editor-error "Can't insert that character."))
@@ -38,16 +42,14 @@
 	(t (setf (next-character point) char)
 	   (mark-after point))))))
 
-
 (defcommand "Overwrite Delete Previous Character" (p)
-  "Replaces previous character with space, but tabs and newlines are deleted.
-   With prefix argument, do it that many times."
-  "Replaces previous character with space, but tabs and newlines are deleted."
+  "Replace the previous character with a space and move backwards.  Delete
+   tabs and newlines.  With a prefix argument, do it that many times."
   (do ((point (current-point))
        (n (or p 1) (1- n)))
       ((zerop n))
     (case (previous-character point)
       ((#\newline #\tab) (delete-characters point -1))
-      ((nil) (editor-error))
+      ((nil) (editor-error "Beginning of buffer."))
       (t (setf (previous-character point) #\space)
 	 (mark-before point)))))

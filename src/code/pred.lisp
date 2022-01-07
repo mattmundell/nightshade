@@ -9,7 +9,8 @@
 
 (in-package "LISP")
 
-(export '(typep null symbolp atom consp listp numberp integerp rationalp
+(export '(typep null #| FIX empty nullp falsep emptyp ()p |# symbolp
+	  atom #| FIX atomp? |# consp listp numberp integerp rationalp
 	  floatp complexp characterp stringp bit-vector-p vectorp
 	  simple-vector-p simple-string-p simple-bit-vector-p arrayp
 	  functionp compiled-function-p eq eql equal equalp not
@@ -26,6 +27,7 @@
 
 ;;;; Primitive predicates.  These must be supported by the compiler.
 
+;; FIX find these with m-g how?
 (eval-when (compile eval)
   (defparameter primitive-predicates
     '(array-header-p
@@ -360,8 +362,8 @@
 (defun equal (x y)
   "Returns T if X and Y are EQL or if they are structured components whose
    elements are EQUAL.  Strings and bit-vectors are EQUAL if they are the
-   same length and have indentical components.  Other arrays must be EQ to
-   be EQUAL."
+   same length and have identical (FIX EQ?) components.  Other arrays must
+   be EQ to be EQUAL."
   (cond ((eql x y) t)
 	((consp x)
 	 (and (consp y)

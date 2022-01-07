@@ -1,4 +1,4 @@
-;;; Structures used by constucts in the HEMLOCK package.
+;;; Structures used by constructs in the ED package.
 
 (in-package "ED")
 

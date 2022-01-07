@@ -1,6 +1,6 @@
 ;;; Python mode.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 (defvar python-special-forms (make-hash-table :size 50 :test #'equal)
   "A hashtable of Python special form names.")
@@ -33,27 +33,27 @@
 (setf (gethash "import" python-special-forms) t)
 
 (declaim (inline highlight-python-line))
-(declaim (special *in-string* *in-comment*))
+(declaim (special *context*))
 
 (defun highlight-python-line (line chi-info)
   (when (next-character (mark line 0))
     (let ((chars (line-string line))
 	  (comment-end (value comment-end))
 	  (pos 0))
-      (if *in-string*
-	  (progn
-	    (chi-mark line 0 *string-font* chi-info)
-	    (setq pos (1+ (or (search-for-qmark chars)
-			      (return-from highlight-python-line))))
-	    (chi-mark line pos *original-font* chi-info)
-	    (setq *in-string* nil))
-	  (when *in-comment*
-	    (chi-mark line 0 *comment-font* chi-info)
-	    (setq pos (+ (or (search comment-end chars)
-			     (return-from highlight-python-line))
-			 (length comment-end)))
-	    (chi-mark line pos *original-font* chi-info)
-	    (setq *in-comment* nil)))
+      (case *context*
+       (:string
+	(chi-mark line 0 *string-font* :string chi-info)
+	(setq pos (1+ (or (search-for-qmark chars)
+			  (return-from highlight-python-line))))
+	(chi-mark line pos *original-font* :window-foreground chi-info)
+	(setq *context* ()))
+       (:comment
+	(chi-mark line 0 *comment-font* :comment chi-info)
+	(setq pos (+ (or (search comment-end chars)
+			 (return-from highlight-python-line))
+		     (length comment-end)))
+	(chi-mark line pos *original-font* :window-foreground chi-info)
+	(setq *context* ())))
       (let ((comment-start (value comment-start))
 	    (pp-start (value preprocessor-start)))
 	(loop
@@ -85,38 +85,46 @@
 				     (mark-charpos end))))
 		    (when (gethash (subseq chars start end-pos)
 				   python-special-forms)
-		      (chi-mark line start *special-form-font* chi-info)
-		      (chi-mark line end-pos *original-font* chi-info))))))
+		      (chi-mark line start *special-form-font*
+				*special-form-font* chi-info)
+		      (chi-mark line end-pos *original-font*
+				:window-foreground chi-info))))))
 	    ;; Highlight the rest.
 	    (cond ((< string (min preproc comment multic))
-		   (chi-mark line string *string-font* chi-info)
+		   (chi-mark line string *string-font* :string
+			     chi-info)
 		   (setq pos (search-for-qmark chars (1+ string)))
 		   (if pos
-		       (chi-mark line (incf pos) *original-font* chi-info)
+		       (chi-mark line (incf pos) *original-font*
+				 :window-foreground chi-info)
 		       (progn
-			 (setq *in-string* t)
+			 (setq *context* :string)
 			 (return-from highlight-python-line))))
 
 		  ((< preproc (min string comment multic))
 		   ; FIX handle run-on lines (lines ending in \)
-		   (chi-mark line preproc *preprocessor-font* chi-info)
+		   (chi-mark line preproc *preprocessor-font*
+			     :preprocessor chi-info)
 		   (return-from highlight-python-line))
 
 		  ((< comment (min string preproc multic))
-		   (chi-mark line comment *comment-font* chi-info)
+		   (chi-mark line comment *comment-font* :comment
+			     chi-info)
 		   (return-from highlight-python-line))
 
 		  ((< multic (min string preproc comment))
-		   (chi-mark line multic *comment-font* chi-info)
+		   (chi-mark line multic *comment-font* :comment
+			     chi-info)
 		   (or comment-end (return-from highlight-python-line))
 		   (setq pos
 			 (search comment-end chars
 				 :start2 (+ multic (length comment-start))))
 		   (if pos
 		       (chi-mark line (incf pos (length comment-end))
-				 *original-font* chi-info)
+				 *original-font* :window-foreground
+				 chi-info)
 		       (progn
-			 (setq *in-comment* t)
+			 (setq *context* :comment)
 			 (return-from highlight-python-line))))
 
 		  (t
@@ -135,10 +143,8 @@
 (defmode "Python" :major-p t
   :setup-function 'setup-python-mode)
 
-(defcommand "Python Mode" (p)
+(defcommand "Python Mode" ()
   "Put the current buffer into \"Python\" mode."
-  "Put the current buffer into \"Python\" mode."
-  (declare (ignore p))
   (setf (buffer-major-mode (current-buffer)) "Python"))
 
 ;; FIX add a big test, handle comments,strings (end begin inbetween)
@@ -204,27 +210,28 @@
     (delete-horizontal-space mark)
     (funcall (value indent-with-tabs) mark chars)))
 
-(defhvar "Indent Function"
-  "Indentation function which is invoked by \"Indent\" command.
-   It must take one argument that is the prefix argument."
+(defevar "Indent Function"
+  "Indentation function invoked by the `Indent' command.  The function
+   takes a :left-inserting mark that may be moved, and indents the line
+   that the mark is on."
   :value #'indent-for-python
   :mode "Python")
 
-(defhvar "Auto Fill Space Indent"
-  "When non-nil, uses \"Indent New Comment Line\" to break lines instead of
-   \"New Line\"."
+(defevar "Auto Fill Space Indent"
+  "When true, uses `Indent New Comment Line' to break lines instead of
+   `New Line'."
   :mode "Python" :value t)
 
-(defhvar "Comment Start"
+(defevar "Comment Start"
   "String that indicates the start of a comment."
   :mode "Python" :value "#")
 
-(defhvar "Comment End"
+(defevar "Comment End"
   "String that ends comments.  Nil indicates #\newline termination."
-  :mode "Python" :value nil)
+  :mode "Python")
 
-(defhvar "Comment Begin"
+(defevar "Comment Begin"
   "String that is inserted to begin a comment."
   :mode "Python" :value "# ")
 
-(shadow-attribute :scribe-syntax #\< nil "Python")
+(shadow-attribute :scribe-syntax #\< () "Python")

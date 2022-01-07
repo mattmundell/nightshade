@@ -7,131 +7,158 @@
 
 ;; FIX
 (if (find-package "PCL")
-    (rename-package "PCL" "PCL" 'nil)
-    (make-package "PCL" :nicknames 'nil :use nil))
+    (rename-package "PCL" "PCL" ())
+    (make-package "PCL" :nicknames () :use ()))
 (shadow 'class "PCL")
 
 (if (find-package "C-CALL")
-    (rename-package "C-CALL" "C-CALL" 'nil)
-    (make-package "C-CALL" :nicknames 'nil :use nil))
+    (rename-package "C-CALL" "C-CALL" ())
+    (make-package "C-CALL" :nicknames () :use ()))
 (if (find-package "INSPECT")
-    (rename-package "INSPECT" "INSPECT" 'nil)
-    (make-package "INSPECT" :nicknames 'nil :use nil))
+    (rename-package "INSPECT" "INSPECT" ())
+    (make-package "INSPECT" :nicknames () :use ()))
 (if (find-package "BIGNUM")
-    (rename-package "BIGNUM" "BIGNUM" 'nil)
-    (make-package "BIGNUM" :nicknames 'nil :use nil))
+    (rename-package "BIGNUM" "BIGNUM" ())
+    (make-package "BIGNUM" :nicknames () :use ()))
 (if (find-package "UNIX")
-    (rename-package "UNIX" "UNIX" 'nil)
-    (make-package "UNIX" :nicknames 'nil :use nil))
+    (rename-package "UNIX" "UNIX" ())
+    (make-package "UNIX" :nicknames () :use ()))
 (if (find-package "FORMAT")
-    (rename-package "FORMAT" "FORMAT" 'nil)
-    (make-package "FORMAT" :nicknames 'nil :use nil))
-(if (find-package "COMMON-LISP")
-    (rename-package "COMMON-LISP" "COMMON-LISP" '("CL" "LISP"))
-    (make-package "LISP" :nicknames 'nil :use nil))
+    (rename-package "FORMAT" "FORMAT" ())
+    (make-package "FORMAT" :nicknames () :use ()))
+(if (find-package "LISP")
+    (rename-package "LISP" "LISP" ())
+    (make-package "LISP" :nicknames () :use ()))
 (if (find-package "EVAL")
-    (rename-package "EVAL" "EVAL" 'nil)
-    (make-package "EVAL" :nicknames 'nil :use nil))
+    (rename-package "EVAL" "EVAL" ())
+    (make-package "EVAL" :nicknames () :use ()))
 #+pmax
 (if (find-package "PMAX")
     (rename-package "PMAX" "PMAX" '("VM" "OLD-PMAX"))
-    (make-package "PMAX" :nicknames '("VM" "OLD-PMAX") :use nil))
+    (make-package "PMAX" :nicknames '("VM" "OLD-PMAX") :use ()))
 #+sparc
 (if (find-package "SPARC")
     (rename-package "SPARC" "SPARC" '("VM" "OLD-SPARC"))
-    (make-package "SPARC" :nicknames '("VM" "OLD-SPARC") :use nil))
+    (make-package "SPARC" :nicknames '("VM" "OLD-SPARC") :use ()))
 #+ibmrt
 (if (find-package "RT")
     (rename-package "RT" "RT" '("VM" "OLD-RT"))
-    (make-package "RT" :nicknames '("VM" "OLD-RT") :use nil))
+    (make-package "RT" :nicknames '("VM" "OLD-RT") :use ()))
 #+x86
 (if (find-package "X86")
     (rename-package "X86" "X86" '("VM" "OLD-X86"))
-    (make-package "X86" :nicknames '("VM" "OLD-X86") :use nil))
+    (make-package "X86" :nicknames '("VM" "OLD-X86") :use ()))
 #+hppa
 (if (find-package "HPPA")
     (rename-package "HPPA" "HPPA" '("VM" "OLD-HPPA"))
-    (make-package "HPPA" :nicknames '("VM" "OLD-HPPA") :use nil))
+    (make-package "HPPA" :nicknames '("VM" "OLD-HPPA") :use ()))
 #+alpha
 (if (find-package "ALPHA")
     (rename-package "ALPHA" "ALPHA" '("VM" "OLD-ALPHA"))
-    (make-package "ALPHA" :nicknames '("VM" "OLD-ALPHA") :use nil))
+    (make-package "ALPHA" :nicknames '("VM" "OLD-ALPHA") :use ()))
 #+sgi
 (if (find-package "SGI")
     (rename-package "SGI" "SGI" '("VM" "OLD-SGI"))
-    (make-package "SGI" :nicknames '("VM" "OLD-SGI") :use nil))
+    (make-package "SGI" :nicknames '("VM" "OLD-SGI") :use ()))
 (if (find-package "CONDITIONS")
-    (rename-package "CONDITIONS" "CONDITIONS" 'nil)
-    (make-package "CONDITIONS" :nicknames 'nil :use nil))
+    (rename-package "CONDITIONS" "CONDITIONS" ())
+    (make-package "CONDITIONS" :nicknames () :use ()))
 (if (find-package "DISASSEM")
-    (rename-package "DISASSEM" "DISASSEM" 'nil)
-    (make-package "DISASSEM" :nicknames 'nil :use nil))
+    (rename-package "DISASSEM" "DISASSEM" ())
+    (make-package "DISASSEM" :nicknames () :use ()))
 (if (find-package "DEBUG")
-    (rename-package "DEBUG" "DEBUG" 'nil)
-    (make-package "DEBUG" :nicknames 'nil :use nil))
+    (rename-package "DEBUG" "DEBUG" ())
+    (make-package "DEBUG" :nicknames () :use ()))
 (if (find-package "EXTENSIONS")
     (rename-package "EXTENSIONS" "EXTENSIONS" '("EXT"))
-    (make-package "EXTENSIONS" :nicknames '("EXT") :use nil))
+    (make-package "EXTENSIONS" :nicknames '("EXT") :use ()))
 (if (find-package "LOOP")
-    (rename-package "LOOP" "LOOP" 'nil)
-    (make-package "LOOP" :nicknames 'nil :use nil))
+    (rename-package "LOOP" "LOOP" ())
+    (make-package "LOOP" :nicknames () :use ()))
 (if (find-package "DEBUG-INTERNALS")
     (rename-package "DEBUG-INTERNALS" "DEBUG-INTERNALS" '("DI"))
-    (make-package "DEBUG-INTERNALS" :nicknames '("DI") :use nil))
+    (make-package "DEBUG-INTERNALS" :nicknames '("DI") :use ()))
 (if (find-package "C")
     (rename-package "C" "C" '("OLD-C"))
-    (make-package "C" :nicknames '("OLD-C") :use nil))
+    (make-package "C" :nicknames '("OLD-C") :use ()))
 (if (find-package "WIRE")
-    (rename-package "WIRE" "WIRE" 'nil)
-    (make-package "WIRE" :nicknames 'nil :use nil))
+    (rename-package "WIRE" "WIRE" ())
+    (make-package "WIRE" :nicknames () :use ()))
 (if (find-package "FTP")
-    (rename-package "FTP" "FTP" nil)
-    (make-package "FTP" :nicknames 'nil :use nil))
+    (rename-package "FTP" "FTP" ())
+    (make-package "FTP" :nicknames () :use ()))
 (if (find-package "PRETTY-PRINT")
     (rename-package "PRETTY-PRINT" "PRETTY-PRINT" '("PP"))
-    (make-package "PRETTY-PRINT" :nicknames '("PP") :use nil))
+    (make-package "PRETTY-PRINT" :nicknames '("PP") :use ()))
 (if (find-package "SYSTEM")
     (rename-package "SYSTEM" "SYSTEM" '("SYS"))
-    (make-package "SYSTEM" :nicknames '("SYS") :use nil))
+    (make-package "SYSTEM" :nicknames '("SYS") :use ()))
 (if (find-package "ALIEN")
-    (rename-package "ALIEN" "ALIEN" 'nil)
-    (make-package "ALIEN" :nicknames 'nil :use nil))
+    (rename-package "ALIEN" "ALIEN" ())
+    (make-package "ALIEN" :nicknames () :use ()))
 (if (find-package "ALIEN-INTERNALS")
-    (rename-package "ALIEN-INTERNALS" "ALIEN-INTERNALS" 'nil)
-    (make-package "ALIEN-INTERNALS" :nicknames 'nil :use nil))
+    (rename-package "ALIEN-INTERNALS" "ALIEN-INTERNALS" ())
+    (make-package "ALIEN-INTERNALS" :nicknames () :use ()))
 (if (find-package "PROFILE")
-    (rename-package "PROFILE" "PROFILE" 'nil)
-    (make-package "PROFILE" :nicknames 'nil :use nil))
+    (rename-package "PROFILE" "PROFILE" ())
+    (make-package "PROFILE" :nicknames () :use ()))
 (if (find-package "COMMON-LISP-USER")
     (rename-package "COMMON-LISP-USER" "COMMON-LISP-USER" '("CL-USER" "USER"))
-    (make-package "COMMON-LISP-USER" :nicknames '("CL-USER" "USER") :use nil))
+    (make-package "COMMON-LISP-USER" :nicknames '("CL-USER" "USER") :use ()))
 (if (find-package "KERNEL")
-    (rename-package "KERNEL" "KERNEL" 'nil)
-    (make-package "KERNEL" :nicknames 'nil :use nil))
+    (rename-package "KERNEL" "KERNEL" ())
+    (make-package "KERNEL" :nicknames () :use ()))
 (if (find-package "NEW-ASSEM")
-    (rename-package "NEW-ASSEM" "NEW-ASSEM" 'nil)
-    (make-package "NEW-ASSEM" :nicknames 'nil :use nil))
+    (rename-package "NEW-ASSEM" "NEW-ASSEM" ())
+    (make-package "NEW-ASSEM" :nicknames () :use ()))
 (if (find-package "MULTIPROCESSING")
-    (rename-package "MULTIPROCESSING" "MULTIPROCESSING" 'nil)
-    (make-package "MULTIPROCESSING" :nicknames '("MP") :use nil))
+    (rename-package "MULTIPROCESSING" "MULTIPROCESSING" ())
+    (make-package "MULTIPROCESSING" :nicknames '("MP") :use ()))
 (if (find-package "INTERNET")
-    (rename-package "INTERNET" "INTERNET" 'nil)
-    (make-package "INTERNET" :nicknames '() :use nil))
+    (rename-package "INTERNET" "INTERNET" ())
+    (make-package "INTERNET" :nicknames () :use ()))
 (if (find-package "MH")
-    (rename-package "MH" "MH" 'nil)
-    (make-package "MH" :nicknames '() :use nil))
+    (rename-package "MH" "MH" ())
+    (make-package "MH" :nicknames () :use ()))
 (if (find-package "DOC")
-    (rename-package "DOC" "DOC" 'nil)
-    (make-package "DOC" :nicknames '() :use nil))
+    (rename-package "DOC" "DOC" ())
+    (make-package "DOC" :nicknames () :use ()))
 (if (find-package "DB")
-    (rename-package "DB" "DB" 'nil)
-    (make-package "DB" :nicknames '() :use nil))
+    (rename-package "DB" "DB" ())
+    (make-package "DB" :nicknames () :use ()))
 (if (find-package "BUILD")
-    (rename-package "BUILD" "BUILD" 'nil)
-    (make-package "BUILD" :nicknames '() :use nil))
+    (rename-package "BUILD" "BUILD" ())
+    (make-package "BUILD" :nicknames () :use ()))
 (if (find-package "BASE64")
-    (rename-package "BASE64" "BASE64" 'nil)
-    (make-package "BASE64" :nicknames '() :use nil))
+    (rename-package "BASE64" "BASE64" ())
+    (make-package "BASE64" :nicknames () :use ()))
+(if (find-package "SHELL")
+    (rename-package "SHELL" "SHELL" ())
+    (make-package "SHELL" :nicknames () :use ()))
+(if (find-package "DEFTEST")
+    (rename-package "DEFTEST" "DEFTEST" ())
+    (make-package "DEFTEST" :nicknames () :use ()))
+(if (find-package "XLIB")
+    (rename-package "XLIB" "XLIB" ())
+    (make-package "XLIB" :nicknames () :use ()))
+(if (find-package "TERMINAL")
+    (rename-package "TERMINAL" "TERMINAL" ())
+    (make-package "TERMINAL" :nicknames () :use ()))
+(if (find-package "SYNC")
+    (rename-package "SYNC" "SYNC" ())
+    (make-package "SYNC" :nicknames () :use ()))
+(if (find-package "CONFIG")
+    (rename-package "CONFIG" "CONFIG" ())
+    (make-package "CONFIG" :nicknames () :use ()))
+(if (find-package "PARSE")
+    (rename-package "PARSE" "PARSE" ())
+    (make-package "PARSE" :nicknames () :use ()))
+(if (find-package "PACKAGE")
+    (rename-package "PACKAGE" "PACKAGE" ())
+    (make-package "PACKAGE" :nicknames () :use ()))
+(if (find-package "DOCNODE")
+    (rename-package "DOCNODE" "DOCNODE" ())
+    (make-package "DOCNODE" :nicknames () :use ()))
 
 (use-package '("SYSTEM" "ALIEN-INTERNALS" "ALIEN" "LISP") "C-CALL")
 (use-package '("KERNEL" "EXTENSIONS" "LISP") "INSPECT")
@@ -164,467 +191,524 @@
 (use-package '("ALIEN-INTERNALS" "LISP" "EXTENSIONS" "SYSTEM" "BIGNUM")
              "KERNEL")
 (use-package '("LISP") "NEW-ASSEM")
+(use-package '("LISP" "EXTENSIONS") "CONFIG")
 (use-package '("LISP" "EXTENSIONS") "INTERNET")
-(use-package '("LISP" "EXTENSIONS" "INTERNET") "MH")
+(use-package '("LISP" "EXTENSIONS" "INTERNET" "CONFIG") "MH")
 (use-package '("LISP" "EXTENSIONS") "DOC")
-(use-package '("LISP" "EXTENSIONS") "DB")
+(use-package '("LISP" "EXTENSIONS" "CONFIG") "DB")
 (use-package '("LISP" "EXTENSIONS") "BUILD")
-(use-package '("CL") "BASE64")
+(use-package '("LISP") "BASE64")
+(use-package '("LISP" "EXTENSIONS") "SHELL")
+(use-package '("LISP" "EXTENSIONS") "DEFTEST")
+(use-package '("LISP") "XLIB")
+(use-package '("LISP") "TERMINAL")
+(use-package '("LISP" "EXTENSIONS") "SYNC")
+(use-package '("LISP" "EXTENSIONS") "PARSE")
+(use-package '("LISP" "EXTENSIONS") "PACKAGE")
+(use-package '("LISP" "EXTENSIONS" "ED") "DOCNODE")
 
 (defpackage "C-CALL"
-            (:export "C-STRING" "CHAR" "DOUBLE" "FLOAT" "INT" "LONG" "SHORT"
-             "UNSIGNED-CHAR" "UNSIGNED-INT" "UNSIGNED-LONG" "UNSIGNED-SHORT"
-             "VOID"))
+  (:export "C-STRING" "CHAR" "DOUBLE" "FLOAT" "INT" "LONG" "SHORT"
+	   "UNSIGNED-CHAR" "UNSIGNED-INT" "UNSIGNED-LONG" "UNSIGNED-SHORT"
+	   "VOID")
+  (:documentation "Extensions to Alien to simplify importing C interfaces."))
 
 (defpackage "INSPECT"
-            (:export "*INTERFACE-STYLE*" "REMOVE-ALL-DISPLAYS"
-             "REMOVE-OBJECT-DISPLAY" "SHOW-OBJECT"))
+  (:export "*INTERFACE-STYLE*" "REMOVE-ALL-DISPLAYS"
+	   "REMOVE-OBJECT-DISPLAY" "SHOW-OBJECT"))
 
 (defpackage "BIGNUM"
-            (:export "%ADD-WITH-CARRY" "%ALLOCATE-BIGNUM" "%ASHL" "%ASHR"
-             "%BIGNUM-LENGTH" "%BIGNUM-REF" "%BIGNUM-SET" "%BIGNUM-SET-LENGTH"
-             "%DIGIT-0-OR-PLUSP" "%DIGIT-LOGICAL-SHIFT-RIGHT"
-             "%FIXNUM-DIGIT-WITH-CORRECT-SIGN" "%FIXNUM-TO-DIGIT" "%FLOOR"
-             "%LOGAND" "%LOGIOR" "%LOGNOT" "%LOGXOR" "%MULTIPLY"
-             "%MULTIPLY-AND-ADD" "%SUBTRACT-WITH-BORROW" "ADD-BIGNUMS"
-             "BIGNUM-ASHIFT-LEFT" "BIGNUM-ASHIFT-RIGHT" "BIGNUM-COMPARE"
-             "BIGNUM-DEPOSIT-BYTE" "BIGNUM-ELEMENT-TYPE" "BIGNUM-GCD"
-             "BIGNUM-INDEX" "BIGNUM-INTEGER-LENGTH" "BIGNUM-LOAD-BYTE"
-	     "BIGNUM-LOGBITP" "BIGNUM-LOGCOUNT"
-	     "BIGNUM-LOGICAL-AND" "BIGNUM-LOGICAL-IOR"
-             "BIGNUM-LOGICAL-NOT" "BIGNUM-LOGICAL-XOR" "BIGNUM-PLUS-P"
-             "BIGNUM-TO-FLOAT" "BIGNUM-TRUNCATE" "BIGNUM-TYPE"
-             "FLOAT-BIGNUM-RATIO" "MAKE-SMALL-BIGNUM"
-             "MULTIPLY-BIGNUM-AND-FIXNUM" "MULTIPLY-BIGNUMS" "MULTIPLY-FIXNUMS"
-             "NEGATE-BIGNUM" "SUBTRACT-BIGNUM"))
+  (:export "%ADD-WITH-CARRY" "%ALLOCATE-BIGNUM" "%ASHL" "%ASHR"
+	   "%BIGNUM-LENGTH" "%BIGNUM-REF" "%BIGNUM-SET" "%BIGNUM-SET-LENGTH"
+	   "%DIGIT-0-OR-PLUSP" "%DIGIT-LOGICAL-SHIFT-RIGHT"
+	   "%FIXNUM-DIGIT-WITH-CORRECT-SIGN" "%FIXNUM-TO-DIGIT" "%FLOOR"
+	   "%LOGAND" "%LOGIOR" "%LOGNOT" "%LOGXOR" "%MULTIPLY"
+	   "%MULTIPLY-AND-ADD" "%SUBTRACT-WITH-BORROW" "ADD-BIGNUMS"
+	   "BIGNUM-ASHIFT-LEFT" "BIGNUM-ASHIFT-RIGHT" "BIGNUM-COMPARE"
+	   "BIGNUM-DEPOSIT-BYTE" "BIGNUM-ELEMENT-TYPE" "BIGNUM-GCD"
+	   "BIGNUM-INDEX" "BIGNUM-INTEGER-LENGTH" "BIGNUM-LOAD-BYTE"
+	   "BIGNUM-LOGBITP" "BIGNUM-LOGCOUNT"
+	   "BIGNUM-LOGICAL-AND" "BIGNUM-LOGICAL-IOR"
+	   "BIGNUM-LOGICAL-NOT" "BIGNUM-LOGICAL-XOR" "BIGNUM-PLUS-P"
+	   "BIGNUM-TO-FLOAT" "BIGNUM-TRUNCATE" "BIGNUM-TYPE"
+	   "FLOAT-BIGNUM-RATIO" "MAKE-SMALL-BIGNUM"
+	   "MULTIPLY-BIGNUM-AND-FIXNUM" "MULTIPLY-BIGNUMS" "MULTIPLY-FIXNUMS"
+	   "NEGATE-BIGNUM" "SUBTRACT-BIGNUM"))
 
 (defpackage "UNIX"
-            (:export "CADDR-T" "D-INO" "D-NAME" "D-NAMLEN" "D-OFF" "D-RECLEN"
-             "DADDR-T" "DEV-T" "DIRECT" "EXECGRP" "EXECOTH" "EXECOWN" "F-DUPFD"
-             "F-GETFD" "F-GETFL" "F-GETOWN" "F-SETFD" "F-SETFL" "F-SETOWN"
-             "FAPPEND" "FASYNC" "FCREAT" "FEXCL" "FIONREAD" "FNDELAY" "FTRUNC"
-             "F_OK" "GET-TIMEZONE" "GET-UNIX-ERROR-MSG" "GID-T" "INO-T" "IT-INTERVAL"
-             "IT-VALUE" "ITIMERVAL" "UNIX-SETITIMER" "UNIX-GETITIMER"
-	     "KBDCGET" "KBDCRESET" "KBDCRST" "KBDCSET"
-             "KBDCSSTD" "KBDGCLICK" "KBDSCLICK" "KBDSGET" "L_INCR" "L_SET"
-             "L_XTND" "OFF-T" "O_APPEND" "O_CREAT" "O_EXCL" "O_RDONLY" "O_RDWR"
-             "O_TRUNC" "O_WRONLY" "READGRP" "READOTH" "READOWN" "RLIM-CUR"
-             "RLIM-MAX" "RLIMIT" "RU-IDRSS" "RU-INBLOCK" "RU-ISRSS" "RU-IXRSS"
-             "RU-MAJFLT" "RU-MAXRSS" "RU-MINFLT" "RU-MSGRCV" "RU-MSGSND"
-             "RU-NIVCSW" "RU-NSIGNALS" "RU-NSWAP" "RU-NVCSW" "RU-OUBLOCK"
-             "RU-STIME" "RU-UTIME" "RUSAGE_CHILDREN" "RUSAGE_SELF" "RUSEAGE"
-             "R_OK" "S-IEXEC" "S-IFBLK" "S-IFCHR" "S-IFDIR" "S-IFLNK" "S-IFMT"
-             "S-IFREG" "S-IFSOCK" "S-IREAD" "S-ISGID" "S-ISUID" "S-ISVTX"
-             "S-IWRITE" "SAVETEXT" "SC-MASK" "SC-ONSTACK" "SC-PC" "SETGIDEXEC"
-             "SETUIDEXEC" "SG-ERASE" "SG-FLAGS" "SG-ISPEED" "SG-KILL"
-             "SG-OSPEED" "SGTTYB" "SIGCONTEXT" "SIZE-T" "ST-ATIME" "ST-BLKSIZE"
-             "ST-BLOCKS" "ST-CTIME" "ST-DEV" "ST-GID" "ST-MODE" "ST-MTIME"
-             "ST-NLINK" "ST-RDEV" "ST-SIZE" "ST-UID" "STAT" "SWBLK-T" "T-BRKC"
-             "T-DSUSPC" "T-EOFC" "T-FLUSHC" "T-INTRC" "T-LNEXTC" "T-QUITC"
-             "T-RPRNTC" "T-STARTC" "T-STOPC" "T-SUSPC" "T-WERASC" "TCHARS"
-             "TERMINAL-SPEEDS" "TIME-T" "TIMEVAL" "TIMEZONE" "TIOCFLUSH"
-             "TIOCGETC" "TIOCGETP" "TIOCGLTC" "TIOCGPGRP" "TIOCGWINSZ"
-             "TIOCNOTTY" "TIOCSETC" "TIOCSETP" "TIOCSLTC" "TIOCSPGRP"
-             "TIOCSWINSZ" "TTY-CBREAK" "TTY-CRMOD" "TTY-LCASE"
-             "TTY-RAW" "TTY-TANDEM" "TV-SEC" "TV-USEC" "TZ-DSTTIME"
-             "TZ-MINUTESWEST" "UID-T" "UNIX-ACCEPT" "UNIX-ACCESS" "UNIX-BIND"
-             "UNIX-CHDIR" "UNIX-CHMOD" "UNIX-CHOWN" "UNIX-CLOSE" "UNIX-CONNECT"
-             "UNIX-CREAT" "UNIX-CURRENT-DIRECTORY" "UNIX-DUP" "UNIX-DUP2"
-             "UNIX-ERRNO" "UNIX-EXECVE" "UNIX-EXIT" "UNIX-FCHMOD" "UNIX-FCHOWN"
-             "UNIX-FCNTL" "UNIX-FD" "UNIX-FILE-MODE" "UNIX-FORK" "UNIX-FSTAT"
-             "UNIX-FSYNC" "UNIX-FTRUNCATE" "UNIX-GETDTABLESIZE" "UNIX-GETEGID"
-             "UNIX-GETGID" "UNIX-GETHOSTID" "UNIX-GETHOSTNAME"
-             "UNIX-GETPAGESIZE"  "UNIX-GETPEERNAME" "UNIX-GETPGRP"
-	     "UNIX-GETPID" "UNIX-GETPPID" "UNIX-GETRUSAGE" "UNIX-GETSOCKNAME"
-	     "UNIX-GETSOCKOPT" "UNIX-GETTIMEOFDAY" "UNIX-GETUID" "UNIX-GID"
-             "UNIX-IOCTL" "UNIX-ISATTY" "UNIX-LINK" "UNIX-LISTEN" "UNIX-LSEEK"
-             "UNIX-LSTAT" "UNIX-MKDIR" "UNIX-OPEN" "UNIX-PATHNAME" "UNIX-PID"
-             "UNIX-PIPE" "UNIX-READ" "UNIX-READLINK" "UNIX-RECV" "UNIX-RENAME"
-             "UNIX-RMDIR" "UNIX-SCHED-YIELD" "UNIX-SELECT"
-	     "UNIX-SEND" "UNIX-SETPGID" "UNIX-SETPGRP"
-             "UNIX-SETREGID" "UNIX-SETREUID" "UNIX-SETSOCKOPT" "UNIX-SOCKET"
-	     "UNIX-STAT" "UNIX-SYMLINK" "UNIX-SYNC"
-	     "UNIX-TIMES" "UNIX-TRUNCATE" "UNIX-TTYNAME"
-             "UNIX-UID" "UNIX-UNLINK" "UNIX-UTIMES" "UNIX-WRITE" "WINSIZE"
-             "WRITEGRP" "WRITEOTH" "WRITEOWN" "WS-COL" "WS-ROW" "WS-XPIXEL"
-             "WS-YPIXEL" "W_OK" "X_OK" "SIGSYS" "TCSETPGRP" "FD-ZERO"
-             "SIGEMSG" "SIGQUIT" "SIGCHLD" "SIGSEGV" "FD-CLR" "SIGUSR2"
-             "EALREADY" "SIGPIPE" "EACCES" "CHECK" "SIGXCPU" "EOPNOTSUPP"
-             "SIGFPE" "SIGHUP" "ENOTSOCK" "OPEN-DIR" "SIGMASK" "EINTR"
-             "SIGCONT" "UNIX-RESOLVE-LINKS" "SIGKILL" "EMSGSIZE" "ERANGE"
-             "EPROTOTYPE" "UNIX-SIGNAL-NUMBER" "EPFNOSUPPORT" "SIGILL"
-             "EDOM" "UNIX-SIGPAUSE" "EDQUOT" "FD-SETSIZE" "SIGTSTP"
-             "EAFNOSUPPORT" "TCGETPGRP" "EMFILE" "ECONNRESET"
-             "EADDRNOTAVAIL" "SIGALRM" "ENETDOWN" "EVICEOP"
-             "UNIX-FAST-GETRUSAGE" "EPERM" "SIGINT" "EXDEV" "EDEADLK"
-             "ENOSPC" "ECONNREFUSED" "SIGWINCH" "ENOPROTOOPT" "ESRCH"
-             "EUSERS" "SIGVTALRM" "ENOTCONN" "ESUCCESS" "EPIPE"
-             "UNIX-SIMPLIFY-PATHNAME" "EISCONN" "FD-ISSET" "SIGMSG"
-             "ESHUTDOWN" "EBUSY" "SIGTERM" "ENAMETOOLONG" "EMLINK"
-             "EADDRINUSE" "SIGBUS" "ERESTART" "TTY-PROCESS-GROUP"
-             "UNIX-SIGNAL-NAME" "ETIMEDOUT" "ECHILD" "EFBIG" "SIGTRAP"
-             "UNIX-KILLPG" "ENOTBLK" "SIGIOT" "SIGUSR1" "ECONNABORTED"
-             "EHOSTUNREACH" "EBADF" "EINVAL" "FD-SET" "CLOSE-DIR" "EISDIR"
-             "SIGTTIN" "UNIX-KILL" "ENOTDIR" "EHOSTDOWN" "E2BIG" "ESPIPE"
-             "UNIX-FAST-SELECT" "ENXIO" "ENOTTY" "ELOOP" "LTCHARS"
-             "UNIX-SIGNAL-DESCRIPTION" "SIGXFSZ" "EINPROGRESS" "ENOENT"
-             "EPROTONOSUPPORT" "UNIX-SIGBLOCK" "SIGIO" "ENOMEM" "SIGEMT"
-             "EFAULT" "ENODEV" "EIO" "EVICEERR" "ETXTBSY" "EWOULDBLOCK"
-             "EAGAIN" "EDESTADDRREQ" "ENOEXEC" "ENETUNREACH" "ENOTEMPTY"
-             "READ-DIR" "UNIX-MAYBE-PREPEND-CURRENT-DIRECTORY" "ENFILE"
-             "SIGTTOU" "EEXIST" "SIGPROF" "SIGSTOP" "ENETRESET" "SIGURG"
-             "ENOBUFS" "EPROCLIM" "EROFS" "ETOOMANYREFS" "UNIX-FILE-KIND"
-             "ELOCAL" "UNIX-SIGSETMASK" "EREMOTE" "ESOCKTNOSUPPORT"
-	     "TIOCSIGSEND" "SIGWAITING" "SIGABRT"
-	     "C-IFLAG" "UNIX-TCGETATTR" "C-LFLAG" "C-OFLAG" "C-CFLAG"
-	     "TCSAFLUSH" "C-CC" "C-ISPEED" "C-OSPEED" "SIOCSPGRP" "TERMIOS"
-	     "UNIX-TCSETATTR" "O_NDELAY" "O_NOCTTY"
-             "O_NONBLOCK" "TCSANOW" "TCSADRAIN" "TCIFLUSH" "TCOFLUSH"
-             "TCIOFLUSH" "UNIX-CFGETOSPEED" "UNIX-CFSETOSPEED"
-             "UNIX-CFGETISPEED" "UNIX-CFSETISPEED"
-             "TTY-IGNBRK" "TTY-BRKINT" "TTY-IGNPAR" "TTY-PARMRK"
-             "TTY-INPCK" "TTY-ISTRIP" "TTY-INLCR" "TTY-IGNCR" "TTY-ICRNL"
-             "TTY-IUCLC" "TTY-IXON" "TTY-IXANY" "TTY-IXOFF" "TTY-IENQAK"
-             "TTY-IMAXBEL" "TTY-OPOST" "TTY-OLCUC" "TTY-ONLCR" "TTY-OCRNL"
-             "TTY-ONOCR" "TTY-ONLRET" "TTY-OFILL" "TTY-OFDEL" "TTY-ISIG"
-             "TTY-ICANON" "TTY-XCASE" "TTY-ECHO" "TTY-ECHOE" "TTY-ECHOK"
-             "TTY-ECHONL" "TTY-NOFLSH" "TTY-IEXTEN" "TTY-TOSTOP" "TTY-ECHOCTL"
-             "TTY-ECHOPRT" "TTY-ECHOKE"  "TTY-DEFECHO" "TTY-FLUSHO"
-             "TTY-PENDIN" "TTY-CSTOPB" "TTY-CREAD" "TTY-PARENB" "TTY-PARODD"
-             "TTY-HUPCL" "TTY-CLOCAL" "RCV1EN" "XMT1EN" "TTY-LOBLK" "VINTR"
-             "VQUIT" "VERASE" "VKILL" "VEOF" "VEOL" "VEOL2" "TTY-CBAUD"
-             "TTY-CSIZE" "TTY-CS5" "TTY-CS6" "TTY-CS7" "TTY-CS8" "VMIN" "VTIME"
-             "VSUSP" "VSTART" "VSTOP" "VDSUSP" "UNIX-TCSENDBREAK"
-             "UNIX-TCDRAIN" "UNIX-TCFLUSH" "UNIX-TCFLOW"
-	     #+(or svr4 freebsd linux) "O_NDELAY")
-            #+(or svr4 linux)
-            (:export "EADDRINUSE" "EADDRNOTAVAIL" "EADV" "EAFNOSUPPORT"
-	     "EALREADY" "EBADE" "EBADFD" "EBADMSG" "EBADR" "EBADRQC"
-	     "EBADSLT" "EBFONT" #+svr4 "ECANCELED" "ECHRNG" "ECOMM"
-	     "ECONNABORTED" "ECONNREFUSED" "ECONNRESET" "EDEADLK"
-	     "EDEADLOCK" "EDESTADDRREQ" #+linux "EDOTDOT" #+linux "EDQUOT"
-	     "EHOSTDOWN" "EHOSTUNREACH" "EIDRM" "EILSEQ" "EINPROGRESS"
-	     "EISCONN" #+linux "EISNAM" "EL2HLT" "EL2NSYNC" "EL3HLT"
-	     "EL3RST" "ELIBACC" "ELIBBAD" "ELIBEXEC" "ELIBMAX" "ELIBSCN"
-	     "ELNRNG" "ELOOP" "EMSGSIZE" "EMULTIHOP" "ENAMETOOLONG"
-	     #+linux "ENAVAIL" "ENETDOWN" "ENETRESET" "ENETUNREACH" "ENOANO"
-	     "ENOBUFS" "ENOCSI" "ENODATA" "ENOLCK" "ENOLINK" "ENOMSG" "ENONET"
-	     "ENOPKG" "ENOPROTOOPT" "ENOSR" "ENOSTR" "ENOSYS" "ENOTCONN"
-	     "ENOTEMPTY" #+linux "ENOTNAM" "ENOTSOCK" #+svr4 "ENOTSUP"
-	     "ENOTUNIQ" "EOPNOTSUPP" "EOVERFLOW" "EPFNOSUPPORT" "EPROTO"
-	     "EPROTONOSUPPORT" "EPROTOTYPE" "EREMCHG" "EREMOTE"
-	     #+linux "EREMOTEIO" "ERESTART" "ESHUTDOWN" "ESOCKTNOSUPPORT"
-	     "ESRMNT" "ESTALE" "ESTRPIPE" "ETIME" "ETIMEDOUT" "ETOOMANYREFS"
-	     #+linux "EUCLEAN" "EUNATCH" "EUSERS" "EWOULDBLOCK" "EXFULL"
-	     #+linux "SIGSTKFLT"))
+  (:export "CADDR-T" "D-INO" "D-NAME" "D-NAMLEN" "D-OFF" "D-RECLEN"
+	   "DADDR-T" "DEV-T" "DIRECT" "EXECGRP" "EXECOTH" "EXECOWN" "EXECALL"
+	   "F-DUPFD"
+	   "F-GETFD" "F-GETFL" "F-GETOWN" "F-SETFD" "F-SETFL" "F-SETOWN"
+	   "FAPPEND" "FASYNC" "FCREAT" "FEXCL" "FIONREAD" "FNDELAY" "FTRUNC"
+	   "F_OK" "GET-TIMEZONE" "GET-UNIX-ERROR-MSG" "GID-T" "INO-T" "IT-INTERVAL"
+	   "IT-VALUE" "ITIMERVAL" "UNIX-SETITIMER" "UNIX-GETITIMER"
+	   "KBDCGET" "KBDCRESET" "KBDCRST" "KBDCSET"
+	   "KBDCSSTD" "KBDGCLICK" "KBDSCLICK" "KBDSGET" "L_INCR" "L_SET"
+	   "L_XTND" "OFF-T" "O_APPEND" "O_CREAT" "O_EXCL" "O_RDONLY" "O_RDWR"
+	   "O_TRUNC" "O_WRONLY" "READGRP" "READOTH" "READOWN" "READALL"
+	   "RLIM-CUR" "RLIM-MAX" "RLIMIT"
+	   "RU-IDRSS" "RU-INBLOCK" "RU-ISRSS" "RU-IXRSS"
+	   "RU-MAJFLT" "RU-MAXRSS" "RU-MINFLT" "RU-MSGRCV" "RU-MSGSND"
+	   "RU-NIVCSW" "RU-NSIGNALS" "RU-NSWAP" "RU-NVCSW" "RU-OUBLOCK"
+	   "RU-STIME" "RU-UTIME" "RUSAGE_CHILDREN" "RUSAGE_SELF" "RUSEAGE"
+	   "R_OK" "S-IEXEC" "S-IFBLK" "S-IFCHR" "S-IFDIR" "S-IFLNK" "S-IFMT"
+	   "S-IFREG" "S-IFSOCK" "S-IREAD" "S-ISGID" "S-ISUID" "S-ISVTX"
+	   "S-IWRITE" "SAVETEXT" "SC-MASK" "SC-ONSTACK" "SC-PC" "SETGIDEXEC"
+	   "SETUIDEXEC" "SG-ERASE" "SG-FLAGS" "SG-ISPEED" "SG-KILL"
+	   "SG-OSPEED" "SGTTYB" "SIGCONTEXT" "SIZE-T" "ST-ATIME" "ST-BLKSIZE"
+	   "ST-BLOCKS" "ST-CTIME" "ST-DEV" "ST-GID" "ST-MODE" "ST-MTIME"
+	   "ST-NLINK" "ST-RDEV" "ST-SIZE" "ST-UID" "STAT" "SWBLK-T" "T-BRKC"
+	   "T-DSUSPC" "T-EOFC" "T-FLUSHC" "T-INTRC" "T-LNEXTC" "T-QUITC"
+	   "T-RPRNTC" "T-STARTC" "T-STOPC" "T-SUSPC" "T-WERASC" "TCHARS"
+	   "TERMINAL-SPEEDS" "TIME-T" "TIMEVAL" "TIMEZONE" "TIOCFLUSH"
+	   "TIOCGETC" "TIOCGETP" "TIOCGLTC" "TIOCGPGRP" "TIOCGWINSZ"
+	   "TIOCNOTTY" "TIOCSETC" "TIOCSETP" "TIOCSLTC" "TIOCSPGRP"
+	   "TIOCSWINSZ" "TTY-CBREAK" "TTY-CRMOD" "TTY-LCASE"
+	   "TTY-RAW" "TTY-TANDEM" "TV-SEC" "TV-USEC" "TZ-DSTTIME"
+	   "TZ-MINUTESWEST" "UID-T" "UNIX-ACCEPT" "UNIX-ACCESS" "UNIX-BIND"
+	   "UNIX-CHDIR" "UNIX-CHMOD" "UNIX-CHOWN" "UNIX-CLOSE" "UNIX-CONNECT"
+	   "UNIX-CREAT" "UNIX-CURRENT-DIRECTORY" "UNIX-DUP" "UNIX-DUP2"
+	   "UNIX-ERRNO" "UNIX-EXECVE" "UNIX-EXIT" "UNIX-FCHMOD" "UNIX-FCHOWN"
+	   "UNIX-FCNTL" "UNIX-FD" "UNIX-FILE-MODE" "UNIX-FORK" "UNIX-FSTAT"
+	   "UNIX-FSYNC" "UNIX-FTRUNCATE" "UNIX-GETDTABLESIZE" "UNIX-GETEGID"
+	   "UNIX-GETGID" "UNIX-GETDOMAINNAME" "UNIX-GETHOSTID" "UNIX-GETHOSTNAME"
+	   "UNIX-GETPAGESIZE"  "UNIX-GETPEERNAME" "UNIX-GETPGRP"
+	   "UNIX-GETPID" "UNIX-GETPPID" "UNIX-GETRUSAGE" "UNIX-GETSOCKNAME"
+	   "UNIX-GETSOCKOPT" "UNIX-GETTIMEOFDAY" "UNIX-GETUID" "UNIX-GID"
+	   "UNIX-IOCTL" "UNIX-ISATTY" "UNIX-LINK" "UNIX-LISTEN" "UNIX-LSEEK"
+	   "UNIX-LSTAT" "UNIX-MKDIR" "UNIX-OPEN" "UNIX-OPENPTY"
+	   "UNIX-PATHNAME" "UNIX-PID"
+	   "UNIX-PIPE" "UNIX-READ" "UNIX-READLINK" "UNIX-RECV" "UNIX-RENAME"
+	   "UNIX-RMDIR" "UNIX-SCHED-YIELD" "UNIX-SELECT"
+	   "UNIX-SEND" "UNIX-SETPGID" "UNIX-SETPGRP"
+	   "UNIX-SETREGID" "UNIX-SETREUID" "UNIX-SETSOCKOPT" "UNIX-SOCKET"
+	   "UNIX-STAT" "UNIX-SYMLINK" "UNIX-SYNC"
+	   "UNIX-TIMES" "UNIX-TRUNCATE" "UNIX-TTYNAME"
+	   "UNIX-UID" "UNIX-UNLINK" "UNIX-UTIMES" "UNIX-WRITE"
+	   "UNIX-USER-NAME" "UNIX-USER-SHELL" "UNIX-USER-FULL-NAME"
+	   "WINSIZE"
+	   "WRITEGRP" "WRITEOTH" "WRITEOWN" "WRITEALL"
+	   "WS-COL" "WS-ROW" "WS-XPIXEL"
+	   "WS-YPIXEL" "W_OK" "X_OK" "SIGSYS" "TCSETPGRP" "FD-ZERO"
+	   "SIGEMSG" "SIGQUIT" "SIGCHLD" "SIGSEGV" "FD-CLR" "SIGUSR2"
+	   "EALREADY" "SIGPIPE" "EACCES" "CHECK" "SIGXCPU" "EOPNOTSUPP"
+	   "SIGFPE" "SIGHUP" "ENOTSOCK" "OPEN-DIR" "SIGMASK" "EINTR"
+	   "SIGCONT" "UNIX-RESOLVE-LINKS" "SIGKILL" "EMSGSIZE" "ERANGE"
+	   "EPROTOTYPE" "UNIX-SIGNAL-NUMBER" "EPFNOSUPPORT" "SIGILL"
+	   "EDOM" "UNIX-SIGPAUSE" "EDQUOT" "FD-SETSIZE" "SIGTSTP"
+	   "EAFNOSUPPORT" "TCGETPGRP" "EMFILE" "ECONNRESET"
+	   "EADDRNOTAVAIL" "SIGALRM" "ENETDOWN" "EVICEOP"
+	   "UNIX-FAST-GETRUSAGE" "EPERM" "SIGINT" "EXDEV" "EDEADLK"
+	   "ENOSPC" "ECONNREFUSED" "SIGWINCH" "ENOPROTOOPT" "ESRCH"
+	   "EUSERS" "SIGVTALRM" "ENOTCONN" "ESUCCESS" "EPIPE"
+	   "UNIX-SIMPLIFY-PATHNAME" "EISCONN" "FD-ISSET" "SIGMSG"
+	   "ESHUTDOWN" "EBUSY" "SIGTERM" "ENAMETOOLONG" "EMLINK"
+	   "EADDRINUSE" "SIGBUS" "ERESTART" "TTY-PROCESS-GROUP"
+	   "UNIX-SIGNAL-NAME" "ETIMEDOUT" "ECHILD" "EFBIG" "SIGTRAP"
+	   "UNIX-KILLPG" "ENOTBLK" "SIGIOT" "SIGUSR1" "ECONNABORTED"
+	   "EHOSTUNREACH" "EBADF" "EINVAL" "FD-SET" "CLOSE-DIR" "EISDIR"
+	   "SIGTTIN" "UNIX-KILL" "ENOTDIR" "EHOSTDOWN" "E2BIG" "ESPIPE"
+	   "UNIX-FAST-SELECT" "ENXIO" "ENOTTY" "ELOOP" "LTCHARS"
+	   "UNIX-SIGNAL-DESCRIPTION" "SIGXFSZ" "EINPROGRESS" "ENOENT"
+	   "EPROTONOSUPPORT" "UNIX-SIGBLOCK" "SIGIO" "ENOMEM" "SIGEMT"
+	   "EFAULT" "ENODEV" "EIO" "EVICEERR" "ETXTBSY" "EWOULDBLOCK"
+	   "EAGAIN" "EDESTADDRREQ" "ENOEXEC" "ENETUNREACH" "ENOTEMPTY"
+	   "READ-DIR" "UNIX-MAYBE-PREPEND-CURRENT-DIRECTORY" "ENFILE"
+	   "SIGTTOU" "EEXIST" "SIGPROF" "SIGSTOP" "ENETRESET" "SIGURG"
+	   "ENOBUFS" "EPROCLIM" "EROFS" "ETOOMANYREFS" "UNIX-FILE-KIND"
+	   "ELOCAL" "UNIX-SIGSETMASK" "EREMOTE" "ESOCKTNOSUPPORT"
+	   "TIOCSIGSEND" "SIGWAITING" "SIGABRT"
+	   "C-IFLAG" "UNIX-TCGETATTR" "C-LFLAG" "C-OFLAG" "C-CFLAG"
+	   "TCSAFLUSH" "C-CC" "C-ISPEED" "C-OSPEED" "SIOCSPGRP" "TERMIOS"
+	   "UNIX-TCSETATTR" "O_NDELAY" "O_NOCTTY"
+	   "O_NONBLOCK" "TCSANOW" "TCSADRAIN" "TCIFLUSH" "TCOFLUSH"
+	   "TCIOFLUSH" "UNIX-CFGETOSPEED" "UNIX-CFSETOSPEED"
+	   "UNIX-CFGETISPEED" "UNIX-CFSETISPEED"
+	   "TTY-IGNBRK" "TTY-BRKINT" "TTY-IGNPAR" "TTY-PARMRK"
+	   "TTY-INPCK" "TTY-ISTRIP" "TTY-INLCR" "TTY-IGNCR" "TTY-ICRNL"
+	   "TTY-IUCLC" "TTY-IXON" "TTY-IXANY" "TTY-IXOFF" "TTY-IENQAK"
+	   "TTY-IMAXBEL" "TTY-OPOST" "TTY-OLCUC" "TTY-ONLCR" "TTY-OCRNL"
+	   "TTY-ONOCR" "TTY-ONLRET" "TTY-OFILL" "TTY-OFDEL" "TTY-ISIG"
+	   "TTY-ICANON" "TTY-XCASE" "TTY-ECHO" "TTY-ECHOE" "TTY-ECHOK"
+	   "TTY-ECHONL" "TTY-NOFLSH" "TTY-IEXTEN" "TTY-TOSTOP" "TTY-ECHOCTL"
+	   "TTY-ECHOPRT" "TTY-ECHOKE"  "TTY-DEFECHO" "TTY-FLUSHO"
+	   "TTY-PENDIN" "TTY-CSTOPB" "TTY-CREAD" "TTY-PARENB" "TTY-PARODD"
+	   "TTY-HUPCL" "TTY-CLOCAL" "RCV1EN" "XMT1EN" "TTY-LOBLK" "VINTR"
+	   "VQUIT" "VERASE" "VKILL" "VEOF" "VEOL" "VEOL2" "TTY-CBAUD"
+	   "TTY-CSIZE" "TTY-CS5" "TTY-CS6" "TTY-CS7" "TTY-CS8" "VMIN" "VTIME"
+	   "VSUSP" "VSTART" "VSTOP" "VDSUSP" "UNIX-TCSENDBREAK"
+	   "UNIX-TCDRAIN" "UNIX-TCFLUSH" "UNIX-TCFLOW"
+	   #+(or svr4 freebsd linux) "O_NDELAY")
+  #+(or svr4 linux)
+  (:export "EADDRINUSE" "EADDRNOTAVAIL" "EADV" "EAFNOSUPPORT"
+	   "EALREADY" "EBADE" "EBADFD" "EBADMSG" "EBADR" "EBADRQC"
+	   "EBADSLT" "EBFONT" #+svr4 "ECANCELED" "ECHRNG" "ECOMM"
+	   "ECONNABORTED" "ECONNREFUSED" "ECONNRESET" "EDEADLK"
+	   "EDEADLOCK" "EDESTADDRREQ" #+linux "EDOTDOT" #+linux "EDQUOT"
+	   "EHOSTDOWN" "EHOSTUNREACH" "EIDRM" "EILSEQ" "EINPROGRESS"
+	   "EISCONN" #+linux "EISNAM" "EL2HLT" "EL2NSYNC" "EL3HLT"
+	   "EL3RST" "ELIBACC" "ELIBBAD" "ELIBEXEC" "ELIBMAX" "ELIBSCN"
+	   "ELNRNG" "ELOOP" "EMSGSIZE" "EMULTIHOP" "ENAMETOOLONG"
+	   #+linux "ENAVAIL" "ENETDOWN" "ENETRESET" "ENETUNREACH" "ENOANO"
+	   "ENOBUFS" "ENOCSI" "ENODATA" "ENOLCK" "ENOLINK" "ENOMSG" "ENONET"
+	   "ENOPKG" "ENOPROTOOPT" "ENOSR" "ENOSTR" "ENOSYS" "ENOTCONN"
+	   "ENOTEMPTY" #+linux "ENOTNAM" "ENOTSOCK" #+svr4 "ENOTSUP"
+	   "ENOTUNIQ" "EOPNOTSUPP" "EOVERFLOW" "EPFNOSUPPORT" "EPROTO"
+	   "EPROTONOSUPPORT" "EPROTOTYPE" "EREMCHG" "EREMOTE"
+	   #+linux "EREMOTEIO" "ERESTART" "ESHUTDOWN" "ESOCKTNOSUPPORT"
+	   "ESRMNT" "ESTALE" "ESTRPIPE" "ETIME" "ETIMEDOUT" "ETOOMANYREFS"
+	   #+linux "EUCLEAN" "EUNATCH" "EUSERS" "EWOULDBLOCK" "EXFULL"
+	   #+linux "SIGSTKFLT")
+  (:documentation "Interfaces to generic BSD and GNU libc Unixes."))
 
-(defpackage "FORMAT")
+(defpackage "FORMAT"
+  (:export "DIRECTIVE-COUNT"))
 
-(defpackage "COMMON-LISP"
-	    (:nicknames "CL" "LISP")
-	    (:export "&ALLOW-OTHER-KEYS" "&AUX" "&BODY" "&ENVIRONMENT" "&KEY"
-             "&OPTIONAL" "&REST" "&WHOLE" "*" "**" "***"
-             "*BREAK-ON-SIGNALS*"
-             "*COMPILE-FILE-PATHNAME*" "*COMPILE-FILE-TRUENAME*"
-             "*COMPILE-PRINT*" "*COMPILE-VERBOSE*" "*DEBUG-IO*"
-             "*DEBUGGER-HOOK*" "*DEFAULT-PATHNAME-DEFAULTS*"
-	     "*ERROR-OUTPUT*"
-             "*FEATURES*" "*GENSYM-COUNTER*" "*LOAD-PATHNAME*"
-             "*LOAD-PRINT*" "*LOAD-TRUENAME*" "*LOAD-VERBOSE*"
-             "*MACROEXPAND-HOOK*" "*MODULES*" "*PACKAGE*" "*PRINT-ARRAY*"
-             "*PRINT-BASE*" "*PRINT-CASE*" "*PRINT-CIRCLE*"
-             "*PRINT-ESCAPE*" "*PRINT-GENSYM*" "*PRINT-LENGTH*"
-             "*PRINT-LEVEL*" "*PRINT-LINES*" "*PRINT-MISER-WIDTH*"
-             "*PRINT-PPRINT-DISPATCH*" "*PRINT-PRETTY*" "*PRINT-RADIX*"
-             "*PRINT-READABLY*" "*PRINT-RIGHT-MARGIN*" "*QUERY-IO*"
-             "*RANDOM-STATE*" "*READ-BASE*" "*READ-DEFAULT-FLOAT-FORMAT*"
-             "*READ-EVAL*" "*READ-SUPPRESS*" "*READTABLE*"
-             "*STANDARD-INPUT*" "*STANDARD-OUTPUT*" "*TERMINAL-IO*"
-             "*TRACE-OUTPUT*" "+" "++" "+++" "-" "/" "//" "///" "/=" "1+"
-             "1-" "<" "<=" "=" ">" ">=" "ABORT" "ABS" "ACONS" "ACOS"
-             "ACOSH" "ADJOIN" "ADJUST-ARRAY" "ADJUSTABLE-ARRAY-P"
-             "ALPHA-CHAR-P" "ALPHANUMERICP" "AND" "APPEND" "APPLY"
-	     "APROPOS" "APROPOS-LIST" "AREF" "ARITHMETIC-ERROR"
-             "ARITHMETIC-ERROR-OPERANDS" "ARITHMETIC-ERROR-OPERATION"
-             "ARRAY" "ARRAY-DIMENSION" "ARRAY-DIMENSION-LIMIT"
-             "ARRAY-DIMENSIONS" "ARRAY-DISPLACEMENT" "ARRAY-ELEMENT-TYPE"
-             "ARRAY-HAS-FILL-POINTER-P" "ARRAY-IN-BOUNDS-P" "ARRAY-RANK"
-             "ARRAY-RANK-LIMIT" "ARRAY-ROW-MAJOR-INDEX" "ARRAY-TOTAL-SIZE"
-             "ARRAY-TOTAL-SIZE-LIMIT" "ARRAYP" "ASH" "ASIN" "ASINH"
-             "ASSERT" "ASSOC" "ASSOC-IF" "ASSOC-IF-NOT" "ATAN" "ATANH"
-             "ATOM" "BASE-CHAR" "BASE-STRING" "BIGNUM"
-             "BIT" "BIT-AND" "BIT-ANDC1" "BIT-ANDC2" "BIT-EQV" "BIT-IOR"
-             "BIT-NAND" "BIT-NOR" "BIT-NOT" "BIT-ORC1" "BIT-ORC2"
-             "BIT-VECTOR" "BIT-VECTOR-P" "BIT-XOR" "BLOCK" "BOOLE" "BOOLEAN"
-             "BOOLE-1" "BOOLE-2" "BOOLE-AND" "BOOLE-ANDC1" "BOOLE-ANDC2"
-             "BOOLE-C1" "BOOLE-C2" "BOOLE-CLR" "BOOLE-EQV" "BOOLE-IOR"
-             "BOOLE-NAND" "BOOLE-NOR" "BOOLE-ORC1" "BOOLE-ORC2" "BOOLE-SET"
-             "BOOLE-XOR" "BOTH-CASE-P" "BOUNDP" "BREAK"
-	     "BROADCAST-STREAM" "BROADCAST-STREAM-STREAMS" "BUILT-IN-CLASS"
-	     "BUTLAST" "BYTE" "BYTE-POSITION" "BYTE-SIZE"
-	     "CAAAAR" "CAAADR" "CAAAR" "CAADAR" "CAADDR" "CAADR" "CAAR"
-	     "CADAAR" "CADADR" "CADAR" "CADDAR" "CADDDR" "CADDR" "CADR"
-	     "CALL-ARGUMENTS-LIMIT" "CAR" "CASE"
-             "CATCH" "CCASE" "CDAAAR" "CDAADR" "CDAAR" "CDADAR" "CDADDR"
-             "CDADR" "CDAR" "CDDAAR" "CDDADR" "CDDAR" "CDDDAR" "CDDDDR"
-             "CDDDR" "CDDR" "CDR" "CEILING" "CELL-ERROR" "CERROR" "CHAR"
-	     "CHAR-CODE" "CHAR-CODE-LIMIT" "CHAR-DOWNCASE"
-             "CHAR-EQUAL" "CHAR-GREATERP" "CHAR-INT" "CHAR-LESSP"
-             "CHAR-NAME" "CHAR-NOT-EQUAL" "CHAR-NOT-GREATERP"
-             "CHAR-NOT-LESSP" "CHAR-UPCASE" "CHAR/="
-             "CHAR<" "CHAR<=" "CHAR=" "CHAR>" "CHAR>=" "CHARACTER"
-             "CHARACTERP" "CHECK-TYPE" "CIS" "CLASS" "CLASS-OF" "CLASS-NAME"
-	     "CLEAR-INPUT" "CLEAR-OUTPUT"
-             "CLOSE" "CLRHASH" "CODE-CHAR" "COERCE"
-             "COMPILATION-SPEED" "COMPILE" "COMPILE-FILE"
-	     "COMPILE-FILE-PATHNAME"
-             "COMPILED-FUNCTION" "COMPILED-FUNCTION-P"
-	     "COMPILER-MACRO" "COMPILER-MACRO-FUNCTION" "COMPILER-MACROEXPAND"
-	     "COMPILER-MACROEXPAND-1" "COMPLEMENT" "COMPLEX"
-	     "COMPLEXP" "COMPUTE-RESTARTS" "CONCAT" "CONCATENATE"
-	     "CONCATENATED-STREAM" "CONCATENATED-STREAM-STREAMS"
-	     "COND" "CONDITION"
-             "CONJUGATE" "CONS" "CONSP" "CONSTANTLY" "CONSTANTP" "CONTINUE"
-             "CONTROL-ERROR" "COPY-ALIST" "COPY-LIST"
-             "COPY-PPRINT-DISPATCH" "COPY-READTABLE" "COPY-SEQ"
-	     "COPY-STRUCTURE"
-             "COPY-SYMBOL" "COPY-TREE" "COS" "COSH" "COUNT" "COUNT-IF"
-             "COUNT-IF-NOT" "CTYPECASE"
-	     "DAYS-PER-MONTH"
-	     "DEBUG" "DECF" "DECLAIM"
-             "DECLARATION" "DECLARE" "DECODE-FLOAT" "DECODE-UNIVERSAL-TIME"
-             "DEFCONSTANT" "DEFINE-COMPILER-MACRO" "DEFINE-CONDITION"
-             "DEFINE-MODIFY-MACRO" "DEFINE-SETF-METHOD" "DEFINE-SYMBOL-MACRO"
-	     "DEFMACRO" "DEFPACKAGE"
-             "DEFPARAMETER" "DEFSETF" "DEFSTRUCT" "DEFTYPE" "DEFUN" "DEFVAR"
-             "DELETE" "DELETE-DUPLICATES" "DELETE-FILE" "DELETE-IF"
-             "DELETE-IF-NOT" "DELETE-PACKAGE"
-	     "DENOMINATOR" "DEPOSIT-FIELD" "DESCRIBE"
-             "DESTRUCTURING-BIND" "DIGIT-CHAR" "DIGIT-CHAR-P" "DIRECTORY"
-             "DIRECTORY-NAMESTRING" "DISASSEMBLE" "DIVISION-BY-ZERO" "DO" "DO*"
-             "DO-ALL-SYMBOLS" "DO-EXTERNAL-SYMBOLS" "DO-SYMBOLS"
-             "DOCUMENTATION" "DOLIST" "DOTIMES" "DOUBLE-FLOAT"
-             "DOUBLE-FLOAT-EPSILON" "DOUBLE-FLOAT-NEGATIVE-EPSILON" "DPB"
-             "DRIBBLE" "DYNAMIC-EXTENT"
-	     "ECASE" "ECHO-STREAM" "ECHO-STREAM-INPUT-STREAM"
-	     "ECHO-STREAM-OUTPUT-STREAM"
-	     "ED" "EIGHTH" "ELT" "ENCODE-UNIVERSAL-TIME"
-             "END-OF-FILE" "ENDP" "ENOUGH-NAMESTRING"
-	     "ENSURE-DIRECTORIES-EXIST" "EQ" "EQL" "EQUAL"
-             "EQUALP" "ERROR" "ETYPECASE" "EVAL" "EVAL-WHEN" "EVENP"
-             "EVERY" "EXP" "EXPORT" "EXPT" "EXTENDED-CHAR" "FBOUNDP" "FCEILING"
-             "FDEFINITION" "FFLOOR" "FIFTH" "FILE-AUTHOR" "FILE-ERROR"
-             "FILE-ERROR-PATHNAME" "FILE-LENGTH" "FILE-MODE" "FILE-NAMESTRING"
-             "FILE-POSITION" "FILE-STREAM" "FILE-STRING-LENGTH"
-	     "FILE-WRITE-DATE" "FILL" "FILL-POINTER" "FIND"
-             "FIND-ALL-SYMBOLS" "FIND-CLASS"
-	     "FIND-IF" "FIND-IF-NOT" "FIND-PACKAGE"
-             "FIND-RESTART" "FIND-SYMBOL" "FINISH-OUTPUT" "FIRST" "FIXNUM"
-             "FLET" "FLOAT" "FLOAT-DIGITS" "FLOAT-PRECISION" "FLOAT-RADIX"
-             "FLOAT-SIGN" "FLOATING-POINT-INEXACT"
-	     "FLOATING-POINT-INVALID-OPERATION"
-	     "FLOATING-POINT-OVERFLOW" "FLOATING-POINT-UNDERFLOW"
-             "FLOATP" "FLOOR" "FMAKUNBOUND" "FORCE-OUTPUT" "FORMAT" "FORMATTER"
-             "FOURTH" "FRESH-LINE" "FROUND" "FTRUNCATE" "FTYPE" "FUNCALL"
-             "FUNCTION" "FUNCTION-LAMBDA-EXPRESSION" "FUNCTIONP"
-	     "GCD" "GENERIC-FUNCTION" "GENSYM"
-             "GENTEMP" "GET" "GET-DECODED-TIME" "GET-DISPATCH-MACRO-CHARACTER"
-             "GET-INTERNAL-REAL-TIME" "GET-INTERNAL-RUN-TIME"
-             "GET-MACRO-CHARACTER" "GET-OUTPUT-STREAM-STRING" "GET-PROPERTIES"
-             "GET-SETF-METHOD" "GET-SETF-METHOD-MULTIPLE-VALUE"
-             "GET-UNIVERSAL-TIME" "GETF" "GETHASH" "GO" "GRAPHIC-CHAR-P"
-             "HANDLER-BIND" "HANDLER-CASE" "HASH-TABLE" "HASH-TABLE-COUNT"
-             "HASH-TABLE-P" "HASH-TABLE-REHASH-THRESHOLD"
-	     "HASH-TABLE-REHASH-SIZE" "HASH-TABLE-SIZE" "HASH-TABLE-TEST"
-	     "HOST-NAMESTRING" "IDENTITY" "IF" "IGNORABLE"
-             "IGNORE" "IGNORE-ERRORS" "IMAGPART" "IMPORT" "IN-PACKAGE"
-	     "INTERACTIVE-STREAM-P" "INTERNAL-REAL-TO-UNIVERSAL-TIME" "INCF"
-             "INLINE" "INPUT-STREAM-P" "INSPECT" "INTEGER"
-             "INTEGER-DECODE-FLOAT" "INTEGER-LENGTH" "INTEGERP" "INTERN"
-             "INTERNAL-TIME-UNITS-PER-SECOND" "INTERSECTION" "INVOKE-DEBUGGER"
-             "INVOKE-RESTART" "INVOKE-RESTART-INTERACTIVELY" "ISQRT" "KEYWORD"
-             "KEYWORDP" "LABELS" "LAMBDA" "LAMBDA-LIST-KEYWORDS"
-             "LAMBDA-PARAMETERS-LIMIT" "LAST" "LCM" "LDB" "LDB-TEST" "LDIFF"
-             "LEAST-NEGATIVE-DOUBLE-FLOAT" "LEAST-NEGATIVE-LONG-FLOAT"
-	     "LEAST-NEGATIVE-NORMALIZED-DOUBLE-FLOAT"
-	     "LEAST-NEGATIVE-NORMALIZED-LONG-FLOAT"
-	     "LEAST-NEGATIVE-NORMALIZED-SHORT-FLOAT"
-	     "LEAST-NEGATIVE-NORMALIZED-SINGLE-FLOAT"
-             "LEAST-NEGATIVE-SHORT-FLOAT" "LEAST-NEGATIVE-SINGLE-FLOAT"
-             "LEAST-POSITIVE-DOUBLE-FLOAT" "LEAST-POSITIVE-LONG-FLOAT"
-             "LEAST-POSITIVE-NORMALIZED-DOUBLE-FLOAT"
-             "LEAST-POSITIVE-NORMALIZED-LONG-FLOAT"
-             "LEAST-POSITIVE-NORMALIZED-SHORT-FLOAT"
-             "LEAST-POSITIVE-NORMALIZED-SINGLE-FLOAT"
-             "LEAST-POSITIVE-SHORT-FLOAT" "LEAST-POSITIVE-SINGLE-FLOAT"
-             "LENGTH" "LET" "LET*" "LISP-IMPLEMENTATION-TYPE"
-             "LISP-IMPLEMENTATION-VERSION" "LIST" "LIST*" "LIST-ALL-PACKAGES"
-             "LIST-LENGTH" "LISTEN" "LISTP" "LOAD"
-	     "LOAD-LOGICAL-PATHNAME-TRANSLATIONS" "LOAD-TIME-VALUE" "LOCALLY"
-             "LOG" "LOGAND" "LOGANDC1" "LOGANDC2" "LOGBITP" "LOGCOUNT" "LOGEQV"
-	     "LOGICAL-PATHNAME"
-             "LOGICAL-PATHNAME-P"
-	     "LOGICAL-PATHNAME-TRANSLATIONS"
-	     "LOGIOR" "LOGNAND" "LOGNOR" "LOGCOM" "LOGNOT" "LOGORC1" "LOGORC2" "LOGTEST"
-             "LOGXOR" "LONG-FLOAT" "LONG-FLOAT-EPSILON"
-             "LONG-FLOAT-NEGATIVE-EPSILON" "LONG-SITE-NAME" "LONGEST-LENGTH"
-	     "LOOP"
-             "LOOP-FINISH" "LOWER-CASE-P" "MACHINE-INSTANCE" "MACHINE-TYPE"
-             "MACHINE-VERSION" "MACRO-FUNCTION" "MACROEXPAND" "MACROEXPAND-1"
-             "MACROLET" "MAKE-ARRAY" "MAKE-BROADCAST-STREAM"
-             "MAKE-CONCATENATED-STREAM" "MAKE-CONDITION"
-             "MAKE-DISPATCH-MACRO-CHARACTER" "MAKE-ECHO-STREAM"
-             "MAKE-HASH-TABLE" "MAKE-LIST" "MAKE-PACKAGE" "MAKE-PATHNAME"
-             "MAKE-RANDOM-STATE" "MAKE-SEQUENCE" "MAKE-STRING"
-             "MAKE-STRING-INPUT-STREAM" "MAKE-STRING-OUTPUT-STREAM"
-             "MAKE-SYMBOL" "MAKE-SYNONYM-STREAM" "MAKE-TWO-WAY-STREAM"
-             "MAKUNBOUND" "MAP" "MAP-INTO" "MAPC" "MAPCAN" "MAPCAR" "MAPCON"
-	     "MAPCONCAT"
-	     "MAPHASH" "MAPL" "MAPLIST" "MASK-FIELD" "MAX" "MEMBER" "MEMBER-IF"
-             "MEMBER-IF-NOT" "MERGE" "MERGE-PATHNAMES" "MIN" "MINUSP"
-             "MISMATCH" "MOD" "MOST-NEGATIVE-DOUBLE-FLOAT"
-             "MOST-NEGATIVE-FIXNUM" "MOST-NEGATIVE-LONG-FLOAT"
-             "MOST-NEGATIVE-SHORT-FLOAT" "MOST-NEGATIVE-SINGLE-FLOAT"
-             "MOST-POSITIVE-DOUBLE-FLOAT" "MOST-POSITIVE-FIXNUM"
-             "MOST-POSITIVE-LONG-FLOAT" "MOST-POSITIVE-SHORT-FLOAT"
-             "MOST-POSITIVE-SINGLE-FLOAT" "MUFFLE-WARNING"
-             "MULTIPLE-VALUE-BIND" "MULTIPLE-VALUE-CALL" "MULTIPLE-VALUE-LIST"
-             "MULTIPLE-VALUE-PROG1" "MULTIPLE-VALUE-SETQ"
-             "MULTIPLE-VALUES-LIMIT" "NAME-CHAR" "NAMESTRING" "NBUTLAST"
-             "NCONC" "NIL" "NINTERSECTION" "NINTH" "NOT" "NOTANY" "NOTEVERY"
-             "NOTINLINE" "NRECONC" "NREVERSE" "NSET-DIFFERENCE"
-             "NSET-EXCLUSIVE-OR" "NSTRING-CAPITALIZE" "NSTRING-DOWNCASE"
-             "NSTRING-UPCASE" "NSUBLIS" "NSUBST" "NSUBST-IF" "NSUBST-IF-NOT"
-             "NSUBSTITUTE" "NSUBSTITUTE-IF" "NSUBSTITUTE-IF-NOT" "NTH"
-             "NTH-VALUE" "NTHCDR" "NULL" "NUMBER" "NUMBERP" "NUMERATOR"
-             "NUNION" "ODDP" "OPEN" "OPEN-STREAM-P" "OPTIMIZE" "OR" "OTHERWISE"
-             "OUTPUT-STREAM-P" "PACKAGE" "PACKAGE-ERROR"
-             "PACKAGE-ERROR-PACKAGE" "PACKAGE-NAME" "PACKAGE-NICKNAMES"
-             "PACKAGE-SHADOWING-SYMBOLS" "PACKAGE-USE-LIST"
-             "PACKAGE-USED-BY-LIST" "PACKAGEP" "PAIRLIS" "PARSE-ERROR"
-	     "PARSE-INTEGER" "PARSE-NAMESTRING" "PATHNAME" "PATHNAME-DEVICE"
-             "PATHNAME-DIRECTORY" "PATHNAME-HOST" "PATHNAME-MATCH-P"
-             "PATHNAME-NAME" "PATHNAME-TYPE" "PATHNAME-VERSION" "PATHNAMEP"
-             "PEEK-CHAR" "PHASE" "PI" "PLUSP" "POP" "POSITION" "POSITION-IF"
-             "POSITION-IF-NOT" "PPRINT" "PPRINT-DISPATCH"
-             "PPRINT-EXIT-IF-LIST-EXHAUSTED" "PPRINT-FILL" "PPRINT-INDENT"
-             "PPRINT-LINEAR" "PPRINT-LOGICAL-BLOCK" "PPRINT-NEWLINE"
-             "PPRINT-POP" "PPRINT-TAB" "PPRINT-TABULAR" "PRIN1"
-             "PRIN1-TO-STRING" "PRINC" "PRINC-TO-STRING" "PRINT"
-             "PRINT-UNREADABLE-OBJECT" "PROBE-FILE" "PROCLAIM" "PROG" "PROG*"
-             "PROG1" "PROG2" "PROGN" "PROGRAM-ERROR" "PROGV" "PROVIDE" "PSETF"
-             "PSETQ" "PUSH" "PUSHNEW" "QUOTE" "RANDOM" "RANDOM-STATE"
-             "RANDOM-STATE-P" "RASSOC" "RASSOC-IF" "RASSOC-IF-NOT" "RATIO"
-             "RATIONAL" "RATIONALIZE" "RATIONALP" "READ" "READ-BYTE"
-             "READ-CHAR" "READ-CHAR-NO-HANG" "READ-DELIMITED-LIST"
-             "READ-FROM-STRING" "READ-LINE" "READ-PRESERVING-WHITESPACE"
-	     "READ-SEQUENCE"
-	     "READER-ERROR" "READTABLE" "READTABLE-CASE" "READTABLEP" "REAL"
-	     "REALP" "REALPART" "REDUCE" "REM" "REMF" "REMHASH"
-             "REMOVE" "REMOVE-DUPLICATES" "REMOVE-IF" "REMOVE-IF-NOT"
-             "REMPROP" "RENAME-FILE" "RENAME-PACKAGE" "REPLACE" "REQUIRE"
-             "REST" "RESTART" "RESTART-BIND" "RESTART-CASE" "RESTART-NAME"
-             "RETURN" "RETURN-FROM" "REVAPPEND" "REVERSE" "ROOM" "ROTATEF"
-             "ROUND" "ROW-MAJOR-AREF" "RPLACA" "RPLACD" "SAFETY"
-             "SATISFIES" "SBIT" "SCALE-FLOAT" "SCHAR" "SEARCH" "SECOND"
-             "SEQUENCE" "SERIOUS-CONDITION" "SET"
-             "SET-DIFFERENCE" "SET-DISPATCH-MACRO-CHARACTER"
-             "SET-EXCLUSIVE-OR" "SET-MACRO-CHARACTER" "SET-PPRINT-DISPATCH"
-             "SET-SYNTAX-FROM-CHAR" "SETF" "SETQ" "SEVENTH" "SHADOW"
-             "SHADOWING-IMPORT" "SHIFTF" "SHORT-FLOAT"
-             "SHORT-FLOAT-EPSILON" "SHORT-FLOAT-NEGATIVE-EPSILON"
-             "SHORT-SITE-NAME" "SIGNAL" "SIGNED-BYTE" "SIGNUM"
-             "SIMPLE-ARRAY" "SIMPLE-BASE-STRING" "SIMPLE-BIT-VECTOR"
-             "SIMPLE-BIT-VECTOR-P" "SIMPLE-CONDITION"
-             "SIMPLE-CONDITION-FORMAT-ARGUMENTS"
-	     "SIMPLE-CONDITION-FORMAT-CONTROL"
-             "SIMPLE-CONDITION-FORMAT-STRING" "SIMPLE-ERROR"
-             "SIMPLE-STRING" "SIMPLE-STRING-P" "SIMPLE-TYPE-ERROR"
-             "SIMPLE-VECTOR" "SIMPLE-VECTOR-P" "SIMPLE-WARNING" "SIN"
-             "SINGLE-FLOAT" "SINGLE-FLOAT-EPSILON"
-             "SINGLE-FLOAT-NEGATIVE-EPSILON" "SINH" "SIXTH" "SLEEP"
-             "SOFTWARE-TYPE" "SOFTWARE-VERSION" "SOME" "SORT" "SPACE"
-             "SPECIAL" "SPECIAL-OPERATOR-P" "SPEED" "SPLIT"
-	     "SQRT" "STABLE-SORT"
-             "STANDARD-CHAR" "STANDARD-CHAR-P" "STEP"
-             "STORAGE-CONDITION" "STORE-VALUE" "STREAM"
-             "STREAM-ELEMENT-TYPE" "STREAM-ERROR" "STREAM-ERROR-STREAM"
-	     "STREAM-EXTERNAL-FORMAT"
-	     "STREAMP" "STRING" "STRING-CAPITALIZE"
-             "STRING-DOWNCASE" "STRING-EQUAL"
-             "STRING-GREATERP" "STRING-LEFT-TRIM" "STRING-LESSP"
-             "STRING-NOT-EQUAL" "STRING-NOT-GREATERP" "STRING-NOT-LESSP"
-             "STRING-RIGHT-TRIM" "STRING-STREAM"
-	     "STRING-TRIM" "STRING-UPCASE" "STRING/="
-             "STRING<" "STRING<=" "STRING=" "STRING>" "STRING>=" "STRINGP"
-             "STRUCTURE" "STRUCTURE-CLASS" "STRUCTURE-OBJECT"
-	     "SUBLIS" "SUBSEQ" "SUBSETP" "SUBST" "SUBST-IF"
-             "SUBST-IF-NOT" "SUBSTITUTE" "SUBSTITUTE-IF"
-             "SUBSTITUTE-IF-NOT" "SUBTYPEP" "SVREF" "SXHASH" "SYMBOL"
-             "SYMBOL-FUNCTION" "SYMBOL-MACROLET" "SYMBOL-NAME"
-             "SYMBOL-PACKAGE" "SYMBOL-PLIST" "SYMBOL-VALUE" "SYMBOLP"
-	     "SYNONYM-STREAM" "SYNONYM-STREAM-SYMBOL" "T"
-             "TAGBODY" "TAILP" "TAN" "TANH" "TENTH" "TERPRI" "THE" "THIRD"
-             "THROW" "TIME" "TRACE" "TRANSLATE-LOGICAL-PATHNAME"
-	     "TRANSLATE-PATHNAME" "TREE-EQUAL"
-             "TRUENAME" "TRUNCATE" "TWO-WAY-STREAM"
-	     "TWO-WAY-STREAM-INPUT-STREAM" "TWO-WAY-STREAM-OUTPUT-STREAM"
-	     "TYPE" "TYPE-ERROR" "TYPE-ERROR-DATUM"
-             "TYPE-ERROR-EXPECTED-TYPE" "TYPE-OF" "TYPECASE" "TYPEP"
-             "UNBOUND-VARIABLE" "UNDEFINED-FUNCTION" "UNEXPORT" "UNINTERN"
-             "UNION" "UNIVERSAL-TO-INTERNAL-REAL-TIME" "UNLESS" "UNREAD-CHAR"
-	     "UNSIGNED-BYTE" "UNTRACE"
-             "UNUSE-PACKAGE" "UNWIND-PROTECT" "UPGRADED-ARRAY-ELEMENT-TYPE"
-	     "UPGRADED-COMPLEX-PART-TYPE" "UPPER-CASE-P"
-             "USE-PACKAGE" "USE-VALUE" "USER-HOMEDIR-PATHNAME" "VALUES"
-             "VALUES-LIST" "VARIABLE" "VECTOR" "VECTOR-POP" "VECTOR-PUSH"
-             "VECTOR-PUSH-EXTEND" "VECTORP" "WARN" "WARNING" "WHEN"
-             "WILD-PATHNAME-P" "WITH-COMPILATION-UNIT"
-	     "WITH-CONDITION-RESTARTS"
-             "WITH-HASH-TABLE-ITERATOR" "WITH-INPUT-FROM-STRING"
-             "WITH-OPEN-FILE" "WITH-OPEN-STREAM" "WITH-OUTPUT-TO-STRING"
-             "WITH-PACKAGE-ITERATOR" "WITH-SIMPLE-RESTART"
-             "WITH-STANDARD-IO-SYNTAX" "WRITE" "WRITE-BYTE" "WRITE-CHAR"
-             "WRITE-LINE" "WRITE-STRING" "WRITE-TO-STRING"
-	     "WRITE-SEQUENCE" "Y-OR-N-P" "YES-OR-NO-P" "ZEROP"
+(defpackage "LISP"
+  (:nicknames "COMMON-LISP" "CL")
+  (:export "&ALLOW-OTHER-KEYS" "&AUX" "&BODY" "&ENVIRONMENT" "&KEY"
+	   "&OPTIONAL" "&REST" "&WHOLE" "*" "**" "***"
+	   "*BREAK-ON-SIGNALS*"
+	   "*COMPILE-FILE-PATHNAME*" "*COMPILE-FILE-TRUENAME*"
+	   "*COMPILE-PRINT*" "*COMPILE-VERBOSE*" "*DEBUG-IO*"
+	   "*DEBUGGER-HOOK*" "*DEFAULT-PATHNAME-DEFAULTS*"
+	   "*ERROR-OUTPUT*"
+	   "*FEATURES*" "*FI" "*GENSYM-COUNTER*" "*LOAD-PATHNAME*"
+	   "*LOAD-PRINT*" "*LOAD-TRUENAME*" "*LOAD-VERBOSE*"
+	   "*MACROEXPAND-HOOK*" "*PACKAGE*" "*PRINT-ARRAY*"
+	   "*PRINT-BASE*" "*PRINT-CASE*" "*PRINT-CIRCLE*"
+	   "*PRINT-ESCAPE*" "*PRINT-GENSYM*" "*PRINT-LENGTH*"
+	   "*PRINT-LEVEL*" "*PRINT-LINES*" "*PRINT-MISER-WIDTH*"
+	   "*PRINT-PPRINT-DISPATCH*" "*PRINT-PRETTY*" "*PRINT-RADIX*"
+	   "*PRINT-READABLY*" "*PRINT-RIGHT-MARGIN*" "*QUERY-IO*"
+	   "*RANDOM-STATE*" "*READ-BASE*" "*READ-DEFAULT-FLOAT-FORMAT*"
+	   "*READ-EVAL*" "*READ-SUPPRESS*" "*READTABLE*"
+	   "*STANDARD-INPUT*" "*STANDARD-OUTPUT*" "*TERMINAL-IO*"
+	   "*TRACE-OUTPUT*" "+" "++" "+++" "-" "/" "//" "///" "/=" "1+"
+	   "1-" "<" "<=" "=" ">" ">=" "ABORT" "ABS" "ABSOLUTEP"
+	   "ACONS" "ACOS"
+	   "ACOSH" "ADD-DIR" "ADJOIN" "ADJUST-ARRAY" "ADJUSTABLE-ARRAY-P"
+	   "ALPHA-CHAR-P" "ALPHANUMERICP" "AND" "APPEND" "APPLY"
+	   "APROPOS" "APROPOS-LIST" "AREF" "ARITHMETIC-ERROR"
+	   "ARITHMETIC-ERROR-OPERANDS" "ARITHMETIC-ERROR-OPERATION"
+	   "ARRAY" "ARRAY-DIMENSION" "ARRAY-DIMENSION-LIMIT"
+	   "ARRAY-DIMENSIONS" "ARRAY-DISPLACEMENT" "ARRAY-ELEMENT-TYPE"
+	   "ARRAY-HAS-FILL-POINTER-P" "ARRAY-IN-BOUNDS-P" "ARRAY-RANK"
+	   "ARRAY-RANK-LIMIT" "ARRAY-ROW-MAJOR-INDEX" "ARRAY-TOTAL-SIZE"
+	   "ARRAY-TOTAL-SIZE-LIMIT" "ARRAYP" "ASH" "ASIN" "ASINH"
+	   "ASSERT" "ASSOC" "ASSOC=" "ASSOC-IF" "ASSOC-IF-NOT"
+	   "ATAN" "ATANH"
+	   "ATOM" "BASE-CHAR" "BASE-STRING" "BIGNUM"
+	   "BIT" "BIT-AND" "BIT-ANDC1" "BIT-ANDC2" "BIT-EQV" "BIT-IOR"
+	   "BIT-NAND" "BIT-NOR" "BIT-NOT" "BIT-ORC1" "BIT-ORC2"
+	   "BIT-VECTOR" "BIT-VECTOR-P" "BIT-XOR" "BLOCK" "BOOLE" "BOOLEAN"
+	   "BOOLE-1" "BOOLE-2" "BOOLE-AND" "BOOLE-ANDC1" "BOOLE-ANDC2"
+	   "BOOLE-C1" "BOOLE-C2" "BOOLE-CLR" "BOOLE-EQV" "BOOLE-IOR"
+	   "BOOLE-NAND" "BOOLE-NOR" "BOOLE-ORC1" "BOOLE-ORC2" "BOOLE-SET"
+	   "BOOLE-XOR" "BOTH-CASE-P" "BOUNDP" "BREAK"
+	   "BROADCAST-STREAM" "BROADCAST-STREAM-STREAMS" "BUILT-IN-CLASS"
+	   "BUTLAST" "BUILD-TIME" "BYTE" "BYTE-POSITION" "BYTE-SIZE"
+	   "CAAAAR" "CAAADR" "CAAAR" "CAADAR" "CAADDR" "CAADR" "CAAR"
+	   "CADAAR" "CADADR" "CADAR" "CADDAR" "CADDDR" "CADDR" "CADR"
+	   "CALL-ARGUMENTS-LIMIT" "CAR" "CASE" "CASE="
+	   "CATCH" "CCASE" "CCASE=" "CDAAAR" "CDAADR" "CDAAR" "CDADAR" "CDADDR"
+	   "CDADR" "CDAR" "CDDAAR" "CDDADR" "CDDAR" "CDDDAR" "CDDDDR"
+	   "CDDDR" "CDDR" "CDR" "CEILING" "CELL-ERROR" "CERROR" "CHAR"
+	   "CHAR-CODE" "CHAR-CODE-LIMIT" "CHAR-DOWNCASE"
+	   "CHAR-EQUAL" "CHAR-GREATERP" "CHAR-INT" "CHAR-LESSP"
+	   "CHAR-NAME" "CHAR-NOT-EQUAL" "CHAR-NOT-GREATERP"
+	   "CHAR-NOT-LESSP" "CHAR-UPCASE" "CHAR/="
+	   "CHAR<" "CHAR<=" "CHAR=" "CHAR>" "CHAR>=" "CHARACTER"
+	   "CHARACTERP" "CHECK-TYPE"
+	   "CIRCULAR-P" "CIS" "CLASS" "CLASS-OF" "CLASS-NAME"
+	   "CLEARF" "CLEAR-INPUT" "CLEAR-OUTPUT"
+	   "CLOSE" "CLRHASH" "CODE-CHAR" "COERCE"
+	   "COMMON-PREFIX"
+	   "COMPILATION-SPEED" "COMPILE" "COMPILE-FILE"
+	   "COMPILE-FILE-PATHNAME"
+	   "COMPILED-FUNCTION" "COMPILED-FUNCTION-P"
+	   "COMPILER-MACRO" "COMPILER-MACRO-FUNCTION" "COMPILER-MACROEXPAND"
+	   "COMPILER-MACROEXPAND-1" "COMPLEMENT" "COMPLEX"
+	   "COMPLEXP" "COMPUTE-RESTARTS" "CONCAT" "CONCATENATE"
+	   "CONCATENATED-STREAM" "CONCATENATED-STREAM-STREAMS"
+	   "COND" "CONDITION"
+	   "CONJUGATE" "CONS" "CONSP" "CONSTANTLY" "CONSTANTP" "CONTINUE"
+	   "CONTROL-ERROR" "COPY-ALIST" "COPY-FILE" "COPY-LIST"
+	   "COPY-PPRINT-DISPATCH" "COPY-READTABLE" "COPY-SEQ"
+	   "COPY-STRUCTURE"
+	   "COPY-SYMBOL" "COPY-TREE" "COS" "COSH" "COUNT" "COUNT-IF"
+	   "COUNT-IF-NOT" "CURRENT-USER" "CTYPECASE"
+	   "DAYS-PER-MONTH"
+	   "DEBUG" "DECF" "DECLAIM"
+	   "DECLARATION" "DECLARE" "DECODE-FLOAT" "DECODE-UNIVERSAL-TIME"
+	   "DEFCONSTANT" "DEFINE-COMPILER-MACRO" "DEFINE-CONDITION"
+	   "DEFINE-MODIFY-MACRO" "DEFINE-SETF-METHOD" "DEFINE-SYMBOL-MACRO"
+	   "DEFMACRO" "DEFPACKAGE"
+	   "DEFPARAMETER" "DEFSETF" "DEFSTRUCT" "DEFTYPE"
+	   "DEFUN" "DEFVAR"
+	   "DELETE" "DELETE-DIR" "DELETE-DUPLICATES" "DELETE-FILE" "DELETE-IF"
+	   "DELETE-IF-NOT" "DELETE-PACKAGE"
+	   "DENOMINATOR" "DEPOSIT-FIELD" "DESCRIBE"
+	   "DESTRUCTURING-BIND" "DIGIT-CHAR" "DIGIT-CHAR-P"
+	   "DIRECTORY" "DIRECTORIFY" "DIRECTORY-NAMESTRING" "DIRECTORY-NAME-P"
+	   "DIRECTORYP"
+	   "DISASSEMBLE" "DIVISION-BY-ZERO" "DO" "DO*"
+	   "DO-ALL-SYMBOLS" "DO-EXTERNAL-SYMBOLS" "DO-SYMBOLS"
+	   "DOCUMENTATION" "DOLIST" "DOTIMES" "DOUBLE-FLOAT"
+	   "DOUBLE-FLOAT-EPSILON" "DOUBLE-FLOAT-NEGATIVE-EPSILON" "DPB"
+	   "DRIBBLE" "DUPLICATESP" "DYNAMIC-EXTENT"
+	   "E" "ECASE" "ECASE=" "ECHO-STREAM" "ECHO-STREAM-INPUT-STREAM"
+	   "ECHO-STREAM-OUTPUT-STREAM"
+	   "ED" "EIGHTH" "ELT" "ENCODE-UNIVERSAL-TIME"
+	   "END-OF-FILE" "ENDP" "ENOUGH-NAMESTRING"
+	   "ENSURE-DIRECTORIES-EXIST" "ENSURE-TRAILING-SLASH"
+	   "EQ" "EQL" "EQUAL"
+	   "EQUALP" "ERROR" "ETYPECASE" "EVAL" "EVAL-WHEN" "EVENP"
+	   "EVERY" "EXP" "EXPORT" "EXPT" "EXTENDED-CHAR" "FBOUNDP" "FCEILING"
+	   "FDEFINITION" "FD-STREAM-READ-N-BYTES" "FFLOOR" "FI" "FI*" "FIFTH"
+	   "FILEP" "FILE-AUTHOR" "FILE-ERROR"
+	   "FILE-ERROR-PATHNAME" "FILE-LENGTH" "FILE-MODE" "FILE-NAMESTRING"
+	   "FILE-NAME-P"
+	   "FILE-POSITION" "FILE-SIZE" "FILE-STATS" "FILE-STREAM"
+	   "FILE-STRING-LENGTH" "FILE-WRITE-DATE" "FILE-KIND"
+	   "FILL" "FILL-POINTER" "FIND"
+	   "FIND-ALL-SYMBOLS" "FIND-CLASS"
+	   "FIND-IF" "FIND-IF-NOT" "FIND-PACKAGE"
+	   "FIND-RESTART" "FIND-SYMBOL" "FINISH-OUTPUT" "FIRST" "FIXNUM"
+	   "FLET" "FLOAT" "FLOAT-DIGITS" "FLOAT-PRECISION" "FLOAT-RADIX"
+	   "FLOAT-SIGN" "FLOATING-POINT-INEXACT"
+	   "FLOATING-POINT-INVALID-OPERATION"
+	   "FLOATING-POINT-OVERFLOW" "FLOATING-POINT-UNDERFLOW"
+	   "FLOATP" "FLOOR" "FMAKUNBOUND" "FORCE-OUTPUT" "FORMAT" "FORMATTER"
+	   "FOURTH" "FRESH-LINE" "FROM-FILE" "FROUND" "FTRUNCATE" "FTYPE"
+	   "FUNCALL"
+	   "FUNCTION" "FUNCTION-LAMBDA-EXPRESSION" "FUNCTION-NAME"
+	   "FUNCTION-ARGS" "FUNCTIONP"
+	   "GCD" "GENERIC-FUNCTION" "GENSYM"
+	   "GENTEMP" "GET" "GET-DECODED-TIME" "GET-DISPATCH-MACRO-CHARACTER"
+	   "GET-INTERNAL-REAL-TIME" "GET-INTERNAL-RUN-TIME"
+	   "GET-MACRO-CHARACTER" "GET-OUTPUT-STREAM-STRING" "GET-PROPERTIES"
+	   "GET-SETF-METHOD" "GET-SETF-METHOD-MULTIPLE-VALUE"
+	   "GET-UNIVERSAL-TIME" "GETF" "GETHASH" "GO" "GRAPHIC-CHAR-P"
+	   "HANDLER-BIND" "HANDLER-CASE" "HASH-TABLE" "HASH-TABLE-COUNT"
+	   "HASH-TABLE-P" "HASH-TABLE-REHASH-THRESHOLD"
+	   "HASH-TABLE-REHASH-SIZE" "HASH-TABLE-SIZE" "HASH-TABLE-TEST"
+	   "HIDDENP" "HIDDEN-NAME-P"
+	   "HOST-NAMESTRING" "HOST-PATH" "IDENTITY" "IF" "IF*" "IGNORABLE"
+	   "IGNORE" "IGNORE-ERRORS" "IMAGPART" "IMPORT" "IN-PACKAGE"
+	   "INTERACTIVE-STREAM-P" "INTERNAL-REAL-TO-UNIVERSAL-TIME" "INCF"
+	   "INLINE" "INPUT-STREAM-P" "INSPECT" "INTEGER"
+	   "INTEGER-DECODE-FLOAT" "INTEGER-LENGTH" "INTEGERP" "INTERN"
+	   "INTERNAL-TIME-UNITS-PER-SECOND" "INTERSECTION" "INVOKE-DEBUGGER"
+	   "INVOKE-RESTART" "INVOKE-RESTART-INTERACTIVELY" "ISQRT" "KEEP-IF"
+	   "KEYWORD" "KEYWORDP" "LABELS" "LAMBDA" "LAMBDA-LIST-KEYWORDS"
+	   "LAMBDA-PARAMETERS-LIMIT" "LAST" "LCM" "LDB" "LDB-TEST" "LDIFF"
+	   "LEAST-NEGATIVE-DOUBLE-FLOAT" "LEAST-NEGATIVE-LONG-FLOAT"
+	   "LEAST-NEGATIVE-NORMALIZED-DOUBLE-FLOAT"
+	   "LEAST-NEGATIVE-NORMALIZED-LONG-FLOAT"
+	   "LEAST-NEGATIVE-NORMALIZED-SHORT-FLOAT"
+	   "LEAST-NEGATIVE-NORMALIZED-SINGLE-FLOAT"
+	   "LEAST-NEGATIVE-SHORT-FLOAT" "LEAST-NEGATIVE-SINGLE-FLOAT"
+	   "LEAST-POSITIVE-DOUBLE-FLOAT" "LEAST-POSITIVE-LONG-FLOAT"
+	   "LEAST-POSITIVE-NORMALIZED-DOUBLE-FLOAT"
+	   "LEAST-POSITIVE-NORMALIZED-LONG-FLOAT"
+	   "LEAST-POSITIVE-NORMALIZED-SHORT-FLOAT"
+	   "LEAST-POSITIVE-NORMALIZED-SINGLE-FLOAT"
+	   "LEAST-POSITIVE-SHORT-FLOAT" "LEAST-POSITIVE-SINGLE-FLOAT"
+	   "LENGTH" "LET" "LET*" "LISP-IMPLEMENTATION-TYPE"
+	   "LIST" "LIST*" "LIST-ALL-PACKAGES"
+	   "LIST-LENGTH" "LISTEN" "LISTP" "LOAD"
+	   "LOAD-LOGICAL-PATHNAME-TRANSLATIONS" "LOAD-TIME-VALUE" "LOCALLY"
+	   "LOG" "LOGAND" "LOGANDC1" "LOGANDC2" "LOGBITP" "LOGCOUNT" "LOGEQV"
+	   "LOGICAL-PATHNAME"
+	   "LOGICAL-PATHNAME-P"
+	   "LOGICAL-PATHNAME-TRANSLATIONS"
+	   "LOGIOR" "LOGNAND" "LOGNOR" "LOGCOM" "LOGNOT" "LOGORC1" "LOGORC2" "LOGTEST"
+	   "LOGXOR" "LONG-FLOAT" "LONG-FLOAT-EPSILON"
+	   "LONG-FLOAT-NEGATIVE-EPSILON" "LONG-SITE-NAME" "LONGEST-LENGTH"
+	   "LOOP"
+	   "LOOP-FINISH" "LOWER-CASE-P" "MACHINE-INSTANCE" "MACHINE-TYPE"
+	   "MACHINE-VERSION" "MACRO-FUNCTION" "MACROEXPAND" "MACROEXPAND-1"
+	   "MACROLET" "MAKE-ARRAY" "MAKE-BROADCAST-STREAM"
+	   "MAKE-CONCATENATED-STREAM" "MAKE-CONDITION"
+	   "MAKE-DISPATCH-MACRO-CHARACTER" "MAKE-ECHO-STREAM"
+	   "MAKE-HASH-TABLE" "MAKE-LIST" "MAKE-PACKAGE" "MAKE-PATHNAME"
+	   "MAKE-RANDOM-STATE" "MAKE-SEQUENCE" "MAKE-STRING"
+	   "MAKE-STRING-INPUT-STREAM" "MAKE-STRING-OUTPUT-STREAM"
+	   "MAKE-SYMBOL" "MAKE-SYNONYM-STREAM" "MAKE-TWO-WAY-STREAM"
+	   "MAKUNBOUND" "MAP" "MAP-INTO" "MAPC" "MAPCAN" "MAPCAR" "MAPCON"
+	   "MAPCONCAT"
+	   "MAPHASH" "MAPL" "MAPLIST" "MASK-FIELD" "MAX" "MEMBER" "MEMBER-IF"
+	   "MEMBER-IF-NOT" "MERGE" "MERGE-PATHNAMES" "MIN" "MINUSP"
+	   "MISMATCH" "MOD" "MOST-NEGATIVE-DOUBLE-FLOAT"
+	   "MOST-NEGATIVE-FIXNUM" "MOST-NEGATIVE-LONG-FLOAT"
+	   "MOST-NEGATIVE-SHORT-FLOAT" "MOST-NEGATIVE-SINGLE-FLOAT"
+	   "MOST-POSITIVE-DOUBLE-FLOAT" "MOST-POSITIVE-FIXNUM"
+	   "MOST-POSITIVE-LONG-FLOAT" "MOST-POSITIVE-SHORT-FLOAT"
+	   "MOST-POSITIVE-SINGLE-FLOAT" "MUFFLE-WARNING"
+	   "MULTIPLE-VALUE-BIND" "MULTIPLE-VALUE-CALL" "MULTIPLE-VALUE-LIST"
+	   "MULTIPLE-VALUE-PROG1" "MULTIPLE-VALUE-SETQ"
+	   "MULTIPLE-VALUES-LIMIT" "NAME-CHAR" "NAMESTRING" "NAMIFY"
+	   "NBUTLAST"
+	   "NCONC" "NIL" "NINTERSECTION" "NINTH" "NOT" "NOTANY" "NOTEVERY"
+	   "NOTINLINE" "NRECONC" "NREVERSE" "NSET-DIFFERENCE"
+	   "NSET-EXCLUSIVE-OR" "NSTRING-CAPITALIZE" "NSTRING-DOWNCASE"
+	   "NSTRING-UPCASE" "NSUBLIS" "NSUBST" "NSUBST-IF" "NSUBST-IF-NOT"
+	   "NSUBSTITUTE" "NSUBSTITUTE-IF" "NSUBSTITUTE-IF-NOT" "NTH"
+	   "NTH-VALUE" "NTHCDR" "NULL" "NUMBER" "NUMBERP" "NUMERATOR"
+	   "NUMBER-STRING"
+	   "NUNION" "ODDP" "OPEN" "OPEN-STREAM-P" "OPTIMIZE" "OR" "OTHERWISE"
+	   "OUTPUT-STREAM-P" "PACKAGE" "PACKAGE-ERROR"
+	   "PACKAGE-ERROR-PACKAGE" "PACKAGE-NAME" "PACKAGE-NICKNAMES"
+	   "PACKAGE-SHADOWING-SYMBOLS" "PACKAGE-USE-LIST"
+	   "PACKAGE-USED-BY-LIST" "PACKAGEP" "PAIRLIS" "PARSE-ERROR"
+	   "PARSE-INTEGER" "PARSE-NAMESTRING" "PATHNAME" "PATHNAME-DEVICE"
+	   "PATHNAME-DIRECTORY" "PATHNAME-HOST" "PATHNAME-MATCH-P"
+	   "PATHNAME-NAME" "PATHNAME-TYPE" "PATHNAME-VERSION" "PATHNAMEP"
+	   "PEEK-CHAR" "PHASE" "PI" "PLUSP" "POP" "POSITION" "POSITION-IF"
+	   "POSITION-IF-NOT" "PPRINT" "PPRINT-DISPATCH"
+	   "PPRINT-EXIT-IF-LIST-EXHAUSTED" "PPRINT-FILL" "PPRINT-INDENT"
+	   "PPRINT-LINEAR" "PPRINT-LOGICAL-BLOCK" "PPRINT-NEWLINE"
+	   "PPRINT-POP" "PPRINT-TAB" "PPRINT-TABULAR" "PRIN1"
+	   "PRIN1-TO-STRING" "PRINC" "PRINC-TO-STRING" "PRINT"
+	   "PRINT-UNREADABLE-OBJECT" "PROBE-FILE" "PROCLAIM" "PROG" "PROG*"
+	   "PROG1" "PROG2" "PROGN" "PROGRAM-ERROR" "PROGV" "PSETF"
+	   "PSETQ" "PUSH" "PUSHNEW" "QUOTE" "RANDOM" "RANDOM-STATE"
+	   "RANDOM-STATE-P" "RASSOC" "RASSOC=" "RASSOC-IF" "RASSOC-IF-NOT"
+	   "RATIO"
+	   "RATIONAL" "RATIONALIZE" "RATIONALP" "READ" "READ-BYTE"
+	   "READ-CHAR" "READ-CHAR-NO-HANG" "READ-DELIMITED-LIST"
+	   "READ-FROM-STRING" "READ-LINE" "READ-PRESERVING-WHITESPACE"
+	   "READ-SEQUENCE"
+	   "READER-ERROR" "READTABLE" "READTABLE-CASE" "READTABLEP" "REAL"
+	   "REALP" "REALPART" "REDUCE" "RELATIVEP" "REM" "REMF" "REMHASH"
+	   "REMOTE-PATHNAME-HOST" "REMOTE-PATHNAME-LOCAL" "REMOTE-PATHNAME-P"
+	   "REMOVE" "REMOVE-DUPLICATES" "REMOVE-IF"
+	   "REMPROP" "RENAME-FILE" "RENAME-PACKAGE" "REPLACE"
+	   "REST" "RESTART" "RESTART-BIND" "RESTART-CASE" "RESTART-NAME"
+	   "RETURN" "RETURN-FROM" "REVAPPEND" "REVERSE" "ROOM" "ROTATEF"
+	   "ROUND" "ROW-MAJOR-AREF" "RPLACA" "RPLACD" "SAFETY"
+	   "SAFE-SUBSEQ"
+	   "SATISFIES" "SBIT" "SCALE-FLOAT" "SCHAR" "SEARCH" "SECOND"
+	   "SEQUENCE" "SERIOUS-CONDITION" "SET"
+	   "SET-DIFFERENCE" "SET-DISPATCH-MACRO-CHARACTER"
+	   "SET-EXCLUSIVE-OR" "SET-FILE-MODE" "SET-FILE-WRITE-DATE"
+	   "SET-MACRO-CHARACTER" "SET-PPRINT-DISPATCH"
+	   "SET-SYNTAX-FROM-CHAR" "SETF" "SETQ" "SEVENTH" "SHADOW"
+	   "SHADOWING-IMPORT" "SHIFTF" "SHORT-FLOAT"
+	   "SHORT-FLOAT-EPSILON" "SHORT-FLOAT-NEGATIVE-EPSILON"
+	   "SHORT-SITE-NAME" "SIGNAL" "SIGNED-BYTE" "SIGNUM"
+	   "SIMPLE-ARRAY" "SIMPLE-BASE-STRING" "SIMPLE-BIT-VECTOR"
+	   "SIMPLE-BIT-VECTOR-P" "SIMPLE-CONDITION"
+	   "SIMPLE-CONDITION-FORMAT-ARGUMENTS"
+	   "SIMPLE-CONDITION-FORMAT-CONTROL"
+	   "SIMPLE-CONDITION-FORMAT-STRING" "SIMPLE-ERROR"
+	   "SIMPLE-STRING" "SIMPLE-STRING-P" "SIMPLE-TYPE-ERROR"
+	   "SIMPLE-VECTOR" "SIMPLE-VECTOR-P" "SIMPLE-WARNING" "SIN"
+	   "SINGLE-FLOAT" "SINGLE-FLOAT-EPSILON"
+	   "SINGLE-FLOAT-NEGATIVE-EPSILON" "SINH" "SIXTH" "SLEEP"
+	   "SOFTWARE-TYPE" "SOFTWARE-VERSION" "SOME" "SORT" "SPACE"
+	   "SPECIAL" "SPECIAL-OPERATOR-P" "SPEED" "SPLIT"
+	   "SQRT" "STABLE-SORT"
+	   "STANDARD-CHAR" "STANDARD-CHAR-P" "STEP"
+	   "STORAGE-CONDITION" "STORE-VALUE" "STREAM"
+	   "STREAM-ELEMENT-TYPE" "STREAM-ERROR" "STREAM-ERROR-STREAM"
+	   "STREAM-EXTERNAL-FORMAT"
+	   "STREAMP" "STRING" "STRING-CAPITALIZE"
+	   "STRING-DOWNCASE" "STRING-EQUAL"
+	   "STRING-GREATERP" "STRING-LEFT-TRIM" "STRING-LESSP"
+	   "STRING-NOT-EQUAL" "STRING-NOT-GREATERP" "STRING-NOT-LESSP"
+	   "STRING-RIGHT-TRIM" "STRING-STREAM"
+	   "STRING-TRIM" "STRING-UPCASE" "STRING/="
+	   "STRING<" "STRING<=" "STRING=" "STRING>" "STRING>=" "STRINGP"
+	   "STRUCTURE" "STRUCTURE-CLASS" "STRUCTURE-OBJECT"
+	   "SUBLIS" "SUBSEQ" "SUBSETP" "SUBST" "SUBST-IF"
+	   "SUBST-IF-NOT" "SUBSTITUTE" "SUBSTITUTE-IF"
+	   "SUBSTITUTE-IF-NOT" "SUBTYPEP" "SVREF" "SWAP" "SXHASH" "SYMBOL"
+	   "SYMBOL-FUNCTION" "SYMBOL-MACROLET" "SYMBOL-NAME"
+	   "SYMBOL-PACKAGE" "SYMBOL-PLIST" "SYMBOL-VALUE" "SYMBOLP"
+	   "SYMLINK-DEST" "SYMLINK-FILE" "SYMLINKP"
+	   "SYNONYM-STREAM" "SYNONYM-STREAM-SYMBOL" "T"
+	   "TAGBODY" "TAILP" "TAN" "TANH" "TENTH" "TERPRI" "THE" "THIRD"
+	   "THROW" "TIME" "TO-FILE" "TOUCH-FILE"  "TRACE" "TRANSFER"
+	   "TRASH-FILE"
+	   "TRANSLATE-LOGICAL-PATHNAME" "TRANSLATE-PATHNAME" "TREE-EQUAL"
+	   "TRUENAME" "TRUNCATE" "TRUNCATE-FILE" "TWO-WAY-STREAM"
+	   "TWO-WAY-STREAM-INPUT-STREAM" "TWO-WAY-STREAM-OUTPUT-STREAM"
+	   "TYPE" "TYPE-ERROR" "TYPE-ERROR-DATUM"
+	   "TYPE-ERROR-EXPECTED-TYPE" "TYPE-OF" "TYPECASE" "TYPEP"
+	   "UNBOUND-VARIABLE" "UNDEFINED-FUNCTION" "UNEXPORT" "UNINTERN"
+	   "UNION" "UNIVERSAL-TO-INTERNAL-REAL-TIME" "UNLESS" "UNREAD-CHAR"
+	   "UNSIGNED-BYTE" "UNTIL" "UNTIL*" "UNTRACE"
+	   "UNUSE-PACKAGE" "UNWIND-PROTECT" "UPGRADED-ARRAY-ELEMENT-TYPE"
+	   "UPGRADED-COMPLEX-PART-TYPE" "UPPER-CASE-P"
+	   "USE-PACKAGE" "USE-VALUE"
+	   "USER-EMAIL" "USER-FULL-NAME" "USER-HOMEDIR-PATHNAME"
+	   "USER-NAME"
+	   "VALUES"
+	   "VALUES-LIST" "VARIABLE" "VECTOR" "VECTOR-POP" "VECTOR-PUSH"
+	   "VECTOR-PUSH-EXTEND" "VECTORP" "VERSION" "WARN" "WARNING"
+	   "WHEN" "WHILE" "WHILE*"
+	   "WILD-PATHNAME-P" "WITH-COMPILATION-UNIT"
+	   "WITH-CONDITION-RESTARTS"
+	   "WITH-HASH-TABLE-ITERATOR" "WITH-INPUT-FROM-STRING"
+	   "WITH-OPEN-FILE" "WITH-OPEN-STREAM" "WITH-OUTPUT-TO-STRING"
+	   "WITH-PACKAGE-ITERATOR" "WITH-SIMPLE-RESTART"
+	   "WITH-STANDARD-IO-SYNTAX" "WITH-TEMP-FILE"
+	   "WRITE" "WRITE-BYTE" "WRITE-CHAR"
+	   "WRITE-LINE" "WRITE-STRING" "WRITE-TO-STRING"
+	   "WRITE-SEQUENCE" "Y-OR-N-P" "YES-OR-NO-P" "ZEROP"
 
-             "ADD-METHOD" "ALLOCATE-INSTANCE" "CALL-METHOD"
-             "CALL-NEXT-METHOD" "CHANGE-CLASS"
-             "COMPUTE-APPLICABLE-METHODS" "DEFCLASS" "DEFGENERIC"
-             "DEFINE-METHOD-COMBINATION" "DEFMETHOD" "DESCRIBE-OBJECT"
-	     "ENSURE-GENERIC-FUNCTION"
-	     "FIND-METHOD" "FUNCTION-KEYWORDS" "GENERIC-FLET"
-             "GENERIC-LABELS" "INITIALIZE-INSTANCE" "INVALID-METHOD-ERROR"
-             "MAKE-INSTANCE" "MAKE-INSTANCES-OBSOLETE"
-             "METHOD-COMBINATION-ERROR" "METHOD-QUALIFIERS" "NEXT-METHOD-P"
-             "NO-APPLICABLE-METHOD" "NO-NEXT-METHOD" "PRINT-OBJECT"
-             "REINITIALIZE-INSTANCE" "REMOVE-METHOD" "SHARED-INITIALIZE"
-             "SLOT-BOUNDP" "SLOT-EXISTS-P" "SLOT-MAKUNBOUND" "SLOT-MISSING"
-             "SLOT-UNBOUND" "SLOT-VALUE" "STANDARD" "STANDARD-CLASS"
-             "STANDARD-GENERIC-FUNCTION" "STANDARD-METHOD" "STANDARD-OBJECT"
-	     "UPDATE-INSTANCE-FOR-DIFFERENT-CLASS"
-             "UPDATE-INSTANCE-FOR-REDEFINED-CLASS" "WITH-ACCESSORS"
-             "WITH-ADDED-METHODS" "WITH-SLOTS"
-	     "MAKE-METHOD" "UNBOUND-SLOT" "UNBOUND-SLOT-INSTANCE"
-             "CELL-ERROR-NAME"
-	     "HASH-TABLE-WEAK-P"
-             "GET-SETF-EXPANSION" "STYLE-WARNING"
-             "PRINT-NOT-READABLE-OBJECT"
-             "DEFINE-SETF-EXPANDER" "PRINT-NOT-READABLE" "METHOD"
-	     "METHOD-COMBINATION"
-	     "MAKE-LOAD-FORM" "MAKE-LOAD-FORM-SAVING-SLOTS"))
+	   ;; FIX PCL?
+	   "ADD-METHOD" "ALLOCATE-INSTANCE" "CALL-METHOD"
+	   "CALL-NEXT-METHOD" "CHANGE-CLASS"
+	   "COMPUTE-APPLICABLE-METHODS" "DEFCLASS" "DEFGENERIC"
+	   "DEFINE-METHOD-COMBINATION" "DEFMETHOD" "DESCRIBE-OBJECT"
+	   "ENSURE-GENERIC-FUNCTION"
+	   "FIND-METHOD" "FUNCTION-KEYWORDS" "GENERIC-FLET"
+	   "GENERIC-LABELS" "INITIALIZE-INSTANCE" "INVALID-METHOD-ERROR"
+	   "MAKE-INSTANCE" "MAKE-INSTANCES-OBSOLETE"
+	   "METHOD-COMBINATION-ERROR" "METHOD-QUALIFIERS" "NEXT-METHOD-P"
+	   "NO-APPLICABLE-METHOD" "NO-NEXT-METHOD" "PRINT-OBJECT"
+	   "REINITIALIZE-INSTANCE" "REMOVE-METHOD" "SHARED-INITIALIZE"
+	   "SLOT-BOUNDP" "SLOT-EXISTS-P" "SLOT-MAKUNBOUND" "SLOT-MISSING"
+	   "SLOT-UNBOUND" "SLOT-VALUE" "STANDARD" "STANDARD-CLASS"
+	   "STANDARD-GENERIC-FUNCTION" "STANDARD-METHOD" "STANDARD-OBJECT"
+	   "UPDATE-INSTANCE-FOR-DIFFERENT-CLASS"
+	   "UPDATE-INSTANCE-FOR-REDEFINED-CLASS" "WITH-ACCESSORS"
+	   "WITH-ADDED-METHODS" "WITH-SLOTS"
+	   "MAKE-METHOD" "UNBOUND-SLOT" "UNBOUND-SLOT-INSTANCE"
+	   "CELL-ERROR-NAME"
+	   "HASH-TABLE-WEAK-P"
+	   "GET-SETF-EXPANSION" "STYLE-WARNING"
+	   "PRINT-NOT-READABLE-OBJECT"
+	   "DEFINE-SETF-EXPANDER" "PRINT-NOT-READABLE" "METHOD"
+	   "METHOD-COMBINATION"
+	   "MAKE-LOAD-FORM" "MAKE-LOAD-FORM-SAVING-SLOTS")
+  (:documentation "All the Common Lisp symbols.
+
+Originally, this package had all the system code in it.  The current ideal
+is that this package should be empty, and only exist to export the standard
+Common Lisp interface."))
 
 (defpackage "EVAL"
-            (:export "*EVAL-STACK-TRACE*" "*INTERNAL-APPLY-NODE-TRACE*"
-             "*INTERPRETED-FUNCTION-CACHE-MINIMUM-SIZE*"
-             "*INTERPRETED-FUNCTION-CACHE-THRESHOLD*"
-             "FLUSH-INTERPRETED-FUNCTION-CACHE" "INTERNAL-EVAL"
-	     "INTERPRETED-FUNCTION"
-             "INTERPRETED-FUNCTION-ARGLIST" "INTERPRETED-FUNCTION-CLOSURE"
-             "INTERPRETED-FUNCTION-LAMBDA-EXPRESSION"
-             "INTERPRETED-FUNCTION-NAME" "INTERPRETED-FUNCTION-P"
-             "INTERPRETED-FUNCTION-TYPE" "MAKE-INTERPRETED-FUNCTION"
-             "TRACE-EVAL"))
+  (:export "*EVAL-STACK-TRACE*" "*INTERNAL-APPLY-NODE-TRACE*"
+	   "*INTERPRETED-FUNCTION-CACHE-MINIMUM-SIZE*"
+	   "*INTERPRETED-FUNCTION-CACHE-THRESHOLD*"
+	   "FLUSH-INTERPRETED-FUNCTION-CACHE" "INTERNAL-EVAL"
+	   "*INTERP-SOURCE-HACK*" "*INTERP-POSITION-HACK*"
+	   "INTERPRETED-FUNCTION"
+	   "INTERPRETED-FUNCTION-ARGLIST" "INTERPRETED-FUNCTION-CLOSURE"
+	   "INTERPRETED-FUNCTION-LAMBDA-EXPRESSION"
+	   "INTERPRETED-FUNCTION-NAME" "INTERPRETED-FUNCTION-P"
+	   "INTERPRETED-FUNCTION-TYPE" "MAKE-INTERPRETED-FUNCTION"
+	   "TRACE-EVAL")
+  (:documentation "Evaluation.
+
+Holds code that does direct execution of the compiler ICR.  Exports
+debugger interface to interpreted code."))
+
 
 (dolist
     (name
@@ -647,21 +731,21 @@
   (intern name "KERNEL"))
 
 (defpackage #+pmax "PMAX" #+sparc "SPARC" #+ibmrt "RT"
-            #+x86 "X86" #+hppa "HPPA" #+alpha "ALPHA" #+sgi "SGI"
-            (:nicknames "VM" #+(or pmax sgi) "MIPS"
-			#+pmax "OLD-MIPS" #+sparc "OLD-SPARC" #+ibmrt "OLD-RT"
-			#+x86 "OLD-X86" #+hppa "HPPA" #+alpha "OLD-ALPHA"
-			#+sgi "OLD-SGI")
-            (:import-from "LISP" "%ARRAY-TYPEP" "%ASET" "%BITSET" "%CHARSET"
-             "%PUT" "%RPLACA" "%RPLACD" "%SBITSET" "%SCHARSET"
-             "%SET-FDEFINITION" "%SET-FILL-POINTER"
-             "%SET-ROW-MAJOR-AREF" "%SETELT" "%SETNTH" "%SP-STRING-COMPARE"
-             "%SVSET" "%TYPEP" "*READ-ONLY-SPACE-FREE-POINTER*"
-             "*STATIC-SPACE-FREE-POINTER*" "CURRENT-DYNAMIC-SPACE-START"
-             "DYNAMIC-0-SPACE-START" "DYNAMIC-1-SPACE-START" "FIXNUM"
-             "READ-ONLY-SPACE-START" "SHORT-FLOAT-P" "STATIC-SPACE-START"
-	     "STRING/=*" "STRING<*" "STRING<=*" "STRING=*"
-             "STRING>*" "STRING>=*")
+  #+x86 "X86" #+hppa "HPPA" #+alpha "ALPHA" #+sgi "SGI"
+  (:nicknames "VM" #+(or pmax sgi) "MIPS"
+	      #+pmax "OLD-MIPS" #+sparc "OLD-SPARC" #+ibmrt "OLD-RT"
+	      #+x86 "OLD-X86" #+hppa "HPPA" #+alpha "OLD-ALPHA"
+	      #+sgi "OLD-SGI")
+  (:import-from "LISP" "%ARRAY-TYPEP" "%ASET" "%BITSET" "%CHARSET"
+		"%PUT" "%RPLACA" "%RPLACD" "%SBITSET" "%SCHARSET"
+		"%SET-FDEFINITION" "%SET-FILL-POINTER"
+		"%SET-ROW-MAJOR-AREF" "%SETELT" "%SETNTH" "%SP-STRING-COMPARE"
+		"%SVSET" "%TYPEP" "*READ-ONLY-SPACE-FREE-POINTER*"
+		"*STATIC-SPACE-FREE-POINTER*" "CURRENT-DYNAMIC-SPACE-START"
+		"DYNAMIC-0-SPACE-START" "DYNAMIC-1-SPACE-START" "FIXNUM"
+		"READ-ONLY-SPACE-START" "SHORT-FLOAT-P" "STATIC-SPACE-START"
+		"STRING/=*" "STRING<*" "STRING<=*" "STRING=*"
+		"STRING>*" "STRING>=*")
   (:export "*ASSEMBLY-UNIT-LENGTH*" "*PRIMITIVE-OBJECTS*"
 	   "AFTER-BREAKPOINT-TRAP"
 	   "ANY-REG-SC-NUMBER" "ARRAY-DATA-SLOT" "ARRAY-DIMENSIONS-OFFSET"
@@ -780,10 +864,10 @@
 	   "SIMPLE-ARRAY-UNSIGNED-BYTE-32-TYPE"
 	   "SIMPLE-ARRAY-UNSIGNED-BYTE-4-TYPE"
 	   "SIMPLE-ARRAY-UNSIGNED-BYTE-8-TYPE"
- 	   "SIMPLE-ARRAY-SIGNED-BYTE-16-TYPE"
- 	   "SIMPLE-ARRAY-SIGNED-BYTE-30-TYPE"
- 	   "SIMPLE-ARRAY-SIGNED-BYTE-32-TYPE"
- 	   "SIMPLE-ARRAY-SIGNED-BYTE-8-TYPE"
+	   "SIMPLE-ARRAY-SIGNED-BYTE-16-TYPE"
+	   "SIMPLE-ARRAY-SIGNED-BYTE-30-TYPE"
+	   "SIMPLE-ARRAY-SIGNED-BYTE-32-TYPE"
+	   "SIMPLE-ARRAY-SIGNED-BYTE-8-TYPE"
 	   "SIMPLE-BIT-VECTOR-TYPE"
 	   "SIMPLE-STRING-TYPE" "SIMPLE-VECTOR-TYPE" "SINGLE-FLOAT-BIAS"
 	   "SINGLE-FLOAT-DIGITS" "SINGLE-FLOAT-EXPONENT-BYTE"
@@ -791,7 +875,7 @@
 	   "SINGLE-FLOAT-NORMAL-EXPONENT-MIN" "SINGLE-FLOAT-SIGNIFICAND-BYTE"
 	   "SINGLE-FLOAT-SIZE" "SINGLE-FLOAT-TRAPPING-NAN-BIT"
 	   "SINGLE-FLOAT-TYPE" "SINGLE-FLOAT-VALUE-SLOT"
-           "SINGLE-INT-CARG-REG-SC-NUMBER"
+	   "SINGLE-INT-CARG-REG-SC-NUMBER"
 	   "SINGLE-REG-SC-NUMBER" "SINGLE-STACK-SC-NUMBER"
 	   "SINGLE-STEP-BREAKPOINT-TRAP"
 	   "SINGLE-VALUE-RETURN-BYTE-OFFSET" "SLOT-DOCS"
@@ -822,7 +906,17 @@
 	   "WEAK-POINTER-BROKEN-SLOT" "WEAK-POINTER-NEXT-SLOT"
 	   "WEAK-POINTER-SIZE" "WEAK-POINTER-TYPE" "WEAK-POINTER-VALUE-SLOT"
 	   "WORD-BITS" "WORD-BYTES" "WORD-REG-SC-NUMBER" "WORD-SHIFT"
-	   "ZERO-SC-NUMBER"))
+	   "ZERO-SC-NUMBER")
+  (:documentation "Hardware and data structure abstraction.
+
+Hides information about the hardware and data structure representations.
+Contains all code that knows about this sort of thing: parts of the
+compiler, GC, etc.  The bulk of the code is the compiler back-end.  Exports
+useful things that are meaningful across all implementations, such as
+operations for examining compiled functions, system constants.  Uses
+COMPILER and whatever else it wants.  Actually, there are different
+machine-VM packages for each target implementation.  VM is a nickname for
+the current target implementation."))
 
 (defpackage "CONDITIONS")
 (intern "DISASSEMBLE" "LISP")
@@ -891,182 +985,214 @@
        "*TRACED-FUNCTION-LIST*"))
   (intern name "EXTENSIONS"))
 (defpackage "DEBUG"
-            (:import-from "EXTENSIONS" "*MAX-TRACE-INDENTATION*"
-             "*TRACE-PRINT-LENGTH*" "*TRACE-PRINT-LEVEL*"
-             "*TRACED-FUNCTION-LIST*")
-            (:export "*AUTO-EVAL-IN-FRAME*" "*DEBUG-PRINT-LENGTH*"
-             "*DEBUG-PRINT-LEVEL*" "*DEBUG-PROMPT*"
-	     "*DEBUG-READTABLE*" "*FLUSH-DEBUG-ERRORS*"
-	     "*HELP-LINE-SCROLL-COUNT*" "*IN-THE-DEBUGGER*"
-             "*MAX-TRACE-INDENTATION*" "*TRACE-FRAME*" "*TRACE-PRINT-LENGTH*"
-             "*TRACE-PRINT-LEVEL*" "*TRACED-FUNCTION-LIST*" "ARG" "BACKTRACE"
-             "INTERNAL-DEBUG" "VAR" "*PRINT-LOCATION-KIND*"
-	     "*ONLY-BLOCK-START-LOCATIONS*" "*STACK-TOP-HINT*"
-	     "*TRACE-VALUES*" "DO-DEBUG-COMMAND"
-	     "*TRACE-ENCAPSULATE-DEFAULT*"))
+  (:import-from "EXTENSIONS" "*MAX-TRACE-INDENTATION*"
+		"*TRACE-PRINT-LENGTH*" "*TRACE-PRINT-LEVEL*"
+		"*TRACED-FUNCTION-LIST*")
+  (:export "*AUTO-EVAL-IN-FRAME*" "*DEBUG-PRINT-LENGTH*"
+	   "*DEBUG-PRINT-LEVEL*" "*DEBUG-PROMPT*"
+	   "*DEBUG-READTABLE*" "*FLUSH-DEBUG-ERRORS*"
+	   "*HELP-LINE-SCROLL-COUNT*" "*IN-THE-DEBUGGER*"
+	   "*MAX-TRACE-INDENTATION*" "*TRACE-FRAME*" "*TRACE-PRINT-LENGTH*"
+	   "*TRACE-PRINT-LEVEL*" "*TRACED-FUNCTION-LIST*" "ARG" "BACKTRACE"
+	   "INTERNAL-DEBUG" "VAR" "*PRINT-LOCATION-KIND*"
+	   "*ONLY-BLOCK-START-LOCATIONS*" "*STACK-TOP-HINT*"
+	   "*TRACE-VALUES*" "DO-DEBUG-COMMAND"
+	   "*TRACE-ENCAPSULATE-DEFAULT*")
+  (:documentation "The command-line run-time inspection tool."))
 
 (intern "CHAR" "LISP")
 (defpackage "EXTENSIONS"
-	    (:nicknames "EXT")
-            (:export
-	     "GETSTRING"
+  (:nicknames "EXT")
+  (:export
+   "GETSTRING"
 
-	     "DO-STRINGS" "IN-DIRECTORY"
+   "DO-STRINGS" "IN-DIRECTORY"
 
-	     "*AFTER-GC-HOOKS*" "*AFTER-SAVE-INITIALIZATIONS*"
-             "*ALL-MODIFIER-NAMES*" "*BACKUP-EXTENSION*" "*BEFORE-GC-HOOKS*"
-             "*BEFORE-SAVE-INITIALIZATIONS*" "*BLOCK-COMPILE-DEFAULT*"
-             "*BYTES-CONSED-BETWEEN-GCS*" "*CHAR" "*CLX-FDS-TO-DISPLAYS*"
-             "*COMMAND-LINE-STRINGS*" "*COMMAND-LINE-SWITCHES*"
-             "*COMMAND-LINE-UTILITY-NAME*" "*COMMAND-LINE-WORDS*"
-             "*COMMAND-SWITCH-DEMONS*" "*COMPATIBILITY-WARNINGS*"
-             "*COMPILE-PROGRESS*" "*DERIVE-FUNCTION-TYPES*"
-             "*DESCRIBE-IMPLEMENTATION-DETAILS*" "*DESCRIBE-INDENTATION*"
-             "*DESCRIBE-LEVEL*" "*DESCRIBE-PRINT-LENGTH*"
-             "*DESCRIBE-PRINT-LEVEL*" "*DESCRIBE-VERBOSE*"
-             "*DISPLAY-EVENT-HANDLERS*" "*EDITOR-LISP-P*"
-             "*EFFICIENCY-NOTE-COST-THRESHOLD*" "*EFFICIENCY-NOTE-LIMIT*"
-             "*ENCLOSING-SOURCE-CUTOFF*" "*ENVIRONMENT-LIST*"
-             "*ERROR-PRINT-LENGTH*" "*ERROR-PRINT-LEVEL*" "*GC-INHIBIT-HOOK*"
-             "*GC-NOTIFY-AFTER*" "*GC-NOTIFY-BEFORE*" "*GC-VERBOSE*"
-             "*HEMLOCK-VERSION*" "*IGNORE-FLOATING-POINT-UNDERFLOW*"
-             "*INFO-ENVIRONMENT*" "*INTEXP-MAXIMUM-EXPONENT*"
-             "*KEYWORD-PACKAGE*" "*LISP-PACKAGE*" "*LOAD-IF-SOURCE-NEWER*"
-             "*MAX-OLD-TRACE-INDENTATION*" "*MAX-STEP-INDENTATION*"
-             "*MAX-TRACE-INDENTATION*" "*MODULE-FILE-TRANSLATIONS*"
-	     "*PROMPT*" "*REQUIRE-VERBOSE*"
-	     "*SETF-FDEFINITION-HOOK*"
-             "*TOP-LEVEL-AUTO-DECLARE*"
-             "*UNDEFINED-WARNING-LIMIT*" "ACCEPT-TCP-CONNECTION"
-             "ADD-OOB-HANDLER" "AMBIGUOUS-FILES" "ARGUMENT-LIST" "ASSQ"
-             "BASIC-DEFINITION" "BIGNUMP" "BITP" "CACHE-HASH-EQ"
-             "CALL-USER-MISCOP" "CANCEL-FINALIZATION" "CAREFUL-SYMBOL-FUNCTION"
-             "CAREFULLY-ADD-FONT-PATHS" "CHAR" "CHAR-KEY-EVENT"
-             "CLEAN-UP-COMPILER" "CLEAR-INFO" "CLEAR-SEARCH-LIST"
-             "CLOSE-SOCKET" "CMD-SWITCH-ARG" "CMD-SWITCH-NAME"
-             "CMD-SWITCH-STRING" "CMD-SWITCH-VALUE" "CMD-SWITCH-WORDS"
-             "COLLECT" "COMMAND-LINE-SWITCH" "COMMAND-LINE-SWITCH-P"
-             "COMPACT-INFO-ENVIRONMENT" "COMPILE-FROM-STREAM" "COMPILEDP"
-             "COMPLETE-FILE" "CONCAT-PNAMES" "CONNECT-TO-INET-SOCKET"
-             "CONSTANT" "CONSTANT-ARGUMENT" "CONSTANT-FUNCTION"
-             "CREATE-INET-LISTENER" "CREATE-INET-SOCKET"
-	     "DEBUG" "DEF-SOURCE-CONTEXT"
-             "DEFAULT-CLX-EVENT-HANDLER" "DEFAULT-DIRECTORY"
-             "DEFINE-CLX-MODIFIER" "DEFINE-HASH-CACHE" "DEFINE-INFO-CLASS"
-             "DEFINE-INFO-TYPE" "DEFINE-KEY-EVENT-MODIFIER"
-             "DEFINE-KEYBOARD-MODIFIER" "DEFINE-KEYSYM" "DEFINE-MOUSE-CODE"
-             "DEFINE-MOUSE-KEYSYM" "DEFMODULE" "DEFSWITCH" "DEFUN-CACHED"
-             "DELETEF" "DELQ" "DISABLE-CLX-EVENT-HANDLING"
-             "DO-ALPHA-KEY-EVENTS" "DO-ANONYMOUS"
-	     "DO-DIRECTORIES" "DO-FILES"
-	     "DO-INFO"
-             "DOUBLE-FLOAT-NEGATIVE-INFINITY" "DOUBLE-FLOAT-POSITIVE-INFINITY"
-             "DOUBLE-FLOATP" "DOVECTOR" "E" "ENABLE-CLX-EVENT-HANDLING"
-             "ENCAPSULATE" "ENCAPSULATED-DEFINITION" "ENCAPSULATED-P"
-             "END-BLOCK" "ENUMERATE-SEARCH-LIST" "FILE-COMMENT" "FILE-WRITABLE"
-             "FINALIZE" "FIXNUMP" "FLOAT-DENORMALIZED-P" "FLOAT-INFINITY-P"
-             "FLOAT-NAN-P" "FLOAT-TRAPPING-NAN-P" "FLOATING-POINT-INEXACT"
-             "FLOATING-POINT-INVALID" "FLUSH-DISPLAY-EVENTS"
-             "FORMAT-DECODED-TIME" "FORMAT-UNIVERSAL-TIME" "FORMAT-TIME"
-	     "FREEZE-TYPE" "GC"
-             "GC-OFF" "GC-ON" "GET-BYTES-CONSED" "GET-CODE-POINTER"
-             "GET-COMMAND-LINE-SWITCH" "GET-DATA-POINTER"
-             "GET-FLOATING-POINT-MODES" "GET-PEER-HOST-AND-PORT"
-	     "GET-SOCKET-HOST-AND-PORT"
-	     "GET-STREAM-COMMAND" "GRINDEF"
-             "HOST-ENTRY" "HOST-ENTRY-ADDR" "HOST-ENTRY-ADDR-LIST"
-             "HOST-ENTRY-ALIASES" "HOST-ENTRY-NAME" "HTONL" "HTONS"
-             "INADDR-ANY" "INDENTING-FURTHER" "INFO"
-             "INHIBIT-WARNINGS" "INTERACTIVE-EVAL" "IPPROTO-TCP" "IPPROTO-UDP"
-             "ITERATE" "KEY-EVENT" "KEY-EVENT-BIT-P" "KEY-EVENT-BITS"
-             "KEY-EVENT-BITS-MODIFIERS" "KEY-EVENT-CHAR" "KEY-EVENT-KEYSYM"
-             "KEY-EVENT-MODIFIER-MASK" "KEY-EVENT-P" "KEYSYM-NAMES"
-             "KEYSYM-PREFERRED-NAME"
-	     "LETF" "LETF*" "LISTEN-SKIP-WHITESPACE" "LIST-FILES"
-             "LOAD-FOREIGN" "LONG-FLOAT-NEGATIVE-INFINITY"
-             "LONG-FLOAT-POSITIVE-INFINITY" "LONG-FLOATP" "LOOKUP-HOST-ENTRY"
-             "MAKE-CASE-FROB-STREAM" "MAKE-INFO-ENVIRONMENT" "MAKE-KEY-EVENT"
-             "MAKE-KEY-EVENT-BITS" "MAKE-SCAVENGER-HOOK"
-	     "MAKE-STREAM-COMMAND" "MAKE-WEAK-POINTER" "MAP-FILES"
-             "MAYBE-INLINE" "MEMQ" "NAME-KEYSYM" "NTOHL" "NTOHS"
-             "OBJECT-SET-EVENT-HANDLER" "OLD-TRACE" "OLD-UNTRACE" "ONCE-ONLY"
-             "OPEN-CLX-DISPLAY" "OPTIMIZE-INTERFACE" "PARSE-TIME"
-	     "PICK-TEMPORARY-FILE-NAME"
-             "PRINT-DIRECTORY" "PRINT-FILES" "PRINT-HERALD" "PRINT-PRETTY-KEY"
-             "PRINT-PRETTY-KEY-EVENT" "PROCESS-ALIVE-P" "PROCESS-CLOSE"
-             "PROCESS-CORE-DUMPED" "PROCESS-ERROR" "PROCESS-EXIT-CODE"
-             "PROCESS-INPUT" "PROCESS-KILL" "PROCESS-OUTPUT" "PROCESS-P"
-             "PROCESS-PID" "PROCESS-PLIST" "PROCESS-PTY" "PROCESS-STATUS"
-             "PROCESS-STATUS-HOOK" "PROCESS-WAIT" "PUTF" "QUIT" "RATIOP"
-             "READ-CHAR-NO-EDIT" "REALP" "REMOVE-ALL-OOB-HANDLERS"
-             "REMOVE-OOB-HANDLER" "REQUIRED-ARGUMENT" "RESET-FOREIGN-POINTERS"
-             "RUN-PROGRAM" "SAVE" "SAVE-ALL-BUFFERS" "SAVE-LISP"
-             "SCAVENGER-HOOK" "SCAVENGER-HOOK-P"
-	     "SCAVENGER-HOOK-VALUE" "SCAVENGER-HOOK-FUNCTION"
-	     "SEARCH-LIST"
-             "SEND-CHARACTER-OUT-OF-BAND" "SERVE-BUTTON-PRESS"
-             "SERVE-BUTTON-RELEASE" "SERVE-CIRCULATE-NOTIFY"
-             "SERVE-CIRCULATE-REQUEST" "SERVE-CLIENT-MESSAGE"
-             "SERVE-COLORMAP-NOTIFY" "SERVE-CONFIGURE-NOTIFY"
-             "SERVE-CONFIGURE-REQUEST" "SERVE-CREATE-NOTIFY"
-             "SERVE-DESTROY-NOTIFY" "SERVE-ENTER-NOTIFY" "SERVE-EXPOSURE"
-             "SERVE-FOCUS-IN" "SERVE-FOCUS-OUT" "SERVE-GRAPHICS-EXPOSURE"
-             "SERVE-GRAVITY-NOTIFY" "SERVE-KEY-PRESS" "SERVE-KEY-RELEASE"
-             "SERVE-LEAVE-NOTIFY" "SERVE-MAP-NOTIFY" "SERVE-MAP-REQUEST"
-             "SERVE-MOTION-NOTIFY" "SERVE-NO-EXPOSURE" "SERVE-PROPERTY-NOTIFY"
-             "SERVE-REPARENT-NOTIFY" "SERVE-RESIZE-REQUEST"
-             "SERVE-SELECTION-CLEAR" "SERVE-SELECTION-NOTIFY"
-             "SERVE-SELECTION-REQUEST" "SERVE-UNMAP-NOTIFY"
-             "SERVE-VISIBILITY-NOTIFY" "SET-FLOATING-POINT-MODES"
-             "SET-SYMBOL-FUNCTION-CAREFULLY" "SHORT-FLOAT-NEGATIVE-INFINITY"
-             "SHORT-FLOAT-POSITIVE-INFINITY" "SHORT-FLOATP"
-             "SINGLE-FLOAT-NEGATIVE-INFINITY" "SINGLE-FLOAT-POSITIVE-INFINITY"
-             "SINGLE-FLOATP" "START-BLOCK" "STREAM-COMMAND"
-             "STREAM-COMMAND-ARGS" "STREAM-COMMAND-NAME" "STREAM-COMMAND-P"
-	     "INSTANCEP" "SYMBOLICATE" "TRANSLATE-CHARACTER"
-             "TRANSLATE-KEY-EVENT" "TRANSLATE-MOUSE-CHARACTER"
-             "TRANSLATE-MOUSE-KEY-EVENT" "TRULY-THE" "UNCOMPILE"
-             "UNDEFINED-VALUE" "UNENCAPSULATE" "UNIX-NAMESTRING" "WEAK-POINTER"
-             "WEAK-POINTER-P" "WEAK-POINTER-VALUE" "WITH-CLX-EVENT-HANDLING"
-	     "WITH-FLOAT-TRAPS-MASKED"
-	     "FEATUREP" "*IGNORE-EXTRA-CLOSE-PARENTHESES*" "*HERALD-ITEMS*"
-	     "SEARCH-LIST-DEFINED-P" "BYTES-CONSED-BETWEEN-GCS"
-	     "*LOAD-SOURCE-TYPES*" "*LOAD-OBJECT-TYPES*"
-	     "*DEFAULT-PACKAGE-USE-LIST*" "*GC-RUN-TIME*"
-	     "CONNECT-TO-UNIX-SOCKET"
-	     "DEFINE-HASH-TABLE-TEST"
+   "*AFTER-GC-HOOKS*" "*AFTER-SAVE-INITIALIZATIONS*"
+   "*ALL-MODIFIER-NAMES*" "*BACKUP-EXTENSION*" "*BEFORE-GC-HOOKS*"
+   "*BEFORE-SAVE-INITIALIZATIONS*" "*BLOCK-COMPILE-DEFAULT*"
+   "*BYTES-CONSED-BETWEEN-GCS*" "*CHAR" "*CLX-FDS-TO-DISPLAYS*"
+   "*COMMAND-LINE-STRINGS*" "*COMMAND-LINE-SWITCHES*"
+   "*COMMAND-LINE-UTILITY-NAME*" "*COMMAND-LINE-WORDS*"
+   "*COMMAND-SWITCH-DEMONS*" "*COMPATIBILITY-WARNINGS*"
+   "*COMPILE-PROGRESS*"
+   "*DERIVE-FUNCTION-TYPES*"
+   "*DESCRIBE-IMPLEMENTATION-DETAILS*" "*DESCRIBE-INDENTATION*"
+   "*DESCRIBE-LEVEL*" "*DESCRIBE-PRINT-LENGTH*"
+   "*DESCRIBE-PRINT-LEVEL*" "*DESCRIBE-VERBOSE*"
+   "*DISPLAY-EVENT-HANDLERS*" "*EDITOR-LISP-P*"
+   "*EFFICIENCY-NOTE-COST-THRESHOLD*" "*EFFICIENCY-NOTE-LIMIT*"
+   "*ENCLOSING-SOURCE-CUTOFF*" "*ENVIRONMENT-LIST*"
+   "*ERROR-PRINT-LENGTH*" "*ERROR-PRINT-LEVEL*" "*GC-INHIBIT-HOOK*"
+   "*GC-NOTIFY-AFTER*" "*GC-NOTIFY-BEFORE*" "*GC-VERBOSE*"
+   "*IGNORE-FLOATING-POINT-UNDERFLOW*"
+   "*INFO-ENVIRONMENT*" "*INTEXP-MAXIMUM-EXPONENT*"
+   "*KEYWORD-PACKAGE*" "*LISP-PACKAGE*" "*LOAD-IF-SOURCE-NEWER*"
+   "*MAX-OLD-TRACE-INDENTATION*" "*MAX-STEP-INDENTATION*"
+   "*MAX-TRACE-INDENTATION*" "*MODULE-FILE-TRANSLATIONS*"
+   "*PROMPT*"
+   "*SETF-FDEFINITION-HOOK*"
+   "*TOP-LEVEL-AUTO-DECLARE*"
+   "*UNDEFINED-WARNING-LIMIT*" "ACCEPT-TCP-CONNECTION"
+   "ADD-OOB-HANDLER" "AMBIGUOUS-FILES" "ARGUMENT-LIST" "ASSQ"
+   "BASIC-DEFINITION" "BIGNUMP" "BITP" "CACHE-HASH-EQ"
+   "CALL-USER-MISCOP" "CANCEL-FINALIZATION" "CAREFUL-SYMBOL-FUNCTION"
+   "CAREFULLY-ADD-FONT-PATHS" "CHAR" "CHAR-KEY-EVENT"
+   "CLEAN-UP-COMPILER" "CLEAR-INFO" "CLEAR-SEARCH-LIST" "CLRSTRING"
+   "CLOSE-SOCKET" "CMD-SWITCH-ARG" "CMD-SWITCH-NAME"
+   "CMD-SWITCH-STRING" "CMD-SWITCH-VALUE" "CMD-SWITCH-WORDS"
+   "COLLECT" "COMMAND-LINE-SWITCH" "COMMAND-LINE-SWITCH-P"
+   "COMPACT-INFO-ENVIRONMENT" "COMPILE-FROM-STREAM" "COMPILEDP"
+   "COMPLETE-FILE" "COMPLETE-STRING" "CONCAT-PNAMES" "CONNECT-TO-INET-SOCKET"
+   "CONSTANT" "CONSTANT-ARGUMENT" "CONSTANT-FUNCTION"
+   "CREATE-INET-LISTENER" "CREATE-INET-SOCKET"
+   "DEBUG" "DEF-SOURCE-CONTEXT"
+   "DEFAULT-CLX-EVENT-HANDLER" "CURRENT-DIRECTORY"
+   "DEFINE-CLX-MODIFIER" "DEFINE-HASH-CACHE" "DEFINE-INFO-CLASS"
+   "DEFINE-INFO-TYPE" "DEFINE-KEY-EVENT-MODIFIER"
+   "DEFINE-KEYBOARD-MODIFIER" "DEFINE-KEYSYM" "DEFINE-MOUSE-CODE"
+   "DEFINE-MOUSE-KEYSYM" "DEFSWITCH" "DEFUN-CACHED"
+   "DELETEF" "DELETE-STRING" "DELQ" "DISABLE-CLX-EVENT-HANDLING"
+   "DO-ALPHA-KEY-EVENTS" "DO-ANONYMOUS"
+   "DO-DIRS" "DO-FILES"
+   "DO-INFO"
+   "DOUBLE-FLOAT-NEGATIVE-INFINITY" "DOUBLE-FLOAT-POSITIVE-INFINITY"
+   "DOUBLE-FLOATP" "DOVECTOR" "E" "ENABLE-CLX-EVENT-HANDLING"
+   "ENCAPSULATE" "ENCAPSULATED-DEFINITION" "ENCAPSULATED-P"
+   "END-BLOCK" "ENUMERATE-SEARCH-LIST"
+   "FILE-COMMENT" "FILE-WRITABLE"
+   "FINALIZE" "FIND-AMBIGUOUS" "FIND-CONTAINING"
+   "FIXNUMP" "FLOAT-DENORMALIZED-P" "FLOAT-INFINITY-P"
+   "FLOAT-NAN-P" "FLOAT-TRAPPING-NAN-P" "FLOATING-POINT-INEXACT"
+   "FLOATING-POINT-INVALID" "FLUSH-DISPLAY-EVENTS"
+   "FORMAT-DECODED-TIME" "FORMAT-UNIVERSAL-TIME" "FORMAT-TIME"
+   "FREEZE-TYPE" "GC"
+   "GC-OFF" "GC-ON" "GET-BYTES-CONSED" "GET-CODE-POINTER"
+   "GET-COMMAND-LINE-SWITCH" "GET-DATA-POINTER"
+   "GET-FLOATING-POINT-MODES" "GET-PEER-HOST-AND-PORT"
+   "GET-SOCKET-HOST-AND-PORT"
+   "GET-STREAM-COMMAND"
+   "HOST-ENTRY" "HOST-ENTRY-ADDR" "HOST-ENTRY-ADDR-LIST"
+   "HOST-ENTRY-ALIASES" "HOST-ENTRY-NAME" "HTONL" "HTONS"
+   "INADDR-ANY" "INDENTING-FURTHER" "INFO"
+   "INHIBIT-WARNINGS" "INTERACTIVE-EVAL" "IPPROTO-TCP" "IPPROTO-UDP"
+   "ITERATE" "KEY-EVENT" "KEY-EVENT-BIT-P" "KEY-EVENT-BITS"
+   "KEY-EVENT-BITS-MODIFIERS" "KEY-EVENT-CHAR" "KEY-EVENT-KEYSYM"
+   "KEY-EVENT-MODIFIER-MASK" "KEY-EVENT-P" "KEYSYM-NAMES"
+   "KEYSYM-PREFERRED-NAME"
+   "LETF" "LETF*" "LISTEN-SKIP-WHITESPACE" "LIST-DIRS" "LIST-FILES"
+   "LOAD-FOREIGN" "LONG-FLOAT-NEGATIVE-INFINITY"
+   "LONG-FLOAT-POSITIVE-INFINITY" "LONG-FLOATP" "LOOKUP-HOST-ENTRY"
+   "MAKE-CASE-FROB-STREAM" "MAKE-INFO-ENVIRONMENT" "MAKE-KEY-EVENT"
+   "MAKE-KEY-EVENT-BITS" "MAKE-SCAVENGER-HOOK"
+   "MAKE-STREAM-COMMAND" "MAKE-STRING-TABLE" "MAKE-WEAK-POINTER"
+   "MAP-FILES" "MAP-DIRS"
+   "MAYBE-INLINE" "MEMQ" "NAME-KEYSYM" "NTOHL" "NTOHS"
+   "OBJECT-SET-EVENT-HANDLER" "OLD-TRACE" "OLD-UNTRACE" "ONCE-ONLY"
+   "OPEN-CLX-DISPLAY" "OPTIMIZE-INTERFACE"
+   "PARSE-TIME" "PARSE-MODE-STRING"
+   "PICK-NEW-DIR" "PICK-NEW-FILE" "PICK-NEW-NAME"
+   "PRINT-DIRECTORY" "PRINT-FILES" "PRINT-HERALD" "PRINT-PRETTY-KEY"
+   "PRINT-PRETTY-KEY-EVENT" "PROCESS-ALIVE-P" "PROCESS-CLOSE"
+   "PROCESS-CORE-DUMPED" "PROCESS-ERROR" "PROCESS-EXIT-CODE"
+   "PROCESS-INPUT" "PROCESS-KILL" "PROCESS-OUTPUT" "PROCESS-P"
+   "PROCESS-PID" "PROCESS-PLIST" "PROCESS-PTY" "PROCESS-STATUS"
+   "PROCESS-STATUS-HOOK" "PROCESS-WAIT" "PROMPT-LONG"
+   "PUTF" "QUIT" "RATIOP"
+   "READ-CHAR-NO-EDIT" "REALP" "REMOVE-ALL-OOB-HANDLERS"
+   "REMOVE-OOB-HANDLER" "REQUIRED-ARGUMENT" "RESET-FOREIGN-POINTERS"
+   "RUN-PROGRAM" "SAVE" "SAVE-ALL-BUFFERS" "SAVE-LISP"
+   "SCAVENGER-HOOK" "SCAVENGER-HOOK-P"
+   "SCAVENGER-HOOK-VALUE" "SCAVENGER-HOOK-FUNCTION"
+   "SEARCH-LIST"
+   "SEND-CHARACTER-OUT-OF-BAND" "SERVE-BUTTON-PRESS"
+   "SERVE-BUTTON-RELEASE" "SERVE-CIRCULATE-NOTIFY"
+   "SERVE-CIRCULATE-REQUEST" "SERVE-CLIENT-MESSAGE"
+   "SERVE-COLORMAP-NOTIFY" "SERVE-CONFIGURE-NOTIFY"
+   "SERVE-CONFIGURE-REQUEST" "SERVE-CREATE-NOTIFY"
+   "SERVE-DESTROY-NOTIFY" "SERVE-ENTER-NOTIFY" "SERVE-EXPOSURE"
+   "SERVE-FOCUS-IN" "SERVE-FOCUS-OUT" "SERVE-GRAPHICS-EXPOSURE"
+   "SERVE-GRAVITY-NOTIFY" "SERVE-KEY-PRESS" "SERVE-KEY-RELEASE"
+   "SERVE-LEAVE-NOTIFY" "SERVE-MAP-NOTIFY" "SERVE-MAP-REQUEST"
+   "SERVE-MOTION-NOTIFY" "SERVE-NO-EXPOSURE" "SERVE-PROPERTY-NOTIFY"
+   "SERVE-REPARENT-NOTIFY" "SERVE-RESIZE-REQUEST"
+   "SERVE-SELECTION-CLEAR" "SERVE-SELECTION-NOTIFY"
+   "SERVE-SELECTION-REQUEST" "SERVE-UNMAP-NOTIFY"
+   "SERVE-VISIBILITY-NOTIFY" "SET-FLOATING-POINT-MODES"
+   "SET-SYMBOL-FUNCTION-CAREFULLY" "SHORT-FLOAT-NEGATIVE-INFINITY"
+   "SHORT-FLOAT-POSITIVE-INFINITY" "SHORT-FLOATP"
+   "SINGLE-FLOAT-NEGATIVE-INFINITY" "SINGLE-FLOAT-POSITIVE-INFINITY"
+   "SINGLE-FLOATP" "START-BLOCK" "STREAM-COMMAND"
+   "STREAM-COMMAND-ARGS" "STREAM-COMMAND-NAME" "STREAM-COMMAND-P"
+   "STRING-TABLE" "STRING-TABLE-LENGTH" "STRING-TABLE-P"
+   "STRING-TABLE-SEPARATOR"
+   "INSTANCEP" "SYMBOLICATE" "TRANSLATE-CHARACTER"
+   "TRANSLATE-KEY-EVENT" "TRANSLATE-MOUSE-CHARACTER"
+   "TRANSLATE-MOUSE-KEY-EVENT" "TRULY-THE" "UNCOMPILE"
+   "UNDEFINED-VALUE" "UNENCAPSULATE" "OS-NAMESTRING" "WEAK-POINTER"
+   "WEAK-POINTER-P" "WEAK-POINTER-VALUE" "WITH-CLX-EVENT-HANDLING"
+   "WITH-FLOAT-TRAPS-MASKED"
+   "FEATUREP" "*IGNORE-EXTRA-CLOSE-PARENTHESES*" "*HERALD-ITEMS*"
+   "SEARCH-LIST-DEFINED-P" "BYTES-CONSED-BETWEEN-GCS"
+   "*LOAD-SOURCE-TYPES*" "*LOAD-OBJECT-TYPES*"
+   "*DEFAULT-PACKAGE-USE-LIST*" "*GC-RUN-TIME*"
+   "CONNECT-TO-UNIX-SOCKET"
+   "DEFINE-HASH-TABLE-TEST"
 
-	     "DO-HASH"
-	     "*EFFICIENCY-NOTE-LIMIT*"
-	     "*ERROR-PRINT-LINES*"
-	     "CREATE-UNIX-SOCKET"
-	     "*INLINE-EXPANSION-LIMIT*"
-	     "INSTANCE"
-	     "*EFFICIENCY-NOTE-COST-THRESHOLD*"
-	     "*USE-IMPLEMENTATION-TYPES*"
-	     "*BYTE-COMPILE-TOP-LEVEL*"
-	     "*BYTE-COMPILE-DEFAULT*"
-	     "PURIFY" "MAP-APROPOS"
-	     "*BATCH-MODE*"
-	     "COMPILER-LET"
+   "DO-HASH"
+   "*EFFICIENCY-NOTE-LIMIT*"
+   "*ERROR-PRINT-LINES*"
+   "CREATE-UNIX-SOCKET"
+   "*INLINE-EXPANSION-LIMIT*"
+   "INSTANCE"
+   "*EFFICIENCY-NOTE-COST-THRESHOLD*"
+   "*USE-IMPLEMENTATION-TYPES*"
+   "*BYTE-COMPILE-TOP-LEVEL*"
+   "*BYTE-COMPILE-DEFAULT*"
+   "PURIFY" "MAP-APROPOS"
+   "*BATCH-MODE*"
+   "COMPILER-LET"
 
-	     ;; Gray streams extension.
-	     "FUNDAMENTAL-BINARY-STREAM" "FUNDAMENTAL-BINARY-INPUT-STREAM"
-	     "FUNDAMENTAL-BINARY-OUTPUT-STREAM" "FUNDAMENTAL-CHARACTER-STREAM"
-	     "FUNDAMENTAL-CHARACTER-INPUT-STREAM"
-	     "FUNDAMENTAL-CHARACTER-OUTPUT-STREAM"
-	     "FUNDAMENTAL-INPUT-STREAM" "FUNDAMENTAL-OUTPUT-STREAM"
-	     "FUNDAMENTAL-STREAM"
-	     "STREAM-ADVANCE-TO-COLUMN" "STREAM-CLEAR-INPUT"
-	     "STREAM-CLEAR-OUTPUT" "STREAM-FINISH-OUTPUT" "STREAM-FORCE-OUTPUT"
-	     "STREAM-FRESH-LINE" "STREAM-LINE-COLUMN" "STREAM-LINE-LENGTH"
-	     "STREAM-LISTEN" "STREAM-PEEK-CHAR" "STREAM-READ-BYTE"
-	     "STREAM-READ-CHAR" "STREAM-READ-CHAR-NO-HANG" "STREAM-READ-LINE"
-	     "STREAM-START-LINE-P" "STREAM-TERPRI" "STREAM-UNREAD-CHAR"
-	     "STREAM-WRITE-BYTE" "STREAM-WRITE-CHAR" "STREAM-WRITE-STRING"))
+   ;; Gray streams extension.
+   "FUNDAMENTAL-BINARY-STREAM" "FUNDAMENTAL-BINARY-INPUT-STREAM"
+   "FUNDAMENTAL-BINARY-OUTPUT-STREAM" "FUNDAMENTAL-CHARACTER-STREAM"
+   "FUNDAMENTAL-CHARACTER-INPUT-STREAM"
+   "FUNDAMENTAL-CHARACTER-OUTPUT-STREAM"
+   "FUNDAMENTAL-INPUT-STREAM" "FUNDAMENTAL-OUTPUT-STREAM"
+   "FUNDAMENTAL-STREAM"
+   "STREAM-ADVANCE-TO-COLUMN" "STREAM-CLEAR-INPUT"
+   "STREAM-CLEAR-OUTPUT" "STREAM-FINISH-OUTPUT" "STREAM-FORCE-OUTPUT"
+   "STREAM-FRESH-LINE" "STREAM-LINE-COLUMN" "STREAM-LINE-LENGTH"
+   "STREAM-LISTEN" "STREAM-PEEK-CHAR" "STREAM-READ-BYTE"
+   "STREAM-READ-CHAR" "STREAM-READ-CHAR-NO-HANG" "STREAM-READ-LINE"
+   "STREAM-START-LINE-P" "STREAM-TERPRI" "STREAM-UNREAD-CHAR"
+   "STREAM-WRITE-BYTE" "STREAM-WRITE-CHAR" "STREAM-WRITE-STRING")
+  (:documentation "CMUCL extensions to Common Lisp.
+
+Example extensions are the `save-lisp' function and time parsing.
+
+Contains code that any random user could have written: list operations,
+convenience macros.  Uses only LISP.  Exports everything that is useful
+elsewhere.  This package hides little, so it is relatively safe for users
+to use EXTENSIONS, since everything they are getting they could have
+written themselves.  Contrast this to KERNEL, which exports additional
+operations on CL's primitive data structures:
+PACKAGE-INTERNAL-SYMBOL-COUNT, etc.  Although some of the functionality
+exported from KERNEL could have been defined in LISP, the kernel
+implementation is much more efficient because it knows about implementation
+internals.  Currently this package contains only extensions to LISP, but in
+the ideal scheme of things, it should contain the implementations of all LISP
+functions that are in KERNEL (the library.)
+
+Some of the extensions are defined in:
+
+[ String-table Functions ]
+[ Ring Functions         ]
+[ Key-events             ]"))
+
 
 (defpackage "LOOP"
-  (:documentation "The loop macro."))
+  (:documentation "The loop macro -- an iteration utility."))
 
 (dolist
     (name
@@ -1075,46 +1201,54 @@
        "DEBUG-SOURCE-START-POSITIONS"))
   (intern name "C"))
 (defpackage "DEBUG-INTERNALS"
-	    (:nicknames "DI")
-            (:import-from "C" "DEBUG-SOURCE" "DEBUG-SOURCE-COMPILED"
-             "DEBUG-SOURCE-CREATED" "DEBUG-SOURCE-FROM" "DEBUG-SOURCE-NAME"
-             "DEBUG-SOURCE-P" "DEBUG-SOURCE-START-POSITIONS")
-            (:export "*DEBUGGING-INTERPRETER*" "ACTIVATE-BREAKPOINT"
-             "AMBIGUOUS-DEBUG-VARIABLES" "AMBIGUOUS-VARIABLE-NAME" "BREAKPOINT"
-             "BREAKPOINT-ACTIVE-P" "BREAKPOINT-HOOK-FUNCTION" "BREAKPOINT-INFO"
-             "BREAKPOINT-KIND" "BREAKPOINT-P" "BREAKPOINT-WHAT" "CODE-LOCATION"
-             "CODE-LOCATION-DEBUG-BLOCK" "CODE-LOCATION-DEBUG-FUNCTION"
-             "CODE-LOCATION-DEBUG-SOURCE" "CODE-LOCATION-FORM-NUMBER"
-             "CODE-LOCATION-P" "CODE-LOCATION-TOP-LEVEL-FORM-OFFSET"
-             "CODE-LOCATION-UNKNOWN-P" "CODE-LOCATION=" "DEACTIVATE-BREAKPOINT"
-             "DEBUG-BLOCK" "DEBUG-BLOCK-ELSEWHERE-P" "DEBUG-BLOCK-P"
-             "DEBUG-BLOCK-SUCCESSORS" "DEBUG-CONDITION" "DEBUG-ERROR"
-             "DEBUG-FUNCTION" "DEBUG-FUNCTION-FUNCTION" "DEBUG-FUNCTION-KIND"
-             "DEBUG-FUNCTION-LAMBDA-LIST" "DEBUG-FUNCTION-NAME"
-             "DEBUG-FUNCTION-P" "DEBUG-FUNCTION-START-LOCATION"
-             "DEBUG-FUNCTION-SYMBOL-VARIABLES" "DEBUG-SOURCE"
-             "DEBUG-SOURCE-COMPILED" "DEBUG-SOURCE-CREATED" "DEBUG-SOURCE-FROM"
-             "DEBUG-SOURCE-NAME" "DEBUG-SOURCE-P" "DEBUG-SOURCE-ROOT-NUMBER"
-             "DEBUG-SOURCE-START-POSITIONS" "DEBUG-VARIABLE"
-             "DEBUG-VARIABLE-ID" "DEBUG-VARIABLE-INFO-AVAILABLE"
-             "DEBUG-VARIABLE-NAME" "DEBUG-VARIABLE-P" "DEBUG-VARIABLE-PACKAGE"
-             "DEBUG-VARIABLE-SYMBOL" "DEBUG-VARIABLE-VALID-VALUE"
-             "DEBUG-VARIABLE-VALIDITY" "DEBUG-VARIABLE-VALUE"
-             "DELETE-BREAKPOINT" "DELETE-BREAKPOINT-FOR-EDITOR" "DO-BLOCKS"
-             "DO-DEBUG-BLOCK-LOCATIONS" "DO-DEBUG-FUNCTION-BLOCKS"
-             "DO-DEBUG-FUNCTION-VARIABLES" "EVAL-IN-FRAME"
-             "FORM-NUMBER-TRANSLATIONS" "FRAME" "FRAME-CATCHES"
-             "FRAME-CODE-LOCATION" "FRAME-DEBUG-FUNCTION" "FRAME-DOWN"
-             "FRAME-FUNCTION-MISMATCH" "FRAME-NUMBER" "FRAME-P" "FRAME-UP"
-             "FUNCTION-DEBUG-FUNCTION" "FUNCTION-END-COOKIE-VALID-P"
-             "INVALID-CONTROL-STACK-POINTER" "INVALID-VALUE"
-             "LAMBDA-LIST-UNAVAILABLE" "MAKE-BREAKPOINT" "NO-DEBUG-BLOCKS"
-             "NO-DEBUG-FUNCTION-RETURNS" "NO-DEBUG-INFO" "PREPROCESS-FOR-EVAL"
-             "RETURN-FROM-FRAME" "SET-BREAKPOINT-FOR-EDITOR"
-             "SET-LOCATION-BREAKPOINT-FOR-EDITOR" "SOURCE-PATH-CONTEXT"
-             "TOP-FRAME" "UNHANDLED-CONDITION" "UNKNOWN-CODE-LOCATION"
-             "UNKNOWN-CODE-LOCATION-P" "UNKNOWN-DEBUG-VARIABLE"
-	     "CODE-LOCATION-KIND" "FLUSH-FRAMES-ABOVE"))
+  (:nicknames "DI")
+  (:import-from "C" "DEBUG-SOURCE" "DEBUG-SOURCE-COMPILED"
+		"DEBUG-SOURCE-CREATED" "DEBUG-SOURCE-FROM" "DEBUG-SOURCE-NAME"
+		"DEBUG-SOURCE-P" "DEBUG-SOURCE-START-POSITIONS")
+  (:export "*DEBUGGING-INTERPRETER*" "ACTIVATE-BREAKPOINT"
+	   "AMBIGUOUS-DEBUG-VARIABLES" "AMBIGUOUS-VARIABLE-NAME" "BREAKPOINT"
+	   "BREAKPOINT-ACTIVE-P" "BREAKPOINT-HOOK-FUNCTION" "BREAKPOINT-INFO"
+	   "BREAKPOINT-KIND" "BREAKPOINT-P" "BREAKPOINT-WHAT" "CODE-LOCATION"
+	   "CODE-LOCATION-DEBUG-BLOCK" "CODE-LOCATION-DEBUG-FUNCTION"
+	   "CODE-LOCATION-DEBUG-SOURCE" "CODE-LOCATION-FORM-NUMBER"
+	   "CODE-LOCATION-P" "CODE-LOCATION-TOP-LEVEL-FORM-OFFSET"
+	   "CODE-LOCATION-UNKNOWN-P" "CODE-LOCATION=" "DEACTIVATE-BREAKPOINT"
+	   "DEBUG-BLOCK" "DEBUG-BLOCK-ELSEWHERE-P" "DEBUG-BLOCK-P"
+	   "DEBUG-BLOCK-SUCCESSORS" "DEBUG-CONDITION" "DEBUG-ERROR"
+	   "DEBUG-FUNCTION" "DEBUG-FUNCTION-FUNCTION" "DEBUG-FUNCTION-KIND"
+	   "DEBUG-FUNCTION-LAMBDA-LIST" "DEBUG-FUNCTION-NAME"
+	   "DEBUG-FUNCTION-P" "DEBUG-FUNCTION-START-LOCATION"
+	   "DEBUG-FUNCTION-SYMBOL-VARIABLES" "DEBUG-SOURCE"
+	   "DEBUG-SOURCE-COMPILED" "DEBUG-SOURCE-CREATED" "DEBUG-SOURCE-FROM"
+	   "DEBUG-SOURCE-NAME" "DEBUG-SOURCE-P" "DEBUG-SOURCE-ROOT-NUMBER"
+	   "DEBUG-SOURCE-START-POSITIONS" "DEBUG-VARIABLE"
+	   "DEBUG-VARIABLE-ID" "DEBUG-VARIABLE-INFO-AVAILABLE"
+	   "DEBUG-VARIABLE-NAME" "DEBUG-VARIABLE-P" "DEBUG-VARIABLE-PACKAGE"
+	   "DEBUG-VARIABLE-SYMBOL" "DEBUG-VARIABLE-VALID-VALUE"
+	   "DEBUG-VARIABLE-VALIDITY" "DEBUG-VARIABLE-VALUE"
+	   "DELETE-BREAKPOINT" "DELETE-BREAKPOINT-FOR-EDITOR" "DO-BLOCKS"
+	   "DO-DEBUG-BLOCK-LOCATIONS" "DO-DEBUG-FUNCTION-BLOCKS"
+	   "DO-DEBUG-FUNCTION-VARIABLES" "EVAL-IN-FRAME"
+	   "FORM-NUMBER-TRANSLATIONS" "FRAME" "FRAME-CATCHES"
+	   "FRAME-CODE-LOCATION" "FRAME-DEBUG-FUNCTION" "FRAME-DOWN"
+	   "FRAME-FUNCTION-MISMATCH" "FRAME-NUMBER" "FRAME-P" "FRAME-UP"
+	   "FUNCTION-DEBUG-FUNCTION" "FUNCTION-END-COOKIE-VALID-P"
+	   "INVALID-CONTROL-STACK-POINTER" "INVALID-VALUE"
+	   "LAMBDA-LIST-UNAVAILABLE" "MAKE-BREAKPOINT" "NO-DEBUG-BLOCKS"
+	   "NO-DEBUG-FUNCTION-RETURNS" "NO-DEBUG-INFO" "NO-DEBUG-VARIABLES"
+	   "PREPROCESS-FOR-EVAL"
+	   "RETURN-FROM-FRAME" "SET-BREAKPOINT-FOR-EDITOR"
+	   "SET-LOCATION-BREAKPOINT-FOR-EDITOR" "SOURCE-PATH-CONTEXT"
+	   "TOP-FRAME" "UNHANDLED-CONDITION" "UNKNOWN-CODE-LOCATION"
+	   "UNKNOWN-CODE-LOCATION-P" "UNKNOWN-DEBUG-VARIABLE"
+	   "CODE-LOCATION-KIND" "FLUSH-FRAMES-ABOVE")
+  (:documentation "Primitives used to write run-time program inspectors.
+
+Described in [Debugger Programmer Interface].
+
+A reasonable, unified interface to manipulation of the state of both
+compiled and interpreted code.  (could be in KERNEL)."))
+
 (dolist
     (name
      '("%ARRAY-TYPEP" "%ASET" "%BITSET" "%CHARSET" "%PUT"
@@ -1146,7 +1280,7 @@
 	   "*SUPPRESS-VALUES-DECLARATION*" "*TARGET-BACKEND*"
 	   "ALLOC-ALIEN-STACK-SPACE"
 	   "ALLOC-NUMBER-STACK-SPACE" "ALLOCATE-CODE-OBJECT" "ALLOCATE-FRAME"
- 	   "ALLOCATE-DYNAMIC-CODE-OBJECT"
+	   "ALLOCATE-DYNAMIC-CODE-OBJECT"
 	   "ALLOCATE-FULL-CALL-FRAME" "ANY" "ARGUMENT-COUNT-ERROR"
 	   "ATTRIBUTES" "ATTRIBUTES-INTERSECTION" "ATTRIBUTES-UNION"
 	   "ATTRIBUTES=" "BACKEND-ANY-PRIMITIVE-TYPE"
@@ -1283,68 +1417,74 @@
 	   "WIRE-IO-ERROR" "WIRE-LISTEN" "WIRE-OUTPUT-BIGNUM"
 	   "WIRE-OUTPUT-BYTE" "WIRE-OUTPUT-FUNCALL" "WIRE-OUTPUT-NUMBER"
 	   "WIRE-OUTPUT-OBJECT" "WIRE-OUTPUT-STRING" "WIRE-P")
-  (:documentation "An interface to internet domain sockets."))
+  (:documentation "[The wire package] exports a remote procedure call facility."))
 
 (defpackage "FTP"
   (:export "FTP-READ" "FTP-WRITE")
   (:documentation "File Transfer Protocol interface."))
 
 (defpackage "PRETTY-PRINT"
-	    (:nicknames "PP")
-	    (:export "PRETTY-STREAM" "PRETTY-STREAM-P"))
+  (:nicknames "PP")
+  (:export "PRETTY-STREAM" "PRETTY-STREAM-P"))
 
 (intern "LOAD-FOREIGN" "EXTENSIONS")
 
 (defpackage "SYSTEM"
-	    (:nicknames "SYS")
-            (:import-from "EXTENSIONS" "LOAD-FOREIGN")
-            (:export "%ASSEMBLER-CODE-TYPE" "%BIND-ALIGNED-SAP" "%PRIMITIVE"
-             "%SP-BYTE-BLT" "%SP-FIND-CHARACTER"
-             "%SP-FIND-CHARACTER-WITH-ATTRIBUTE"
-             "%SP-REVERSE-FIND-CHARACTER-WITH-ATTRIBUTE" "%STANDARD-CHAR-P"
-             "*BEEP-FUNCTION*"
-	     "*LONG-SITE-NAME*" "*SHORT-SITE-NAME*"
-             "*SOFTWARE-TYPE*" "*STDERR*" "*STDIN*" "*STDOUT*" "*TASK-DATA*"
-             "*TASK-NOTIFY*" "*TASK-SELF*" "*TTY*" "*TYPESCRIPTPORT*"
-	     "*WITH-SCREEN-HOOKS*"
-	     "*XWINDOW-TABLE*"
-             "ADD-FD-HANDLER" "ADD-PORT-DEATH-HANDLER" "ADD-PORT-OBJECT"
-             "ADD-XWINDOW-OBJECT" "ALLOCATE-SYSTEM-MEMORY" "BEEP" "BITS"
-             "BYTES" "C-PROCEDURE" "CHECK<=" "CHECK=" "COMPILER-VERSION"
-             "CT-A-VAL" "CT-A-VAL-OFFSET" "CT-A-VAL-P" "CT-A-VAL-SAP"
-             "CT-A-VAL-SIZE" "CT-A-VAL-TYPE" "DEALLOCATE-SYSTEM-MEMORY"
-             "DEFAULT-INTERRUPT" "DEFENUMERATION" "DEFOPERATOR" "DEFRECORD"
-             "DEPORT-BOOLEAN" "DEPORT-INTEGER" "DOUBLE-FLOAT-RADIX"
-             "ENABLE-INTERRUPT" "ENUMERATION" "FD-STREAM" "FD-STREAM-FD"
-             "FD-STREAM-P" "FIND-IF-IN-CLOSURE" "FOREIGN-SYMBOL-ADDRESS"
-	     "GET-PAGE-SIZE" "GET-SYSTEM-INFO"
-	     "IGNORE-INTERRUPT"
-             "INT-SAP" "INVALIDATE-DESCRIPTOR" "IO-TIMEOUT"
-	     "LISP-STREAM" "LONG-FLOAT-RADIX" "LONG-WORDS"
-	     "MACRO" "MAKE-CT-A-VAL" "MAKE-FD-STREAM"
-             "MAKE-INDENTING-STREAM" "MAKE-OBJECT-SET" "MAP-PORT" "MAP-XWINDOW"
-             "NATURALIZE-BOOLEAN" "NATURALIZE-INTEGER" "NULL-TERMINATED-STRING"
-             "OBJECT-SET-OPERATION" "OUTPUT-RAW-BYTES" "PARSE-BODY"
-             "PERQ-STRING" "POINTER" "POINTER<" "POINTER>" "PORT" "PRIMEP"
-             "READ-N-BYTES" "REALLOCATE-SYSTEM-MEMORY" "RECORD-SIZE"
-             "REMOVE-FD-HANDLER" "REMOVE-PORT-DEATH-HANDLER"
-             "REMOVE-PORT-OBJECT" "REMOVE-XWINDOW-OBJECT"
-             "RESOLVE-LOADED-ASSEMBLER-REFERENCES" "SAP+" "SAP-" "SAP-INT"
-	     "SAP-REF-16" "SAP-REF-32" "SAP-REF-64" "SAP-REF-8"
-	     "SAP-REF-DESCRIPTOR"
-             "SAP-REF-DOUBLE" "SAP-REF-LONG" "SAP-REF-SAP" "SAP-REF-SINGLE"
-	     "SAP<" "SAP<=" "SAP=" "SAP>" "SAP>="
-	     "SCRUB-CONTROL-STACK" "SERVE-ALL-EVENTS"
-             "SERVE-EVENT" "SERVER" "SERVER-MESSAGE" "SHORT-FLOAT-RADIX"
-             "SIGNED-SAP-REF-16" "SIGNED-SAP-REF-32"
-	     "SIGNED-SAP-REF-64" "SIGNED-SAP-REF-8"
-             "SINGLE-FLOAT-RADIX" "SYMBOL-MACRO-LET" "SYSTEM-AREA-POINTER"
-             "SYSTEM-AREA-POINTER-P" "VECTOR-SAP"
-             "WAIT-UNTIL-FD-USABLE" "WITH-ENABLED-INTERRUPTS" "WITH-FD-HANDLER"
-             "WITH-INTERRUPTS" "WITH-REPLY-PORT" "WITHOUT-GCING"
-             "WITHOUT-INTERRUPTS" "WITH-SCREEN" "WORDS"
-	     "OS-INIT" "ALLOCATE-SYSTEM-MEMORY-AT"
-	     "ALTERNATE-GET-GLOBAL-ADDRESS"))
+  (:nicknames "SYS")
+  (:import-from "EXTENSIONS" "LOAD-FOREIGN")
+  (:export "%ASSEMBLER-CODE-TYPE" "%BIND-ALIGNED-SAP" "%PRIMITIVE"
+	   "%SP-BYTE-BLT" "%SP-FIND-CHARACTER"
+	   "%SP-FIND-CHARACTER-WITH-ATTRIBUTE"
+	   "%SP-REVERSE-FIND-CHARACTER-WITH-ATTRIBUTE" "%STANDARD-CHAR-P"
+	   "*BEEP-FUNCTION*"
+	   "*LONG-SITE-NAME*" "*SHORT-SITE-NAME*"
+	   "*SOFTWARE-TYPE*" "*STDERR*" "*STDIN*" "*STDOUT*" "*TASK-DATA*"
+	   "*TASK-NOTIFY*" "*TASK-SELF*" "*TTY*" "*TYPESCRIPTPORT*"
+	   "*WITH-SCREEN-HOOKS*"
+	   "*XWINDOW-TABLE*"
+	   "ADD-FD-HANDLER" "ADD-PORT-DEATH-HANDLER" "ADD-PORT-OBJECT"
+	   "ADD-XWINDOW-OBJECT" "ALLOCATE-SYSTEM-MEMORY" "BEEP" "BITS"
+	   "BYTES" "C-PROCEDURE" "CHECK<=" "CHECK=" "COMPILER-VERSION"
+	   "CT-A-VAL" "CT-A-VAL-OFFSET" "CT-A-VAL-P" "CT-A-VAL-SAP"
+	   "CT-A-VAL-SIZE" "CT-A-VAL-TYPE" "DEALLOCATE-SYSTEM-MEMORY"
+	   "DEFAULT-INTERRUPT" "DEFENUMERATION" "DEFOPERATOR" "DEFRECORD"
+	   "DEPORT-BOOLEAN" "DEPORT-INTEGER" "DOUBLE-FLOAT-RADIX"
+	   "ENABLE-INTERRUPT" "ENUMERATION" "FD-STREAM" "FD-STREAM-FD"
+	   "FD-STREAM-P" "FIND-IF-IN-CLOSURE" "FOREIGN-SYMBOL-ADDRESS"
+	   "GET-PAGE-SIZE" "GET-SYSTEM-INFO"
+	   "IGNORE-INTERRUPT"
+	   "INT-SAP" "INVALIDATE-DESCRIPTOR" "IO-TIMEOUT"
+	   "LISP-STREAM" "LONG-FLOAT-RADIX" "LONG-WORDS"
+	   "MACRO" "MAKE-CT-A-VAL" "MAKE-FD-STREAM"
+	   "MAKE-INDENTING-STREAM" "MAKE-OBJECT-SET" "MAP-PORT" "MAP-XWINDOW"
+	   "NATURALIZE-BOOLEAN" "NATURALIZE-INTEGER" "NULL-TERMINATED-STRING"
+	   "OBJECT-SET-OPERATION" "OUTPUT-RAW-BYTES" "PARSE-BODY"
+	   "PERQ-STRING" "POINTER" "POINTER<" "POINTER>" "PORT" "PRIMEP"
+	   "READ-N-BYTES" "REALLOCATE-SYSTEM-MEMORY" "RECORD-SIZE"
+	   "REMOVE-FD-HANDLER" "REMOVE-PORT-DEATH-HANDLER"
+	   "REMOVE-PORT-OBJECT" "REMOVE-XWINDOW-OBJECT"
+	   "RESOLVE-LOADED-ASSEMBLER-REFERENCES" "SAP+" "SAP-" "SAP-INT"
+	   "SAP-REF-16" "SAP-REF-32" "SAP-REF-64" "SAP-REF-8"
+	   "SAP-REF-DESCRIPTOR"
+	   "SAP-REF-DOUBLE" "SAP-REF-LONG" "SAP-REF-SAP" "SAP-REF-SINGLE"
+	   "SAP<" "SAP<=" "SAP=" "SAP>" "SAP>="
+	   "SCRUB-CONTROL-STACK" "SERVE-ALL-EVENTS"
+	   "SERVE-EVENT" "SERVER" "SERVER-MESSAGE" "SHORT-FLOAT-RADIX"
+	   "SIGNED-SAP-REF-16" "SIGNED-SAP-REF-32"
+	   "SIGNED-SAP-REF-64" "SIGNED-SAP-REF-8"
+	   "SINGLE-FLOAT-RADIX" "SYMBOL-MACRO-LET" "SYSTEM-AREA-POINTER"
+	   "SYSTEM-AREA-POINTER-P" "VECTOR-SAP"
+	   "WAIT-UNTIL-FD-USABLE" "WITH-ENABLED-INTERRUPTS" "WITH-FD-HANDLER"
+	   "WITH-INTERRUPTS" "WITH-REPLY-PORT" "WITHOUT-GCING"
+	   "BLOCK-INTERRUPTS" "WITHOUT-INTERRUPTS" "WITH-SCREEN" "WORDS"
+	   "OS-INIT" "ALLOCATE-SYSTEM-MEMORY-AT"
+	   "ALTERNATE-GET-GLOBAL-ADDRESS")
+  (:documentation "Functions and information necessary for system interfacing.
+
+Contains code that must know about the operating system environment: I/O,
+etc.  Hides the operating system environment.  Provides OS interface
+extensions such as `print-directory'."))
+
 (dolist
     (name
      '("*" "ARRAY" "BOOLEAN" "DOUBLE-FLOAT" "FUNCTION" "INTEGER" "LONG-FLOAT"
@@ -1352,15 +1492,19 @@
   (intern name "LISP"))
 
 (defpackage "ALIEN"
-            (:import-from "LISP" "*" "ARRAY" "DOUBLE-FLOAT" "FUNCTION"
-             "BOOLEAN" "INTEGER" "LONG-FLOAT" "SINGLE-FLOAT" "UNION" "VALUES")
-            (:export "*" "ADDR" "ALIEN" "ALIEN-FUNCALL" "ALIEN-SAP"
-             "ALIEN-SIZE" "ARRAY" "BOOLEAN" "CAST" "DEF-ALIEN-ROUTINE"
-             "DEF-ALIEN-TYPE" "DEF-ALIEN-VARIABLE" "DEF-BUILTIN-ALIEN-TYPE"
-             "DEREF" "DOUBLE-FLOAT" "ENUM" "EXTERN-ALIEN" "FUNCTION" "INTEGER"
-             "LONG-FLOAT" "SAP-ALIEN" "SIGNED" "SINGLE-FLOAT" "SLOT" "STRUCT"
-	     "UNION" "UNSIGNED" "VALUES" "WITH-ALIEN" "FREE-ALIEN" "NULL-ALIEN"
-	     "MAKE-ALIEN" "LOAD-FOREIGN" "SYSTEM-AREA-POINTER"))
+  (:import-from "LISP" "*" "ARRAY" "DOUBLE-FLOAT" "FUNCTION"
+		"BOOLEAN" "INTEGER" "LONG-FLOAT" "SINGLE-FLOAT" "UNION" "VALUES")
+  (:export "*" "ADDR" "ALIEN" "ALIEN-FUNCALL" "ALIEN-SAP"
+	   "ALIEN-SIZE" "ARRAY" "BOOLEAN" "CAST" "DEF-ALIEN-ROUTINE"
+	   "DEF-ALIEN-TYPE" "DEF-ALIEN-VARIABLE" "DEF-BUILTIN-ALIEN-TYPE"
+	   "DEREF" "DOUBLE-FLOAT" "ENUM" "EXTERN-ALIEN" "FUNCTION" "INTEGER"
+	   "LONG-FLOAT" "SAP-ALIEN" "SIGNED" "SINGLE-FLOAT" "SLOT" "STRUCT"
+	   "UNION" "UNSIGNED" "VALUES" "WITH-ALIEN" "FREE-ALIEN" "NULL-ALIEN"
+	   "MAKE-ALIEN" "LOAD-FOREIGN" "SYSTEM-AREA-POINTER")
+  (:documentation "The Alien foreign data structure facility.
+
+Described in [Aliens]."))
+
 
 (dolist
     (name
@@ -1402,83 +1546,86 @@
   (intern name "ALIEN"))
 
 (defpackage "ALIEN-INTERNALS"
-            (:import-from "ALIEN" "%CAST" "%DEREF-ADDR" "%HEAP-ALIEN"
-             "%HEAP-ALIEN-ADDR" "%LOCAL-ALIEN-ADDR"
-             "%LOCAL-ALIEN-FORCED-TO-MEMORY-P" "%SAP-ALIEN" "%SET-DEREF"
-             "%SET-HEAP-ALIEN" "%SET-LOCAL-ALIEN" "%SET-SLOT" "%SLOT-ADDR"
-             "*VALUES-TYPE-OKAY*" "ALIEN" "ALIEN-ARRAY-TYPE"
-             "ALIEN-ARRAY-TYPE-DIMENSIONS" "ALIEN-ARRAY-TYPE-ELEMENT-TYPE"
-             "ALIEN-ARRAY-TYPE-P" "ALIEN-BOOLEAN-TYPE" "ALIEN-BOOLEAN-TYPE-P"
-             "ALIEN-DOUBLE-FLOAT-TYPE" "ALIEN-DOUBLE-FLOAT-TYPE-P"
-             "ALIEN-ENUM-TYPE" "ALIEN-ENUM-TYPE-P" "ALIEN-FLOAT-TYPE"
-             "ALIEN-FLOAT-TYPE-P" "ALIEN-FUNCTION-TYPE"
-             "ALIEN-FUNCTION-TYPE-ARG-TYPES" "ALIEN-FUNCTION-TYPE-P"
-             "ALIEN-FUNCTION-TYPE-RESULT-TYPE" "ALIEN-INTEGER-TYPE"
-             "ALIEN-INTEGER-TYPE-P" "ALIEN-INTEGER-TYPE-SIGNED"
-             "ALIEN-LONG-FLOAT-TYPE" "ALIEN-LONG-FLOAT-TYPE-P"
-             "ALIEN-POINTER-TYPE" "ALIEN-POINTER-TYPE-P"
-             "ALIEN-POINTER-TYPE-TO" "ALIEN-RECORD-FIELD"
-             "ALIEN-RECORD-FIELD-NAME" "ALIEN-RECORD-FIELD-OFFSET"
-             "ALIEN-RECORD-FIELD-P" "ALIEN-RECORD-FIELD-TYPE"
-             "ALIEN-RECORD-TYPE" "ALIEN-RECORD-TYPE-FIELDS"
-             "ALIEN-RECORD-TYPE-P" "ALIEN-SINGLE-FLOAT-TYPE"
-             "ALIEN-SINGLE-FLOAT-TYPE-P" "ALIEN-SUBTYPE-P" "ALIEN-TYPE"
-             "ALIEN-TYPE-=" "ALIEN-TYPE-ALIGNMENT" "ALIEN-TYPE-BITS"
-             "ALIEN-TYPE-P" "ALIEN-TYPEP" "ALIEN-VALUE" "ALIEN-VALUE-TYPE"
-             "ALIEN-VALUES-TYPE" "ALIEN-VALUES-TYPE-P"
-             "ALIEN-VALUES-TYPE-VALUES" "ALIGN-OFFSET" "COMPUTE-ALIEN-REP-TYPE"
-             "COMPUTE-DEPORT-LAMBDA" "COMPUTE-DEPOSIT-LAMBDA"
-             "COMPUTE-EXTRACT-LAMBDA" "COMPUTE-LISP-REP-TYPE"
-             "COMPUTE-NATURALIZE-LAMBDA" "DEF-ALIEN-TYPE-CLASS"
-             "DEF-ALIEN-TYPE-METHOD" "DEF-ALIEN-TYPE-TRANSLATOR" "DEPORT"
-             "DEPOSIT-ALIEN-VALUE" "DISPOSE-LOCAL-ALIEN" "EXTRACT-ALIEN-VALUE"
-             "HEAP-ALIEN-INFO" "HEAP-ALIEN-INFO-P" "HEAP-ALIEN-INFO-SAP-FORM"
-             "HEAP-ALIEN-INFO-TYPE" "INVOKE-ALIEN-TYPE-METHOD" "LOCAL-ALIEN"
-             "LOCAL-ALIEN-INFO" "LOCAL-ALIEN-INFO-FORCE-TO-MEMORY-P"
-             "LOCAL-ALIEN-INFO-P" "LOCAL-ALIEN-INFO-TYPE"
-             "MAKE-ALIEN-FUNCTION-TYPE" "MAKE-ALIEN-POINTER-TYPE"
-             "MAKE-LOCAL-ALIEN" "NATURALIZE" "NOTE-LOCAL-ALIEN-TYPE"
-             "PARSE-ALIEN-TYPE" "UNPARSE-ALIEN-TYPE")
-            (:export "%CAST" "%DEREF-ADDR" "%HEAP-ALIEN" "%HEAP-ALIEN-ADDR"
-             "%LOCAL-ALIEN-ADDR" "%LOCAL-ALIEN-FORCED-TO-MEMORY-P" "%SAP-ALIEN"
-             "%SET-DEREF" "%SET-HEAP-ALIEN" "%SET-LOCAL-ALIEN" "%SET-SLOT"
-             "%SLOT-ADDR" "*VALUES-TYPE-OKAY*" "ALIEN" "ALIEN-ARRAY-TYPE"
-             "ALIEN-ARRAY-TYPE-DIMENSIONS" "ALIEN-ARRAY-TYPE-ELEMENT-TYPE"
-             "ALIEN-ARRAY-TYPE-P" "ALIEN-BOOLEAN-TYPE" "ALIEN-BOOLEAN-TYPE-P"
-             "ALIEN-DOUBLE-FLOAT-TYPE" "ALIEN-DOUBLE-FLOAT-TYPE-P"
-             "ALIEN-ENUM-TYPE" "ALIEN-ENUM-TYPE-P" "ALIEN-FLOAT-TYPE"
-             "ALIEN-FLOAT-TYPE-P" "ALIEN-FUNCTION-TYPE"
-             "ALIEN-FUNCTION-TYPE-ARG-TYPES" "ALIEN-FUNCTION-TYPE-P"
-             "ALIEN-FUNCTION-TYPE-RESULT-TYPE" "ALIEN-INTEGER-TYPE"
-             "ALIEN-INTEGER-TYPE-P" "ALIEN-INTEGER-TYPE-SIGNED"
-             "ALIEN-LONG-FLOAT-TYPE" "ALIEN-LONG-FLOAT-TYPE-P"
-             "ALIEN-POINTER-TYPE" "ALIEN-POINTER-TYPE-P"
-             "ALIEN-POINTER-TYPE-TO" "ALIEN-RECORD-FIELD"
-             "ALIEN-RECORD-FIELD-NAME" "ALIEN-RECORD-FIELD-OFFSET"
-             "ALIEN-RECORD-FIELD-P" "ALIEN-RECORD-FIELD-TYPE"
-             "ALIEN-RECORD-TYPE" "ALIEN-RECORD-TYPE-FIELDS"
-             "ALIEN-RECORD-TYPE-P" "ALIEN-SINGLE-FLOAT-TYPE"
-             "ALIEN-SINGLE-FLOAT-TYPE-P" "ALIEN-SUBTYPE-P" "ALIEN-TYPE"
-             "ALIEN-TYPE-=" "ALIEN-TYPE-ALIGNMENT" "ALIEN-TYPE-BITS"
-             "ALIEN-TYPE-P" "ALIEN-TYPEP" "ALIEN-VALUE" "ALIEN-VALUE-TYPE"
-             "ALIEN-VALUES-TYPE" "ALIEN-VALUES-TYPE-P"
-             "ALIEN-VALUES-TYPE-VALUES" "ALIGN-OFFSET" "COMPUTE-ALIEN-REP-TYPE"
-             "COMPUTE-DEPORT-LAMBDA" "COMPUTE-DEPOSIT-LAMBDA"
-             "COMPUTE-EXTRACT-LAMBDA" "COMPUTE-LISP-REP-TYPE"
-             "COMPUTE-NATURALIZE-LAMBDA" "DEF-ALIEN-TYPE-CLASS"
-             "DEF-ALIEN-TYPE-METHOD" "DEF-ALIEN-TYPE-TRANSLATOR" "DEPORT"
-             "DEPOSIT-ALIEN-VALUE" "DISPOSE-LOCAL-ALIEN" "EXTRACT-ALIEN-VALUE"
-             "HEAP-ALIEN-INFO" "HEAP-ALIEN-INFO-P" "HEAP-ALIEN-INFO-SAP-FORM"
-             "HEAP-ALIEN-INFO-TYPE" "INVOKE-ALIEN-TYPE-METHOD" "LOCAL-ALIEN"
-             "LOCAL-ALIEN-INFO" "LOCAL-ALIEN-INFO-FORCE-TO-MEMORY-P"
-             "LOCAL-ALIEN-INFO-P" "LOCAL-ALIEN-INFO-TYPE"
-             "MAKE-ALIEN-FUNCTION-TYPE" "MAKE-ALIEN-POINTER-TYPE"
-             "MAKE-LOCAL-ALIEN" "NATURALIZE" "NOTE-LOCAL-ALIEN-TYPE"
-             "PARSE-ALIEN-TYPE" "UNPARSE-ALIEN-TYPE"))
+  (:import-from "ALIEN" "%CAST" "%DEREF-ADDR" "%HEAP-ALIEN"
+		"%HEAP-ALIEN-ADDR" "%LOCAL-ALIEN-ADDR"
+		"%LOCAL-ALIEN-FORCED-TO-MEMORY-P" "%SAP-ALIEN" "%SET-DEREF"
+		"%SET-HEAP-ALIEN" "%SET-LOCAL-ALIEN" "%SET-SLOT" "%SLOT-ADDR"
+		"*VALUES-TYPE-OKAY*" "ALIEN" "ALIEN-ARRAY-TYPE"
+		"ALIEN-ARRAY-TYPE-DIMENSIONS" "ALIEN-ARRAY-TYPE-ELEMENT-TYPE"
+		"ALIEN-ARRAY-TYPE-P" "ALIEN-BOOLEAN-TYPE" "ALIEN-BOOLEAN-TYPE-P"
+		"ALIEN-DOUBLE-FLOAT-TYPE" "ALIEN-DOUBLE-FLOAT-TYPE-P"
+		"ALIEN-ENUM-TYPE" "ALIEN-ENUM-TYPE-P" "ALIEN-FLOAT-TYPE"
+		"ALIEN-FLOAT-TYPE-P" "ALIEN-FUNCTION-TYPE"
+		"ALIEN-FUNCTION-TYPE-ARG-TYPES" "ALIEN-FUNCTION-TYPE-P"
+		"ALIEN-FUNCTION-TYPE-RESULT-TYPE" "ALIEN-INTEGER-TYPE"
+		"ALIEN-INTEGER-TYPE-P" "ALIEN-INTEGER-TYPE-SIGNED"
+		"ALIEN-LONG-FLOAT-TYPE" "ALIEN-LONG-FLOAT-TYPE-P"
+		"ALIEN-POINTER-TYPE" "ALIEN-POINTER-TYPE-P"
+		"ALIEN-POINTER-TYPE-TO" "ALIEN-RECORD-FIELD"
+		"ALIEN-RECORD-FIELD-NAME" "ALIEN-RECORD-FIELD-OFFSET"
+		"ALIEN-RECORD-FIELD-P" "ALIEN-RECORD-FIELD-TYPE"
+		"ALIEN-RECORD-TYPE" "ALIEN-RECORD-TYPE-FIELDS"
+		"ALIEN-RECORD-TYPE-P" "ALIEN-SINGLE-FLOAT-TYPE"
+		"ALIEN-SINGLE-FLOAT-TYPE-P" "ALIEN-SUBTYPE-P" "ALIEN-TYPE"
+		"ALIEN-TYPE-=" "ALIEN-TYPE-ALIGNMENT" "ALIEN-TYPE-BITS"
+		"ALIEN-TYPE-P" "ALIEN-TYPEP" "ALIEN-VALUE" "ALIEN-VALUE-TYPE"
+		"ALIEN-VALUES-TYPE" "ALIEN-VALUES-TYPE-P"
+		"ALIEN-VALUES-TYPE-VALUES" "ALIGN-OFFSET" "COMPUTE-ALIEN-REP-TYPE"
+		"COMPUTE-DEPORT-LAMBDA" "COMPUTE-DEPOSIT-LAMBDA"
+		"COMPUTE-EXTRACT-LAMBDA" "COMPUTE-LISP-REP-TYPE"
+		"COMPUTE-NATURALIZE-LAMBDA" "DEF-ALIEN-TYPE-CLASS"
+		"DEF-ALIEN-TYPE-METHOD" "DEF-ALIEN-TYPE-TRANSLATOR" "DEPORT"
+		"DEPOSIT-ALIEN-VALUE" "DISPOSE-LOCAL-ALIEN" "EXTRACT-ALIEN-VALUE"
+		"HEAP-ALIEN-INFO" "HEAP-ALIEN-INFO-P" "HEAP-ALIEN-INFO-SAP-FORM"
+		"HEAP-ALIEN-INFO-TYPE" "INVOKE-ALIEN-TYPE-METHOD" "LOCAL-ALIEN"
+		"LOCAL-ALIEN-INFO" "LOCAL-ALIEN-INFO-FORCE-TO-MEMORY-P"
+		"LOCAL-ALIEN-INFO-P" "LOCAL-ALIEN-INFO-TYPE"
+		"MAKE-ALIEN-FUNCTION-TYPE" "MAKE-ALIEN-POINTER-TYPE"
+		"MAKE-LOCAL-ALIEN" "NATURALIZE" "NOTE-LOCAL-ALIEN-TYPE"
+		"PARSE-ALIEN-TYPE" "UNPARSE-ALIEN-TYPE")
+  (:export "%CAST" "%DEREF-ADDR" "%HEAP-ALIEN" "%HEAP-ALIEN-ADDR"
+	   "%LOCAL-ALIEN-ADDR" "%LOCAL-ALIEN-FORCED-TO-MEMORY-P" "%SAP-ALIEN"
+	   "%SET-DEREF" "%SET-HEAP-ALIEN" "%SET-LOCAL-ALIEN" "%SET-SLOT"
+	   "%SLOT-ADDR" "*VALUES-TYPE-OKAY*" "ALIEN" "ALIEN-ARRAY-TYPE"
+	   "ALIEN-ARRAY-TYPE-DIMENSIONS" "ALIEN-ARRAY-TYPE-ELEMENT-TYPE"
+	   "ALIEN-ARRAY-TYPE-P" "ALIEN-BOOLEAN-TYPE" "ALIEN-BOOLEAN-TYPE-P"
+	   "ALIEN-DOUBLE-FLOAT-TYPE" "ALIEN-DOUBLE-FLOAT-TYPE-P"
+	   "ALIEN-ENUM-TYPE" "ALIEN-ENUM-TYPE-P" "ALIEN-FLOAT-TYPE"
+	   "ALIEN-FLOAT-TYPE-P" "ALIEN-FUNCTION-TYPE"
+	   "ALIEN-FUNCTION-TYPE-ARG-TYPES" "ALIEN-FUNCTION-TYPE-P"
+	   "ALIEN-FUNCTION-TYPE-RESULT-TYPE" "ALIEN-INTEGER-TYPE"
+	   "ALIEN-INTEGER-TYPE-P" "ALIEN-INTEGER-TYPE-SIGNED"
+	   "ALIEN-LONG-FLOAT-TYPE" "ALIEN-LONG-FLOAT-TYPE-P"
+	   "ALIEN-POINTER-TYPE" "ALIEN-POINTER-TYPE-P"
+	   "ALIEN-POINTER-TYPE-TO" "ALIEN-RECORD-FIELD"
+	   "ALIEN-RECORD-FIELD-NAME" "ALIEN-RECORD-FIELD-OFFSET"
+	   "ALIEN-RECORD-FIELD-P" "ALIEN-RECORD-FIELD-TYPE"
+	   "ALIEN-RECORD-TYPE" "ALIEN-RECORD-TYPE-FIELDS"
+	   "ALIEN-RECORD-TYPE-P" "ALIEN-SINGLE-FLOAT-TYPE"
+	   "ALIEN-SINGLE-FLOAT-TYPE-P" "ALIEN-SUBTYPE-P" "ALIEN-TYPE"
+	   "ALIEN-TYPE-=" "ALIEN-TYPE-ALIGNMENT" "ALIEN-TYPE-BITS"
+	   "ALIEN-TYPE-P" "ALIEN-TYPEP" "ALIEN-VALUE" "ALIEN-VALUE-TYPE"
+	   "ALIEN-VALUES-TYPE" "ALIEN-VALUES-TYPE-P"
+	   "ALIEN-VALUES-TYPE-VALUES" "ALIGN-OFFSET" "COMPUTE-ALIEN-REP-TYPE"
+	   "COMPUTE-DEPORT-LAMBDA" "COMPUTE-DEPOSIT-LAMBDA"
+	   "COMPUTE-EXTRACT-LAMBDA" "COMPUTE-LISP-REP-TYPE"
+	   "COMPUTE-NATURALIZE-LAMBDA" "DEF-ALIEN-TYPE-CLASS"
+	   "DEF-ALIEN-TYPE-METHOD" "DEF-ALIEN-TYPE-TRANSLATOR" "DEPORT"
+	   "DEPOSIT-ALIEN-VALUE" "DISPOSE-LOCAL-ALIEN" "EXTRACT-ALIEN-VALUE"
+	   "HEAP-ALIEN-INFO" "HEAP-ALIEN-INFO-P" "HEAP-ALIEN-INFO-SAP-FORM"
+	   "HEAP-ALIEN-INFO-TYPE" "INVOKE-ALIEN-TYPE-METHOD" "LOCAL-ALIEN"
+	   "LOCAL-ALIEN-INFO" "LOCAL-ALIEN-INFO-FORCE-TO-MEMORY-P"
+	   "LOCAL-ALIEN-INFO-P" "LOCAL-ALIEN-INFO-TYPE"
+	   "MAKE-ALIEN-FUNCTION-TYPE" "MAKE-ALIEN-POINTER-TYPE"
+	   "MAKE-LOCAL-ALIEN" "NATURALIZE" "NOTE-LOCAL-ALIEN-TYPE"
+	   "PARSE-ALIEN-TYPE" "UNPARSE-ALIEN-TYPE"))
 
 (defpackage "PROFILE"
-            (:export "*TIMED-FUNCTIONS*" "PROFILE" "PROFILE-ALL" "REPORT-TIME"
-	     "RESET-TIME" "UNPROFILE"))
+  (:export "*TIMED-FUNCTIONS*" "PROFILE" "PROFILE-ALL" "REPORT-TIME"
+	   "RESET-TIME" "UNPROFILE")
+  (:documentation "A simple run-time profiling facility.
+
+Described in [Profiler]."))
 
 (dolist
     (name
@@ -1499,8 +1646,9 @@
 	   "%CALLER-FRAME-AND-PC" "%CHECK-BOUND" "%CLOSURE-FUNCTION"
 	   "%CLOSURE-INDEX-REF" "%COS" "%COS-QUICK" "%COSH" "%DEPOSIT-FIELD"
 	   "%DOUBLE-FLOAT" "%DPB" "%EXP" "%EXPM1" "%FUNCTION-HEADER-ARGLIST"
-	   "%FUNCTION-HEADER-NAME" "%FUNCTION-HEADER-TYPE" "%HYPOT" "%LDB"
-	   "%LOG" "%LOGB" "%LOG10" "%LOG1P" "%LONG-FLOAT"
+	   "%FUNCTION-HEADER-NAME" "%FUNCTION-HEADER-TYPE" "%HYPOT"
+	   "%INSTANCE-SET-CONDITIONAL"
+	   "%LDB" "%LOG" "%LOGB" "%LOG10" "%LOG1P" "%LONG-FLOAT"
 	   "%MAKE-COMPLEX" "%MAKE-FUNCALLABLE-INSTANCE" "%MAKE-RATIO"
 	   "%MASK-FIELD" "%NEGATE" "%POW"
 	   "%RAW-BITS" "%RAW-REF-COMPLEX-DOUBLE" "%RAW-REF-COMPLEX-LONG"
@@ -1533,7 +1681,11 @@
 	   "ARGS-TYPE-REQUIRED" "ARGS-TYPE-REST" "ARRAY-HEADER-P"
 	   "ARRAY-RANK" "ARRAY-TOTAL-SIZE" "ARRAY-TYPE" "ARRAY-TYPE-COMPLEXP"
 	   "ARRAY-TYPE-DIMENSIONS" "ARRAY-TYPE-ELEMENT-TYPE" "ARRAY-TYPE-P"
-	   "ARRAY-TYPE-SPECIALIZED-ELEMENT-TYPE" "ASH-INDEX" "BASE-CHAR-P"
+	   "ARRAY-TYPE-SPECIALIZED-ELEMENT-TYPE" "ASH-INDEX"
+	   "ATOMIC-POP-SYMBOL-VALUE"
+	   "ATOMIC-PUSHA" "ATOMIC-PUSHD" "ATOMIC-PUSH-SYMBOL-VALUE"
+	   "ATOMIC-PUSH-VECTOR"
+	   "BASE-CHAR-P"
 	   "BINDING-STACK-POINTER-SAP" "BIT-BASH-AND" "BIT-BASH-ANDC1"
 	   "BIT-BASH-ANDC2" "BIT-BASH-CLEAR" "BIT-BASH-COPY" "BIT-BASH-EQV"
 	   "BIT-BASH-IOR" "BIT-BASH-LOGNAND" "BIT-BASH-LOGNOR" "BIT-BASH-NOT"
@@ -1542,7 +1694,8 @@
 	   "BOOLEAN" "BYTE-SPECIFIER" "CALLABLE" "CHAR-INT"
 	   "CHECK-FOR-CIRCULARITY" "CODE-COMPONENT" "CODE-COMPONENT-P"
 	   "CODE-DEBUG-INFO" "CODE-HEADER-REF" "CODE-HEADER-SET"
-	   "CODE-INSTRUCTIONS" "COMPLEX-DOUBLE-FLOAT-P" "COMPLEX-FLOAT-P"
+	   "CODE-INSTRUCTIONS"
+	   "COMPLEX-DOUBLE-FLOAT-P" "COMPLEX-FLOAT-P"
 	   "COMPLEX-LONG-FLOAT-P" "COMPLEX-RATIONAL-P" "COMPLEX-SINGLE-FLOAT-P"
 	   "CONSED-SEQUENCE" "CONSTANT-TYPE"
 	   "CONSTANT-TYPE-P" "CONSTANT-TYPE-TYPE"
@@ -1551,8 +1704,9 @@
 	   "CONTROL-STACK-POINTER-SAP" "COPY-FROM-SYSTEM-AREA"
 	   "COPY-NUMERIC-TYPE" "COPY-TO-SYSTEM-AREA" "CSUBTYPEP" "CTYPE"
 	   "CTYPE-OF" "CTYPE-P" "CTYPEP" "CURRENT-FP" "CURRENT-SP"
-	   "DATA-VECTOR-REF" "DATA-VECTOR-SET" "DECODE-DOUBLE-FLOAT"
-	   "DECODE-LONG-FLOAT" "DECODE-SINGLE-FLOAT" "DESCEND-INTO"
+	   "DATA-VECTOR-REF" "DATA-VECTOR-SET" "DATA-VECTOR-SET-CONDITIONAL"
+	   "DECODE-DOUBLE-FLOAT" "DECODE-LONG-FLOAT" "DECODE-SINGLE-FLOAT"
+	   "DESCEND-INTO"
 	   "DIVISION-BY-ZERO-ERROR"
 	   "DOUBLE-FLOAT-EXPONENT" "DOUBLE-FLOAT-HIGH-BITS"
 	   "DOUBLE-FLOAT-LOW-BITS" "DOUBLE-FLOAT-P" "FLOAT-WAIT"
@@ -1620,10 +1774,10 @@
 	   "OBJECT-NOT-SIMPLE-ARRAY-UNSIGNED-BYTE-32-ERROR"
 	   "OBJECT-NOT-SIMPLE-ARRAY-UNSIGNED-BYTE-4-ERROR"
 	   "OBJECT-NOT-SIMPLE-ARRAY-UNSIGNED-BYTE-8-ERROR"
- 	   "OBJECT-NOT-SIMPLE-ARRAY-SIGNED-BYTE-16-ERROR"
- 	   "OBJECT-NOT-SIMPLE-ARRAY-SIGNED-BYTE-30-ERROR"
- 	   "OBJECT-NOT-SIMPLE-ARRAY-SIGNED-BYTE-32-ERROR"
- 	   "OBJECT-NOT-SIMPLE-ARRAY-SIGNED-BYTE-8-ERROR"
+	   "OBJECT-NOT-SIMPLE-ARRAY-SIGNED-BYTE-16-ERROR"
+	   "OBJECT-NOT-SIMPLE-ARRAY-SIGNED-BYTE-30-ERROR"
+	   "OBJECT-NOT-SIMPLE-ARRAY-SIGNED-BYTE-32-ERROR"
+	   "OBJECT-NOT-SIMPLE-ARRAY-SIGNED-BYTE-8-ERROR"
 	   "OBJECT-NOT-SIMPLE-BIT-VECTOR-ERROR"
 	   "OBJECT-NOT-SIMPLE-STRING-ERROR" "OBJECT-NOT-SIMPLE-VECTOR-ERROR"
 	   "OBJECT-NOT-SINGLE-FLOAT-ERROR" "OBJECT-NOT-STRING-ERROR"
@@ -1636,9 +1790,11 @@
 	   "PARSE-UNKNOWN-TYPE-SPECIFIER" "PATHNAME-DEVICE"
 	   "PATHNAME-DIRECTORY" "PATHNAME-HOST" "PATHNAME-NAME"
 	   "PATHNAME-TYPE" "PATHNAME-VERSION" "PATHNAMELIKE" "PUNT-IF-TOO-LONG"
+	   "RPLACA-CONDITIONAL" "RPLACD-CONDITIONAL"
 	   "SCALE-DOUBLE-FLOAT" "SCALE-LONG-FLOAT" "SCALE-SINGLE-FLOAT"
-	   "SEQUENCE-END" "SET-HEADER-DATA" "SHIFT-TOWARDS-END"
-	   "SHIFT-TOWARDS-START" "SIGNAL-INIT" "SIGNED-BYTE-32-P"
+	   "SEQUENCE-END" "SET-HEADER-DATA" "SET-SYMBOL-VALUE-CONDITIONAL"
+	   "SHIFT-TOWARDS-END" "SHIFT-TOWARDS-START"
+	   "SIGNAL-INIT" "SIGNED-BYTE-32-P"
 	   "SIMPLE-ARRAY-COMPLEX-DOUBLE-FLOAT-P"
 	   "SIMPLE-ARRAY-COMPLEX-LONG-FLOAT-P"
 	   "SIMPLE-ARRAY-COMPLEX-SINGLE-FLOAT-P"
@@ -1647,7 +1803,7 @@
 	   "SIMPLE-ARRAY-SINGLE-FLOAT-P" "SIMPLE-ARRAY-UNSIGNED-BYTE-16-P"
 	   "SIMPLE-ARRAY-UNSIGNED-BYTE-2-P" "SIMPLE-ARRAY-UNSIGNED-BYTE-32-P"
 	   "SIMPLE-ARRAY-UNSIGNED-BYTE-4-P" "SIMPLE-ARRAY-UNSIGNED-BYTE-8-P"
- 	   "SIMPLE-ARRAY-SIGNED-BYTE-16-P" "SIMPLE-ARRAY-SIGNED-BYTE-30-P"
+	   "SIMPLE-ARRAY-SIGNED-BYTE-16-P" "SIMPLE-ARRAY-SIGNED-BYTE-30-P"
 	   "SIMPLE-ARRAY-SIGNED-BYTE-32-P" "SIMPLE-ARRAY-SIGNED-BYTE-8-P"
 	   "SIMPLE-UNBOXED-ARRAY" "SINGLE-FLOAT-BITS" "SINGLE-FLOAT-EXPONENT"
 	   "SINGLE-FLOAT-P" "SINGLE-VALUE-TYPE" "SPECIFIER-TYPE" "STACK-REF"
@@ -1732,7 +1888,24 @@
 	   "SIMPLE-UNDEFINED-FUNCTION"
 	   "BYTE-FUNCTION-TYPE" "SLOT-CLASS-PRINT-FUNCTION"
 	   "REDEFINE-LAYOUT-WARNING" "SLOT-CLASS" "INSURED-FIND-CLASS"
-	   "CONDITION-FUNCTION-NAME"))
+	   "CONDITION-FUNCTION-NAME")
+  (:documentation "The Lisp kernel.
+
+Hides state and types used for system integration: package
+system, error system, streams (?), reader, printer.  Also, hides the VM, in
+that we don't export anything that reveals the VM interface.  Contains code
+that needs to use the VM and SYSTEM interface, but is independent of OS and VM
+details.  This code shouldn't need to be changed in any port of CMU CL, but
+won't work when plopped into an arbitrary CL.  Uses SYSTEM, VM, EXTENSIONS.  We
+export \"hidden\" symbols related to implementation of CL: setf-inverses,
+possibly some global variables.
+
+The boundary between KERNEL and VM is fuzzy, but this fuzziness reflects the
+fuzziness in the definition of the VM.  We can make the VM large, and bring
+everything inside, or we make make it small.  Obviously, we want the VM to be
+as small as possible, subject to efficiency constraints.  Pretty much all of
+the code in KERNEL could be put in VM.  The issue is more what VM hides from
+KERNEL: VM knows about everything."))
 
 (dolist
     (name
@@ -1756,7 +1929,7 @@
 	   "SEGMENT-COLLECT-DYNAMIC-STATISTICS"))
 
 (defpackage "MULTIPROCESSING"
-  (:use "COMMON-LISP")
+  (:use "LISP")
   (:nicknames "MP")
   (:export "*ALL-PROCESSES*" "*CURRENT-PROCESS*" "*CURRENT-STACK-GROUP*"
 	   "*INITIAL-STACK-GROUP*" "*MULTI-PROCESSING*"
@@ -1775,16 +1948,52 @@
 (defpackage "INTERNET"
   (:export "FILL-FROM-NETRC"
 	   "INET-ACCOUNT" "INET-STREAM" "INET-COMMAND" "INET-QUIT"
-	   "MAKE-INET-ACCOUNT"
+	   "DELETE-REMOTE-FILE" "DO-REMOTE-DIRECTORY" "GET-REMOTE-FILE"
+	   "RELEASE-REMOTE-DIRECTORY" "ADD-REMOTE-DIRECTORY"
+	   "PROBE-REMOTE-FILE" "PUT-REMOTE-FILE" "REMOTE-FILE-STATS"
+	   "SET-REMOTE-WRITE-DATE"
+	   "MAKE-INET-ACCOUNT" "INET-ACCOUNT-PROTOCOL"
+	   "INET-ACCOUNT-SERVER"
 	   "MAKE-INET-STREAM" "INET-STREAM-RESPONSE"
 	   "POP-DELE" "POP-INIT" "POP-RETR" "POP-STAT"
 	   "TELNET-INIT"
-	   "FTP-INIT" "FTP-COMMAND" "FTP-TRANSLATE-COMMAND"
+	   "FTP-ADD-DIR" "FTP-RELEASE-DIR" "FTP-INIT" "FTP-COMMAND"
+	   "FTP-TRANSLATE-COMMAND"
+	   "FTP-CONNECT-PASSIVE" "FTP-GET-FILE" "FTP-LIST-DIR"
+	   "FTP-LS" "FTP-PROBE-FILE" "FTP-PUT-FILE" "FTP-TRANSLATE-COMMAND"
+	   "FTP-FILE-STATS"
+	   "SSH-ADD-DIR" "SSH-RELEASE-DIR"
+	   "SSH-GET-FILE" "SSH-PROBE-FILE" "SSH-PUT-FILE"
 	   "SMTP-INIT" "SMTP-MAIL")
   (:documentation "Interface for internet clients."))
 
 (defpackage "MH"
-  (:export "DO-FOLDERS" "PRINT-FOLDERS" "MH-DIRECTORY-PATHNAME")
+  (:export "*HTML-HANDLER*" "*ALTERNATE-ADDRESSES*" "*SIGNATURE*"
+
+	   "PROFILE-COMPONENT" "ROOT-PATHNAME" "FOLDER-PATHNAME"
+	   "DRAFT-FOLDER" "DRAFT-FOLDER-PATHNAME" "CURRENT-FOLDER" "CURRENT-MESSAGE"
+
+	   "SEQUENCE-INSERT" "SEQUENCE-DELETE" "SEQUENCE-MEMBER-P" "SEQUENCE-STRINGS"
+	   "SEQUENCE-LIST"
+
+	   "GET-FOLDER-TABLE" "UPDATE-FOLDER-TABLE"
+	   "COERCE-FOLDER-NAME" "STRIP-FOLDER-NAME" "FOLDER-EXISTS-P"
+	   "CREATE-FOLDER" "DELETE-FOLDER" "RENAME-FOLDER" "SORT-FOLDER" "PACK-FOLDER"
+	   "SUMMARIZE-FOLDER"
+	   "PRINT-FOLDERS"
+
+	   "ANNOTATE-MESSAGE" "DELETE-MESSAGE" "GET-PART" "MARK-MESSAGE" "WRITE-HEADERS"
+	   "WRITE-MESSAGE" "RESEND-MESSAGE" "SUMMARIZE-MESSAGE"
+
+	   "DRAFT-FORWARD" "DRAFT-NEW" "DRAFT-REPLY" "DRAFT-RESEND"
+
+	   "DELETE-MESSAGES" "DELIVER-MESSAGES" "MARK-MESSAGES"
+	   "MAY-BE-MESSAGES-BEFORE" "MOVE-MESSAGES" "PICK-MESSAGES"
+	   "SHOW-MESSAGES" "SPLIT-MESSAGES" "SUMMARIZE-MESSAGES"
+
+	   "PARSE-CONTENT-TYPE"
+
+	   "MAKE-DROP" "NEW-MAIL-P" "INCORPORATE")
   (:documentation "Mail handler."))
 
 (defpackage "DOC"
@@ -1797,13 +2006,169 @@
 	   "DB-RECORD-ADDRESS"
 	   "READ-DB" "SAVE-DB" "ENSURE-DB-READ" "GET-DB-TABLE"
 	   "ADDRESS-LINE-1" "ADDRESS-TOWN" "ADDRESS-CODE" "ADDRESS-COUNTRY"
-	   "ADD-RECORD" "WRITE-RECORD" "FIND-RECORD")
+	   "ADD-RECORD" "WRITE-RECORD" "FIND-RECORD" "FIND-RECORDS")
   (:documentation "Interface to entity database (people, organisations, etc)."))
 
 (defpackage "BUILD"
-  (:export "BUILD" "BUILD-TARGET" "DEFTARGET" "TARGETS" "WITH-BUILD")
+  (:export "BUILD" "BUILD-TARGET" "DEFTARGET" "TARGETS" "WITH-BUILD"
+	   "*build-directory*"
+	   "*builder-directory*"
+	   "*source-directory*")
   (:documentation "Build System."))
 
 (defpackage "BASE64"
   (:export "BASE64-ENCODE" "BASE64-DECODE")
   (:documentation "The Base64 transfer encoding algorithm."))
+
+(defpackage "DEFTEST"
+  (:export "DEFTEST" "test-from-dir")
+  (:documentation "Test suite."))
+
+(defpackage "XLIB"
+  (:export "BELL"
+	   "BITMAP-IMAGE"
+	   ;;
+	   "BOOLE-1"
+	   "BOOLE-0"
+	   "BOOLE-AND"
+	   "BOOLE-AND-REVERSED"
+	   "BOOLE-COPY"
+	   "BOOLE-AND-INVERTED"
+	   "BOOLE-NOOP"
+	   "BOOLE-XOR"
+	   "BOOLE-OR"
+	   "BOOLE-NOR"
+	   "BOOLE-EQUIV"
+	   "BOOLE-INVERT"
+	   "BOOLE-OR-REVERSE"
+	   "BOOLE-COPY-INVERTED"
+	   "BOOLE-OR-INVERTED"
+	   "BOOLE-NAND"
+	   "BOOLE-1"
+	   ;;
+	   "CLEAR-AREA"
+	   "CLEAR-WINDOW"
+	   "CREATE-GCONTEXT"
+	   "CREATE-PIXMAP"
+	   "CREATE-CURSOR"
+	   "CREATE-WINDOW"
+	   "CLOSE-DISPLAY"
+	   "COPY-AREA"
+	   "CUT-BUFFER"
+	   "DISCARD-CURRENT-EVENT"
+	   "DISPLAY"
+	   "DISPLAY-DEFAULT-SCREEN"
+	   "DISPLAY-FINISH-OUTPUT"
+	   "DISPLAY-FORCE-OUTPUT"
+	   "DISPLAY-ROOTS"
+	   "DRAW-RECTANGLE"
+	   "DRAW-IMAGE-GLYPHS"
+	   "DRAWABLE-X"
+	   "DRAWABLE-Y"
+	   "DRAWABLE-WIDTH"
+	   "DRAWABLE-HEIGHT"
+	   "EVENT-CASE"
+	   "EVENT-LISTEN"
+	   "FONT-ASCENT"
+	   "FONT-DESCENT"
+	   "FONT-PATH"
+	   "FREE-CURSOR"
+	   "FREE-GCONTEXT"
+	   "FREE-PIXMAP"
+	   "GET-BEST-AUTHORIZATION"
+	   "GCONTEXT-BACKGROUND"
+	   "GCONTEXT-FOREGROUND"
+	   "GCONTEXT-FONT"
+	   "IMAGE-X-HOT"
+	   "IMAGE-Y-HOT"
+	   "KEYCODE->KEYSYM"
+	   "MAKE-COLOR"
+	   "MAKE-EVENT-MASK"
+	   "MAKE-STATE-MASK"
+	   "MAP-WINDOW"
+	   "MAX-CHAR-WIDTH"
+	   "NAME-ERROR"
+	   "OPEN-DISPLAY"
+	   "OPEN-FONT"
+	   "PUT-IMAGE"
+	   "READ-BITMAP-FILE"
+	   "SCREEN-ROOT"
+	   "SCREEN-ROOT-DEPTH"
+	   "SET-WM-PROPERTIES"
+	   "TRANSLATE-DEFAULT"
+	   "UNMAP-WINDOW"
+	   "WINDOW-BORDER"
+	   "WINDOW-CURSOR"
+	   "WINDOW-EVENT-MASK"
+	   "WINDOW-MAP-STATE"
+	   "WITH-GCONTEXT"
+	   "WITH-STATE"
+	   "WM-NORMAL-HINTS"
+	   "WM-SIZE-HINTS-HEIGHT-INC"
+	   "WM-SIZE-HINTS-MIN-WIDTH-INC"
+	   "WM-SIZE-HINTS-MIN-HEIGHT-INC"
+	   "WM-SIZE-HINTS-WIDTH-INC"
+	   "WM-SIZE-HINTS-X"
+	   "WM-SIZE-HINTS-Y")
+  (:documentation "Interface to the X window library."))
+
+(defpackage "TERMINAL"
+  (:export "ATTRIBUTE")
+  (:documentation "Terminal control."))
+
+(defpackage "SYNC"
+  (:export "COPY-MANIFEST-TREE" "UPDATE-MANIFEST-TIMES"
+	   "MERGE-FROM-SERVER")
+  (:documentation "Source tree syncing."))
+
+(defpackage "CONFIG"
+  (:export "CONFIG-PATHNAME"
+	   "FROM-CONFIG-FILE"
+	   "PROBE-CONFIG-FILE"
+	   "TO-CONFIG-FILE")
+  (:documentation "System configuration."))
+
+(defpackage "PARSE"
+  (:export "CHAR-NODE-CONTENT" "CHAR-NODE-NEXT" "CHAR-NODE-PREVIOUS"
+	   "CHAR-NODE-PARENT"
+	   "COPY-STREAMS"
+	   "DEFPARSER"
+	   "DEFINE-PARSER"
+	   "GROUP-PARSE-ALPHANUMERIC" "GROUP-PARSE-CHAR"
+	   "LIST-PARSER"
+	   "MAKE-CHAR-NODE" "MAKE-NODE" "MAKE-REGION-NODE"
+	   "NODE-CONTENT" "NODE-NEXT" "NODE-PREVIOUS" "NODE-PARENT"
+	   "PARSER-READ-CHAR"
+	   "PARSE-ALPHANUMERIC" "PARSE-C" "PARSE-CHAR"
+	   "PRIMITIVE-GROUP-PARSE-CHAR" "PRIMITIVE-GROUP-FPARSE-CHAR"
+	   "PRIMITIVE-GROUP-PARSE-STRING" "PRIMITIVE-GROUP-PARSE-STRING"
+	   "PRIMITIVE-PARSE-CHAR" "PRIMITIVE-FPARSE-CHAR"
+	   "PRIMITIVE-PARSE-STRING" "PRIMITIVE-FPARSE-STRING"
+	   "RECOVER-STREAMS"
+	   "REGION-NODE-CONTENT" "REGION-NODE-NEXT" "REGION-NODE-NEXT"
+	   "REGION-NODE-PREVIOUS" "REGION-NODE-PARENT")
+  (:documentation "BNF-style parser generator."))
+
+(defpackage "PACKAGE"
+  (:use "LISP" "EXT")
+  (:documentation "Package management interface.")
+  (:export "COMMIT"
+	   "DO-PACKAGES"
+	   "ENSURE-META-LOADED"
+	   "FLUSH"
+	   "INSTALL" "INSTALLED-P"
+	   "LOAD-PACKAGE" "LOADED-P"
+	   "LOCAL-VERSION"
+	   "META-VERSION"
+	   "TEST-DIR"
+	   "UPDATE-META-FROM-SERVER"))
+
+(defpackage "DOCNODE"
+  (:use "LISP" "EXT" "ED")
+  (:export "DOCNODE-TO-DOC")
+  (:documentation "Text-based system for defining simple documents."))
+
+(defpackage "SHELL"
+  (:use "LISP" "EXT")
+  (:export "~" "CD" #| "DIR" |# "LS" "MV" "PWD" "RM" "TOUCH")
+  (:documentation "Unix shell-style functions for the REPL."))

@@ -1,20 +1,6 @@
-;;; -*- Package: MIPS; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/debug.lisp,v 1.16 1994/10/31 04:44:16 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Compiler support for the new whizzy debugger.
-;;;
-;;; Written by William Lott.
-;;; 
-(in-package "MIPS")
+;;; Compiler support for the debugger.
 
+(in-package "MIPS")
 
 (define-vop (debug-cur-sp)
   (:translate current-sp)
@@ -85,7 +71,6 @@
   (:generator 1
     (inst sw value sap (* offset word-bytes))
     (move result value)))
-
 
 (define-vop (code-from-mumble)
   (:policy :fast-safe)

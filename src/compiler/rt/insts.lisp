@@ -1,18 +1,4 @@
-;;; -*- Package: RT -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/insts.lisp,v 1.14 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Description of the IBM RT instruction set.
-;;;
-;;; Written by William Lott and Bill Chiles.
-;;;
 
 (in-package "RT")
 
@@ -20,7 +6,7 @@
 (use-package "EXT")
 
 
-;;;; Resources:
+;;;; Resources.
 
 (disassem:set-disassem-params :instruction-alignment 16)
 (define-resources memory float-status mq cc)
@@ -96,7 +82,6 @@
   :type '(satisfies address-register-p)
   :function tn-offset)
 
-
 ;;; LABEL-OFFSET -- Internal.
 ;;;
 ;;; This uses assem:*current-position* and the label's position to compute
@@ -108,7 +93,6 @@
 (define-argument-type relative-label
   :type 'label
   :function label-offset)
-
 
 (defun jump-condition-value (cond)
   (ecase cond
@@ -138,11 +122,9 @@
   :type '(member :pz :lt :eq :gt :c0 :ov :tb)
   :function branch-condition-value)
 
-
 (define-fixup-type :ba) ;branch-absolute.
 (define-fixup-type :cau)
 (define-fixup-type :cal)
-
 
 
 ;;;; Loading and storing.
@@ -347,7 +329,6 @@
    (r2 :argument register)
    (r3 :argument (unsigned-byte 4))))
 
-
 ;;; load-immediate-short.
 ;;;
 (define-instruction (lis)
@@ -356,13 +337,12 @@
    (r2 :argument register :read nil)
    (r3 :argument (unsigned-byte 4))))
 
-
 
 ;;;; Arithmetics.
 
 (macrolet ((define-math-inst (name &key two-regs unary short-immediate
 				   immediate function (signed t)
-				   (use nil use-p) 
+				   (use nil use-p)
 				   (clobber nil clobber-p))
 	     `(define-instruction (,name
 				   ,@(when use-p `(:use ,use))
@@ -410,14 +390,14 @@
   (define-math-inst se :two-regs #xF2 :use (cc))
   (define-math-inst d :two-regs #xB6 :use (cc mq) :clobber (cc mq))
   (define-math-inst m :two-regs #xE6 :use (cc mq) :clobber (cc mq))
-  
+
   (define-math-inst exts :unary #xB1)
-  
+
   (define-math-inst clrbl :short-immediate #x99)
   (define-math-inst clrbu :short-immediate #x98)
   (define-math-inst setbl :short-immediate #x9B)
   (define-math-inst setbu :short-immediate #x9A)
-  
+
   (define-math-inst not :unary #xF4) ;Logical not.
   (define-math-inst n :two-regs #xE5)
   (define-math-inst nilz :immediate #xC5 :signed nil)
@@ -434,7 +414,6 @@
   (define-math-inst clz :two-regs #xF5)
 
 ) ;macrolet
-
 
 ;;; compare.
 ;;; compare-immediate-short.
@@ -453,7 +432,6 @@
      (r3 :argument register)
      (i :argument (signed-byte 16))))
 
-
 ;;; compare-logical.
 ;;; compare-logical-immediate.
 ;;;
@@ -465,7 +443,6 @@
      (r2 :constant 0)
      (r3 :argument register)
      (i :argument (signed-byte 16))))
-
 
 
 ;;;; Shifting.
@@ -544,7 +521,7 @@
   ;; branch-on-condition-bit-register.
   ;;
   (define-branch-inst bb #x8E #xEE)
-  
+
   ;; branch-on-condition-bit-immediate-with-execute.
   ;; branch-on-condition-bit-register-with-execute.
   ;;
@@ -570,9 +547,8 @@
   (ba (op :constant #x8B)
       (ba :argument ba-fixup)))
 
-
 
-;;;; Pseudo-instructions
+;;;; Pseudo-instructions.
 
 ;;; move.
 ;;;
@@ -584,9 +560,7 @@
      (r2 :argument register)
      (r3 :constant 0)))
 
-;;;
-;;; A couple load-immediate pseudo-instructions.
-;;;
+;;; A couple of load-immediate pseudo-instructions.
 
 ;;; load-immediate.
 ;;;
@@ -630,7 +604,6 @@
     (fixup
      (inst cau reg value)
      (inst cal reg reg value))))
-
 
 ;;; branch-unconditional.
 ;;;
@@ -698,7 +671,6 @@
 (define-instruction (byte)
   (byte-format (data :argument (or (unsigned-byte 8) (signed-byte 8)))))
 
-
 
 ;;;; Breaking.
 
@@ -723,7 +695,6 @@
      (r3 :constant 0)
      (i :argument (signed-byte 16))))
 
-
 
 ;;;; System control.
 
@@ -741,7 +712,6 @@
      (r2 :constant 10)
      (r3 :argument register :read nil :write t)))
 
-
 
 ;;;; Function and LRA Headers emitters and calculation stuff.
 
@@ -758,7 +728,6 @@
 
 (define-instruction (lra-header-word)
   (header-object (type :constant vm:return-pc-header-type)))
-
 
 ;;; DEFINE-COMPUTE-INSTRUCTION -- Internal.
 ;;;
@@ -812,7 +781,6 @@
 		  (inst ,cal dst src label)
 		  (inst ,cau dst dst label))))))))
 
-
 ;; code = fn - header - label-offset + other-pointer-tag
 (define-compute-instruction compute-code-from-fn
 			    (- vm:other-pointer-type
@@ -828,11 +796,12 @@
 (define-compute-instruction compute-lra-from-code
 			    (+ (label-position label)
 			       (component-header-length)))
+
 
-;;;; 68881 instruction set details:
+;;;; 68881 instruction set details.
 
 ;;; The low 7 bits of the 68881 instructions.
-;;; 
+;;;
 (defconstant mc68881-opcodes
   '((:move . #x00)
     (:int . #x01)
@@ -873,14 +842,12 @@
     (:cmp . #x38)
     (:tst . #x3A)))
 
-
 ;;; Names of interesting 68881 control registers.
 ;;;
 (defconstant mc68881-control-regs
   '((:fpsr . 2)
     (:fpcr . 4)
     (:fpiar . 1)))
-
 
 ;;; The encoding of operand format in memory (bits 10..12 in the 68881
 ;;; instruction.)
@@ -890,7 +857,6 @@
     (:single . 1)	      ; 32 bit float.
     (:double . 5)))	      ; 64 bit float.
 
-
 ;;; Bits 13..15 in the 68881 instruction.  Controls where operands are found.
 ;;;
 (defconstant mc68881-instruction-classes
@@ -899,7 +865,6 @@
     (:freg-to-mem . 3)
     (:mem-to-scr . 4)
     (:scr-to-mem . 5)))
-
 
 ;;; Length in words of memory data to transfer.  This is part of the RT
 ;;; hardware assist protocol, and is placed in the low two bits of the address
@@ -913,14 +878,13 @@
 
 ;;; RT hardware assist protocol for whether to read or write memory, here
 ;;; represented as a function of the mc68881 instruction class.
-;;; 
+;;;
 (defconstant mc68881-transfer-control-field-alist
   '((:freg-to-freg . 0)
     (:mem-to-freg . 0)
     (:freg-to-mem . #x3c0000)
     (:mem-to-scr . 0)
     (:scr-to-mem . #x3c0000)))
-
 
 (defun mc68881-fp-reg-p (object)
   (and (tn-p object)
@@ -944,7 +908,6 @@
   (r3 (byte 4 16) :read t)
   (i (byte 16 0)))
 
-
 ;;; DO-68881-INST  --  Internal
 ;;;
 ;;;    Utility used to emit a 68881 operation.  We emit the CAU that sets up
@@ -964,7 +927,7 @@
   (assert (if fpn
 	      (mc68881-fp-reg-p fpn)
 	      (and creg (member class '(:mem-to-scr :scr-to-mem)))))
-		   
+
   (let* ((opcode
 	  (logior #xFC000000
 		  (or (cdr (assoc class mc68881-transfer-control-field-alist))
@@ -997,7 +960,6 @@
     (inst cau temp 0 high)
     low))
 
-
 (define-instruction (mc68881-binop-inst)
   (mc68881-inst
    (fpn :argument mc68881-fp-reg)
@@ -1014,7 +976,6 @@
 (define-pseudo-instruction mc68881-binop 64 (fpn fpm op temp)
   (inst mc68881-binop-inst fpn fpm temp
 	(do-68881-inst op temp :fpm fpm :fpn fpn)))
-
 
 ;;; Unop is like binop, but we don't read FPN before we write it.
 ;;;
@@ -1049,12 +1010,10 @@
 (define-pseudo-instruction mc68881-move 64 (fpn fpm temp)
   (inst mc68881-unop fpn fpm :move temp))
 
-
-
 (define-format (s 16)
   (op (byte 12 4))
   (n (byte 4 0)))
-			   
+
 ;;; This is a "setcb 8", which is used to wait for a result from the FPA to
 ;;; appear in memory (or something...)
 ;;;
@@ -1062,7 +1021,6 @@
   (s
    (op :constant #x97F)
    (n :constant 8)))
-
 
 (define-instruction (mc68881-load-inst :use (memory))
   (mc68881-inst
@@ -1124,7 +1082,7 @@
   (inst mc68881-wait))
 
 
-;;; AFPA instruction set details:
+;;; AFPA instruction set details.
 
 ;;; Support for the AFPA on IBM RT PC (APC and EAPC models).
 
@@ -1160,7 +1118,7 @@
     (:tlw  . #x2B)
     (:tsw  . #x2F)
     (:wtfr . #x94)))
-  
+
 (defconstant afpa-special-opcodes
   '((:wtstr . #.(ash #x10FEE 2)) ; DS = #b01, OP1, OP2 = #xE.
     (:rdstr . #.(ash #x137EE 2)) ; DS = #b01, OP1, OP2 = #xE, type = ld
@@ -1220,10 +1178,9 @@
   (r3 (byte 4 16) :read t)
   (i (byte 16 0)))
 
-
 ;;; DO-AFPA-INST  --  Internal
 ;;;
-;;;    Utility used to emit a afpa operation.  We emit the CAU that sets up
+;;; Utility used to emit a afpa operation.  We emit the CAU that sets up
 ;;; the high bits of the operation in Temp, and we return the low bits that
 ;;; should be passed as the I field of the actual FP operation instruction.
 ;;;
@@ -1266,7 +1223,6 @@
     (inst cau temp 0 high)
     low))
 
-
 ;;; The AFPA-BINOP pseudo-instruction emits a floating-point binop on the afpa.
 ;;; FR2 is the destination float register (and first arg).  FR1 is the source
 ;;; float register.  Op is the afpa opcode.  Temp is a sap-reg (i.e. non-zero,
@@ -1283,7 +1239,6 @@
 (define-pseudo-instruction afpa-binop 64 (fr2 fr1 op temp)
   (inst afpa-binop-inst fr2 fr1 temp
 	(do-afpa-inst op temp :fr1 fr1 :fr2 fr2)))
-
 
 ;;; Unop is like binop, but we don't read FR2 before we write it.
 ;;;
@@ -1321,7 +1276,6 @@
   (inst afpa-compare-inst fr2 fr1 temp
 	(do-afpa-inst op temp :fr1 fr1 :fr2 fr2)))
 
-
 ;;; Noop is used to wait for DMA operations (load and store) to complete.
 ;;;
 (define-instruction (afpa-noop-inst :pinned t)
@@ -1335,7 +1289,6 @@
 (define-pseudo-instruction afpa-noop 64 (temp)
   (inst afpa-noop-inst temp
 	(do-afpa-inst :noop temp)))
-
 
 ;;; Load = WTFR (write float reg) + DMA.
 ;;;
@@ -1351,7 +1304,6 @@
   (inst afpa-load-inst fr2 data temp
 	(do-afpa-inst :wtfr temp :fr2 fr2 :data data :ts ts)))
 
-
 ;;; Store = RDDMA
 ;;;
 (define-instruction (afpa-store-inst :clobber (memory))
@@ -1365,7 +1317,6 @@
 (define-pseudo-instruction afpa-store 64 (fr1 data ts temp)
   (inst afpa-store-inst fr1 data temp
 	(do-afpa-inst :rddma temp :fr1 fr1 :data data :ts ts)))
-
 
 ;;; Get float = RDFR
 ;;;
@@ -1385,7 +1336,6 @@
   (inst afpa-get-float-inst fr1 data temp
 	(do-afpa-inst :rdfr temp :fr1 fr1 :data data :odd t)))
 
-
 ;;; Put float = WTFR
 ;;;
 (define-instruction (afpa-put-float-inst)
@@ -1404,7 +1354,6 @@
   (inst afpa-put-float-inst fr2 data temp
 	(do-afpa-inst :wtfr temp :fr2 fr2 :data data :odd t)))
 
-
 ;;; Get status = RDSTR
 ;;;
 (define-instruction (afpa-get-status-inst :clobber (float-status))
@@ -1418,7 +1367,6 @@
 (define-pseudo-instruction afpa-get-status 64 (data temp)
   (inst afpa-get-status-inst data temp
 	(do-afpa-inst :rdstr temp :data data)))
-
 
 ;;; Put status = WTSTR
 ;;;

@@ -1,20 +1,5 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/sparc/array.lisp,v 1.15.2.2 2000/05/23 16:37:44 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the SPARC definitions for array operations.
-;;;
-;;; Written by William Lott
-;;; Signed-array support by Douglas Crosher 1997.
-;;; Complex-float and long-float support by Douglas Crosher 1998.
-;;;
+;;; The SPARC definitions for array operations.
+
 (in-package "SPARC")
 
 
@@ -60,8 +45,6 @@
   (:policy :fast-safe)
   (:variant vm:array-dimensions-offset vm:other-pointer-type))
 
-
-
 (defknown lisp::%array-rank (t) fixnum (flushable))
 
 (define-vop (array-rank-vop)
@@ -76,10 +59,8 @@
     (inst sub temp (1- vm:array-dimensions-offset))
     (inst sll res temp 2)))
 
-
 
 ;;;; Bounds checking routine.
-
 
 (define-vop (check-bound)
   (:translate %check-bound)
@@ -98,9 +79,8 @@
       (inst nop)
       (move result index))))
 
-
 
-;;;; Accessors/Setters
+;;;; Accessors/Setters.
 
 ;;; Variants built on top of word-index-ref, etc.  I.e. those vectors whos
 ;;; elements are represented in integer registers and are built out of
@@ -155,7 +135,6 @@
 
 ;;; Integer vectors whos elements are smaller than a byte.  I.e. bit, 2-bit,
 ;;; and 4-bit vectors.
-;;; 
 
 (eval-when (compile eval)
 
@@ -317,9 +296,7 @@
 (def-small-data-vector-frobs simple-array-unsigned-byte-2 2)
 (def-small-data-vector-frobs simple-array-unsigned-byte-4 4)
 
-
 ;;; And the float variants.
-;;; 
 
 (define-vop (data-vector-ref/simple-array-single-float)
   (:note "inline array access")
@@ -335,7 +312,6 @@
     (inst add offset index (- (* vm:vector-data-offset vm:word-bytes)
 			      vm:other-pointer-type))
     (inst ldf value object offset)))
-
 
 (define-vop (data-vector-set/simple-array-single-float)
   (:note "inline array store")
@@ -431,7 +407,6 @@
 
 ;;;; Misc. Array VOPs.
 
-
 #+nil
 (define-vop (vector-word-length)
   (:args (vec :scs (descriptor-reg)))
@@ -463,7 +438,6 @@
 	 (value :scs (signed-reg)))
   (:results (result :scs (signed-reg)))
   (:result-types tagged-num))
-
 
 (define-vop (data-vector-ref/simple-array-signed-byte-16
 	     signed-halfword-index-ref)
@@ -699,10 +673,8 @@
   (:arg-types simple-array-unsigned-byte-32 positive-fixnum
 	      complex-long-float))
 
-
 ;;; These vops are useful for accessing the bits of a vector irrespective of
 ;;; what type of vector it is.
-;;; 
 
 (define-vop (raw-bits word-index-ref)
   (:note "raw-bits VOP")

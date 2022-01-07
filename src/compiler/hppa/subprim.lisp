@@ -1,23 +1,9 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/subprim.lisp,v 1.2 1994/10/31 04:42:45 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    Linkage information for standard static functions, and random vops.
-;;;
-;;; Written by William Lott.
-;;; 
+;;; Linkage information for standard static functions, and random vops.
+
 (in-package "HPPA")
 
-
 
-;;;; Length
+;;;; Length.
 
 (define-vop (length/list)
   (:translate length)

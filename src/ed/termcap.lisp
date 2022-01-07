@@ -3,8 +3,124 @@
 ;;; Parses a Termcap file and returns a data structure suitable for
 ;;; initializing a redisplay methods device.
 
+;; FIX move to code:
+
 (in-package "EDI")
 
+#|
+(to-file (out ":tmp/tc")
+  (format out "~A" (get-termcap "pcansi")))
+|#
+
+
+#[ Use With Terminals
+
+The editor can also be used with ASCII terminals and terminal emulators.
+Capabilities that depend on X Windows (such as mouse commands) are not
+available, but nearly everything else can be done.
+
+[ Terminal Initialization ]
+[ Terminal Input          ]
+[ Terminal Redisplay      ]
+[ Terminal Emulators      ]  Notes on setting up various emulators.
+]#
+
+#[ Terminal Initialization
+
+For best redisplay performance, it is very important to set the terminal
+speed:
+
+   stty 2400
+
+Often when running the editor using TTY redisplay, the editor will actually
+be talking to a PTY whose speed is initialized to infinity.  In reality,
+the terminal will be much slower, resulting in the editor's output getting
+way ahead of the terminal.  This prevents the editor from briefly stopping
+redisplay to allow the terminal to catch up.  See also hvarrefScroll Redraw
+Ratio.
+
+The terminal control sequences are obtained from the termcap database using the
+normal Unix conventions.  The "TERM" environment variable holds the
+terminal type.  The "TERMCAP" environment variable can be used to override
+the default termcap database (in "/etc/termcap").  The size of the terminal
+can be altered from the termcap default through the use of:
+
+    stty rows height columns width
+]#
+
+#[ Terminal Input
+
+The most important limitation of a terminal is its input capabilities.  On a
+workstation with function keys and independent control, meta, and shift
+modifiers, it is possible to type 800 or so distinct single keystrokes.
+Although by default, the editor uses only a fraction of these combinations, there
+are many more than the 128 key-events available in ASCII.
+
+On a terminal, the editor attempts to translate ASCII control characters into the
+most useful key-event:
+
+  - On a terminal, control does not compose with shift.  If the control key is down
+     when you type a letter keys, the terminal always sends one code regardless of
+     whether the shift key is held.  Since the editor primarily binds commands to
+     key-events with keysyms representing lowercase letters regardless of what bits
+     are set in the key-event, the system translates the ASCII control codes to a
+     keysym representing the appropriate lowercase characters.  This keysym then
+     forms a key-event with the control bit set.  Users can type C-c followed
+     by an uppercase character to form a key-event with a keysym representing an
+     uppercase character and bits with the control bit set.
+
+  - On a terminal, some of the named keys generate an ASCII control code.  For
+     example, Return usually sends a C-m.  The system translates these ASCII
+     codes to a key-event with an appropriate keysym instead of the keysym named by
+     the character which names the ASCII code.  In the above example, typing the
+     Return key would generate a key-event with the Return keysym and no
+     bits.  It would NOT translate to a key-event with the m keysym and the
+     control bit.
+
+Since terminals have no meta key, you must use the Escape and C-Z
+modifier-prefix key-events to invoke commands bound to key-events with the meta
+bit or meta and control bits set.  ASCII terminals cannot generate all
+key-events which have the control bit on, so you can use the C-^
+modifier-prefix.  The C-c prefix sets the hyper bit on the next key-event
+typed.
+
+When running the editor from a terminal ^\ is the interrupt key-event.
+Typing this will place you in the Lisp debugger.
+
+When using a terminal, pop-up output windows cannot be retained after the
+completion of the command.
+]#
+
+#[ Terminal Emulators
+
+                      TERM
+    aterm             xterm
+    Eterm             Eterm        -- use TERM=xterm
+    fbiterm                        -- fails to find font file
+    gnome-terminal    xterm
+    konsole           xterm
+    kterm             kterm        -- FIX paints fore,back same; bit better w xterm
+    linux             linux        -- smooth scroll needs *Scroll Redraw Ratio* (FIX)
+                                   -- use TERM=xterm for color
+    mrxvt             rxvt
+    powershell        xterm-debian
+    pterm             xterm
+    putty (ssh)       xterm
+    pyqonsole         xterm
+    rxvt              rxvt
+    wterm             rxvt
+    wy60              wyse60
+    xfce4-terminal    xterm        -- C-h sends backspace
+    xiterm            xterm        -- background painting
+                                          (setf (tty-device-clear-to-eol
+                                                 (device-hunk-device
+                                                  (window-hunk (current-window))))
+                                                #'space-to-eol)
+    xterm             xterm        -- how FIX alt?
+                                   -- smooth scroll needs *Scroll Redraw Ratio* (FIX)
+    xvt               xterm-r6
+    yakuake           xterm        -- (drop down kde terminal, F12 to drop/raise)
+]#
 
 
 ;;;; Interface for device creating code.
@@ -22,19 +138,20 @@
 	    (with-open-file (s termcap-env-var)
 	      (if (find-termcap-entry name s)
 		  (parse-fields s)
-		  (error "Unknown Terminal ~S in file ~S." name termcap-env-var)))
+		  (error "Unknown Terminal ~S in file ~S."
+			 name termcap-env-var)))
 	    (with-input-from-string (s termcap-env-var)
 	      (skip-termcap-names s)
 	      (parse-fields s)))
 	(with-open-file (s termcap-file)
 	  (if (find-termcap-entry name s)
 	      (parse-fields s)
-		(error "Unknown Terminal ~S in file ~S." name termcap-file))))))
+	      (error "Unknown Terminal ~S in file ~S."
+		     name termcap-file))))))
 
 (proclaim '(inline termcap))
 (defun termcap (name termcap)
   (cdr (assoc name termcap :test #'eq)))
-
 
 
 ;;;; Finding the termcap entry
@@ -43,12 +160,11 @@
   (loop
    (let ((end-of-names (lex-termcap-name stream)))
      (when (termcap-found-p name)
-       (unless end-of-names (skip-termcap-names stream))
+       (or end-of-names (skip-termcap-names stream))
        (return t))
-     (when end-of-names
-       (unless (skip-termcap-fields stream)
-	 (return nil))))))
-
+     (if end-of-names
+	 (unless (skip-termcap-fields stream)
+	   (return nil))))))
 
 ;;; This buffer is used in LEX-TERMCAP-NAME and PARSE-FIELDS to
 ;;; do string comparisons and build strings from interpreted termcap
@@ -57,8 +173,8 @@
 (defvar *termcap-string-buffer* (make-string 300))
 (defvar *termcap-string-index* 0)
 
-(eval-when (compile eval)
-
+(eval-when (compile eval load)
+;
 (defmacro init-termcap-string-buffer ()
   `(setf *termcap-string-index* 0))
 
@@ -131,7 +247,7 @@
 ) ;eval-when
 
 
-(eval-when (compile eval)
+(eval-when (compile eval load)
 
 ;;; DEFTERMCAP makes a terminal capability known for parsing purposes.
 ;;; Type is one of :string, :number, or :boolean.  Cl-name is an EQ
@@ -251,7 +367,7 @@ xterm-xfree86|XFree86 xterm:\
 
 (defvar *getchar-ungetchar-buffer* nil)
 
-(eval-when (compile eval)
+(eval-when (compile eval load)
 
 ;;; UNGETCHAR  --  Internal.
 ;;;
@@ -286,10 +402,15 @@ xterm-xfree86|XFree86 xterm:\
 (defmacro store-field (cl-name value)
   (let ((name (gensym)))
     `(let ((,name ,cl-name))
-       (unless (cdr (assoc ,name termcap :test #'eq))
-	 (push (cons ,name ,value) termcap)))))
+       ; Allow multiple fields, for :similar-terminal.
+       ;(unless (cdr (assoc ,name termcap :test #'eq))
+	 (push (cons ,name ,value) termcap)
+       ;)
+       )))
 
 ) ;eval-when
+
+;(defvar *out* t)
 
 ;;; PARSE-FIELDS parses a termcap entry.  We start out in the state get-name.
 ;;; Each name is looked up in *known-termcaps*, and if it is of interest, then
@@ -322,7 +443,8 @@ xterm-xfree86|XFree86 xterm:\
        (setf (schar termcap-name 0) char)))
     (setf (schar termcap-name 1) (getchar))
     (setf termcap-def (termcap-def termcap-name))
-    (unless termcap-def (go EAT-FIELD))
+    (or termcap-def (go EAT-FIELD))
+    ;(format *out* "def: ~A~%" termcap-def)
     (when (char= (getchar) #\@)
       ;; Negation of a capability to be inherited from a similar terminal.
       (store-field (termcap-def-cl-name termcap-def) :negated)
@@ -372,6 +494,7 @@ xterm-xfree86|XFree86 xterm:\
 	  xp cm-info)
       (init-termcap-string-buffer)
       (loop
+	;(format *out* "char: ~A~%" char)
        (case (setf char (get-termcap-string-char stream char))
 	 (#\%
 	  (if normal-string-p
@@ -414,6 +537,7 @@ xterm-xfree86|XFree86 xterm:\
 		       (cond (normal-string-p (termcap-string-buffer-string))
 			     (t (push (termcap-string-buffer-string) cm-info)
 				(cons :string3 cm-info))))
+	  ;(format *out* "at string stroe: ~A~%" termcap)
 	  (return))
 	 (t (store-char char)))
        (getchar))
@@ -422,11 +546,12 @@ xterm-xfree86|XFree86 xterm:\
     (loop (when (char= (getchar) #\:) (return)))
     (go GET-NAME)
   MAYBE-DONE
+    ;(format *out* "maybe-done: ~A~%" termcap)
     (let* ((similar-terminal (assoc :similar-terminal termcap :test #'eq))
 	   (name (cdr similar-terminal)))
       (when name
 	(file-position stream :start)
-	(setf (cdr similar-terminal) nil)
+	(setf (car similar-terminal) :was-similar-terminal)
 	(if (find-termcap-entry name stream)
 	    (go GET-NAME)
 	    (error "Unknown similar terminal name -- ~S." name))))
@@ -437,11 +562,12 @@ xterm-xfree86|XFree86 xterm:\
 
 ;;; GET-TERMCAP-STRING-CHAR -- Internal.
 ;;;
-;;; This parses/lexes an ASCII character out of the termcap file and converts
-;;; it into the appropriate Common Lisp character.  This is a Common Lisp
-;;; character with the same CHAR-CODE code as the ASCII code, so writing the
-;;; character to the tty will have the desired effect.  If this function needs
-;;; to look ahead to determine any characters, it unreads the character.
+;;; This parses/lexes an ASCII character out of the termcap file and
+;;; converts it into the appropriate Lisp character.  This is a Lisp
+;;; character with the same CHAR-CODE code as the ASCII code, so writing
+;;; the character to the tty will have the desired effect.  If this
+;;; function needs to look ahead to determine any characters, it unreads
+;;; the character.
 ;;;
 (defun get-termcap-string-char (stream char)
   (case char

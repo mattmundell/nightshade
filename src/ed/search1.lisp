@@ -5,6 +5,23 @@
 (export '(search-pattern search-pattern-p find-pattern replace-pattern
 	  new-search-pattern at at* find-string))
 
+#[ Searching and Replacing (ext)
+
+Before using any of these functions to do a character search, look at
+character attributes ([character-attributes]).  They provide a facility
+similar to the syntax table in Emacs.  Syntax tables are a powerful,
+general, and efficient mechanism for assigning meanings to characters in
+various modes.
+
+{constant:ed:search-char-code-limit}
+{function:ed:new-search-pattern}
+{function:ed:search-pattern-p}
+{function:ed:get-search-pattern}
+{variable:ed:*last-search-pattern*}
+{variable:ed:*last-search-string*}
+{function:ed:find-pattern}
+{function:ed:replace-pattern}
+]#
 
 
 ;;; The search pattern structure is used only by simple searches, more
@@ -19,8 +36,7 @@
   reclaim-function)	      ; The function to call to reclaim this pattern.
 
 (setf (documentation 'search-pattern-p 'function)
-  "Returns true if its argument is an editor search-pattern object, Nil
-   otherwise.")
+  "Return true if $search-pattern is a search-pattern, else ().")
 
 (defun %print-search-pattern (object stream depth)
   (let ((*print-level* (and *print-level* (- *print-level* depth)))
@@ -43,13 +59,12 @@
 
 ;;; define-search-kind  --  Internal
 ;;;
-;;;    This macro is used to define a new kind of search pattern.  Kind
-;;; is the kind of search pattern to define.  Lambda-list is the argument
-;;; list for the expert-function to be built and forms it's body.
-;;; The arguments passed are the direction, the pattern, and either
-;;; an old search-pattern of the same type or nil.  Documentation
-;;; is put on the search-pattern-documentation property of the kind
-;;; keyword.
+;;; This macro is used to define a new kind of search pattern.  Kind is the
+;;; kind of search pattern to define.  Lambda-list is the argument list for
+;;; the expert-function to be built and forms it's body. The arguments
+;;; passed are the direction, the pattern, and either an old search-pattern
+;;; of the same type or nil.  Documentation is put on the
+;;; search-pattern-documentation property of the kind keyword.
 ;;;
 (defmacro define-search-kind (kind lambda-list documentation &body forms)
   (let ((dummy (gensym)))
@@ -59,29 +74,68 @@
 	(setf (gethash ,kind *search-pattern-experts*)
 	      #'(lambda ,lambda-list ,@forms)))
       (,dummy))))
+
 
 ;;; new-search-pattern  --  Public
 ;;;
-;;;    This function deallocates any old search-pattern and then dispatches
-;;; to the correct expert.
+;;; Free any old search-pattern and then dispatches to the correct expert.
 ;;;
 (defun new-search-pattern (kind direction pattern &optional
 				result-search-pattern)
-  "Makes a new editor search pattern of kind Kind to search direction using
-   Pattern.  Direction is either :backward or :forward.  If supplied,
-   result-search-pattern is a pattern to destroy to make the new one.  The
-   variable *search-pattern-documentation* contains documentation for each
-   kind."
-  (unless (or (eq direction :forward) (eq direction :backward))
-    (error "~S is not a legal search direction." direction))
+  "Return a search-pattern which can be given to `find-pattern' and
+   `replace-pattern'.  A search-pattern is a specification of a particular
+   sort of search.  $direction is either :forward or :backward, indicating
+   the direction to search in.  $kind specifies the kind of search pattern
+   to make, and $pattern specifies what to search for.
+
+   The interpretation of $pattern depends on the kind of pattern being
+   made.  Currently defined kinds of search pattern are:
+
+   FIX The variable *search-pattern-documentation* contains documentation
+   for each kind.
+
+     :string-insensitive
+        Do a case-folded string search, $pattern being the string to
+        search for.
+
+     :string-sensitive
+        Do a case-sensitive string search for $pattern.
+
+     :character
+        Find an occurrence of the character $pattern.  This is case
+        sensitive.
+
+     :not-character
+        Find a character other than the character $pattern.
+
+     :test
+        Find a character which satisfies the function $pattern.  FIX This
+        function may not be applied in any particular fashion, so it should
+        depend only on what its argument is, and should have no
+        side-effects.
+
+     :test-not
+        Similar to as :test, finds a character that fails the test.
+
+     :any
+        Find a character that is in the string $pattern.
+
+     :not-any
+        Find a character other than the ones in the string $pattern.
+
+   $result-search-pattern, if supplied, is a search-pattern to modify to
+   produce the new pattern.  Since some kinds of search patterns may
+   involve large data structures this may be necessary."
+  (or (eq direction :forward) (eq direction :backward)
+      (error "Direction ~S should be :forward or :backward." direction))
   (when result-search-pattern
     (funcall (search-pattern-reclaim-function result-search-pattern)
 	     result-search-pattern)
-    (unless (eq kind (search-pattern-kind result-search-pattern))
-      (setq result-search-pattern nil)))
+    (or (eq kind (search-pattern-kind result-search-pattern))
+	(setq result-search-pattern nil)))
   (let ((expert (gethash kind *search-pattern-experts*)))
-    (unless expert
-      (error "~S is not a defined search pattern kind." kind))
+    (or expert
+	(error "~S should be a defined search pattern kind." kind))
     (funcall expert direction pattern result-search-pattern)))
 
 ;;;; stuff to allocate and de-allocate simple-vectors search-char-code-limit
@@ -97,17 +151,18 @@
 (defmacro dispose-search-vector (vec)
   `(push ,vec *spare-search-vectors*))
 ); eval-when (compile eval)
+
 
-;;;; macros used by various search kinds:
+;;;; Macros used by various search kinds.
 
 ;;; search-once-forward-macro  --  Internal
 ;;;
-;;;    Passes search-fun strings, starts and lengths to do a forward
-;;; search.  The other-args are passed through to the searching
-;;; function after after everything else  The search-fun is
-;;; expected to return NIL if nothing is found, or it index where the
-;;; match ocurred.  Something non-nil is returned if something is
-;;; found and line and start are set to where it was found.
+;;; Passes search-fun strings, starts and lengths to do a forward search.
+;;; The other-args are passed through to the searching function after after
+;;; everything else The search-fun is expected to return NIL if nothing is
+;;; found, or it index where the match ocurred.  Something true is
+;;; returned if something is found and line and start are set to where it
+;;; was found.
 ;;;
 (defmacro search-once-forward-macro (line start search-fun &rest other-args)
   `(do* ((l ,line)
@@ -125,11 +180,10 @@
      (setq l (line-next l))
      (when (null l) (return nil))))
 
-
 ;;; search-once-backward-macro  --  Internal
 ;;;
-;;;    Like search-once-forward-macro, except it goes backwards.  Length
-;;; is not passed to the search function, since it won't need it.
+;;; Like search-once-forward-macro, except it goes backwards.  Length is
+;;; not passed to the search function, since it won't need it.
 ;;;
 (defmacro search-once-backward-macro (line start search-fun &rest other-args)
   `(do* ((l ,line)
@@ -150,11 +204,10 @@
 ;;;; String Searches.
 ;;;
 ;;; We use the Boyer-Moore algorithm for string searches.
-;;;
 
 ;;; sensitive-string-search-macro  --  Internal
 ;;;
-;;;    This macro does a case-sensitive Boyer-Moore string search.
+;;; This macro does a case-sensitive Boyer-Moore string search.
 ;;;
 ;;; Args:
 ;;;    String - The string to search in.
@@ -190,12 +243,12 @@
 	       (setq scan (,+/- scan jump))
 	       (setq scan (,+/- scan (- ,patlen patp)))))
 	 (setq patp ,last))))))
-
+
 ;;; insensitive-string-search-macro  --  Internal
 ;;;
-;;;    This macro is very similar to the case sensitive one, except that
-;;; we do the search for a hashed string, and then when we find a match
-;;; we compare the uppercased search string with the found string uppercased
+;;; This macro is very similar to the case sensitive one, except that we do
+;;; the search for a hashed string, and then when we find a match we
+;;; compare the uppercased search string with the found string uppercased
 ;;; and only say we win when they match too.
 ;;;
 (defmacro insensitive-string-search-macro (string start length pattern
@@ -228,25 +281,26 @@
 	       (setq scan (,+/- scan jump))
 	       (setq scan (,+/- scan (- ,patlen patp)))))
 	 (setq patp ,last))))))
+
 
-;;;; Searching for strings with newlines in them:
+;;;; Searching for strings with newlines in them.
 ;;;
-;;;    Due to the buffer representation, search-strings with embedded
-;;; newlines need to be special-cased.  What we do is break
-;;; the search string up into lines and then searching for a line with
-;;; the correct prefix.  This is actually a faster search.
-;;; For this one we just have one big hairy macro conditionalized for
-;;; both case-sensitivity and direction.  Have fun!!
+;;; Due to the buffer representation, search-strings with embedded newlines
+;;; need to be special-cased.  What we do is break the search string up
+;;; into lines and then searching for a line with the correct prefix.  This
+;;; is actually a faster search.  For this one we just have one big hairy
+;;; macro conditionalized for both case-sensitivity and direction.  Have
+;;; fun!!
 
 ;;; newline-search-macro  --  Internal
 ;;;
-;;;    Do a search for a string containing newlines.  Line is the line
-;;; to start on, and Start is the position to start at.  Pattern and
-;;; optionally Pattern2, are simple-vectors of things that represent
-;;; each line in the pattern, and are passed to Test-Fun.  Pattern
-;;; must contain simple-strings so we can take the length.  Test-Fun is a
-;;; thing to compare two strings and see if they are equal.  Forward-p
-;;; tells whether to go forward or backward.
+;;; Do a search for a string containing newlines.  Line is the line to
+;;; start on, and Start is the position to start at.  Pattern and
+;;; optionally Pattern2, are simple-vectors of things that represent each
+;;; line in the pattern, and are passed to Test-Fun.  Pattern must contain
+;;; simple-strings so we can take the length.  Test-Fun is a thing to
+;;; compare two strings and see if they are equal.  Forward-p tells whether
+;;; to go forward or backward.
 ;;;
 (defmacro newline-search-macro (line start test-fun pattern forward-p
 				     &optional pattern2)
@@ -310,12 +364,13 @@
 	  (return t)))
        ;; If not, try the next line
        (setq l ,(if forward-p '(line-next l) '(line-previous l))))))
+
 
-;;;; String-comparison macros that are passed to newline-search-macro
+;;;; String-comparison macros that are passed to newline-search-macro.
 
 ;;; case-sensitive-test-fun  --  Internal
 ;;;
-;;;    Just throws away the extra arg and calls string=.
+;;; Just throw away the extra arg and call string=.
 ;;;
 (defmacro case-sensitive-test-fun (string1 string2 ignore &rest keys)
   (declare (ignore ignore))
@@ -323,8 +378,8 @@
 
 ;;; case-insensitive-test-fun  --  Internal
 ;;;
-;;;    First compare the characters hashed with hashed-string2 and then
-;;; only if they agree do an actual compare with case-folding.
+;;; First compare the characters hashed with hashed-string2 and then only
+;;; if they agree do an actual compare with case-folding.
 ;;;
 (defmacro case-insensitive-test-fun (string1 string2 hashed-string2
 					     &key end1 (start1 0) end2)
@@ -339,12 +394,13 @@
 		 (svref ,hashed-string2 i))
 	 (return nil)))))
 ); eval-when (compile eval)
+
 
 ;;; compute-boyer-moore-jumps  --  Internal
 ;;;
-;;;    Compute return a jump-vector to do a Boyer-Moore search for
-;;; the "string" of things in Vector.  Access-fun is a function
-;;; that aref's vector and returns a number.
+;;; Compute return a jump-vector to do a Boyer-Moore search for the
+;;; "string" of things in Vector.  Access-fun is a function that aref's
+;;; vector and returns a number.
 ;;;
 (defun compute-boyer-moore-jumps (vec access-fun)
   (declare (simple-vector vec))
@@ -359,14 +415,14 @@
     (dotimes (i len)
       (setf (aref jumps (funcall access-fun vec i)) (- len i 1)))
     jumps))
-
-;;;; Case insensitive searches
 
-;;; In order to avoid case folding, we do a case-insensitive hash of
-;;; each character.  We then search for string in this translated
-;;; character set, and reject false successes by checking of the found
-;;; string is string-equal the the original search string.
-;;;
+
+;;;; Case insensitive searches.
+
+;;; In order to avoid case folding, we do a case-insensitive hash of each
+;;; character.  We then search for string in this translated character set,
+;;; and reject false successes by checking of the found string is
+;;; string-equal the the original search string.
 
 (defstruct (string-insensitive-search-pattern
 	    (:include search-pattern)
@@ -376,9 +432,9 @@
   hashed-string
   folded-string)
 
-;;;  Search-Hash-String  --  Internal
+;;; Search-Hash-String  --  Internal
 ;;;
-;;;    Return a simple-vector containing the search-hash-codes of the
+;;; Return a simple-vector containing the search-hash-codes of the
 ;;; characters in String.
 ;;;
 (defun search-hash-string (string)
@@ -391,8 +447,8 @@
 
 ;;; make-insensitive-newline-pattern  -- Internal
 ;;;
-;;;    Make bash in fields in a string-insensitive-search-pattern to
-;;; do a search for a string with newlines in it.
+;;; Make bash in fields in a string-insensitive-search-pattern to do a
+;;; search for a string with newlines in it.
 ;;;
 (defun make-insensitive-newline-pattern (pattern folded-string)
   (declare (simple-string folded-string))
@@ -415,10 +471,10 @@
       (incf nl))
     (setf (string-insensitive-folded-string pattern) folded
 	  (string-insensitive-hashed-string pattern) hashed)))
-
+
 (define-search-kind :string-insensitive (direction pattern old)
   ":string-insensitive - Pattern is a string to do a case-insensitive
-  search for."
+   search for."
   (unless old (setq old (make-string-insensitive-search-pattern)))
   (setf (search-pattern-kind old) :string-insensitive
 	(search-pattern-direction old) direction
@@ -451,7 +507,7 @@
 	      #'(lambda (p)
 		  (dispose-search-vector (string-insensitive-jumps p))))))))
   old)
-
+
 (defun insensitive-find-string-once-forward-method (pattern line start)
   (let* ((hashed-string (string-insensitive-hashed-string pattern))
 	 (folded-string (string-insensitive-folded-string pattern))
@@ -494,10 +550,11 @@
   insensitive-find-newline-once-forward-method t)
 (def-insensitive-newline-search-method
   insensitive-find-newline-once-backward-method nil)
+
 
-;;;; And Snore, case sensitive searches.
+;;;; Case sensitive searches.
 ;;;
-;;;    This is horribly repetitive, but if I introduce another level of
+;;; This is horribly repetitive, but if I introduce another level of
 ;;; macroexpansion I will go Insaaaane....
 ;;;
 (defstruct (string-sensitive-search-pattern
@@ -509,7 +566,7 @@
 
 ;;; make-sensitive-newline-pattern  -- Internal
 ;;;
-;;;    The same, only more sensitive (it hurts when you do that...)
+;;; The same, only more sensitive (it hurts when you do that...)
 ;;;
 (defun make-sensitive-newline-pattern (pattern string)
   (declare (simple-vector string))
@@ -527,10 +584,10 @@
       (setf (aref sliced i) (subseq string prev nl))
       (incf nl))
     (setf (string-sensitive-string pattern) sliced)))
-
+
 (define-search-kind :string-sensitive (direction pattern old)
-  ":string-sensitive - Pattern is a string to do a case-sensitive
-  search for."
+  ":string-sensitive - Pattern is a string to do a case-sensitive search
+   for."
   (unless old (setq old (make-string-sensitive-search-pattern)))
   (setf (search-pattern-kind old) :string-sensitive
 	(search-pattern-direction old) direction
@@ -562,7 +619,7 @@
 	    #'(lambda (p)
 		(dispose-search-vector (string-sensitive-jumps p)))))))
   old)
-
+
 (defun sensitive-find-string-once-forward-method (pattern line start)
   (let* ((string (string-sensitive-string pattern))
 	 (jumps (string-sensitive-jumps pattern))
@@ -600,9 +657,10 @@
   sensitive-find-newline-once-forward-method t)
 (def-sensitive-newline-search-method
   sensitive-find-newline-once-backward-method nil)
+
 
 ;;;; Parser-based searches.
-;;;
+
 (defstruct (parser-search-pattern
 	    (:include search-pattern)
 	    (:conc-name parser-pattern-)
@@ -614,7 +672,7 @@
 #|
 (profile:profile ed::buffer-parse-abc move-mark mark-after)
 (profile:unprofile edi::buffer-parse-abc)
-(ed::defparser '((t "abc")) :bufferp t)
+(parse:defparser '((t "abc")) :bufferp t)
 (compile 'buffer-parse-t)
 
 (compile 'search-by-parser)
@@ -623,13 +681,13 @@
 
 (compile 'primitive-buffer-parse-string)
 
-(ed::define-parser '(((u "abc"))))
+(parse:define-parser '(((u "abc"))))
 
-(ed::define-parser '(((v #\$))))
-(ed::define-parser '(((v #\$))) t)
-(ed::defparser '((v "abc")) :bufferp t :eval nil)
+(parse:define-parser '(((v #\$))))
+(parse:define-parser '(((v #\$))) t)
+(parse:defparser '((v "abc")) :bufferp t :eval nil)
 
-(ed::define-parser '(((abc "abc"))) t)
+(parse:define-parser '(((abc "abc"))) t)
 
 (untrace buffer-parse-v)
 |#
@@ -682,7 +740,7 @@
 
 (defun reclaim-parser (pattern)
   (makunbound (parser-pattern-parser pattern)))
-
+
 (define-search-kind :parser (direction pattern old)
   ":parser - Pattern is a list of parser rule requirements, a list
    containing a parser definition, or a parser name, which will be used to
@@ -694,7 +752,7 @@
   (setf	(parser-pattern-parser old)
 	(let ((*package* (or (find-package "ED")
 			     (editor-error "Failed to find ED package."))))
-	  (ed::define-parser pattern)))
+	  (parse::define-parser pattern)))
   (setf	(search-pattern-reclaim-function old)
 	(if (consp pattern) #'reclaim-parser #'identity))
   (setf (search-pattern-search-function old)
@@ -702,12 +760,11 @@
 	    #'parser-find-once-forward
 	    #'parser-find-once-backward))
   old)
-
+
 (defun find-pattern (mark search-pattern)
-  "Find a match of Search-Pattern starting at Mark.  Mark is moved to
-  point before the match and the number of characters matched is returned.
-  If there is no match for the pattern then Mark is not modified and NIL
-  is returned."
+  "Find a match of $search-pattern starting at $mark.  Move $mark moved to
+   the beginning of the match and return the number of characters matched.
+   If the search fails then leave $mark the same and return ()."
   (close-line)
   (multiple-value-bind (line start matched)
 		       (funcall (search-pattern-search-function search-pattern)
@@ -719,11 +776,10 @@
 
 ;;; replace-pattern  --  Public
 ;;;
-;;;
 (defun replace-pattern (mark search-pattern replacement &optional n)
-  "Replaces N occurrences of the Search-Pattern with the Replacement string
-  in the text starting at the given Mark.  If N is Nil, all occurrences
-  following the Mark are replaced."
+  "Replace $n occurrences of $search-pattern with the string $replacement
+   in the text starting at $mark.  If $n is (), replace all occurrences
+   following the $mark."
   (close-line)
   (do* ((replacement (coerce replacement 'simple-string))
 	(new (length (the simple-string replacement)))
@@ -744,6 +800,8 @@
 
 ;;; at  --  Public
 ;;;
+;;; FIX perhaps macro / compiler vibe to work around type check?
+;;; FIX usually (fun mark arg)  (find-string mark "string")
 ;;;
 (defun at* (def &optional (mark (current-point)))
   "Return a true value if Def matches the text at Mark.  Def can be a
@@ -766,7 +824,7 @@
 	 (mark-after mark)))
      t)
     ((or cons symbol)
-     (ed::parse (ed::define-parser def))
+     (ed::parse (parse::define-parser def))
      ;; FIX (if (consp def) (makunbound parser
      )))
 
@@ -775,7 +833,7 @@
    Reqs."
   (let ((*package* (or (find-package "ED")
 		       (editor-error "Failed to find ED package."))))
-    (ed::parse (ed::define-parser reqs)))
+    (ed::parse (parse::define-parser reqs)))
   ;; FIX (makunbound parser
   )
 
@@ -785,12 +843,12 @@
 ;abc
 ;aaaa
 
+
 (defvar *find-string-pattern*
   (new-search-pattern :string-sensitive :forward "a")
   "Cached search pattern for find-string.")
 
 ;;; find-string  --  Public
-;;;
 ;;;
 (defun find-string (mark string &key (backward nil) (fold nil))
   "Pattern search for String from Mark."

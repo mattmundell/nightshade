@@ -1,199 +1,633 @@
-												-*- outline -*-
-
-* CMUCL CVS log up to the end of 2000
-
-src/etc/cmucl-cvs-log-pre-2001.bz2
+                                                -*- outline -*-
 
 * Authors noted in the original CMUCL source code.
 
+** doc/
+
+cmu-user/                 Robert A. MacLachlan (ed)
+  Unix Interface          Robert MacLachlan, Skef Wholey
+                          Bill Chiles, William Lott
+  Advanced Compiler...    Robert MacLachlan
+  Event Dispatching...    Bill Chiles, Robert MacLachlan
+  Alien Objects           Robert MacLachlan, William Lott
+  IPC under Lisp          William Lott, Bill Chiles
+  The Debugger            Robert MacLachlan
+rtguts.mss                David B. McDonald, Scott E. Fahlman, Skef Wholey
+                          Based heavily on "Revised Internal Design
+                            of Spice Lisp" by Skef Wholey, Scott Fahlman
+                            and Joseph Ginder.
+hemlock/user              Bill Chiles,Rob MacLachlan
+hemlock/cim               Bill Chiles,Rob MacLachlan
+internals/                Robert A. MacLachlan (ed)
+  fasl.tex
+    The FASL file format was designed by Guy L. Steele Jr. and Walter van
+    Roggen, and the appendix on this subject is their document with very few
+    modifications.
+
+** src/assembly/
+
+alpha/alloc.lisp     William Lott
+alpha/arith.lisp     William Lott
+                     Conversion by Sean Hallgren.
+alpha/array.lisp     William Lott
+                     Conversion by Sean Hallgren.
+
+hppa/alloc.lisp      William Lott
+hppa/arith.lisp      William Lott
+hppa/array.lisp      William Lott
+hppa/assem-rtns.lisp William Lott
+hppa/support.lisp    William Lott
+
+mips/alloc.lisp      William Lott
+mips/arith.lisp      William Lott
+mips/array.lisp      William Lott
+
+rt/alloc.lisp        William Lott
+                     Converted to the IBM RT by Bill Chiles.
+rt/arith.lisp        William Lott
+                     Converted to the IBM RT by Bill Chiles.
+rt/array.lisp        William Lott
+
+sparc/alloc.lisp     William Lott
+sparc/arith.lisp     William Lott
+sparc/array.lisp     William Lott
+
+x86/alloc.lisp       William Lott.
+                     Debugged by Paul F. Werkowski -- Spring 1995.
+x86/arith.lisp       William Lott
+                     Debugged by Paul Werkowski -- Spring/Summer 1995.
+x86/array.lisp       Written by William Lott.
+                     Debugged by Paul F. Werkowski -- Spring 1995.
+x86/assem-rtns.lisp  William Lott
+                     Debugged by Paul F. Werkowski -- Spring/Summer 1995.
+                     Enhancements/debugging by Douglas T. Crosher 1997.
+x86/support.lisp     William Lott
+
 ** src/code/
 
-array.lisp		  Skef Wholey
-				  Worked over for the MIPS port by William Lott.
-backq.lisp		  BACKQUOTE: Code Spice Lispified by Lee Schumacher.
-				     		  (unparsing by Miles Bader)
-bit-bash.lisp	  William Lott
+array.lisp        Skef Wholey
+                  Worked over for the MIPS port by William Lott.
+backq.lisp        BACKQUOTE: Code Spice Lispified by Lee Schumacher.
+                              (unparsing by Miles Bader)
+bit-bash.lisp     William Lott
 bsd-os.lisp       Hacked into (Free)bsd-os.lisp by Paul Werkowski. [from mach-os.lisp]
 byte-interp.lisp  William Lott
-char.lisp		  Written by Guy Steele.
-				  Rewritten by David Dill.
-				  Hacked up for speed by Scott Fahlman.
-				  Font support flushed and type hackery rewritten by Rob MacLachlan.
-clx-ext.lisp	  Bill Chiles, Chris Hoover
+char.lisp         Written by Guy Steele.
+                  Rewritten by David Dill.
+                  Hacked up for speed by Scott Fahlman.
+                  Font support flushed and type hackery rewritten by Rob MacLachlan.
+clx-ext.lisp      Bill Chiles, Chris Hoover
 commandline.lisp  Bill Chiles
 debug-int.lisp    Bill Chiles, Rob Maclachlan
-				  X86 support by Douglas Crosher 1996,1997,1998.
-				  "Sources" page written by Rob Maclachlan, documented by Bill Chiles.
-debug-vm.lisp	  William Lott
-debug.lisp	      Bill Chiles
-defmacro.lisp	  Blaine Burks
+                  X86 support by Douglas Crosher 1996,1997,1998.
+                  "Sources" page written by Rob Maclachlan, documented by Bill Chiles.
+debug-vm.lisp     William Lott
+debug.lisp        Bill Chiles
+defmacro.lisp     Blaine Burks
 defstruct.lisp    Rob MacLachlan, William Lott, Skef Wholey
-describe.lisp	  Written by Skef Wholey or Rob MacLachlan originally.
-				  Cleaned up, reorganized, and enhanced by Blaine Burks.
-				  Ported to the new system and cleaned up some more by Rob MacLachlan.
+describe.lisp     Written by Skef Wholey or Rob MacLachlan originally.
+                  Cleaned up, reorganized, and enhanced by Blaine Burks.
+                  Ported to the new system and cleaned up some more by Rob MacLachlan.
 error.lisp        It was originally taken from some prototyping code written by
-				  KMP@Symbolics and massaged for our uses.
+                  KMP@Symbolics and massaged for our uses.
 extensions.lisp   Letf written by Steven Handerson.
-fd-stream.lisp	  Written by William Lott, July 1989 - January 1990.
-				  Some tuning by Rob MacLachlan.
+fd-stream.lisp    Written by William Lott, July 1989 - January 1990.
+                  Some tuning by Rob MacLachlan.
 fdefinition.lisp  Rob MacLachlan
-				  Modified by Bill Chiles (wrote encapsulation stuff)
-				  Modified more by William Lott (added ``fdefn'' objects)
-filesys.lisp	  William Lott
-final.lisp		  Written by William Lott, but the idea really was Chris Hoover's.
+                  Modified by Bill Chiles (wrote encapsulation stuff)
+                  Modified more by William Lott (added ``fdefn'' objects)
+filesys.lisp      William Lott
+final.lisp        Written by William Lott, but the idea really was Chris Hoover's.
 float-trap.lisp   Rob MacLachlan
-float.lisp		  Rob MacLachlan
-				  Long-float support by Douglas Crosher, 1998.
+float.lisp        Rob MacLachlan
+                  Long-float support by Douglas Crosher, 1998.
 format-time.lisp  Jim Healy, September 1987
-format.lisp		  Written by William Lott, with lots of stuff stolen from the previous
-				  version by David Adam and later rewritten by Bill Maddox.
-gc.lisp			  Christopher Hoover, Rob MacLachlan, Dave McDonald, et al.
-				  New code for MIPS port by Christopher Hoover.
-gengc.lisp		  William Lott
-globals.lisp	  Rob MacLachlan
+format.lisp       Written by William Lott, with lots of stuff stolen from the previous
+                  version by David Adam and later rewritten by Bill Maddox.
+gc.lisp           Christopher Hoover, Rob MacLachlan, Dave McDonald, et al.
+                  New code for MIPS port by Christopher Hoover.
+gengc.lisp        William Lott
+globals.lisp      Rob MacLachlan
 hash-new.lisp     Originally written by Skef Wholey.
-				  Everything except SXHASH rewritten by William Lott.
-				  Hash table functions rewritten by Douglas Crosher, 1997.
-				  Equalp hashing by William Newman, Cadabra Inc, and Douglas Crosher, 2000.
-hash.lisp		  Hashing and hash table functions for Spice Lisp.
-				  Originally written by Skef Wholey.
-				  Everything except SXHASH rewritten by William Lott.
-				  Equalp hashing by William Newman, Cadabra Inc, and Douglas Crosher, 2000.
-hpux-os.lisp	  From Miles Bader and David Axmark.
-internet.lisp	  William Lott
-interr.lisp	      William Lott
-irrat.lisp	      William Lott
+                  Everything except SXHASH rewritten by William Lott.
+                  Hash table functions rewritten by Douglas Crosher, 1997.
+                  Equalp hashing by William Newman, Cadabra Inc, and Douglas Crosher, 2000.
+hash.lisp         Hashing and hash table functions for Spice Lisp.
+                  Originally written by Skef Wholey.
+                  Everything except SXHASH rewritten by William Lott.
+                  Equalp hashing by William Newman, Cadabra Inc, and Douglas Crosher, 2000.
+hpux-os.lisp      From Miles Bader and David Axmark.
+internet.lisp     William Lott
+interr.lisp       William Lott
+irrat.lisp        William Lott
 linux-os.lisp     Hacked into Linux-os.lisp /Werkowski   [from mach-os.lisp]
 lispinit.lisp     Skef Wholey, Rob MacLachlan
-list.lisp		  Joe Ginder, Carl Ebeling
-				  Rewritten by Skef Wholey.
+list.lisp         Joe Ginder, Carl Ebeling
+                  Rewritten by Skef Wholey.
 load.lisp         Skef Wholey, Rob MacLachlan
-				  try-default-types
-					  Modified 18-Jan-97/pw for logical-pathname support.
-loop.lisp		  William Lott
+                  try-default-types
+                      Modified 18-Jan-97/pw for logical-pathname support.
+loop.lisp         William Lott
 mach-os.lisp      Written and maintained mostly by Skef Wholey and Rob MacLachlan.
-				  Scott Fahlman, Dan Aronson, and Steve Handerson did stuff here, too.
-macros.lisp		  Scott Fahlman, Rob MacLachlan
-				  Modified by Bill Chiles to adhere to the wall.
+                  Scott Fahlman, Dan Aronson, and Steve Handerson did stuff here, too.
+macros.lisp       Scott Fahlman, Rob MacLachlan
+                  Modified by Bill Chiles to adhere to the wall.
 mipsstrops.lisp   Rob MacLachlan, Skef Wholey
-misc.lisp		  Written and maintained mostly by Skef Wholey and Rob MacLachlan.
-				  Scott Fahlman, Dan Aronson, and Steve Handerson did stuff here, too.
-module.lisp		  Code written by Jim Muller.
-				  Rewritten by Bill Chiles.
+misc.lisp         Written and maintained mostly by Skef Wholey and Rob MacLachlan.
+                  Scott Fahlman, Dan Aronson, and Steve Handerson did stuff here, too.
+module.lisp       Code written by Jim Muller.
+                  Rewritten by Bill Chiles.
 multi-proc.lisp   Douglas T. Crosher
 ntrace.lisp       Rob MacLachlan, Bill Chiles
 numbers.lisp      Rob MacLachlan
-				  Much code in this file was derived from code written by William Lott, Dave
-				  Mcdonald, Jim Large, Scott Fahlman, etc.
-				  Long-float support by Douglas Crosher, 1998.
-osf1-os.lisp	  (seems copied from mach-os.lisp:)
-				  Written and maintained mostly by Skef Wholey and Rob MacLachlan.
-				  Scott Fahlman, Dan Aronson, and Steve Handerson did stuff here, too.
-package.lisp	  Re-Written by Rob MacLachlan.  Earlier version written by
-				  Lee Schumacher.  Apropos & iteration macros courtesy of Skef Wholey.
-			      Defpackage by Dan Zigmond.  With-Package-Iterator by Blaine Burks.
-				  Defpackage and do-mumble-symbols macros re-written by William Lott.
+                  Much code in this file was derived from code written by William Lott, Dave
+                  Mcdonald, Jim Large, Scott Fahlman, etc.
+                  Long-float support by Douglas Crosher, 1998.
+osf1-os.lisp      (seems copied from mach-os.lisp:)
+                  Written and maintained mostly by Skef Wholey and Rob MacLachlan.
+                  Scott Fahlman, Dan Aronson, and Steve Handerson did stuff here, too.
+package.lisp      Re-Written by Rob MacLachlan.  Earlier version written by
+                  Lee Schumacher.  Apropos & iteration macros courtesy of Skef Wholey.
+                  Defpackage by Dan Zigmond.  With-Package-Iterator by Blaine Burks.
+                  Defpackage and do-mumble-symbols macros re-written by William Lott.
 parse-time.lisp   Jim Healy, June 1987
 pathname.lisp     William Lott, Paul Gleichauf, Rob MacLachlan
-				  Earlier version written by Jim Large and Rob MacLachlan
+                  Earlier version written by Jim Large and Rob MacLachlan
 pmax-disassem.lisp  Christopher Hoover
 pprint.lisp       William Lott.  Algorithm stolen from Richard Waters' XP.
 pred.lisp         William Lott
 print.lisp        Neal Feinberg, Bill Maddox, Steven Handerson, Skef Wholey
-				  Modified by various CMU Common Lisp maintainers.
-				  ;;;; Bignum printing
-				  Written by Steven Handerson
-				  (based on Skef's idea)
-				  Rewritten to remove assumptions about the length of fixnums for the
-				  MIPS port by William Lott.
-				  ;;;; Float printing.
-				  Written by Bill Maddox
+                  Modified by various CMU Common Lisp maintainers.
+                  ;;;; Bignum printing
+                  Written by Steven Handerson
+                  (based on Skef's idea)
+                  Rewritten to remove assumptions about the length of fixnums for the
+                  MIPS port by William Lott.
+                  ;;;; Float printing.
+                  Written by Bill Maddox
 profile.lisp      Skef Wholey, Rob MacLachlan
-purify.lisp		  Rob MacLachlan, Skef Wholey [purify.old-sys.lisp]
-				  Rewritten in C by William Lott.
+purify.lisp       Rob MacLachlan, Skef Wholey [purify.old-sys.lisp]
+                  Rewritten in C by William Lott.
 query.lisp        Walter van Roggen, 27 December 1982
-				  Brought up to date and fixed somewhat by Rob MacLachlan.
-				  Modified by Bill Chiles.
+                  Brought up to date and fixed somewhat by Rob MacLachlan.
+                  Modified by Bill Chiles.
 rand-mt19937.lisp Douglas T. Crosher and Raymond Toy based CMU code.
-				  Support for the Mersenne Twister, MT19937, random number generator
-				  due to Matsumoto and Nishimura. This implementation has been
-  				  placed in the public domain with permission from M. Matsumoto.
+                  Support for the Mersenne Twister, MT19937, random number generator
+                  due to Matsumoto and Nishimura. This implementation has been
+                  placed in the public domain with permission from M. Matsumoto.
 
-				  Makoto Matsumoto and T. Nishimura, "Mersenne twister: A
-				  623-dimensionally equidistributed uniform pseudorandom number
-				  generator.", ACM Transactions on Modeling and Computer Simulation,
-				  1997, to appear.
+                  Makoto Matsumoto and T. Nishimura, "Mersenne twister: A
+                  623-dimensionally equidistributed uniform pseudorandom number
+                  generator.", ACM Transactions on Modeling and Computer Simulation,
+                  1997, to appear.
 rand.lisp         Originally written by David Adam.  Python tuning, better large integer
-				  randomness and efficient IEEE float support by Rob MacLachlan.
-				  New generator added by Raymond Toy.
+                  randomness and efficient IEEE float support by Rob MacLachlan.
+                  New generator added by Raymond Toy.
 reader.lisp       Written by David Dill
-				  Package system interface by Lee Schumacher.
+                  Package system interface by Lee Schumacher.
 remote.lisp       William Lott
 run-program.lisp  Written by Jim Healy and Bill Chiles, November 1987, using an earlier
-				  version written by David McDonald.
-				  Completely re-written by William Lott, July 1989 - January 1990.
-save.lisp		  William Lott
+                  version written by David McDonald.
+                  Completely re-written by William Lott, July 1989 - January 1990.
+save.lisp         William Lott
 scavhook.lisp     William Lott
 search-list.lisp  Bill Chiles
-seq.lisp		  Skef Wholey
-				  Fixed up by Jim Muller on Friday the 13th, January, 1984.
-				  Gone over again by Bill Chiles.  Next?
+seq.lisp          Skef Wholey
+                  Fixed up by Jim Muller on Friday the 13th, January, 1984.
+                  Gone over again by Bill Chiles.  Next?
 serve-event.lisp  Re-written by William Lott, July 1989 - January 1990.
 sharpm.lisp       David Dill
-signal.lisp		  William Lott
+signal.lisp       William Lott
 sort.lisp         Jim Large
-				  Hacked on and maintained by Skef Wholey
-				  Rewritten by Bill Chiles
-stream.lisp		  Skef Wholey, Rob MacLachlan
-				  Gray streams support by Douglas Crosher, 1998.
+                  Hacked on and maintained by Skef Wholey
+                  Rewritten by Bill Chiles
+stream.lisp       Skef Wholey, Rob MacLachlan
+                  Gray streams support by Douglas Crosher, 1998.
 string.lisp       David Dill
-				  Rewritten by Skef Wholey, Bill Chiles and Rob MacLachlan.
+                  Rewritten by Skef Wholey, Bill Chiles and Rob MacLachlan.
 sunos-os.lisp     From Miles Bader and David Axmark.
-				  ("OS interface functions for CMU CL under Mach." so may
-				   refer to original.)
-symbol.lisp		  Scott Fahlman
-				  Hacked on and maintained by Skef Wholey.
+                  ("OS interface functions for CMU CL under Mach." so may
+                   refer to original.)
+symbol.lisp       Scott Fahlman
+                  Hacked on and maintained by Skef Wholey.
 tty-inspect.lisp  Blaine Burks
 type-init.lisp    Rob MacLachlan
-type.lisp		  Rob MacLachlan
+type.lisp         Rob MacLachlan
 typedefs.lisp     Rob MacLachlan
 unix-glibc2.lisp  Based on unix.lisp 1.56, converted for glibc2 by Peter
-				  Van Eynde (1998).
-				  Alpha support by Julian Dolby, 1999.
-weak.lisp		  Christopher Hoover
+                  Van Eynde (1998).
+                  Alpha support by Julian Dolby, 1999.
+weak.lisp         Christopher Hoover
 wire.lisp         William Lott
 x86-vm.lisp       Code movement fixups by Douglas T. Crosher, 1997.
-				  Thread support by Douglas T. Crosher, 1999.
+                  Thread support by Douglas T. Crosher, 1999.
+
+** src/compiler/
+
+aliencomp.lisp    Rewritten once again, this time by William Lott and Rob MacLachlan.
+alloc.lisp        Rob MacLachlan
+array-tran.lisp   Extracted from srctran and extended by William Lott.
+backend.lisp      William Lott
+bit-util.lisp     Rob MacLachlan
+byte-comp.lisp    William Lott
+checkgen.lisp     Rob MacLachlan
+codegen.lisp      Rob MacLachlan
+constraint.lisp   Rob MacLachlan
+control.lisp      Rob MacLachlan
+copyprop.lisp     Rob MacLachlan
+ctype.lisp        Rob MacLachlan
+debug-dump.lisp   Rob MacLachlan
+debug.lisp        Rob MacLachlan
+dfo.lisp          Rob MacLachlan
+disassem.lisp     Miles Bader
+entry.lisp        Rob MacLachlan
+envanal.lisp      Rob MacLachlan
+eval-comp.lisp    Bill Chiles
+eval.lisp         Rob MacLachlan, Bill Chiles
+float-tran.lisp   Rob MacLachlan
+globaldb.lisp     Rob MacLachlan
+gtn.lisp          Rob MacLachlan
+ir1final.lisp     Rob MacLachlan
+ir1opt.lisp       Rob MacLachlan
+ir1tran.lisp      Rob MacLachlan
+ir1util.lisp      Rob MacLachlan
+ir2tran.lisp      Rob MacLachlan
+knownfun.lisp     Rob MacLachlan
+life.lisp         Rob MacLachlan
+locall.lisp       Rob MacLachlan
+ltn.lisp          Rob MacLachlan
+ltv.lisp          William Lott
+macros.lisp       Rob MacLachlan
+main.lisp         Rob MacLachlan
+meta-vmdef.lisp   Rob MacLachlan
+                  Separated from vmdef.lisp by William Lott
+new-assem.lisp    William Lott
+node.lisp         Rob MacLachlan
+pack.lisp         Rob MacLachlan
+proclaim.lisp     Rob MacLachlan
+pseudo-vops.lisp  Rob MacLachlan
+represent.lisp    Rob MacLachlan
+saptran.lisp      William Lott
+seqtran.lisp      Rob MacLachlan.
+                  Some code adapted from the old seqtran file,
+                  written by Wholey and Fahlman.
+srctran.lisp      Rob MacLachlan
+                  Some code adapted from CLC, written by Wholey and Fahlman.
+                  Propagate-float-type extension by Raymond Toy.
+sset.lisp         Rob MacLachlan
+stack.lisp        Rob MacLachlan
+statcount.lisp    William Lott
+tn.lisp           Rob MacLachlan
+typetran.lisp     Rob MacLachlan
+vmdef.lisp        Rob MacLachlan
+vop.lisp          Rob MacLachlan
+
+*** src/compiler/alpha
+
+alloc.lisp        William Lott
+                  Converted by Sean Hallgren.
+arith.lisp        William Lott
+                  Converted by Sean Hallgren.
+array.lisp        William Lott
+                  Conversion by Sean Hallgren.
+                  Complex-float support by Douglas Crosher 1998.
+c-call.lisp       William Lott
+                  Conversion by Sean Hallgren.
+call.lisp         Rob MacLachlan
+                  Converted for the Alpha by Sean Hallgren.
+cell.lisp         Rob MacLachlan
+                  Converted by Sean Hallgren
+char.lisp         Rob MacLachlan
+                  Converted for the Alpha by Sean Hallgren.
+debug.lisp        William Lott
+                  Converted by Sean Hallgren.
+float.lisp        Rob MacLachlan
+                  Conversion by Sean Hallgren.
+                  IEEE variants by Paul Werkowski.
+                  Complex-float support by Douglas Crosher 1998.
+inst.lisp         Sean Hallgren
+macros.lisp       William Lott, Christopher Hoover.
+                  Alpha conversion by Sean Hallgren.
+memory.lisp       Rob MacLachlan
+                  Converted by Sean Hallgren.
+move.lisp         Rob MacLachlan.
+                  Conversion by Sean Hallgren.
+nlx.lisp          Rob MacLachlan
+                  Conversion by Sean Hallgren.
+parms.lisp        William Lott
+                  Alpha conversion by Sean Hallgren.
+pred.lisp         Rob MacLachlan
+                  Converted by Sean Hallgren.
+print.lisp        Written by William Lott.
+                  Converted by Sean Hallgren.
+sap.lisp          William Lott.
+                  Alpha conversion by Sean Hallgren.
+static-fn.lisp    William Lott.
+                  Converted by Sean Hallgren
+subprim.lisp      William Lott.
+                  Converted by Sean Hallgren.
+system.lisp       Rob MacLachlan
+                  Mips conversion by William Lott and Christopher Hoover.
+                  Alpha conversion by Sean Hallgren.
+type-vops.lisp    William Lott
+                  Earlier versions by Rob MacLachlan and Christopher Hoover.
+                  Alpha conversion by Sean Hallgren
+                  Complex-float support by Douglas Crosher 1998.
+values.lisp       Rob MacLachlan
+                  Converted to the Alpha by Sean Hallgren.
+vm.lisp           William Lott.
+                  Alpha conversion by Sean Hallgren.
+
+*** src/compiler/generic
+
+gengc-genesis.lisp  Skef Wholey.  Package hackery courtesy of Rob MacLachlan.
+                    Completely Rewritten by William Lott for MIPS port.
+interr.lisp         William Lott
+new-genesis.lisp    Skef Wholey.  Package hackery courtesy of Rob MacLachlan.
+                    Completely Rewritten by William Lott for MIPS port.
+objdef.lisp         William Lott
+primtype.lisp       William Lott
+                    Alpha conversion by Sean Hallgren.
+utils.lisp          William Lott
+vm-fndb.lisp        William Lott
+vm-macs.lisp        William Lott, Christopher Hoover
+vm-tran.lisp        Rob MacLachlan
+vm-type.lisp        Rob MacLachlan
+vm-typetran.lisp    William Lott
+
+*** src/compiler/hppa
+
+alloc.lisp          William Lott
+arith.lisp          William Lott
+array.lisp          William Lott
+                    Signed-array and Complex-float support
+                    by Douglas Crosher 1998.
+c-call.lisp         William Lott
+call.lisp           William Lott
+cell.lisp           William Lott
+char.lisp           William Lott
+debug.lisp          William Lott
+float.lisp          William Lott
+                    Complex-float support by Douglas Crosher 1998.
+insts.lisp          William Lott
+macros.lisp         William Lott
+memory.lisp         William Lott
+move.lisp           William Lott
+nlx.lisp            William Lott
+parms.lisp          William Lott
+pred.lisp           William Lott
+print.lisp          William Lott
+sap.lisp            William Lott
+static-fn.lisp      William Lott
+subprim.lisp        William Lott
+system.lisp         William Lott
+type-vops.lisp      William Lott
+                    Signed-array and Complex-float support by
+                    Douglas Crosher 1998.
+values.lisp         William Lott
+vm.lisp             William Lott
+
+*** src/compiler/mips
+
+alloc.lisp          William Lott
+arith.lisp          Rob MacLachlan
+                    Converted by William Lott.
+array.lisp          William Lott
+                    Complex-float support by Douglas Crosher 1998.
+c-call.lisp         William Lott
+call.lisp           Rob MacLachlan
+                    Converted for the MIPS by William Lott.
+cell.lisp           Rob MacLachlan
+                    Converted by William Lott.
+char.lisp           Rob MacLachlan
+                    Converted for the MIPS R2000 by Christopher Hoover.
+debug.lisp          William Lott
+fndb.lisp           Rob MacLachlan
+float.lisp          Rob MacLachlan
+                    Complex-float support by Douglas Crosher 1998.
+insts.lisp          William Lott
+macros.lisp         William Lott, Christopher Hoover
+memory.lisp         Rob MacLachlan
+                    Converted by William Lott.
+move.lisp           Rob MacLachlan.
+                    MIPS conversion by William Lott.
+nlx.lisp            Rob MacLachlan
+parms.lisp          Rob MacLachlan
+                    Converted to MIPS by William Lott.
+pred.lisp           Rob MacLachlan
+                    Converted by William Lott.
+print.lisp          William Lott
+sap.lisp            William Lott
+static-fn.lisp      William Lott
+subprim.lisp        William Lott
+system.lisp         Rob MacLachlan
+                    Mips conversion by William Lott and
+                    Christopher Hoover.
+type-vops.lisp      William Lott
+                    Earlier versions by Rob MacLachlan and Christopher Hoover.
+                    Complex-float support by Douglas Crosher 1998.
+utils.lisp          William Lott, Christopher Hoover
+values.lisp         Rob MacLachlan
+                    Converted for MIPS by William Lott.
+vm.lisp             Christopher Hoover, William Lott
+
+*** src/compiler/rt
+
+alloc.lisp         William Lott.
+                   Converted by Bill Chiles.
+arith.lisp         Rob MacLachlan
+                   Converted by Bill Chiles.
+array.lisp         William Lott, Bill Chiles
+c-call.lisp        William Lott
+                   Converted by Bill Chiles.
+call.lisp          Rob MacLachlan, William Lott, Bill Chiles
+cell.lisp          Rob MacLachlan
+                   Converted by Bill Chiles.
+char.lisp          Rob MacLachlan, Bill Chiles
+debug.lisp         William Lott
+                   Converted to RT by Bill Chiles.
+insts.lisp         William Lott, Bill Chiles
+macros.lisp        William Lott, Christopher Hoover, Rob Maclachlin
+                   and Bill Chiles.
+mc68881.lisp       Adapted by Rob MacLachlan from the Sparc support,
+                   written by Rob MacLachlan and William Lott, with
+                   some stuff from Dave McDonald's original RT miscops.
+memory.lisp        Rob MacLachlan
+                   Converted by Bill Chiles.
+move.lisp          Rob MacLachlan.
+                   MIPS conversion by William Lott.
+                   IBM RT conversion by William Lott and Bill Chiles.
+nlx.lisp           Rob MacLachlan
+                   Converted to IBM RT by William Lott and Bill Chiles.
+params.lisp        Rob MacLachlan
+                   Converted to MIPS by William Lott.
+                   Converted to IBM RT by William Lott and Bill Chiles.
+pred.lisp          Rob MacLachlan
+                   Modified by William Lott and Bill Chiles for the IBM RT.
+print.lisp         William Lott
+sap.lisp           William Lott
+static-fn.lisp     William Lott.
+                   Converted by Bill Chiles.
+subprim.lisp       William Lott.
+                   Converted for IBM RT by Bill Chiles.
+system.lisp        Rob MacLachlan
+                   IBM RT conversion by Bill Chiles.
+type-vops.lisp     William Lott
+                   Converted to IBM RT by Bill Chiles.
+values.lisp        Rob MacLachlan
+                   Converted for IBM RT by Bill Chiles.
+vm.lisp            William Lott, Rob Maclachlan, Bill Chiles
+
+*** src/compiler/sparc
+
+alloc.lisp         William Lott
+arith.lisp         Rob MacLachlan
+                   Converted by William Lott.
+                   Enhancements/debugging by Raymond Toy 1999, 2000.
+array.lisp         William Lott
+                   Signed-array support by Douglas Crosher 1997.
+                   Complex-float and long-float support by Douglas Crosher 1998.
+c-call.lisp        William Lott
+call.lisp          William Lott
+cell.lisp          Rob MacLachlan
+                   Converted by William Lott.
+char.lisp          Rob MacLachlan
+                   Converted for the MIPS R2000 by Christopher Hoover.
+                   And then to the SPARC by William Lott.
+debug.lisp         William Lott
+float.lisp         Rob MacLachlan
+                   Sparc conversion by William Lott.
+                   Complex-float and long-float support by Douglas Crosher 1998.
+insts.lisp         William Lott
+macros.lisp        William Lott
+memory.lisp        Rob MacLachlan
+                   Converted by William Lott.
+move.lisp          Rob MacLachlan
+                   SPARC conversion by William Lott.
+nlx.lisp           Rob MacLachlan
+parms.lisp         Rob MacLachlan
+                   Converted to MIPS by William Lott.
+pred.lisp          Rob MacLachlan
+                   Converted by William Lott.
+print.lisp         William Lott
+sap.lisp           William Lott
+static-fn.lisp     William Lott
+subprim.lisp       William Lott
+system.lisp        Rob MacLachlan
+                   Mips conversion by William Lott and Christopher Hoover.
+type-vops.lisp     William Lott.
+                   Signed-array support by Douglas Crosher 1997.
+                   Complex-float and long-float support by Douglas Crosher 1998.
+values.lisp        Rob MacLachlan
+                   Converted for SPARC by William Lott.
+vm.lisp            William Lott
+
+*** src/compiler/x86
+
+alloc.lisp         William Lott.
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Enhancements/debugging by Douglas T. Crosher 1996,1996.
+arith.lisp         William Lott
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Enhancements/debugging by Douglas T. Crosher 1996,1997,2000.
+array.lisp         William Lott
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Enhancements/debugging by Douglas T. Crosher 1996,1997,1998,1999.
+c-call.lisp        William Lott
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Debugging and Enhancements by Douglas Crosher 1996,1997,1998,1999.
+call.lisp          William Lott.
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Enhancements/debugging by Douglas T. Crosher 1996,1997.
+cell.lisp          William Lott.
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Enhancements/debugging by Douglas T. Crosher 1996,1997,1999.
+char.lisp          Rob MacLachlan
+                   Converted for the MIPS R2000 by Christopher Hoover.
+                   And then to the SPARC by William Lott.
+                   And then to the x86, again by William.
+                   Debugged by Paul F. Werkowski, June-95.
+                   Enhancements/debugging by Douglas T. Crosher 1996,1997.
+debug.lisp         William Lott.
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Enhancements/debugging by Douglas T. Crosher 1996,1997.
+float.lisp         William Lott.
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Rewrite, enhancements, complex-float and long-float support by
+                   Douglas Crosher, 1996, 1997, 1998, 1999, 2000.
+insts.lisp         William Lott
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Debugging and enhancements by Douglas Crosher 1996, 1997, 1998.
+macros.lisp        William Lott.
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Enhancements/debugging by Douglas T. Crosher 1996,1997,1998,1999.
+memory.lisp        William Lott.
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Enhancements/debugging by Douglas T. Crosher 1996,1997,1999.
+move.lisp          William Lott.
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Enhancements/debugging by Douglas T. Crosher 1996,1997.
+nlx.lisp           William Lott.
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Enhancements/debugging by Douglas T. Crosher 1996,1997,1998.
+parms.lisp         William Lott
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Enhancements/debugging by Douglas T. Crosher 1996,1997.
+pred.lisp          William Lott
+                   Enhancements/debugging by Douglas T. Crosher 1996,1997.
+print.lisp         William Lott
+                   Enhancements/debugging by Douglas T. Crosher 1996.
+sap.lisp           William Lott.
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Enhancements/debugging by Douglas T. Crosher 1996,1997,1998,1999.
+static-fn.lisp     William Lott.
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Enhancements/debugging by Douglas T. Crosher 1996,1997.
+subprim.lisp       William Lott
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+system.lisp        William Lott.
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Enhancements/debugging by Douglas T. Crosher 1996,1997,1998,1999.
+type-vops.lisp     William Lott.
+                   Debugged by Paul F. Werkowski, Spring-95.
+                   Enhancements/debugging by Douglas T. Crosher 1996,1997,1998.
+values.lisp        William Lott.
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   %more-arg-values by Douglas Thomas Crosher, March 1996.
+                   Enhancements/debugging by Douglas T. Crosher 1996.
+vm.lisp            William Lott
+                   Debugged by Paul F. Werkowski Spring/Summer 1995.
+                   Enhancements/debugging by Douglas T. Crosher 1996, 1997, 1998.
 
 ** src/ed/  (previously src/hemlock)
 
 abbrev.lisp       Jamie W. Zawinski, 24 September 1985
 auto-save.lisp    Christopher Hoover
 bit-display.lisp  Rob MacLachlan
-		  		  Modified by Bill Chiles to run under X on IBM RT's.
+                  Modified by Bill Chiles to run under X on IBM RT's.
 bit-screen.lisp   Bill Chiles, Rob MacLachlan, Blaine Burks
 bit-stream.lisp   Rob MacLachlan
-		  		  Modified by Bill Chiles to run under X on the IBM RT.
+                  Modified by Bill Chiles to run under X on the IBM RT.
 buffer.lisp       Rob MacLachlan
-comments.lisp	  Bill Chiles
+comments.lisp     Bill Chiles
 completion.lisp   Skef Wholey, Blaine Burks
-		  		  General idea stolen from Jim Salem's TMC LISPM
-		  		  completion code.
+                  General idea stolen from Jim Salem's TMC LISPM
+                  completion code.
 cursor.lisp       Rob MacLachlan
 debug.lisp        Bill Chiles
-dired.lisp	  	  Bill Chiles
+dired.lisp        Bill Chiles
 diredcoms.lisp    Blaine Burks, Bill Chiles
 display.lisp      Bill Chiles
 doccoms.lisp      Rob MacLachlan, Bill Chiles
-echo.lisp	  	  Skef Wholey, Rob MacLachlan
-		  		  Modified by Bill Chiles.
+echo.lisp         Skef Wholey, Rob MacLachlan
+                  Modified by Bill Chiles.
 echocoms.lisp     Rob MacLachlan, Skef Wholey
 eval-server.lisp  William Lott
 files.lisp        Skef Wholey
-		  		  Horribly Hacked by Rob MacLachlan
-fill.lisp	  	  Bill Chiles
-font.lisp	  	  Rob MacLachlan
-		  		  Modified by Bill Chiles toward Hemlock running under X.
+                  Horribly Hacked by Rob MacLachlan
+fill.lisp         Bill Chiles
+font.lisp         Rob MacLachlan
+                  Modified by Bill Chiles toward Hemlock running under X.
 group.lisp        Skef Wholey, Rob MacLachlan
 hi-integrity.lisp Skef Wholey
 highlight.lisp    Bill Chiles, Jim Healy
@@ -207,7 +641,7 @@ indent.lisp       Bill Maddox, Bill Chiles
 interp.lisp       Rob MacLachlan, Blaine Burks
 key-event.lisp    Blaine Burks, Bill Chiles
 keysym-defs.lisp  Bill Chiles
-	          	  Modified by Blaine Burks
+                  Modified by Blaine Burks
 keytran.lisp      Bill Chiles
 keytrandefs.lisp  Bill Chiles
 killcoms.lisp     Bill Chiles and Rob MacLachlan
@@ -224,25 +658,25 @@ overwrite.lisp    Bill Chiles
 pop-up-stream.lisp  Blaine Burks
 rcs.lisp          William Lott, Christopher Hoover
 register.lisp     Dave Touretzky
-	          	  Modified by Bill Chiles for Hemlock consistency.
+                  Modified by Bill Chiles for Hemlock consistency.
 ring.lisp         Rob MacLachlan
 screen.lisp       Bill Chiles
 search1.lisp      Originally by Skef Wholey, rewritten by Rob MacLachlan.
 search2.lisp      Rob MacLachlan
 shell.lisp        Blaine Burks
 spell-aug.lisp    Bill Chiles
-		  	      Designed by Bill Chiles and Rob Maclachlan
+                  Designed by Bill Chiles and Rob Maclachlan
 spell-build.lisp  Bill Chiles
-		  		  Designed by Bill Chiles and Rob Maclachlan
+                  Designed by Bill Chiles and Rob Maclachlan
 spell-corr.lisp   Bill Chiles
-		  		  Designed by Bill Chiles and Rob Maclachlan
+                  Designed by Bill Chiles and Rob Maclachlan
 spell-rt.lisp     Bill Chiles
 spellcoms.lisp    Bill Chiles, Rob Maclachlan
 srccom.lisp       Skef Wholey, Bill Chiles
 streams.lisp      Skef Wholey, Rob MacLachlan
 syntax.lisp       Rob MacLachlan
 table.lisp        Reluctantly written by Christopher Hoover.
-		  		  Supporting cast includes Rob and Bill.
+                  Supporting cast includes Rob and Bill.
 termcap.lisp      Bill Chiles
 text.lisp         Bill Chiles
 ts-buf.lisp       William Lott
@@ -250,10 +684,10 @@ ts-stream.lisp    William Lott
 tty-disp-rt.lisp  Bill Chiles
 tty-display.lisp  Bill Chiles
 tty-screen.lisp   Written by Bill Chiles, except for the code that
-	          	  implements random typeout, which was done by Blaine Burks
-		  		  and Bill Chiles.  The code for splitting windows was
-		  		  rewritten by Blaine Burks to allow more than a 50/50
-		  		  split.
+                  implements random typeout, which was done by Blaine Burks
+                  and Bill Chiles.  The code for splitting windows was
+                  rewritten by Blaine Burks to allow more than a 50/50
+                  split.
 tty-stream.lisp   Bill Chiles
 undo.lisp         Bill Chiles
 unixcoms.lisp     Christopher Hoover
@@ -261,6 +695,31 @@ vars.lisp         Rob MacLachlan
 window.lisp       Bill Chiles, Rob MacLachlan
 winimage.lisp     Rob MacLachlan
 xcoms.lisp        Bill Chiles
+
+** src/contrib
+
+demos/demos.lisp                This file contains various graphics hacks written
+                                and ported over the years by various and numerous persons.
+                                CMUCL MP support by Douglas Crosher 1998.
+                                Enhancements including the CLX menu, rewrite of the greynetic
+                                demo, and other fixes by Fred Gilham 1998.
+follow-mouse/follow-mouse.lisp  Todd Kaufmann
+games/feebs/*                   Skef Wholey, Scott Fahlman, Dan Kuokka, Jim Healy, Bill Chiles
+                                Graphics ported to X11 by Fred Gilham 8-FEB-1998.
+hist/hist.lisp                  Scott E. Fahlman
+ops/*                           Charles L. Forgy.
+                                Ported to Common lisp by George Wood and Jim Kowalski.
+                                CMU Common Lisp mods by Dario Guise, Skef Wholey, and Dan Kuokka.
+psgraph/psgraph.lisp            Joseph Bates, CMU CSD, March 1988
+                                Bill Chiles, Douglas T Crosher, Skef Wholey
+                                mkant (FIX full name?)
+
+
+* Authors noted in the CVS logs.
+
+Sam Steingold
+
+FIX insert names from public-domain-via
 
 
 * New additions to the CMUCL code.
@@ -313,7 +772,7 @@ Downloaded from http://common-lisp.net/cgi-bin/viewcvs.cgi/*checkout*/iso8601-da
 ** src/code/mh.lisp
 
 This code was translated from the MH written in C at the Rand Corporation
-and extended at the University of California.  From the man page:
+and extended at the University of California.  From the manual page:
 
      Although the _M_H system was originally developed by the RAND
      Corporation, and is now in the public domain, the RAND Cor-
@@ -340,3 +799,37 @@ and extended at the University of California.  From the man page:
      University of California for having developed the software.
 
 Downloaded from ftp://ftp.ics.uci.edu/pub/mh/tar/mh-6.8.3.tar.Z
+
+* from the the "Credits" chapter of cmu-user/cmu-user.tex
+
+Since 1981 many people have contributed to the development of CMU Common
+Lisp.  The currently active members are:
+
+    Marco Antoniotti
+    David Axmark
+    Miles Bader
+    Casper Dik
+    Scott Fahlman * (fearless leader)
+    Paul Gleichauf *
+    Richard Harris
+    Joerg-Cyril Hoehl
+    Chris Hoover
+    Simon Leinen
+    Sandra Loosemore
+    William Lott *
+    Robert A. Maclachlan *
+
+Many people are voluntarily working on improving CMU Common Lisp.  ``*''
+means a full-time CMU employee, and ``+'' means a part-time student
+employee.  A partial listing of significant past contributors follows:
+
+    Tim Moore
+    Sean Hallgren +
+    Mike Garland +
+    Ted Dunning
+    Rick Busdiecker
+    Bill Chiles *
+    John Kolojejchick
+    Todd Kaufmann +
+    Dave McDonald *
+    Skef Wholey *

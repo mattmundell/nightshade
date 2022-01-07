@@ -3,9 +3,51 @@
 
 (in-package "EDI")
 
-(export '(make-xwindow-like-hwindow *create-window-hook* *delete-window-hook*
+(export '(make-xwindow-like-window *create-window-hook* *delete-window-hook*
 	  *random-typeout-hook* *create-initial-windows-hook*))
 
+#[ CLX Interface
+
+[ Graphics Window Hooks        ]
+[ Entering and Leaving Windows ]
+[ How to Lose Up-Events        ]
+]#
+
+#[ Graphics Window Hooks
+
+This section describes a few hooks used internally to handle graphics
+windows that manifest editor windows.  Some heavy users of the editor as a
+tool have needed these in the past, but typically functions that replace
+the default values of these hooks must be written in the "EDI" package.
+All of these symbols are internal to this package.
+
+If you need this level of control for your application, consult the current
+implementation for code fragments that will be useful in correctly writing your
+own window hook functions.
+
+{variable:edi:*create-window-hook*}
+{variable:edi:*delete-window-hook*}
+{variable:edi:*random-typeout-hook*}
+{variable:edi:*create-initial-windows-hook*}
+]#
+
+#[ Entering and Leaving Windows
+
+{evariable:Enter Window Hook}
+{evariable:Exit Window Hook}
+]#
+
+#[ How to Lose Up-Events
+
+Often the only useful activity user's design for the mouse is to click on
+something.  The editor sees a character representing the down event, but what do
+you do with the up event character that you know must follow?  Having the
+command eat it would be tasteless, and would inhibit later customizations that
+make use of it, possibly adding on to the down click command's functionality.
+Bind the corresponding up character to the command described here.
+
+{command:Do Nothing}
+]#
 
 (proclaim '(special *echo-area-window*))
 
@@ -29,9 +71,8 @@
 ;;; We also include the group/parent windows in here, but they only handle
 ;;; :configure-notify events.
 ;;;
-(defvar *hemlock-windows*
-  (system:make-object-set "Hemlock Windows" #'ext:default-clx-event-handler))
-
+(defvar *editor-windows*
+  (system:make-object-set "Editor Windows" #'ext:default-clx-event-handler))
 
 
 ;;;; Some window making parameters.
@@ -39,23 +80,13 @@
 ;;; These could be parameters, but they have to be set after the display is
 ;;; opened.  These are set in INIT-BITMAP-SCREEN-MANAGER.
 
-(defvar *default-background-pixel* nil
-  "Default background color.  It defaults to white.")
-
-(defvar *default-foreground-pixel* nil
-  "Default foreground color.  It defaults to black.")
-
-(defvar *foreground-background-xor* nil
-  "The LOGXOR of *default-background-pixel* and *default-foreground-pixel*.")
-
 (defvar *default-border-pixmap* nil
-  "This is the default color of X window borders.  It defaults to a
-  grey pattern.")
+  "This is the default color of X window borders.  It defaults to a grey
+   pattern.")
 
 (defvar *highlight-border-pixmap* nil
   "This is the color of the border of the current window when the mouse
    cursor is over any editor window.")
-
 
 
 ;;;; Exposed region handling.
@@ -127,10 +158,10 @@
 	      (write-n-exposed-regions hunk n))
 	    (write-one-exposed-region hunk y height)))
       (xlib:display-force-output display)
-      (when liftp (drop-cursor)))))
+      (if liftp (drop-cursor)))))
 ;;;
-(ext:serve-exposure *hemlock-windows* #'hunk-exposed-region)
-(ext:serve-graphics-exposure *hemlock-windows* #'hunk-exposed-region)
+(ext:serve-exposure *editor-windows* #'hunk-exposed-region)
+(ext:serve-graphics-exposure *editor-windows* #'hunk-exposed-region)
 
 
 ;;; HUNK-NO-EXPOSURE handles this bullshit event that gets sent without its
@@ -140,8 +171,7 @@
   (declare (ignore hunk event-key event-window major minor send-event-p))
   t)
 ;;;
-(ext:serve-no-exposure *hemlock-windows* #'hunk-no-exposure)
-
+(ext:serve-no-exposure *editor-windows* #'hunk-no-exposure)
 
 ;;; EXPOSED-REGION-PEEK-EVENT returns the position and height of an :exposure
 ;;; or :graphics-exposure event on win if one exists.  If there are none, then
@@ -149,8 +179,7 @@
 ;;;
 (defun exposed-region-peek-event (display win)
   (xlib:display-finish-output display)
-  (let ((result-y nil)
-	(result-height nil))
+  (let (result-y result-height)
     (xlib:process-event
      display :timeout 0
      :handler #'(lambda (&key event-key event-window window y height
@@ -288,7 +317,6 @@
       (return)))
   (1+ len))
 
-
 ;;; COELESCE-EXPOSED-REGIONS-MERGE merges/coelesces the regions in
 ;;; *coelesce-buffer*.  It takes the number of elements and returns the new
 ;;; number of elements.  The regions are examined one at a time relative to
@@ -372,7 +400,6 @@
      (- (the fixnum (* (the fixnum (- end start)) font-height))
 	cursor-offset))))
 
-
 (defun write-n-exposed-regions (hunk n)
   (declare (fixnum n))
   (let* (;; Loop constants.
@@ -389,6 +416,7 @@
 	 (end-line (coelesce-buffer-elt-end-line region))
 	 (region-idx 0))
     (declare (fixnum i start start-line height end-line region-idx))
+    ;(format t "write-n-exposed-regions~%")
     (loop
       (xlib:clear-area xwindow :x 0 :y start :width hunk-width :height height)
       ;; Find this regions first line.
@@ -433,6 +461,14 @@
 	 (nheight (- (* (- end-line start-line) font-height) co))
 	 (hunk-end-line (bitmap-hunk-end hunk)))
     (declare (fixnum font-height co start-line end-line start-bit nheight))
+    #|
+    (format t "write-one-exposed-region~%")
+    (format t "(clear ~A :x 0 :y ~A :width ~A :height ~A)~%"
+	    (bitmap-hunk-xwindow hunk)
+	    start-bit
+	    (bitmap-hunk-width hunk)
+	    nheight)
+    |#
     (xlib:clear-area (bitmap-hunk-xwindow hunk) :x 0 :y start-bit
 		     :width (bitmap-hunk-width hunk) :height nheight)
     (do ((dl (bitmap-hunk-start hunk) (cdr dl))
@@ -450,7 +486,6 @@
 		     (bitmap-hunk-bottom-border hunk))))
       (hunk-replace-modeline hunk)
       (hunk-draw-bottom-border hunk))))
-
 
 
 ;;;; Resized window handling.
@@ -486,7 +521,7 @@
        (when (or (/= width old-width) (/= height old-height))
 	 (window-group-changed object width height))))))
 ;;;
-(ext:serve-configure-notify *hemlock-windows* #'hunk-reconfigured)
+(ext:serve-configure-notify *editor-windows* #'hunk-reconfigured)
 
 
 ;;; HUNK-IGNORE-EVENT ignores the following unrequested events.  They all take
@@ -497,13 +532,14 @@
   (declare (ignore hunk event-key event-window window one two three four five))
   t)
 ;;;
-(ext:serve-destroy-notify *hemlock-windows* #'hunk-ignore-event)
-(ext:serve-unmap-notify *hemlock-windows* #'hunk-ignore-event)
-(ext:serve-map-notify *hemlock-windows* #'hunk-ignore-event)
-(ext:serve-reparent-notify *hemlock-windows* #'hunk-ignore-event)
-(ext:serve-gravity-notify *hemlock-windows* #'hunk-ignore-event)
-(ext:serve-circulate-notify *hemlock-windows* #'hunk-ignore-event)
-(ext:serve-client-message *hemlock-windows* #'hunk-ignore-event)
+(ext:serve-destroy-notify *editor-windows* #'hunk-ignore-event)
+(ext:serve-unmap-notify *editor-windows* #'hunk-ignore-event)
+(ext:serve-map-notify *editor-windows* #'hunk-ignore-event)
+(ext:serve-reparent-notify *editor-windows* #'hunk-ignore-event)
+(ext:serve-gravity-notify *editor-windows* #'hunk-ignore-event)
+(ext:serve-circulate-notify *editor-windows* #'hunk-ignore-event)
+(ext:serve-client-message *editor-windows* #'hunk-ignore-event)
+(ext:serve-property-notify *editor-windows* #'hunk-ignore-event)
 
 
 ;;;; Interface to X input events.
@@ -519,13 +555,23 @@
 		       root-x root-y modifiers time key-code send-event-p)
   (declare (ignore event-key event-window root child same-screen-p root-x
 		   root-y time send-event-p))
-  (hunk-process-input hunk
-		      (ext:translate-key-event
-		       (bitmap-device-display (device-hunk-device hunk))
-		       key-code modifiers)
-		      x y))
+#|
+  (format t "(hunk-process-input ~A ...)~%" hunk)
+  (format t "x: ~A~%" x)
+  (format t "y: ~A~%" y)
+  (format t "key-code: ~A~%" key-code)
+  (format t "modifiers: ~A~%" modifiers)
+  (format t "(device-hunk-device hunk): ~A~%" (device-hunk-device hunk))
+|#
+  (declare (ignore hunk))
+  (let ((hunk (window-hunk (current-window))))
+    (hunk-process-input hunk
+			(ext:translate-key-event
+			 (bitmap-device-display (device-hunk-device hunk))
+			 key-code modifiers)
+			x y)))
 ;;;
-(ext:serve-key-press *hemlock-windows* #'hunk-key-input)
+(ext:serve-key-press *editor-windows* #'hunk-key-input)
 
 (defun hunk-mouse-input (hunk event-key event-window root child same-screen-p x y
 			 root-x root-y modifiers time key-code send-event-p)
@@ -536,10 +582,14 @@
 						     event-key)
 		      x y))
 ;;;
-(ext:serve-button-press *hemlock-windows* #'hunk-mouse-input)
-(ext:serve-button-release *hemlock-windows* #'hunk-mouse-input)
+(ext:serve-button-press *editor-windows* #'hunk-mouse-input)
+(ext:serve-button-release *editor-windows* #'hunk-mouse-input)
 
 (defun hunk-process-input (hunk char x y)
+  #|
+  (format t "(hunk-process-input ~A ~A ~A ~A)~%"
+	  hunk char x y)
+  |#
   (when char
     (let* ((font-family (bitmap-hunk-font-family hunk))
 	   (font-width (font-family-width font-family))
@@ -571,9 +621,13 @@
 		   (funcall handler hunk char cx cy)
 		   (funcall handler hunk char nil nil))))))))
 
-
 
 ;;;; Handling boundary crossing events.
+
+; FIX (more in xcoms.lisp)
+(defvar *input-requires-mouse* ()
+  "If true then the editor only accepts input when the mouse is in one of
+   the editor windows.")
 
 ;;; Entering and leaving a window are handled basically the same except
 ;;; that it is possible to get an entering event under X without getting an
@@ -590,56 +644,153 @@
 			   x y root-x root-y state time mode kind send-event-p)
   (declare (ignore event-key event-window child root same-screen-p
 		   x y root-x root-y state time mode kind send-event-p))
-  (when (and *cursor-dropped* (not *hemlock-listener*))
-    (cursor-invert-center))
-  (setf *hemlock-listener* t)
-  (let ((current-hunk (window-hunk (current-window))))
-    (unless (and *current-highlighted-border*
-		 (eq *current-highlighted-border* current-hunk))
-      (setf (xlib:window-border (window-group-xparent
-				 (bitmap-hunk-window-group current-hunk)))
-	    *highlight-border-pixmap*)
-      (xlib:display-force-output
-       (bitmap-device-display (device-hunk-device current-hunk)))
-      (setf *current-highlighted-border* current-hunk)))
+  (when *input-requires-mouse*
+    (when (and *cursor-dropped* (not *editor-listener*))
+      (cursor-invert-center))
+    (setf *editor-listener* t)
+    (let ((current-hunk (window-hunk (current-window))))
+      (unless (and *current-highlighted-border*
+		   (eq *current-highlighted-border* current-hunk))
+	(setf (xlib:window-border (window-group-xparent
+				   (bitmap-hunk-window-group current-hunk)))
+	      *highlight-border-pixmap*)
+	(xlib:display-force-output
+	 (bitmap-device-display (device-hunk-device current-hunk)))
+	(setf *current-highlighted-border* current-hunk))))
   (let ((window (bitmap-hunk-window hunk)))
     (when window (invoke-hook ed::enter-window-hook window))))
 ;;;
-(ext:serve-enter-notify *hemlock-windows* #'hunk-mouse-entered)
+(ext:serve-enter-notify *editor-windows* #'hunk-mouse-entered)
 
 (defun hunk-mouse-left (hunk event-key event-window root child same-screen-p
 			x y root-x root-y state time mode kind send-event-p)
   (declare (ignore event-key event-window child root same-screen-p
 		   x y root-x root-y state time mode kind send-event-p))
-  (setf *hemlock-listener* nil)
-  (when *cursor-dropped* (cursor-invert-center))
-  (when *current-highlighted-border*
-    (setf (xlib:window-border (window-group-xparent
-			       (bitmap-hunk-window-group
-				*current-highlighted-border*)))
-	  *default-border-pixmap*)
-    (xlib:display-force-output
-     (bitmap-device-display (device-hunk-device *current-highlighted-border*)))
-    (setf *current-highlighted-border* nil))
+  (when *input-requires-mouse*
+    (setf *editor-listener* nil)
+    (when *cursor-dropped* (cursor-invert-center))
+    (when *current-highlighted-border*
+      (setf (xlib:window-border (window-group-xparent
+				 (bitmap-hunk-window-group
+				  *current-highlighted-border*)))
+	    *default-border-pixmap*)
+      (xlib:display-force-output
+       (bitmap-device-display (device-hunk-device *current-highlighted-border*)))
+      (setf *current-highlighted-border* nil)))
   (let ((window (bitmap-hunk-window hunk)))
     (when window (invoke-hook ed::exit-window-hook window))))
 ;;;
-(ext:serve-leave-notify *hemlock-windows* #'hunk-mouse-left)
+(ext:serve-leave-notify *editor-windows* #'hunk-mouse-left)
 
+
+;;;; Handling focus events.
+
+;; *xwindow-hunk-map*  --  Internal
+;;
+;; Alist mapping xwindows to hunks.
+;;
+(defvar *xwindow-hunk-map* ())
+
+;; XWINDOW-HUNK  --  Internal
+;;
+;; Return the hunk associated with $xwindow.
+;;
+(defun xwindow-hunk (xwindow)
+  (cdr (assoc xwindow *xwindow-hunk-map* :test #'equalp)))
+
+;;; :focus-in events are sent because we select :focus-in events.
+;;;
+
+(defun hunk-focus-in (hunk event-key event-window mode details send-event-p)
+  (declare (ignore hunk event-key mode details send-event-p))
+  (let ((hunk (xwindow-hunk event-window)))
+    (fi hunk
+	(format t "hunk-focus-in hunk (), event-window ~A~%" event-window)
+	(let ((window (bitmap-hunk-window hunk)))
+	  (if (eq window *echo-area-window*)
+	      (if *input-requires-mouse* (lift-cursor))
+	      (setf (current-window) window))))))
+;;;
+(ext:serve-focus-in *editor-windows* #'hunk-focus-in)
+
+(defun hunk-focus-out (hunk event-key event-window mode details send-event-p)
+  (declare (ignore hunk event-key mode details send-event-p))
+  (if *input-requires-mouse*
+      (or *cursor-dropped*
+	  (let ((hunk (xwindow-hunk event-window)))
+	    (fi hunk
+		(format t "out hunk (), event-window ~A~%" event-window)
+		(let ((window (bitmap-hunk-window hunk)))
+		  (or (eq window *echo-area-window*)
+		      (bitmap-hunk-trashed hunk)
+		      (if (eq *cursor-hunk* hunk)
+			  (drop-cursor)))))))))
+;;;
+(ext:serve-focus-out *editor-windows* #'hunk-focus-out)
+
+#|
+(defun hunk-keymap-notify (hunk event-key event-window key-vector send-event-p)
+  (declare (ignore hunk event-key key-vector send-event-p))
+  (let ((hunk (xwindow-hunk event-window)))
+    (fi hunk
+	(format t "keymap-notify hunk (), event-window ~A~%" event-window)
+	(if (bitmap-hunk-trashed hunk)
+	    (format t "hunk trashed ~A~%" hunk)
+	    (let ((window (bitmap-hunk-window hunk)))
+	      (if (eq window *echo-area-window*)
+		  (lift-cursor)
+		  (setf (current-window) window)))))))
+;;;
+(ext:serve-keymap-notify *editor-windows* #'hunk-keymap-notify)
+|#
+
+
+;;;; Handling selections.
+
+(defun hunk-selection-notify (hunk &optional event-key event-window
+				   selection target property time
+				   send-event-p)
+  (declare (ignore hunk event-key event-window selection target property
+		   time send-event-p))
+  t)
+;;;
+(ext:serve-selection-notify *editor-windows* #'hunk-selection-notify)
+
+(defun hunk-selection-request (hunk &optional event-key event-window
+				    requestor selection target property
+				    time send-event-p)
+  (xlib:handle-selection-request (bitmap-device-display
+				  (device-hunk-device hunk))
+				 event-key event-window requestor
+				 selection target property time
+				 send-event-p)
+  t)
+;;;
+(ext:serve-selection-request *editor-windows* #'hunk-selection-request)
+
+(defun hunk-selection-clear (hunk &optional event-key event-window
+				  selection time send-event-p)
+  (xlib:handle-selection-clear (bitmap-device-display
+				(device-hunk-device hunk))
+			       event-key event-window
+			       selection time send-event-p)
+  t)
+;;;
+(ext:serve-selection-request *editor-windows* #'hunk-selection-request)
 
 
 ;;;; Making a Window.
 
 (defparameter minimum-window-height 100
   "If the window created by splitting a window would be shorter than this,
-  then we create an overlapped window the same size instead.")
+   then we create an overlapped window the same size instead.")
 
 ;;; The width must be that of a tab for the screen image builder, and the
 ;;; height must be one line (two with a modeline).
 ;;;
-(defconstant minimum-window-lines 1
+(defconstant minimum-window-lines 2
   "Windows must have at least this many lines.")
-(defconstant minimum-window-columns 8
+(defconstant minimum-window-columns 10
   "Windows must be at least this many characters wide.")
 
 (eval-when (compile eval load)
@@ -651,11 +802,11 @@
 ;;; awm and twm.  They will not handle menu clicks without a window having
 ;;; a name.  We set the name to this silly thing.
 ;;;
-(defvar *hemlock-window-count* 0)
+(defvar *editor-window-count* 0)
 ;;;
-(defun new-hemlock-window-name ()
+(defun new-editor-window-name ()
   (let ((*print-base* 10))
-    (format nil "Nightshade editor ~S" (incf *hemlock-window-count*))))
+    (format nil "Nightshade editor ~S" (incf *editor-window-count*))))
 
 (proclaim '(inline surplus-window-height surplus-window-height-w/-modeline))
 ;;;
@@ -668,7 +819,6 @@
   (+ (surplus-window-height thumb-bar-p)
      hunk-modeline-top
      hunk-modeline-bottom))
-
 
 ;;; DEFAULT-CREATE-WINDOW-HOOK -- Internal.
 ;;;
@@ -710,12 +860,15 @@
      t)))
 
 (defvar *create-window-hook* #'default-create-window-hook
-  "The editor calls this function when it makes a new X window for a new
-   group.  It passes as arguments the X display, x (from MAKE-WINDOW), y
-   (from MAKE-WINDOW), width (from MAKE-WINDOW), height (from MAKE-WINDOW),
-   a name for the window's icon-name, font-family (from MAKE-WINDOW),
-   modelinep (from MAKE-WINDOW), and whether the window will have a
-   thumb-bar meter.  The function returns a window or nil.")
+  "A function called when `make-window' executes under CLX.
+
+   The function is passed the CLX display, x (from `make-window'), y (from
+   `make-window'), width (from `make-window'), height (from `make-window'),
+   a name for the window's icon-name, font-family (from `make-window'),
+   modelinep (from `make-window'), and whether the window will have a
+   thumb-bar meter.
+
+   The function returns a window or () to indicate failure.")
 
 ;;; BITMAP-MAKE-WINDOW -- Internal.
 ;;;
@@ -734,11 +887,12 @@
 	(maybe-make-x-window-and-parent window display start ask-user x y
 					width-arg height-arg font-family
 					modelinep thumb-bar-p proportion)
-      (unless xwindow (return-from bitmap-make-window nil))
+      (or xwindow (return-from bitmap-make-window nil))
       (let ((window-group (make-window-group xparent
 					     (xlib:drawable-width xparent)
 					     (xlib:drawable-height xparent))))
 	(setf (bitmap-hunk-xwindow hunk) xwindow)
+	(pushnew (cons xwindow hunk) *xwindow-hunk-map* :test #'equalp)
 	(setf (bitmap-hunk-window-group hunk) window-group)
 	(setf (bitmap-hunk-gcontext hunk)
 	      (default-gcontext xwindow font-family))
@@ -746,16 +900,23 @@
 	;; Select input and enable event service before showing the window.
 	(setf (xlib:window-event-mask xwindow) child-interesting-xevents-mask)
 	(setf (xlib:window-event-mask xparent) group-interesting-xevents-mask)
-	(add-xwindow-object xwindow hunk *hemlock-windows*)
-	(add-xwindow-object xparent window-group *hemlock-windows*))
+	(add-xwindow-object xwindow hunk *editor-windows*)
+	(add-xwindow-object xparent window-group *editor-windows*))
       (when xparent (xlib:map-window xparent))
       (xlib:map-window xwindow)
       (xlib:display-finish-output display)
-      ;; A window is not really mapped until it is viewable.  It is said to be
-      ;; mapped if a map request has been sent whether it is handled or not.
+      ;; A window is only really mapped when it is viewable.  It is said to
+      ;; be mapped if a map request has been sent whether it is handled or
+      ;; not.
       (loop (when (and (eq (xlib:window-map-state xwindow) :viewable)
 		       (eq (xlib:window-map-state xparent) :viewable))
 	      (return)))
+      ;; Clear the window.
+      (setf (xlib:window-background xwindow)
+	    (color-pixel display
+			 (or (value ed::initial-background-color)
+			     '(1 1 1)))) ; White.
+      (xlib:clear-window xwindow)
       ;;
       ;; Find out how big it is...
       (xlib:with-state (xwindow)
@@ -763,13 +924,13 @@
 		       (xlib:drawable-height xwindow) modelinep)))
     (setf (bitmap-hunk-window hunk)
 	  (window-for-hunk hunk start modelinep))
-    ;; If window is non-nil, then it is a new group/parent window, so don't
-    ;; link it into the current window's group.  When ask-user is non-nil,
-    ;; we make a new group too.
+    ;; If window is true, then it is a new group/parent window, so don't
+    ;; link it into the current window's group.  When ask-user is true, we
+    ;; make a new group too.
     (cond ((or window ask-user)
 	   ;; This occurs when we make the world's first editor window.
-	   (unless *current-window*
-	     (setq *current-window* (bitmap-hunk-window hunk)))
+	   (or *current-window*
+	       (setq *current-window* (bitmap-hunk-window hunk)))
 	   (setf (bitmap-hunk-previous hunk) hunk)
 	   (setf (bitmap-hunk-next hunk) hunk))
 	  (t
@@ -783,17 +944,18 @@
 ;;; MAYBE-MAKE-X-WINDOW-AND-PARENT -- Internal.
 ;;;
 ;;; BITMAP-MAKE-WINDOW calls this.  If xparent is non-nil, we clear it and
-;;; return it with a child that fills it.  If xparent is nil, and ask-user is
-;;; non-nil, then we invoke *create-window-hook* to get a parent window and
-;;; return it with a child that fills it.  By default, we make a child in the
-;;; CURRENT-WINDOW's parent.
+;;; return it with a child that fills it.  If xparent is nil, and ask-user
+;;; is true, then we invoke *create-window-hook* to get a parent window and
+;;; return it with a child that fills it.  By default, we make a child in
+;;; the CURRENT-WINDOW's parent.
 ;;;
 (defun maybe-make-x-window-and-parent (xparent display start ask-user x y width
 				       height font-family modelinep thumb-p
 				       proportion)
   (let ((icon-name (buffer-name (line-buffer (mark-line start)))))
     (cond (xparent
-	   (check-type xparent xlib:window)
+	   ;(check-type xparent xlib:window)
+	   (typep xparent 'xlib:window)
 	   (let ((width (xlib:drawable-width xparent))
 		 (height (xlib:drawable-height xparent)))
 	     (xlib:clear-area xparent :width width :height height)
@@ -878,13 +1040,12 @@
 	      win)
 	    nil)))))
 
-
-;;; MAKE-XWINDOW-LIKE-HWINDOW -- Interface.
+;;; MAKE-XWINDOW-LIKE-WINDOW -- Interface.
 ;;;
 ;;; The window name is set to get around an awm and twm bug that inhibits menu
 ;;; clicks unless the window has a name; this could be used better.
 ;;;
-(defun make-xwindow-like-hwindow (window)
+(defun make-xwindow-like-window (window)
   "This returns an group/parent xwindow with dimensions suitable for making
    an editor window like the argument window.  The new window's position
    should be the same as the argument window's position relative to the
@@ -908,7 +1069,6 @@
        nil nil
        t))))
 
-
 
 ;;;; Deleting a window.
 
@@ -918,9 +1078,9 @@
   (xlib:destroy-window xparent))
 ;;;
 (defvar *delete-window-hook* #'default-delete-window-hook
-  "The editor calls this function to delete an X group/parent window.  It
-   passes the X window as an argument.")
+  "A function called when `delete-window' executes under CLX.
 
+   The function is passed the CLX window and the editor window.")
 
 ;;; BITMAP-DELETE-WINDOW  --  Internal
 ;;;
@@ -990,7 +1150,7 @@
 
 ;;; MAYBE-MERGE-WITH-PREVIOUS-WINDOW -- Internal.
 ;;;
-;;; This returns non-nil when it grows the previous hunk to include the
+;;; This returns true when it grows the previous hunk to include the
 ;;; argument hunk's screen space.
 ;;;
 (defun maybe-merge-with-previous-window (hunk y h)
@@ -1027,7 +1187,6 @@
       (setf (xlib:wm-size-hints-y hints) y)
       (setf (xlib:wm-normal-hints next-xwin) hints))))
 
-
 ;;; DELETING-WINDOW-DROP-EVENT -- Internal.
 ;;;
 ;;; This checks for any events on win.  If there is one, remove it from the
@@ -1043,7 +1202,6 @@
 		      (setf result t)
 		      nil)))
     result))
-
 
 ;;; MODIFY-PARENT-PROPERTIES -- Internal.
 ;;;
@@ -1062,7 +1220,7 @@
   (let ((hints (xlib:wm-normal-hints xparent)))
     (xlib:set-wm-properties
      xparent
-     :resource-name "Hemlock"
+     :resource-name "Nightshade Editor"
      :x (xlib:wm-size-hints-x hints)
      :y (xlib:wm-size-hints-y hints)
      :width (xlib:drawable-width xparent)
@@ -1094,29 +1252,27 @@
       (+ (* minimum-window-lines font-height)
 	 (surplus-window-height thumb-p))))
 
-
 
 ;;;; Next and Previous windows.
 
 (defun bitmap-next-window (window)
   "Return the next window after Window, wrapping around if Window is the
-  bottom window."
+   bottom window."
   (check-type window window)
   (bitmap-hunk-window (bitmap-hunk-next (window-hunk window))))
 
 (defun bitmap-previous-window (window)
-  "Return the previous window after Window, wrapping around if Window is the
-  top window."
+  "Return the previous window after Window, wrapping around if Window is
+   the top window."
   (check-type window window)
   (bitmap-hunk-window (bitmap-hunk-previous (window-hunk window))))
 
-
 
-;;;; Setting window width and height.
+;;;; Setting window parameters.
 
 ;;; %SET-WINDOW-WIDTH  --  Internal
 ;;;
-;;;    Since we don't support non-full-width windows, this does nothing.
+;;; Since we don't support non-full-width windows, this does nothing.
 ;;;
 (defun %set-window-width (window new-value)
   (declare (ignore window))
@@ -1124,12 +1280,38 @@
 
 ;;; %SET-WINDOW-HEIGHT  --  Internal
 ;;;
-;;;    Can't change window height either.
+;;; Can't change window height either.
 ;;;
 (defun %set-window-height (window new-value)
   (declare (ignore window))
   new-value)
 
+(defun bitmap-set-foreground-color (window color)
+  "Set the foreground color of $window to $color."
+  (let* ((hunk (window-hunk window))
+	 (xwindow (bitmap-hunk-xwindow hunk))
+	 (display (bitmap-device-display (device-hunk-device hunk)))
+	 (gcontext (bitmap-hunk-gcontext hunk)))
+    (setf (xlib:gcontext-foreground gcontext)
+	  (color-pixel display color))))
+
+(defun bitmap-set-background-color (window color)
+  "Set the background color of $window to $color."
+  (let* ((hunk (window-hunk window))
+	 (xwindow (bitmap-hunk-xwindow hunk))
+	 (display (bitmap-device-display (device-hunk-device hunk)))
+	 (gcontext (bitmap-hunk-gcontext hunk)))
+    (setf (xlib:gcontext-background gcontext)
+	  (color-pixel display color))
+    (setf (xlib:window-background xwindow)
+	  (color-pixel display color))))
+
+
+;;;; Colors
+
+(defun bitmap-make-color (device color)
+  (let ((display (bitmap-device-display device)))
+    (color-pixel display color)))
 
 
 ;;;; Random Typeout
@@ -1153,11 +1335,10 @@
 (defvar *random-typeout-start-width* 0
   "How wide the random typeout window is.")
 
-
 ;;; DEFAULT-RANDOM-TYPEOUT-HOOK  --  Internal
 ;;;
-;;;    The default hook-function for random typeout.  Nothing very fancy
-;;; for now.  If not given a window, makes one on top of the initial editor
+;;; The default hook-function for random typeout.  Nothing very fancy for
+;;; now.  If not given a window, makes one on top of the initial editor
 ;;; window using specials set in INIT-BITMAP-SCREEN-MANAGER.  If given a
 ;;; window, we will change the height subject to the constraint that the
 ;;; bottom won't be off the screen.  Any resulting window has input and
@@ -1187,15 +1368,20 @@
 				   :y *random-typeout-start-y*
 				   :width *random-typeout-start-width*
 				   :height actual-height
-				   :background *default-background-pixel*
+				   :background
+				   (color-pixel
+				    display
+				    (or (value ed::initial-background-color)
+					'(1 1 1))) ; White.
 				   :border-width xwindow-border-width
 				   :border *default-border-pixmap*
 				   :event-mask random-typeout-xevents-mask
 				   :override-redirect :on :class :input-output
-				   :cursor *hemlock-cursor*)))
+				   :cursor *editor-cursor*
+				   :input ())))
 			 (xlib:set-wm-properties
 			  win :name "Pop-up Display" :icon-name "Pop-up Display"
-			  :resource-name "Hemlock"
+			  :resource-name "Nightshade Editor"
 			  :x *random-typeout-start-x*
 			  :y *random-typeout-start-y*
 			  :width *random-typeout-start-width*
@@ -1208,19 +1394,20 @@
       (values win gcontext)))
 
 (defvar *random-typeout-hook* #'default-random-typeout-hook
-  "This function is called when a window is needed to display random
-   typeout.  It is called with the editor device, a pre-existing window or
-   NIL, and the number of pixels needed to display the number of lines
-   requested in WITH-RANDOM-TYPEOUT.  It should return a window, and if a
-   new window was created, then a gcontext must be returned as the second
-   value.")
+  "A function called when random typeout occurs under CLX.
+
+   The function is passed the editor device, a pre-existing CLX window or
+   (), and the number of pixels needed to display the number of lines
+   requested in the with-pop-up-display form.
+
+   It should return a window, and if a new window is created, then a CLX
+   gcontext must be the second value.")
 
 ;;; BITMAP-RANDOM-TYPEOUT-SETUP  --  Internal
 ;;;
-;;;    This function is called by the with-random-typeout macro to
-;;; to set things up.  It calls the *Random-Typeout-Hook* to get a window
-;;; to work with, and then adjusts the random typeout stream's data-structures
-;;; to match.
+;;; This function is called by the with-random-typeout macro to set things
+;;; up.  It calls the *Random-Typeout-Hook* to get a window to work with,
+;;; and then adjusts the random typeout stream's data-structures to match.
 ;;;
 (defun bitmap-random-typeout-setup (device stream height)
   (let* ((*more-prompt-action* :empty)
@@ -1237,12 +1424,16 @@
     (let ((xwindow (bitmap-hunk-xwindow (window-hunk hwindow)))
 	  (display (bitmap-device-display device)))
       (xlib:display-finish-output display)
-      (loop
-	(unless (xlib:event-case (display :timeout 0)
-		  (:exposure (event-window)
-		    (eq event-window xwindow))
-		  (t () nil))
-	  (return))))))
+      (until ((exit)) (exit)
+	(xlib:event-case (display :timeout 0)
+	  (:exposure (event-window)
+	    (or (equalp event-window xwindow)
+		(setq exit t))
+	    ())
+	  (t ()
+	     (setq exit t)))
+	;; FIX added, perhaps should be in event-case
+	(system:serve-event 0)))))
 
 (defun change-bitmap-random-typeout-window (hwindow height)
   (update-modeline-field (window-buffer hwindow) hwindow :more-prompt)
@@ -1262,10 +1453,22 @@
     (push hwindow (buffer-windows (window-buffer hwindow)))
     (setf (bitmap-hunk-trashed hunk) t)
     (xlib:map-window xwin)
+    ;; A window is only really mapped when it is viewable.  It is said to
+    ;; be mapped if a map request has been sent whether it is handled or
+    ;; not.
+    (loop (when (eq (xlib:window-map-state xwin) :viewable)
+	    (return)))
+    ;; Clear the window.
+    (setf (xlib:window-background xwin)
+	  (color-pixel (bitmap-device-display (bitmap-hunk-device hunk))
+		       (or (value ed::initial-background-color)
+			   '(1 1 1)))) ; White.
+    (xlib:clear-window xwin)
     (setf (xlib:window-priority xwin) :above))
   hwindow)
 
 (defun make-bitmap-random-typeout-window (device mark height)
+  (format t "(make-bitmap-random-typeout-window . . .)~%")
   (let* ((display (bitmap-device-display device))
 	 (hunk (make-bitmap-hunk
 		:font-family *default-font-family*
@@ -1285,20 +1488,28 @@
 	(setf (xlib:gcontext-font gcontext)
 	      (svref (font-family-map *default-font-family*) 0))
 	(setf (bitmap-hunk-xwindow hunk) xwindow)
+	(pushnew (cons xwindow hunk) *xwindow-hunk-map* :test #'equalp)
 	(setf (bitmap-hunk-gcontext hunk) gcontext)
 	;;
 	;; Select input and enable event service before showing the window.
 	(setf (xlib:window-event-mask xwindow) random-typeout-xevents-mask)
-	(add-xwindow-object xwindow hunk *hemlock-windows*))
+	(add-xwindow-object xwindow hunk *editor-windows*))
       ;;
       ;; Put the window on the screen so it's visible and we can know the size.
       (xlib:map-window xwindow)
       (xlib:display-finish-output display)
-      ;; A window is not really mapped until it is viewable (not visible).
-      ;; It is said to be mapped if a map request has been sent whether it
-      ;; is handled or not.
-      (loop (when (eq (xlib:window-map-state xwindow) :viewable)
-	      (return)))
+      ;; A window is only really mapped when it is viewable.  It is said to
+      ;; be mapped if a map request has been sent whether it is handled or
+      ;; not.
+      (loop
+	(when (eq (xlib:window-map-state xwindow) :viewable)
+	  (return)))
+      ;; Clear the window.
+      (setf (xlib:window-background xwindow)
+	    (color-pixel display
+			 (or (value ed::initial-background-color)
+			     '(1 1 1)))) ; White.
+      (xlib:clear-window xwindow)
       (xlib:with-state (xwindow)
 	(set-hunk-size hunk (xlib:drawable-width xwindow)
 		       (xlib:drawable-height xwindow) t))
@@ -1310,17 +1521,15 @@
 	(setf *window-list* (delete hwin *window-list*))
 	hwin))))
 
-
 ;;; RANDOM-TYPEOUT-CLEANUP  --  Internal
 ;;;
-;;;    Clean up after random typeout.  This just removes the window from
-;;; the screen and sets the more-prompt action back to normal.
+;;; Clean up after random typeout.  This just removes the window from the
+;;; screen and sets the more-prompt action back to normal.
 ;;;
 (defun bitmap-random-typeout-cleanup (stream degree)
   (when degree
     (xlib:unmap-window (bitmap-hunk-xwindow
 			(window-hunk (random-typeout-stream-window stream))))))
-
 
 
 ;;;; Initialization.
@@ -1347,7 +1556,7 @@
 		     *default-font-family*
 		     t ;modelinep
 		     (value ed::thumb-bar-meter)
-		     "Hemlock")))
+		     "Nightshade Editor")))
       (setf (xlib:window-border xwindow) *highlight-border-pixmap*)
       (let ((main-win (make-window (buffer-start-mark *current-buffer*)
 				   :device device
@@ -1357,10 +1566,12 @@
 	    (default-create-initial-windows-echo
 		(xlib:drawable-height root)
 		(window-hunk main-win))
+	  (format t "echo-x ~A, echo-y ~A, echo-width ~A, echo-height ~A~%"
+		  echo-x echo-y echo-width echo-height)
 	  (let ((echo-xwin (make-echo-xwindow root echo-x echo-y echo-width
 					      echo-height)))
 	    (setf *echo-area-window*
-		  (hlet ((ed::thumb-bar-meter nil))
+		  (elet ((ed::thumb-bar-meter nil))
 		    (make-window
 		     (buffer-start-mark *echo-area-buffer*)
 		     :device device :modelinep t
@@ -1377,6 +1588,8 @@
 ;;;
 (defun default-create-initial-windows-echo (full-height hunk)
   (declare (fixnum full-height))
+  (format t "xwindow-border-width ~A~%" xwindow-border-width)
+  (format t "full-height ~A~%" full-height)
   (let ((font-family (bitmap-hunk-font-family hunk))
 	(xwindow (bitmap-hunk-xwindow hunk))
 	(xparent (window-group-xparent (bitmap-hunk-window-group hunk))))
@@ -1384,17 +1597,24 @@
       (let ((w (xlib:drawable-width xwindow))
 	    (h (xlib:drawable-height xwindow)))
 	(declare (fixnum w h))
+	(format t "w ~A~%" w)
+	(format t "h ~A~%" h)
 	(multiple-value-bind (x y)
 			     (window-root-xy xwindow
 					     (xlib:drawable-x xwindow)
 					     (xlib:drawable-y xwindow))
 	  (declare (fixnum x y))
+	  (format t "x ~A~%" x)
+	  (format t "y ~A~%" y)
 	  (let* ((ff-height (font-family-height font-family))
 		 (ff-width (font-family-width font-family))
 		 (echo-height (+ (* ff-height 4)
 				 hunk-top-border hunk-bottom-border
 				 hunk-modeline-top hunk-modeline-bottom)))
 	    (declare (fixnum echo-height))
+	    (format t "ff-height ~A~%" ff-height)
+	    (format t "ff-width ~A~%" ff-width)
+	    (format t "echo-height ~A~%" echo-height)
 	    (if (<= (+ y h echo-height xwindow-border-width*2) full-height)
 		(values x (+ y h xwindow-border-width*2)
 			w echo-height ff-width ff-height)
@@ -1403,15 +1623,17 @@
 				;; two more borders, so the echo area's borders
 				;; both appear on the screen.
 				xwindow-border-width*2)))
+		  (format t "newh ~A~%" newh)
 		  (setf (xlib:drawable-height xparent) newh)
 		  (values x (+ y newh xwindow-border-width*2)
 			  w echo-height ff-width ff-height)))))))))
 
 (defvar *create-initial-windows-hook* #'default-create-initial-windows-hook
-  "The editor uses this function when it initializes the screen manager to
-   make the first windows, typically the main and echo area windows.  It
-   takes an editor device as a required argument.  It sets *current-window*
-   and *echo-area-window*.")
+  "A function used during screen manager initialization to make the first
+   windows, typically the `Main' and `Echo Area' windows.
+
+   It takes an editor device as a required argument.  It sets
+   *current-window* and *echo-area-window*.")
 
 (defun make-echo-xwindow (root x y width height)
   (let* ((font-width (font-family-width *default-font-family*))
@@ -1424,28 +1646,29 @@
   ;;
   ;; Setup stuff for X interaction.
   (cond ((value ed::reverse-video)
-	 (setf *default-background-pixel*
-	       (xlib:screen-black-pixel (xlib:display-default-screen display)))
-	 (setf *default-foreground-pixel*
-	       (xlib:screen-white-pixel (xlib:display-default-screen display)))
-	 (setf *cursor-background-color* (make-black-color))
-	 (setf *cursor-foreground-color* (make-white-color))
-	 (setf *hack-hunk-replace-line* nil))
-	(t (setf *default-background-pixel*
-		 (xlib:screen-white-pixel (xlib:display-default-screen display)))
-	   (setf *default-foreground-pixel*
-		 (xlib:screen-black-pixel (xlib:display-default-screen display)))
-	   (setf *cursor-background-color* (make-white-color))
-	   (setf *cursor-foreground-color* (make-black-color))))
-  (setf *foreground-background-xor*
-	(logxor *default-foreground-pixel* *default-background-pixel*))
-  (setf *highlight-border-pixmap* *default-foreground-pixel*)
-  (setf *default-border-pixmap* (get-hemlock-grey-pixmap display))
-  (get-hemlock-cursor display)
+	 (setf *cursor-background-color* (make-black-color display))
+	 (setf *cursor-foreground-color* (make-white-color display))
+	 (or (value ed::initial-background-color)
+	     (setv ed::initial-background-color '(0 0 0))) ; Black.
+	 (or (value ed::initial-foreground-color)
+	     (setv ed::initial-foreground-color '(1 1 1)))) ; White.
+	(t (setf *cursor-background-color* (make-white-color display))
+	   (setf *cursor-foreground-color* (make-black-color display))
+	   (or (value ed::initial-background-color)
+	       (setv ed::initial-background-color '(1 1 1))) ; White.
+	   (or (value ed::initial-foreground-color)
+	       (setv ed::initial-foreground-color '(0 0 0))))) ; Black.
+
+  (setf *highlight-border-pixmap*
+	(xlib:screen-black-pixel (xlib:display-default-screen display)))
+  ;(setf *default-border-pixmap* (get-editor-grey-pixmap display))
+  (setf *default-border-pixmap* (color-pixel display '(0 0 0)))
+  (get-editor-cursor display)
   (add-hook ed::make-window-hook 'define-window-cursor)
   ;;
   ;; Make the device for the rest of initialization.
   (let ((device (make-default-bitmap-device display)))
+    (pushnew device *devices*)
     ;;
     ;; Create initial windows.
     (funcall *create-initial-windows-hook* device)
@@ -1464,6 +1687,10 @@
   (add-hook ed::set-window-hook 'set-window-hook-raise-fun)
   (add-hook ed::buffer-modified-hook 'raise-echo-area-when-modified))
 
+(defun make-bitmap-device (&rest args)
+  (let ((device (apply #'%make-bitmap-device args)))
+    device))
+
 (defun make-default-bitmap-device (display)
   (make-bitmap-device
    :name "Windowed Bitmap Device"
@@ -1480,6 +1707,8 @@
    :previous-window #'bitmap-previous-window
    :make-window #'bitmap-make-window
    :delete-window #'bitmap-delete-window
+   :set-foreground-color #'bitmap-set-foreground-color
+   :set-background-color #'bitmap-set-background-color
    :force-output #'bitmap-force-output
    :finish-output #'bitmap-finish-output
    :random-typeout-setup #'bitmap-random-typeout-setup
@@ -1487,15 +1716,16 @@
    :random-typeout-full-more #'do-bitmap-full-more
    :random-typeout-line-more #'update-bitmap-line-buffered-stream
    :beep #'bitmap-beep
+   :make-color #'bitmap-make-color
    :display display))
 
 (defun init-bitmap-device (device)
   (let ((display (bitmap-device-display device)))
     (ext:flush-display-events display)
-    (hemlock-window display t)))
+    (editor-window display t)))
 
 (defun exit-bitmap-device (device)
-  (hemlock-window (bitmap-device-display device) nil))
+  (editor-window (bitmap-device-display device) nil))
 
 (defun bitmap-finish-output (device window)
   (declare (ignore window))
@@ -1508,7 +1738,6 @@
 (defun bitmap-after-redisplay (device)
   (let ((display (bitmap-device-display device)))
     (loop (unless (ext:object-set-event-handler display) (return)))))
-
 
 
 ;;;; Miscellaneous.
@@ -1565,7 +1794,7 @@
 	(when (eq test xparent)
 	  (push window affected-windows)
 	  (incf count))))
-    ;; Probably shoulds insertion sort them, but I'm lame.
+    ;; Probably should insertion sort them, but I'm lame.
     ;;
     (xlib:with-state (xparent)
       (sort affected-windows #'<
@@ -1624,10 +1853,10 @@
 
 ;;; SET-HUNK-SIZE  --  Internal
 ;;;
-;;;    Given a pixel size for a bitmap hunk, set the char size.  If the window
-;;; is too small, we refuse to admit it; if the user makes unreasonably small
-;;; windows, our only responsibity is to not blow up.  X will clip any stuff
-;;; that doesn't fit.
+;;; Given a pixel size for a bitmap hunk, set the char size.  If the window
+;;; is too small, we refuse to admit it; if the user makes unreasonably
+;;; small windows, our only responsibity is to not blow up.  X will clip
+;;; any stuff that doesn't fit.
 ;;;
 (defun set-hunk-size (hunk w h &optional modelinep)
   (let* ((font-family (bitmap-hunk-font-family hunk))
@@ -1660,16 +1889,18 @@
       hunk-thumb-bar-bottom-border
       hunk-bottom-border))
 
-
 ;;; DEFAULT-GCONTEXT is used when making hunks.
 ;;;
 (defun default-gcontext (drawable &optional font-family)
   (xlib:create-gcontext
    :drawable drawable
-   :foreground *default-foreground-pixel*
-   :background *default-background-pixel*
+   :foreground (color-pixel (xlib:drawable-display drawable)
+			    (or (value ed::initial-foreground-color)
+				'(0 0 0)))
+   :background (color-pixel (xlib:drawable-display drawable)
+			    (or (value ed::initial-background-color)
+				'(1 1 1)))
    :font (if font-family (svref (font-family-map font-family) 0))))
-
 
 ;;; WINDOW-ROOT-XY returns the x and y coordinates for a window relative to
 ;;; its root.  Some window managers reparent the editor's window, so we
@@ -1709,13 +1940,18 @@
   (let* ((win (xlib:create-window
 	       :parent parent :x (or x 0) :y (or y 0)
 	       :width (or w 0) :height (or h 0)
-	       :background (if window-group-p :none *default-background-pixel*)
+	       :background (if window-group-p
+			       :none
+			       (color-pixel (xlib:window-display parent)
+					    (or (value ed::initial-background-color)
+						'(1 1 1)))) ; White.
 	       :border-width (if window-group-p xwindow-border-width 0)
 	       :border (if window-group-p *default-border-pixmap* nil)
-	       :class :input-output)))
+	       :class :input-output
+	       :input ())))
     (xlib:set-wm-properties
-     win :name (new-hemlock-window-name) :icon-name icon-name
-     :resource-name "Hemlock"
+     win :name (new-editor-window-name) :icon-name icon-name
+     :resource-name "Nightshade Editor"
      :x x :y y :width w :height h
      :user-specified-position-p t :user-specified-size-p t
      :width-inc font-width :height-inc font-height
@@ -1723,7 +1959,6 @@
      ;; Tell OpenLook pseudo-X11 server we want input.
      :input :on)
     win))
-
 
 ;;; SET-WINDOW-HOOK-RAISE-FUN is a "Set Window Hook" function controlled by
 ;;; "Set Window Autoraise".  When autoraising, check that it isn't only the
@@ -1742,7 +1977,6 @@
 	(xlib:display-force-output
 	 (bitmap-device-display (device-hunk-device hunk)))))))
 
-
 ;;; REVERSE-VIDEO-HOOK-FUN is called when the variable "Reverse Video" is set.
 ;;; If we are running on a windowed bitmap, we first setup the default
 ;;; foregrounds and backgrounds.  Having done that, we get a new cursor.  Then
@@ -1752,41 +1986,55 @@
 ;;;
 (defun reverse-video-hook-fun (name kind where new-value)
   (declare (ignore name kind where))
-  (when (windowed-monitor-p)
-    (let* ((current-window (current-window))
-	   (current-hunk (window-hunk current-window))
-	   (device (device-hunk-device current-hunk))
-	   (display (bitmap-device-display device)))
-      (cond
-       (new-value
-	(setf *default-background-pixel*
-	      (xlib:screen-black-pixel (xlib:display-default-screen display)))
-	(setf *default-foreground-pixel*
-	      (xlib:screen-white-pixel (xlib:display-default-screen display)))
-	(setf *cursor-background-color* (make-black-color))
-	(setf *cursor-foreground-color* (make-white-color))
-	(setf *hack-hunk-replace-line* nil))
-       (t (setf *default-background-pixel*
-		(xlib:screen-white-pixel (xlib:display-default-screen display)))
-	  (setf *default-foreground-pixel*
-		(xlib:screen-black-pixel (xlib:display-default-screen display)))
-	  (setf *cursor-background-color* (make-white-color))
-	  (setf *cursor-foreground-color* (make-black-color))))
-      (setf *highlight-border-pixmap* *default-foreground-pixel*)
-      (get-hemlock-cursor display)
-      (dolist (hunk (device-hunks device))
-	(reverse-video-frob-hunk hunk))
-      (dolist (rt-info *random-typeout-buffers*)
-	(reverse-video-frob-hunk
-	 (window-hunk (random-typeout-stream-window (cdr rt-info)))))
-      (setf (xlib:window-border (bitmap-hunk-xwindow current-hunk))
-	    *highlight-border-pixmap*))
-    (redisplay-all)))
+  (fi (windowed-monitor-p)
+      (tty-reverse-video new-value)
+      (progn
+	(if (editor-bound-p 'reverse-video)
+	    (if (eq new-value (value ed::reverse-video))
+		(return-from reverse-video-hook-fun))
+	    (or new-value
+		(return-from reverse-video-hook-fun)))
+	(let ((old-fore (value ed::initial-foreground-color)))
+	  (setv ed::initial-foreground-color
+		(value ed::initial-background-color))
+	  (setv ed::initial-background-color old-fore))
+	(let ((old-fore (value ed::initial-modeline-foreground-color)))
+	  (setv ed::initial-modeline-foreground-color
+		(value ed::initial-modeline-background-color))
+	  (setv ed::initial-modeline-background-color old-fore))
+	(when *editor-has-been-entered*
+	  (let* ((current-window (current-window))
+		 (current-hunk (window-hunk current-window))
+		 (device (device-hunk-device current-hunk))
+		 (display (bitmap-device-display device)))
+	    (cond
+	     (new-value
+	      (setf *cursor-background-color* (make-black-color display))
+	      (setf *cursor-foreground-color* (make-white-color display)))
+	     (t
+	      (setf *cursor-background-color* (make-white-color display))
+	      (setf *cursor-foreground-color* (make-black-color display))))
+	    (setf *highlight-border-pixmap*
+		  (xlib:screen-black-pixel (xlib:display-default-screen display)))
+	    (get-editor-cursor display)
+	    (dolist (hunk (device-hunks device))
+	      (reverse-video-frob-hunk hunk))
+	    (dolist (rt-info *random-typeout-buffers*)
+	      (reverse-video-frob-hunk
+	       (window-hunk (random-typeout-stream-window (cdr rt-info)))))
+	    (setf (xlib:window-border (bitmap-hunk-xwindow current-hunk))
+		  *highlight-border-pixmap*)))))
+  (if *editor-has-been-entered*
+      (redisplay-all)))
 
 (defun reverse-video-frob-hunk (hunk)
-  (let ((gcontext (bitmap-hunk-gcontext hunk)))
-    (setf (xlib:gcontext-foreground gcontext) *default-foreground-pixel*)
-    (setf (xlib:gcontext-background gcontext) *default-background-pixel*))
-  (let ((xwin (bitmap-hunk-xwindow hunk)))
-    (setf (xlib:window-cursor xwin) *hemlock-cursor*)
-    (setf (xlib:window-background xwin) *default-background-pixel*)))
+  (let* ((gcontext (bitmap-hunk-gcontext hunk))
+	 (display (bitmap-device-display (bitmap-hunk-device hunk)))
+	 (old-fore (xlib:gcontext-foreground gcontext)))
+    (setf (xlib:gcontext-foreground gcontext)
+	  (xlib:gcontext-background gcontext))
+    (setf (xlib:gcontext-background gcontext) old-fore)
+    (let ((xwin (bitmap-hunk-xwindow hunk)))
+      (setf (xlib:window-cursor xwin) *editor-cursor*)
+      (setf (xlib:window-background xwin)
+	    (xlib:gcontext-foreground gcontext)))))

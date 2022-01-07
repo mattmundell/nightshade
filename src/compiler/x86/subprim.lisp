@@ -1,27 +1,9 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/subprim.lisp,v 1.1.2.1 1998/06/23 11:24:12 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Linkage information for standard static functions, and random vops.
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; 
+
 (in-package :x86)
 
-
 
-;;;; Length
+;;;; Length.
 
 (define-vop (length/list)
   (:translate length)
@@ -88,6 +70,4 @@
     (inst jmp :ne loop)
     DONE))
 
-
 (define-static-function length (object) :translate length)
-

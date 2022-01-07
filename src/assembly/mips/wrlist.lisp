@@ -1,16 +1,4 @@
-;;; -*- Package: MIPS -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/mips/wrlist.lisp,v 1.7 1994/10/31 04:56:40 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the assembly routines for write-list support.
-;;;
+;;; Assembly routines for write-list support.
 
 (in-package "MIPS")
 
@@ -129,7 +117,7 @@
 
   ;; Regenerate the return address from the saved offset.
   (inst addu lip-tn nl0 code-tn)
-    
+
   ;; Because we turned off pseudo-atomic, we might have taken an interrupt,
   ;; so we can't be sure the write-list will be empty.
   (inst b try-again)
@@ -263,7 +251,7 @@
 
   ;; Regenerate the return address from the saved offset.
   (inst addu lip-tn nl0 code-tn)
-    
+
   ;; Because we turned off pseudo-atomic, we might have taken an interrupt,
   ;; so we can't be sure the write-list will be empty.
   (inst b try-again)

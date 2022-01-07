@@ -1,24 +1,9 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/sparc/parms.lisp,v 1.24.2.3 2000/10/27 19:35:17 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains some parameterizations of various VM
-;;; attributes for the SPARC.  This file is separate from other stuff so 
-;;; that it can be compiled and loaded earlier. 
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Converted to MIPS by William Lott.
-;;;
+;;; This file contains some parameterizations of various VM attributes for
+;;; the SPARC.  This file is separate from other stuff so that it can be
+;;; compiled and loaded earlier.
 
 (in-package "SPARC")
+
 (use-package "C")
 
 
@@ -49,7 +34,7 @@
 (pushnew :new-assembler *features*)
 
 
-;;;; Machine Architecture parameters:
+;;;; Machine Architecture parameters.
 
 (export '(word-bits byte-bits word-shift word-bytes float-sign-shift
 
@@ -72,8 +57,6 @@
 	  float-imprecise-trap-bit float-invalid-trap-bit
 	  float-divide-by-zero-trap-bit))
 
-	  
-
 (eval-when (compile load eval)
 
 (defconstant word-bits 32
@@ -87,7 +70,6 @@
 
 (defconstant word-bytes (/ word-bits byte-bits)
   "Number of bytes in a word.")
-
 
 (defconstant float-sign-shift 31)
 
@@ -137,7 +119,7 @@
 (defconstant float-round-to-positive 2)
 (defconstant float-round-to-negative 3)
 
-(defconstant float-rounding-mode (byte 2 30))	  ; RD 
+(defconstant float-rounding-mode (byte 2 30))	  ; RD
 (defconstant float-sticky-bits (byte 5 5))	  ; aexc
 (defconstant float-traps-byte (byte 5 23))	  ; TEM
 (defconstant float-exceptions-byte (byte 5 0))	  ; cexc
@@ -154,7 +136,7 @@
 ;;;
 ;;; The number of bytes reserved above the number stack pointer.  These
 ;;; slots are required by architecture for a place to spill register windows.
-;;; 
+;;;
 (defconstant number-stack-displacement
   (* 16 vm:word-bytes))
 
@@ -166,11 +148,10 @@
 	  target-dynamic-space-start))
 
 ;;; Where to put the different spaces.  Must match the C code!
-;;; 
+;;;
 (defparameter target-read-only-space-start #x10000000)
 (defparameter target-static-space-start    #x28000000)
 (defparameter target-dynamic-space-start   #x40000000)
-
 
 
 ;;;; Other random constants.
@@ -251,12 +232,10 @@
     two-arg-+ two-arg-- two-arg-* two-arg-/ two-arg-< two-arg-> two-arg-=
     two-arg-<= two-arg->= two-arg-/= eql %negate
     two-arg-and two-arg-ior two-arg-xor
-    two-arg-gcd two-arg-lcm
-    ))
-
+    two-arg-gcd two-arg-lcm))
 
 
-;;;; Assembler parameters:
+;;;; Assembler parameters.
 
 ;;; The number of bits per element in the assemblers code vector.
 ;;;

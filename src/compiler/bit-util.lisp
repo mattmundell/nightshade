@@ -1,19 +1,6 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/bit-util.lisp,v 1.7 1994/10/31 04:27:28 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    Bit-vector hacking utilities, potentially implementation-dependent for
+;;; Bit-vector hacking utilities, potentially implementation-dependent for
 ;;; speed.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+
 (in-package "C")
 
 (declaim (inline clear-bit-vector set-bit-vector bit-vector-replace
@@ -21,7 +8,7 @@
 
 ;;; Clear-Bit-Vector  --  Interface
 ;;;
-;;;    Clear a bit-vector to zeros.
+;;; Clear a bit-vector to zeros.
 ;;;
 (defun clear-bit-vector (vec)
   (declare (type simple-bit-vector vec))
@@ -45,25 +32,23 @@
 
 ;;; Set-Bit-Vector  --  Interface
 ;;;
-;;;    Fill a bit vector with ones.
+;;; Fill a bit vector with ones.
 ;;;
 (defun set-bit-vector (vec)
   (declare (type simple-bit-vector vec))
   (bit-orc2 vec vec t))
 
-
 ;;; Bit-Vector-Replace  --  Interface
 ;;;
-;;;    Replace the bits in To with the bits in From.
+;;; Replace the bits in To with the bits in From.
 ;;;
 (defun bit-vector-replace (to from)
   (declare (type simple-bit-vector to from))
   (bit-ior from from to))
 
-
 ;;; Bit-Vector-Copy  --  Interface
 ;;;
-;;;    Copy a bit-vector.
+;;; Copy a bit-vector.
 ;;;
 (defun bit-vector-copy (vec)
   (declare (type simple-bit-vector vec))

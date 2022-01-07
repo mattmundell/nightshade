@@ -1,31 +1,187 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/ltn.lisp,v 1.38.2.3 2000/05/23 16:37:18 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the LTN pass in the compiler.  LTN allocates
-;;; expression evaluation TNs, makes nearly all the implementation policy
-;;; decisions, and also does a few other random things.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-(in-package "C")
-(in-package "EXTENSIONS")
-(export '(*efficiency-note-limit* *efficiency-note-cost-threshold*))
+;;; The Local TN Assignment pass in the compiler.  LTN allocates expression
+;;; evaluation TNs, makes nearly all the implementation policy decisions,
+;;; and also does a few other random things.
+
 (in-package "C")
 
+(in-package "EXTENSIONS")
+(export '(*efficiency-note-limit* *efficiency-note-cost-threshold*))
+
+(in-package "C")
+
+#[ Local TN Assignment
+
+    Use type and policy information to determine which VMR translation to
+    use for known functions, and then create TNs for expression evaluation
+    temporaries.  Also accumulate some random information needed by VMR
+    conversion.
+
+Phase position: 11/23 (middle)
+
+Presence: required
+
+Files: ltn
+
+Entry functions: `ltn-analyze', `ltn-analyze-block'
+
+Call sequences:
+
+    native-compile-component
+      ltn-analyze
+        make-ir2-block
+        ltn-analyze-local-call
+        ltn-default-call
+        ltn-analyze-known-call
+        ltn-analyze-if
+        ltn-analyze-return
+        ltn-analyze-exit
+        ltn-analyze-set
+        ltn-analyze-mv-bind
+        ltn-analyze-mv-call
+
+    Want a different name for this so as not to be confused with the different
+    local/global TN representations.  The really interesting stuff in this phase is
+    operation selection, values representation selection, return strategy, etc.
+    Maybe this phase should be conceptually lumped with GTN as "implementation
+    selection", since GTN determines call strategies and locations.
+
+    XXX I guess I believe that it is OK for VMR conversion to dick the ICR flow
+    graph.  An alternative would be to give VMR its very own flow graph, but that
+    seems like overkill.
+
+    In particular, it would be very nice if a TR local call looked exactly like a
+    jump in VMR.  This would allow loop optimizations to be done on loops written
+    as recursions.  In addition to making the call block transfer to the head of
+    the function rather than to the return, we would also have to do something
+    about skipping the part of the function prolog that moves arguments from the
+    passing locations, since in a TR call they are already in the right frame.
+
+
+    In addition to directly indicating whether a call should be coded with a TR
+    variant, the Tail-P annotation flags non-call nodes that can directly return
+    the value (an "advanced return"), rather than moving the value to the result
+    continuation and jumping to the return code.  Then (according to policy), we
+    can decide to advance all possible returns.  If all uses of the result are
+    Tail-P, then LTN can annotate the result continuation as :Unused, inhibiting
+    emission of the default return code.
+
+    XXX But not really.  Now there is a single list of templates, and a given
+    template has only one policy.
+
+    In LTN, we use the :Safe template as a last resort even when the policy is
+    unsafe.  Note that we don't try :Fast-Safe; if this is also a good unsafe
+    template, then it should have the unsafe policies explicitly specified.
+
+    With a :Fast-Safe template, the result type must be proven to satisfy the
+    output type assertion.  This means that a fast-safe template with a fixnum
+    output type doesn't need to do fixnum overflow checking.
+
+    XXX Not right to just check against the Node-Derived-Type, since
+    type-check intersects with this.
+
+    It seems that it would be useful to have a kind of template where the args must
+    be checked to be fixnum, but the template checks for overflow and signals an
+    error.  In the case where an output assertion is present, this would generate
+    better code than conditionally branching off to make a bignum, and then doing a
+    type check on the result.
+
+    How do we deal with deciding whether to do a fixnum overflow check?  This
+    is perhaps a more general problem with the interpretation of result type
+    restrictions in templates.  It would be useful to be able to discriminate
+    between the case where the result has been proven to be a fixnum and where
+    it has simply been asserted to be so.
+
+    The semantics of result type restriction is that the result must be proven
+    to be of that type *except* for safe generators, which are assumed to
+    verify the assertion.  That way "is-fixnum" case can be a fast-safe
+    generator and the "should-be-fixnum" case is a safe generator.  We could
+    choose not to have a safe "should-be-fixnum" generator, and let the
+    unrestricted safe generator handle it.  We would then have to do an
+    explicit type check on the result.
+
+    In other words, for all template except Safe, a type restriction on either
+    an argument or result means "this must be true; if it is not the system may
+    break."  In contrast, in a Safe template, the restriction means "If this is
+    not true, I will signal an error."
+
+    Since the node-derived-type only takes into consideration stuff that can be
+    proved from the arguments, we can use the node-derived-type to select
+    fast-safe templates.  With unsafe policies, we don't care, since the code
+    is supposed to be unsafe.
+
+Local Temporary Name assignment (LTN) assigns all the Temporary Names (TNs)
+needed to represent the values of continuations.  This pass scans over the
+code for the component, examining each continuation and its destination.  A
+number of somewhat unrelated things are also done at the same time so that
+multiple passes aren't necessary.
+ -- Determine the Primitive-Type for each continuation value and assigns TNs
+    to hold the values.
+ -- Use policy information to determine the implementation strategy for each
+    call to a known function.
+ -- Clear the type-check flags in continuations whose destinations have safe
+    implementations.
+ -- Determine the value-passing strategy for each continuation: known or
+    unknown.
+ -- Note usage of unknown-values continuations so that stack analysis can tell
+    when stack values must be discarded.
+
+If safety is more important that speed and space, then we consider generating
+type checks on the values of nodes whose CONT has the Type-Check flag set.  If
+the destinatation for the continuation value is safe, then we don't need to do
+a check.  We assume that all full calls are safe, and use the template
+information to determine whether inline operations are safe.
+
+This phase is where compiler policy switches have most of their effect.  The
+speed/space/safety tradeoff can determine which of a number of coding
+strategies are used.  It is important to make the policy choice in VMR
+conversion rather than in code generation because the cost and storage
+requirement information which drives TNBIND will depend strongly on what actual     ; FIX first mention tnbind
+VOP is chosen.  In the case of +/FIXNUM, there might be three or more
+implementations, some optimized for speed, some for space, etc.  Some of these
+VOPS might be open-coded and some not.
+
+We represent the implementation strategy for a call by either marking it as a
+full call or annotating it with a "template" representing the open-coding
+strategy.  Templates are selected using a two-way dispatch off of operand
+primitive-types and policy.  The general case of LTN is handled by the
+LTN-Annotate function in the function-info, but most functions are handled by a
+table-driven mechanism.  There are four different translation policies that a
+template may have:
++ Safe:      The safest implementation; must do argument type checking.
++ Small:     The (unsafe) smallest implementation.
++ Fast:      The (unsafe) fastest implementation.
++ Fast-Safe:
+        An implementation optimized for speed, but which does any necessary
+        checks exclusive of argument type checking.  Examples are array bounds
+        checks and fixnum overflow checks.
+
+Usually a function will have only one or two distinct templates.  Either or
+both of the safe and fast-safe templates may be omitted; if both are specified,
+then they should be distinct.  If there is no safe template and our policy is
+safe, then we do a full call.
+
+We use four different coding strategies, depending on the policy:
++ Safe:  safety > space > speed, or we want to use the fast-safe template,
+         but there isn't one.
++ Small: space > (max speed safety)
++ Fast:  speed > (max space safety)
++ Fast-Safe (and type check):
+         safety > speed > space, or we want to use the safe template, but
+         there isn't one.
+
+"Space" above is actually the maximum of space and cspeed, under the theory
+that less code will take less time to generate and assemble.
+
+  [XXX This could lose if the smallest case is out-of-line, and must allocate
+   many linkage registers.]
+]#
+
 
-;;;; Utilities:
+;;;; Utilities.
 
 ;;; Translation-Policy  --  Internal
 ;;;
-;;;    Return the policies keyword indicated by the node policy.
+;;; Return the policies keyword indicated by the node policy.
 ;;;
 (defun translation-policy (node)
   (declare (type node node))
@@ -38,22 +194,20 @@
 	(if (>= speed space) :fast :small)
 	(if (>= speed space) :fast-safe :safe))))
 
-
 ;;; Policy-Safe-P  --  Interface
 ;;;
-;;;    Return true if Policy is a safe policy.
+;;; Return true if Policy is a safe policy.
 ;;;
 (proclaim '(inline policy-safe-p))
 (defun policy-safe-p (policy)
   (declare (type policies policy))
   (or (eq policy :safe) (eq policy :fast-safe)))
 
-
 ;;; FLUSH-TYPE-CHECK  --  Internal
 ;;;
-;;;    Called when an unsafe policy indicates that no type check should be done
-;;; on CONT.  We delete the type check unless it is :ERROR (indicating a
-;;; compile-time type error.)
+;;; Called when an unsafe policy indicates that no type check should be
+;;; done on CONT.  We delete the type check unless it is :ERROR (indicating
+;;; a compile-time type error.)
 ;;;
 (proclaim '(inline flush-type-check))
 (defun flush-type-check (cont)
@@ -62,22 +216,20 @@
     (setf (continuation-%type-check cont) :deleted))
   (undefined-value))
 
-
 ;;; Continuation-PType  --  Internal
 ;;;
-;;;    A annotated continuation's primitive-type.
+;;; An annotated continuation's primitive-type.
 ;;;
 (proclaim '(inline continuation-ptype))
 (defun continuation-ptype (cont)
   (declare (type continuation cont))
   (ir2-continuation-primitive-type (continuation-info cont)))
 
-
 ;;; LEGAL-IMMEDIATE-CONSTANT-P  --  Interface
 ;;;
-;;;    Return true if a constant Leaf is of a type which we can legally
-;;; directly reference in code.  Named constants with arbitrary pointer values
-;;; cannot, since we must preserve EQLness.
+;;; Return true if a constant Leaf is of a type which we can legally
+;;; directly reference in code.  Named constants with arbitrary pointer
+;;; values cannot, since we must preserve EQLness.
 ;;;
 (defun legal-immediate-constant-p (leaf)
   (declare (type constant leaf))
@@ -87,14 +239,13 @@
 	(symbol (symbol-package (constant-value leaf)))
 	(t nil))))
 
-
 ;;; Continuation-Delayed-Leaf  --  Internal
 ;;;
-;;;    If Cont is used only by a Ref to a leaf that can be delayed, then return
-;;; the leaf, otherwise return NIL.
+;;; If Cont is used only by a Ref to a leaf that can be delayed, then
+;;; return the leaf, otherwise return NIL.
 ;;;
 (defun continuation-delayed-leaf (cont)
-  (declare (type continuation cont)) 
+  (declare (type continuation cont))
   (let ((use (continuation-use cont)))
     (and (ref-p use)
 	 (let ((leaf (ref-leaf use)))
@@ -103,15 +254,14 @@
 	     (constant (if (legal-immediate-constant-p leaf) leaf nil))
 	     ((or functional global-var) nil))))))
 
-
 ;;; Annotate-1-Value-Continuation  --  Internal
 ;;;
-;;;    Annotate a normal single-value continuation.  If its only use is a ref
+;;; Annotate a normal single-value continuation.  If its only use is a ref
 ;;; that we are allowed to delay the evaluation of, then we mark the
-;;; continuation for delayed evaluation, otherwise we assign a TN to hold the
-;;; continuation's value.  If the continuation has a type check, we make the TN
-;;; according to the proven type to ensure that the possibly erroneous value
-;;; can be represented.
+;;; continuation for delayed evaluation, otherwise we assign a TN to hold
+;;; the continuation's value.  If the continuation has a type check, we
+;;; make the TN according to the proven type to ensure that the possibly
+;;; erroneous value can be represented.
 ;;;
 (defun annotate-1-value-continuation (cont)
   (declare (type continuation cont))
@@ -130,12 +280,11 @@
 		    (single-value-type (continuation-proven-type cont)))))))))
   (undefined-value))
 
-
 ;;; Annotate-Ordinary-Continuation  --  Internal
 ;;;
-;;;    Make an IR2-Continuation corresponding to the continuation type and then
-;;; do Annotate-1-Value-Continuation.  If Policy isn't a safe policy, then we
-;;; clear the type-check flag.
+;;; Make an IR2-Continuation corresponding to the continuation type and
+;;; then do Annotate-1-Value-Continuation.  If Policy isn't a safe policy,
+;;; then we clear the type-check flag.
 ;;;
 (defun annotate-ordinary-continuation (cont policy)
   (declare (type continuation cont)
@@ -147,16 +296,15 @@
     (annotate-1-value-continuation cont))
   (undefined-value))
 
-
 ;;; Annotate-Function-Continuation  --  Internal
 ;;;
-;;;    Annotate the function continuation for a full call.  If the only
-;;; reference is to a global function and Delay is true, then we delay
-;;; the reference, otherwise we annotate for a single value.
+;;; Annotate the function continuation for a full call.  If the only
+;;; reference is to a global function and Delay is true, then we delay the
+;;; reference, otherwise we annotate for a single value.
 ;;;
-;;;   Unlike for an argument, we only clear the type check flag when the policy
-;;; is unsafe, since the check for a valid function object must be done before
-;;; the call.
+;;; Unlike for an argument, we only clear the type check flag when the
+;;; policy is unsafe, since the check for a valid function object must be
+;;; done before the call.
 ;;;
 (defun annotate-function-continuation (cont policy &optional (delay t))
   (declare (type continuation cont) (type policies policy))
@@ -176,14 +324,13 @@
 		(list (make-normal-tn tn-ptype))))))
   (undefined-value))
 
-
 ;;; FLUSH-FULL-CALL-TAIL-TRANSFER  --  Internal
 ;;;
-;;;    If TAIL-P is true, then we check to see if the call can really be a tail
-;;; call by seeing if this function's return convention is :UNKNOWN.  If so, we
-;;; move the call block succssor link from the return block to the component
-;;; tail (after ensuring that they are in separate blocks.)  This allows the
-;;; return to be deleted when there are no non-tail uses.
+;;; If TAIL-P is true, then we check to see if the call can really be a
+;;; tail call by seeing if this function's return convention is :UNKNOWN.
+;;; If so, we move the call block succssor link from the return block to
+;;; the component tail (after ensuring that they are in separate blocks.)
+;;; This allows the return to be deleted when there are no non-tail uses.
 ;;;
 (defun flush-full-call-tail-transfer (call)
   (declare (type basic-combination call))
@@ -199,27 +346,26 @@
 	     (setf (node-tail-p call) nil)))))
   (undefined-value))
 
-
 ;;; LTN-Default-Call  --  Internal
 ;;;
-;;;    We set the kind to :FULL or :FUNNY, depending on whether there is an
-;;; IR2-CONVERT method.  If a funny function, then we inhibit tail recursion
-;;; and type check normally, since the IR2 convert method is going to want to
-;;; deliver values normally.  We still annotate the function continuation,
-;;; since IR2tran might decide to call after all.
+;;; We set the kind to :FULL or :FUNNY, depending on whether there is an
+;;; IR2-CONVERT method.  If a funny function, then we inhibit tail
+;;; recursion and type check normally, since the IR2 convert method is
+;;; going to want to deliver values normally.  We still annotate the
+;;; function continuation, since IR2tran might decide to call after all.
 ;;;
-;;;    If not funny, we always flush arg type checks, but do it after
-;;; annotation when the policy is safe, since we don't want to choose the TNs
-;;; according to a type assertions that may not hold.
+;;; If not funny, we always flush arg type checks, but do it after
+;;; annotation when the policy is safe, since we don't want to choose the
+;;; TNs according to a type assertions that may not hold.
 ;;;
-;;;   Note that args may already be annotated because template selection can
+;;; Note that args may already be annotated because template selection can
 ;;; bail out to here.
 ;;;
 (defun ltn-default-call (call policy)
   (declare (type combination call) (type policies policy))
   (let ((kind (basic-combination-kind call)))
     (annotate-function-continuation (basic-combination-fun call) policy)
-    
+
     (cond
      ((and (function-info-p kind)
 	   (function-info-ir2-convert kind))
@@ -247,9 +393,8 @@
 	(setf (basic-combination-kind call) :full))
       (setf (basic-combination-info call) :full)
       (flush-full-call-tail-transfer call))))
-  
-  (undefined-value))
 
+  (undefined-value))
 
 ;;; Annotate-Unknown-Values-Continuation  --  Internal
 ;;;
@@ -292,13 +437,12 @@
 
   (undefined-value))
 
-
 ;;; Annotate-Fixed-Values-Continuation  --  Internal
 ;;;
-;;;    Annotate Cont for a fixed, but arbitrary number of values, of the
+;;; Annotate Cont for a fixed, but arbitrary number of values, of the
 ;;; specified primitive Types.  If the continuation has a type check, we
-;;; annotate for the number of values indicated by Types, but only use proven
-;;; type information.
+;;; annotate for the number of values indicated by Types, but only use
+;;; proven type information.
 ;;;
 (defun annotate-fixed-values-continuation (cont policy types)
   (declare (type continuation cont) (type policies policy) (list types))
@@ -328,11 +472,11 @@
   (undefined-value))
 
 
-;;;; Node-specific analysis functions:
+;;;; Node-specific analysis functions.
 
 ;;; LTN-Analyze-Return  --  Internal
 ;;;
-;;;    Annotate the result continuation for a function.  We use the Return-Info
+;;; Annotate the result continuation for a function.  We use the Return-Info
 ;;; computed by GTN to determine how to represent the return values within the
 ;;; function:
 ;;; -- If the tail-set has a fixed values count, then use that many values.
@@ -348,7 +492,7 @@
 ;;;
 ;;;    In non-perverse code, the DFO walk will reach all uses of the result
 ;;;    continuation before it reaches the RETURN.  In perverse code, we may
-;;;    annotate for unknown values when we didn't have to. 
+;;;    annotate for unknown values when we didn't have to.
 ;;; -- Otherwise, we must annotate the continuation for unknown values.
 ;;;
 (defun ltn-analyze-return (node policy)
@@ -364,7 +508,7 @@
 			 (basic-combination-p use)
 			 (member (basic-combination-info use) '(:local :full)))
 	      (res (node-derived-type use))))
-	  
+
 	  (let ((int (values-type-intersection
 		      (res)
 		      (continuation-asserted-type cont))))
@@ -380,12 +524,11 @@
 
   (undefined-value))
 
-
 ;;; LTN-Analyze-MV-Bind  --  Internal
 ;;;
-;;;    Annotate the single argument continuation as a fixed-values
-;;; continuation.  We look at the called lambda to determine number and type of
-;;; return values desired.  It is assumed that only a function that
+;;; Annotate the single argument continuation as a fixed-values
+;;; continuation.  We look at the called lambda to determine number and
+;;; type of return values desired.  It is assumed that only a function that
 ;;; Looks-Like-An-MV-Bind will be converted to a local call.
 ;;;
 (defun ltn-analyze-mv-bind (call policy)
@@ -403,19 +546,18 @@
 	      (basic-combination-fun call))))))
   (undefined-value))
 
-
 ;;; LTN-Analyze-MV-Call  --  Internal
 ;;;
-;;;    We force all the argument continuations to use the unknown values
-;;; convention.  The continuations are annotated in reverse order, since the
-;;; last argument is on top, thus must be popped first.  We disallow delayed
-;;; evaluation of the function continuation to simplify IR2 conversion of MV
-;;; call.
+;;; We force all the argument continuations to use the unknown values
+;;; convention.  The continuations are annotated in reverse order, since
+;;; the last argument is on top, thus must be popped first.  We disallow
+;;; delayed evaluation of the function continuation to simplify IR2
+;;; conversion of MV call.
 ;;;
-;;;    We could be cleverer when we know the number of values returned by the
+;;; We could be cleverer when we know the number of values returned by the
 ;;; continuations, but optimizations of MV-Call are probably unworthwhile.
 ;;;
-;;;    We are also responsible for handling THROW, which is represented in IR1
+;;; We are also responsible for handling THROW, which is represented in IR1
 ;;; as an mv-call to the %THROW funny function.  We annotate the tag
 ;;; continuation for a single value and the values continuation for unknown
 ;;; values.
@@ -439,11 +581,10 @@
 
   (undefined-value))
 
-
 ;;; LTN-Analyze-Local-Call  --  Internal
 ;;;
-;;;    Annotate the arguments as ordinary single-value continuations. And check
-;;; the successor.
+;;; Annotate the arguments as ordinary single-value continuations.  And
+;;; check the successor.
 ;;;
 (defun ltn-analyze-local-call (call policy)
   (declare (type combination call)
@@ -457,7 +598,6 @@
   (when (node-tail-p call)
     (set-tail-local-call-successor call))
   (undefined-value))
-
 
 ;;; SET-TAIL-LOCAL-CALL-SUCCESSOR  --  Interface
 ;;;
@@ -478,10 +618,9 @@
       (link-blocks block (node-block (lambda-bind callee)))))
   (undefined-value))
 
-
 ;;; LTN-Analyze-Set  --  Internal
 ;;;
-;;;    Annotate the value continuation.
+;;; Annotate the value continuation.
 ;;;
 (defun ltn-analyze-set (node policy)
   (declare (type cset node) (type policies policy))
@@ -489,15 +628,14 @@
   (annotate-ordinary-continuation (set-value node) policy)
   (undefined-value))
 
-
-;;; LTN-Analyze-If  --  Internal  
+;;; LTN-Analyze-If  --  Internal
 ;;;
-;;;    If the only use of the Test continuation is a combination annotated with
-;;; a conditional template, then don't annotate the continuation so that IR2
-;;; conversion knows not to emit any code, otherwise annotate as an ordinary
-;;; continuation.  Since we only use a conditional template if the call
-;;; immediately precedes the IF node in the same block, we know that any
-;;; predicate will already be annotated.
+;;; If the only use of the Test continuation is a combination annotated
+;;; with a conditional template, then don't annotate the continuation so
+;;; that IR2 conversion knows not to emit any code, otherwise annotate as
+;;; an ordinary continuation.  Since we only use a conditional template if
+;;; the call immediately precedes the IF node in the same block, we know
+;;; that any predicate will already be annotated.
 ;;;
 (defun ltn-analyze-if (node policy)
   (declare (type cif node) (type policies policy))
@@ -511,12 +649,11 @@
       (annotate-ordinary-continuation test policy)))
   (undefined-value))
 
-
 ;;; LTN-Analyze-Exit  --  Internal
 ;;;
-;;;    If there is a value continuation, then annotate it for unknown values.
-;;; In this case, the exit is non-local, since all other exits are deleted or
-;;; degenerate by this point.
+;;; If there is a value continuation, then annotate it for unknown values.
+;;; In this case, the exit is non-local, since all other exits are deleted
+;;; or degenerate by this point.
 ;;;
 (defun ltn-analyze-exit (node policy)
   (setf (node-tail-p node) nil)
@@ -525,10 +662,9 @@
       (annotate-unknown-values-continuation value policy)))
   (undefined-value))
 
-
 ;;; LTN annotate %Unwind-Protect  --  Internal
 ;;;
-;;;    We need a special method for %Unwind-Protect that ignores the cleanup
+;;; We need a special method for %Unwind-Protect that ignores the cleanup
 ;;; function.  We don't annotate either arg, since we don't need them at
 ;;; run-time.
 ;;;
@@ -542,17 +678,17 @@
   (setf (node-tail-p node) nil)
   )
 
-
 ;;; LTN annotate %Slot-Setter, %Slot-Accessor  --  Internal
 ;;;
-;;;    Both of these functions need special LTN-annotate methods, since we only
-;;; want to clear the Type-Check in unsafe policies.  If we allowed the call to
-;;; be annotated as a full call, then no type checking would be done.
+;;; Both of these functions need special LTN-annotate methods, since we
+;;; only want to clear the Type-Check in unsafe policies.  If we allowed
+;;; the call to be annotated as a full call, then no type checking would be
+;;; done.
 ;;;
-;;;    We also need a special LTN annotate method for %Slot-Setter so that the
+;;; We also need a special LTN annotate method for %Slot-Setter so that the
 ;;; function is ignored.  This is because the reference to a SETF function
-;;; can't be delayed, so IR2 conversion would have already emitted a call to
-;;; FDEFINITION by the time the IR2 convert method got control.
+;;; can't be delayed, so IR2 conversion would have already emitted a call
+;;; to FDEFINITION by the time the IR2 convert method got control.
 ;;;
 (defoptimizer (%slot-accessor ltn-annotate) ((struct) node policy)
   (setf (basic-combination-info node) :funny)
@@ -566,13 +702,13 @@
   (annotate-ordinary-continuation value policy))
 
 
-;;;; Known call annotation:
+;;;; Known call annotation.
 
 ;;; OPERAND-RESTRICTION-OK  --  Interface
 ;;;
-;;;    Return true if Restr is satisfied by Type.  If T-OK is true, then a T
-;;; restriction allows any operand type.  This is also called by IR2tran when
-;;; it determines whether a result temporary needs to be made, and by
+;;; Return true if Restr is satisfied by Type.  If T-OK is true, then a T
+;;; restriction allows any operand type.  This is also called by IR2tran
+;;; when it determines whether a result temporary needs to be made, and by
 ;;; representation selection when it is deciding which move VOP to use.
 ;;; Cont and TN are used to test for constant arguments.
 ;;;
@@ -600,10 +736,9 @@
 	       (t
 		(error "Neither CONT nor TN supplied.")))))))
 
-  
 ;;; Template-Args-OK  --  Internal
 ;;;
-;;;    Check that the argument type restriction for Template are satisfied in
+;;; Check that the argument type restriction for Template are satisfied in
 ;;; call.  If an argument's TYPE-CHECK is :NO-CHECK and our policy is safe,
 ;;; then only :SAFE templates are o.k.
 ;;;
@@ -632,16 +767,16 @@
 					:cont arg)
 	  (return nil))))))
 
-
 ;;; Template-Results-OK  --  Internal
 ;;;
-;;;    Check that Template can be used with the specifed Result-Type.  Result
-;;; type checking is pretty different from argument type checking due to the
-;;; relaxed rules for values count.  We succeed if for each required result,
-;;; there is a positional restriction on the value that is at least as good.
-;;; If we run out of result types before we run out of restrictions, then we
-;;; only suceed if the leftover restrictions are *.  If we run out of
-;;; restrictions before we run out of result types, then we always win.
+;;; Check that Template can be used with the specifed Result-Type.  Result
+;;; type checking is pretty different from argument type checking due to
+;;; the relaxed rules for values count.  We succeed if for each required
+;;; result, there is a positional restriction on the value that is at least
+;;; as good.  If we run out of result types before we run out of
+;;; restrictions, then we only suceed if the leftover restrictions are *.
+;;; If we run out of restrictions before we run out of result types, then
+;;; we always win.
 ;;;
 (defun template-results-ok (template result-type)
   (declare (type template template)
@@ -668,10 +803,9 @@
       (operand-restriction-ok (first types) (primitive-type result-type)))
      (t t))))
 
-
 ;;; IS-OK-TEMPLATE-USE  --  Internal
 ;;;
-;;; Return true if Call is an ok use of Template according to Safe-P.  
+;;; Return true if Call is an ok use of Template according to Safe-P.
 ;;; -- If the template has a Guard that isn't true, then we ignore the
 ;;;    template, not even considering it to be rejected.
 ;;; -- If the argument type restrictions aren't satisfied, then we reject the
@@ -718,7 +852,6 @@
 	  (t
 	   (values nil :result-types)))))
 
-
 ;;; Find-Template  --  Internal
 ;;;
 ;;;    Use operand type information to choose a template from the list
@@ -741,10 +874,9 @@
 	(return (values template rejected (rest templates))))
       (setq rejected template))))
 
-
 ;;; Find-Template-For-Policy  --  Internal
 ;;;
-;;;    Given a partially annotated known call and a translation policy, return
+;;; Given a partially annotated known call and a translation policy, return
 ;;; the appropriate template, or NIL if none can be found.  We scan the
 ;;; templates (ordered by increasing cost) looking for a template whose
 ;;; restrictions are satisfied and that has our policy.
@@ -780,7 +912,7 @@
 	  (setq current more)
 	  (unless template
 	    (return (values fallback rejected)))
-	  
+
 	  (let ((tpolicy (template-policy template)))
 	    (cond ((eq tpolicy policy)
 		   (return (values template rejected)))
@@ -790,21 +922,21 @@
 		   (unless fallback
 		     (setq fallback template))))))))))
 
-
 (defvar *efficiency-note-limit* 2
-  "This is the maximum number of possible optimization alternatives will be
-  mentioned in a particular efficiency note.  NIL means no limit.")
+  "This is the maximum number of possible optimization alternatives that
+   the compiler will be mentioned in a particular efficiency note.  ()
+   means to mention all.")
 (proclaim '(type (or index null) *efficiency-note-limit*))
 
 (defvar *efficiency-note-cost-threshold* 5
-  "This is the minumum cost difference between the chosen implementation and
-  the next alternative that justifies an efficiency note.")
+  "This is the minumum cost distance between the chosen implementation and
+   the next alternative that justifies a compiler efficiency note.  A value
+   of 1 results in all notes.")
 (proclaim '(type index *efficiency-note-cost-threshold*))
-
 
 ;;; STRANGE-TEMPLATE-FAILURE  --  Internal
 ;;;
-;;;    This function is called by NOTE-REJECTED-TEMPLATES when it can't figure
+;;; This function is called by NOTE-REJECTED-TEMPLATES when it can't figure
 ;;; out any reason why Template was rejected.  Users should never see these
 ;;; messages, but they can happen in situations where the VM definition is
 ;;; messed up somehow.
@@ -843,22 +975,20 @@
       (:result-types
        (funcall frob "Result types invalid.")))))
 
-
 ;;; Note-Rejected-Templates  --  Internal
 ;;;
-;;;    This function emits efficiency notes describing all of the templates
-;;; better (faster) than Template that we might have been able to use if there
-;;; were better type declarations.  Template is null when we didn't find any
-;;; template, and thus must do a full call.
+;;; This function emits efficiency notes describing all of the templates
+;;; better (faster) than Template that we might have been able to use if
+;;; there were better type declarations.  Template is null when we didn't
+;;; find any template, and thus must do a full call.
 ;;;
-;;; In order to be worth complaining about, a template must:
-;;; -- be allowed by its guard,
-;;; -- be safe if the current policy is safe,
-;;; -- have argument/result type restrictions consistent with the known type
-;;;    information, e.g. we don't consider float templates when an operand is
-;;;    known to be an integer,
-;;; -- be disallowed by the stricter operand subtype test (which resembles, but
-;;;    is not identical to the test done by Find-Template.)
+;;; In order to be worth complaining about, a template must: -- be allowed
+;;; by its guard, -- be safe if the current policy is safe, -- have
+;;; argument/result type restrictions consistent with the known type
+;;; information, e.g. we don't consider float templates when an operand is
+;;; known to be an integer, -- be disallowed by the stricter operand
+;;; subtype test (which resembles, but is not identical to the test done by
+;;; Find-Template.)
 ;;;
 ;;; Note that there may not be any possibly applicable templates, since we are
 ;;; called whenever any template is rejected.  That template might have the
@@ -936,18 +1066,16 @@
 			       . ,(messages))))))))
   (undefined-value))
 
-
-
 ;;; Flush-Type-Checks-According-To-Policy  --  Internal
 ;;;
-;;;    Flush type checks according to policy.  If the policy is
-;;; unsafe, then we never do any checks.  If our policy is safe, and
-;;; we are using a safe template, then we can also flush arg and
-;;; result type checks.  Result type checks are only flushed when the
-;;; continuation as a single use. Result type checks are not flush if
-;;; the policy is safe because the selection of template for results
-;;; readers assumes the type check is done (uses the derived type
-;;; which is the intersection of the proven and asserted types).
+;;; Flush type checks according to policy.  If the policy is unsafe, then
+;;; we never do any checks.  If our policy is safe, and we are using a safe
+;;; template, then we can also flush arg and result type checks.  Result
+;;; type checks are only flushed when the continuation as a single use.
+;;; Result type checks are not flush if the policy is safe because the
+;;; selection of template for results readers assumes the type check is
+;;; done (uses the derived type which is the intersection of the proven and
+;;; asserted types).
 ;;;
 (defun flush-type-checks-according-to-policy (call policy template)
   (declare (type combination call) (type policies policy)
@@ -964,21 +1092,20 @@
 
   (undefined-value))
 
-
 ;;; LTN-Analyze-Known-Call  --  Internal
 ;;;
-;;;    If a function has a special-case annotation method use that, otherwise
+;;; If a function has a special-case annotation method use that, otherwise
 ;;; annotate the argument continuations and try to find a template
-;;; corresponding to the type signature. If there is none, convert a full
+;;; corresponding to the type signature.  If there is none, convert a full
 ;;; call.
 ;;;
-;;;    If we are unable to use some templates due to unstatisfied operand type
+;;; If we are unable to use some templates due to unsatisfied operand type
 ;;; restrictions and our policy enables efficiency notes, then we call
 ;;; Note-Rejected-Templates.
 ;;;
-;;;    If we are forced to do a full call, we check to see if the function
-;;; called is the same as the current function.  If so, we give a warning, as
-;;; this is probably a botched interpreter stub.
+;;; If we are forced to do a full call, we check to see if the function
+;;; called is the same as the current function.  If so, we give a warning,
+;;; as this is probably a botched interpreter stub.
 ;;;
 (defun ltn-analyze-known-call (call policy)
   (declare (type combination call)
@@ -988,7 +1115,7 @@
     (when method
       (funcall method call policy)
       (return-from ltn-analyze-known-call (undefined-value)))
-    
+
     (dolist (arg args)
       (setf (continuation-info arg)
 	    (make-ir2-continuation (primitive-type (continuation-type arg)))))
@@ -1013,26 +1140,26 @@
 	(return-from ltn-analyze-known-call (undefined-value)))
       (setf (basic-combination-info call) template)
       (setf (node-tail-p call) nil)
-      
+
       (flush-type-checks-according-to-policy call policy template)
-      
+
       (dolist (arg args)
 	(annotate-1-value-continuation arg))))
-  
+
   (undefined-value))
 
 
-;;;; Interfaces:
+;;;; Interfaces.
 
 (eval-when (compile eval)
 
 ;;; LTN-Analyze-Block-Macro  --  Internal
 ;;;
-;;;    We make the main per-block code in for LTN into a macro so that it can
-;;; be shared between LTN-Analyze and LTN-Analyze-Block, yet can cache policy
+;;; We make the main per-block code for LTN into a macro so that it can be
+;;; shared between LTN-Analyze and LTN-Analyze-Block, yet can cache policy
 ;;; across blocks in the normal (full component) case.
 ;;;
-;;;    This code computes the policy and then dispatches to the appropriate
+;;; This code computes the policy and then dispatches to the appropriate
 ;;; node-specific function.
 ;;;
 ;;; Note: we deliberately don't use the DO-NODES macro, since the block can be
@@ -1047,7 +1174,7 @@
      (unless (eq (node-lexenv node) lexenv)
        (setq policy (translation-policy node))
        (setq lexenv (node-lexenv node)))
-	     
+
      (etypecase node
        (ref)
        (combination
@@ -1073,19 +1200,18 @@
 
 ); Eval-When (Compile Eval)
 
-
 ;;; LTN-Analyze  --  Interface
 ;;;
-;;;    Loop over the blocks in Component, doing stuff to nodes that receive
-;;; values.  In addition to the stuff done by LTN-Analyze-Block-Macro, we also
-;;; see if there are any unknown values receivers, making notations in the
-;;; components Generators and Receivers as appropriate.
+;;; Loop over the blocks in Component, doing stuff to nodes that receive
+;;; values.  In addition to the stuff done by LTN-Analyze-Block-Macro, we
+;;; also see if there are any unknown values receivers, making notations in
+;;; the components Generators and Receivers as appropriate.
 ;;;
-;;;    If any unknown-values continations are received by this block (as
-;;; indicated by IR2-Block-Popped, then we add the block to the
+;;; If any unknown-values continations are received by this block (as
+;;; indicated by IR2-Block-Popped) then we add the block to the
 ;;; IR2-Component-Values-Receivers.
 ;;;
-;;;    This is where we allocate IR2 blocks because it is the first place we
+;;; This is where we allocate IR2 blocks because it is the first place we
 ;;; need them.
 ;;;
 (defun ltn-analyze (component)
@@ -1103,10 +1229,9 @@
 	    (push block (ir2-component-values-receivers 2comp)))))))
   (undefined-value))
 
-
 ;;; LTN-Analyze-Block  --  Interface
 ;;;
-;;;    This function is used to analyze blocks that must be added to the flow
+;;; This function is used to analyze blocks that must be added to the flow
 ;;; graph after the normal LTN phase runs.  Such code is constrained not to
 ;;; use weird unknown values (and probably in lots of other ways).
 ;;;

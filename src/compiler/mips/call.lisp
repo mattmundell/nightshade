@@ -1,28 +1,13 @@
-;;; -*- Package: MIPS; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/call.lisp,v 1.62.2.1 1998/06/23 11:23:35 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the VM definition of function call for the MIPS.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Converted for the MIPS by William Lott.
-;;;
+;;; The VM definition of function call for the MIPS.
+
 (in-package "MIPS")
 
 
-;;;; Interfaces to IR2 conversion:
+;;;; Interfaces to IR2 conversion.
 
 ;;; Standard-Argument-Location  --  Interface
 ;;;
-;;;    Return a wired TN describing the N'th full call argument passing
+;;; Return a wired TN describing the N'th full call argument passing
 ;;; location.
 ;;;
 (def-vm-support-routine standard-argument-location (n)
@@ -34,13 +19,12 @@
       (make-wired-tn *any-primitive-type*
 		     control-stack-arg-scn n)))
 
-
 ;;; Make-Return-PC-Passing-Location  --  Interface
 ;;;
-;;;    Make a passing location TN for a local call return PC.  If standard is
-;;; true, then use the standard (full call) location, otherwise use any legal
-;;; location.  Even in the non-standard case, this may be restricted by a
-;;; desire to use a subroutine call instruction.
+;;; Make a passing location TN for a local call return PC.  If standard is
+;;; true, then use the standard (full call) location, otherwise use any
+;;; legal location.  Even in the non-standard case, this may be restricted
+;;; by a desire to use a subroutine call instruction.
 ;;;
 (def-vm-support-routine make-return-pc-passing-location (standard)
   #+gengc (declare (ignore standard))
@@ -53,10 +37,10 @@
 
 ;;; Make-Old-FP-Passing-Location  --  Interface
 ;;;
-;;;    Similar to Make-Return-PC-Passing-Location, but makes a location to pass
-;;; Old-FP in.  This is (obviously) wired in the standard convention, but is
-;;; totally unrestricted in non-standard conventions, since we can always fetch
-;;; it off of the stack using the arg pointer.
+;;; Similar to Make-Return-PC-Passing-Location, but makes a location to
+;;; pass Old-FP in.  This is (obviously) wired in the standard convention,
+;;; but is totally unrestricted in non-standard conventions, since we can
+;;; always fetch it off of the stack using the arg pointer.
 ;;;
 (def-vm-support-routine make-old-fp-passing-location (standard)
   (if standard
@@ -65,9 +49,9 @@
 
 ;;; Make-Old-FP-Save-Location, Make-Return-PC-Save-Location  --  Interface
 ;;;
-;;;    Make the TNs used to hold Old-FP and Return-PC within the current
-;;; function.  We treat these specially so that the debugger can find them at a
-;;; known location.
+;;; Make the TNs used to hold Old-FP and Return-PC within the current
+;;; function.  We treat these specially so that the debugger can find them
+;;; at a known location.
 ;;;
 (def-vm-support-routine make-old-fp-save-location (env)
   (specify-save-tn
@@ -86,13 +70,12 @@
 
 ;;; Make-Argument-Count-Location  --  Interface
 ;;;
-;;;    Make a TN for the standard argument count passing location.  We only
-;;; need to make the standard location, since a count is never passed when we
-;;; are using non-standard conventions.
+;;; Make a TN for the standard argument count passing location.  We only
+;;; need to make the standard location, since a count is never passed when
+;;; we are using non-standard conventions.
 ;;;
 (def-vm-support-routine make-argument-count-location ()
   (make-wired-tn *fixnum-primitive-type* immediate-arg-scn nargs-offset))
-
 
 ;;; MAKE-NFP-TN  --  Interface
 ;;;
@@ -104,18 +87,18 @@
    (make-wired-tn *fixnum-primitive-type* immediate-arg-scn nfp-offset)))
 
 ;;; MAKE-STACK-POINTER-TN ()
-;;; 
+;;;
 (def-vm-support-routine make-stack-pointer-tn ()
   (make-normal-tn *fixnum-primitive-type*))
 
 ;;; MAKE-NUMBER-STACK-POINTER-TN ()
-;;; 
+;;;
 (def-vm-support-routine make-number-stack-pointer-tn ()
   (make-normal-tn *fixnum-primitive-type*))
 
 ;;; Make-Unknown-Values-Locations  --  Interface
 ;;;
-;;;    Return a list of TNs that can be used to represent an unknown-values
+;;; Return a list of TNs that can be used to represent an unknown-values
 ;;; continuation within a function.
 ;;;
 (def-vm-support-routine make-unknown-values-locations ()
@@ -125,10 +108,10 @@
 
 ;;; Select-Component-Format  --  Interface
 ;;;
-;;;    This function is called by the Entry-Analyze phase, allowing
+;;; This function is called by the Entry-Analyze phase, allowing
 ;;; VM-dependent initialization of the IR2-Component structure.  We push
-;;; placeholder entries in the Constants to leave room for additional
-;;; noise in the code object header.
+;;; placeholder entries in the Constants to leave room for additional noise
+;;; in the code object header.
 ;;;
 (def-vm-support-routine select-component-format (component)
   (declare (type component component))
@@ -138,14 +121,14 @@
   (undefined-value))
 
 
-;;;; Frame hackery:
+;;;; Frame hackery.
 
 ;;; BYTES-NEEDED-FOR-NON-DESCRIPTOR-STACK-FRAME -- internal
 ;;;
 ;;; Return the number of bytes needed for the current non-descriptor stack
 ;;; frame.  Non-descriptor stack frames must be multiples of 8 bytes on
 ;;; the PMAX.
-;;; 
+;;;
 (defun bytes-needed-for-non-descriptor-stack-frame ()
   (* (logandc2 (1+ (sb-allocated-size 'non-descriptor-stack)) 1)
      word-bytes))
@@ -167,7 +150,6 @@
     (let ((nfp (current-nfp-tn vop)))
       (when nfp
 	(inst addu val nfp (bytes-needed-for-non-descriptor-stack-frame))))))
-
 
 (define-vop (xep-allocate-frame)
   (:info start-lab copy-more-arg-follows)
@@ -229,24 +211,23 @@
       (move res csp-tn)
       (inst addu csp-tn csp-tn (* nargs word-bytes)))))
 
-
-
 
 ;;; Default-Unknown-Values  --  Internal
 ;;;
-;;;    Emit code needed at the return-point from an unknown-values call for a
+;;; Emit code needed at the return-point from an unknown-values call for a
 ;;; fixed number of values.  Values is the head of the TN-Ref list for the
-;;; locations that the values are to be received into.  Nvals is the number of
-;;; values that are to be received (should equal the length of Values).
+;;; locations that the values are to be received into.  Nvals is the number
+;;; of values that are to be received (should equal the length of Values).
 ;;;
-;;;    Move-Temp is a Descriptor-Reg TN used as a temporary.
+;;; Move-Temp is a Descriptor-Reg TN used as a temporary.
 ;;;
-;;;    This code exploits the fact that in the unknown-values convention, a
-;;; single value return returns at the return PC + 8, whereas a return of other
-;;; than one value returns directly at the return PC.
+;;; This code exploits the fact that in the unknown-values convention, a
+;;; single value return returns at the return PC + 8, whereas a return of
+;;; other than one value returns directly at the return PC.
 ;;;
-;;;    If 0 or 1 values are expected, then we just emit an instruction to reset
-;;; the SP (which will only be executed when other than 1 value is returned.)
+;;; If 0 or 1 values are expected, then we just emit an instruction to
+;;; reset the SP (which will only be executed when other than 1 value is
+;;; returned.)
 ;;;
 ;;; In the general case, we have to do three things:
 ;;;  -- Default unsupplied register values.  This need only be done when a
@@ -327,7 +308,7 @@ default-value-8
 	  (if (> nvals register-arg-count)
 	      (inst addu temp nargs-tn (fixnum (- register-arg-count)))
 	      (move csp-tn ocfp-tn)))
-	
+
 	;; Do the single value calse.
 	(do ((i 1 (1+ i))
 	     (val (tn-ref-across values) (tn-ref-across val)))
@@ -336,9 +317,9 @@ default-value-8
 	(when (> nvals register-arg-count)
 	  (inst b default-stack-vals)
 	  (move ocfp-tn csp-tn))
-	
+
 	(emit-label regs-defaulted)
-	
+
 	(when (> nvals register-arg-count)
 	  ;; If there are stack results, we have to default them
 	  ;; and clear the stack.
@@ -349,19 +330,19 @@ default-value-8
 			  ((= i register-arg-count) val))
 		      (tn-ref-across val)))
 		((null val))
-	      
+
 	      (let ((default-lab (gen-label))
 		    (tn (tn-ref-tn val)))
 		(defaults (cons default-lab tn))
-		
+
 		(inst blez temp default-lab)
 		(inst lw move-temp ocfp-tn (* i word-bytes))
 		(inst addu temp temp (fixnum -1))
 		(store-stack-tn tn move-temp)))
-	    
+
 	    (emit-label defaulting-done)
 	    (move csp-tn ocfp-tn)
-	    
+
 	    (let ((defaults (defaults)))
 	      (assert defaults)
 	      (assemble (*elsewhere*)
@@ -380,24 +361,24 @@ default-value-8
   (undefined-value))
 
 
-;;;; Unknown values receiving:
+;;;; Unknown values receiving.
 
 ;;; Receive-Unknown-Values  --  Internal
 ;;;
-;;;    Emit code needed at the return point for an unknown-values call for an
+;;; Emit code needed at the return point for an unknown-values call for an
 ;;; arbitrary number of values.
 ;;;
-;;;    We do the single and non-single cases with no shared code: there doesn't
-;;; seem to be any potential overlap, and receiving a single value is more
-;;; important efficiency-wise.
+;;; We do the single and non-single cases with no shared code: there
+;;; doesn't seem to be any potential overlap, and receiving a single value
+;;; is more important efficiency-wise.
 ;;;
-;;;    When there is a single value, we just push it on the stack, returning
+;;; When there is a single value, we just push it on the stack, returning
 ;;; the old SP and 1.
 ;;;
-;;;    When there is a variable number of values, we move all of the argument
+;;; When there is a variable number of values, we move all of the argument
 ;;; registers onto the stack, and return Args and Nargs.
 ;;;
-;;;    Args and Nargs are TNs wired to the named locations.  We must
+;;; Args and Nargs are TNs wired to the named locations.  We must
 ;;; explicitly allocate these TNs, since their lifetimes overlap with the
 ;;; results Start and Count (also, it's nice to be able to target them).
 ;;;
@@ -416,9 +397,9 @@ default-value-8
     (storew (first register-arg-tns) csp-tn -1)
     (inst addu start csp-tn -4)
     (inst li count (fixnum 1))
-    
+
     (emit-label done)
-    
+
     (assemble (*elsewhere*)
       (emit-label variable-values)
       (when lra-label
@@ -433,7 +414,6 @@ default-value-8
       (inst b done)
       (inst nop)))
   (undefined-value))
-
 
 ;;; VOP that can be inherited by unknown values receivers.  The main thing this
 ;;; handles is allocation of the result temporaries.
@@ -450,9 +430,8 @@ default-value-8
 	      nvals)
   (:temporary (:scs (non-descriptor-reg)) temp))
 
-
 
-;;;; Local call with unknown values convention return:
+;;;; Local call with unknown values convention return.
 
 ;;; Non-TR local call for a fixed number of values passed according to the
 ;;; unknown values convention.
@@ -508,7 +487,6 @@ default-value-8
       (when cur-nfp
 	(load-stack-tn cur-nfp nfp-save)))))
 
-
 ;;; Non-TR local call for a variable number of return values passed according
 ;;; to the unknown values convention.  The results are the start of the values
 ;;; glob and the number of values received.
@@ -551,7 +529,7 @@ default-value-8
 	(load-stack-tn cur-nfp nfp-save)))))
 
 
-;;;; Local call with known values return:
+;;;; Local call with known values return.
 
 ;;; Non-TR local call with known return locations.  Known-value return works
 ;;; just like argument passing in local call.
@@ -630,12 +608,12 @@ default-value-8
     (trace-table-entry trace-table-normal)))
 
 
-;;;; Full call:
+;;;; Full call.
 ;;;
-;;;    There is something of a cross-product effect with full calls.  Different
-;;; versions are used depending on whether we know the number of arguments or
-;;; the name of the called function, and whether we want fixed values, unknown
-;;; values, or a tail call.
+;;; There is something of a cross-product effect with full calls.
+;;; Different versions are used depending on whether we know the number of
+;;; arguments or the name of the called function, and whether we want fixed
+;;; values, unknown values, or a tail call.
 ;;;
 ;;; In full call, the arguments are passed creating a partial frame on the
 ;;; stack top and storing stack arguments into that frame.  On entry to the
@@ -645,11 +623,11 @@ default-value-8
 
 ;;; Define-Full-Call  --  Internal
 ;;;
-;;;    This macro helps in the definition of full call VOPs by avoiding code
+;;; This macro helps in the definition of full call VOPs by avoiding code
 ;;; replication in defining the cross-product VOPs.
 ;;;
 ;;; Name is the name of the VOP to define.
-;;; 
+;;;
 ;;; Named is true if the first argument is a symbol whose global function
 ;;; definition is to be called.
 ;;;
@@ -684,16 +662,16 @@ default-value-8
       ,(if named
 	   '(name :target name-pass)
 	   '(arg-fun :target lexenv))
-      
+
       ,@(when (eq return :tail)
 	  '((ocfp :target ocfp-pass)
 	    (return-pc :target return-pc-pass)))
-      
+
       ,@(unless variable '((args :more t :scs (descriptor-reg)))))
 
      ,@(when (eq return :fixed)
 	 '((:results (values :more t))))
-   
+
      (:save-p ,(if (eq return :tail) :compute-only t))
 
      ,@(unless (or (eq return :tail) variable)
@@ -878,7 +856,7 @@ default-value-8
 	     (if (cdr filler)
 		 (do-next-filler)
 		 (return)))
-	   
+
 	   (note-this-location vop :call-site)
 	   (inst #-gengc j #+gengc ,(if (eq return :tail) 'j 'jal)
 		 entry-point)
@@ -902,7 +880,6 @@ default-value-8
 		  (load-stack-tn cur-nfp nfp-save))))
 	     (:tail))))))
 
-
 (define-full-call call nil :fixed nil)
 (define-full-call call-named t :fixed nil)
 (define-full-call multiple-call nil :unknown nil)
@@ -912,7 +889,6 @@ default-value-8
 
 (define-full-call call-variable nil :fixed t)
 (define-full-call multiple-call-variable nil :unknown t)
-
 
 ;;; Defined separately, since needs special code that BLT's the arguments
 ;;; down.
@@ -951,10 +927,10 @@ default-value-8
     (inst nop)))
 
 
-;;;; Unknown values return:
+;;;; Unknown values return.
 
 ;;; Return a single value using the unknown-values convention.
-;;; 
+;;;
 (define-vop (return-single)
   (:args (ocfp :scs (any-reg))
 	 #-gengc (return-pc :scs (descriptor-reg))
@@ -985,7 +961,6 @@ default-value-8
 	  (inst nop)
 	  (inst move ra return-pc)))
     (trace-table-entry trace-table-normal)))
-
 
 ;;; Do unknown-values return of a fixed number of values.  The Values are
 ;;; required to be set up in the standard passing locations.  Nvals is the
@@ -1096,7 +1071,7 @@ default-value-8
 	(if (location= ra return-pc)
 	    (inst nop)
 	    (inst move ra return-pc)))
-		
+
       ;; Nope, not the single case.
       (emit-label not-single)
       (move ocfp ocfp-arg)
@@ -1108,10 +1083,8 @@ default-value-8
       (inst nop))
     (trace-table-entry trace-table-normal)))
 
-
 
-;;;; XEP hackery:
-
+;;;; XEP hackery.
 
 ;;; We don't need to do anything special for regular functions.
 ;;;
@@ -1136,7 +1109,7 @@ default-value-8
     (move closure lexenv)))
 
 ;;; Copy a more arg from the argument area to the end of the current frame.
-;;; Fixed is the number of non-more arguments. 
+;;; Fixed is the number of non-more arguments.
 ;;;
 (define-vop (copy-more-arg)
   (:temporary (:sc any-reg :offset nl0-offset) result)
@@ -1198,12 +1171,10 @@ default-value-8
 	  (inst subu count (fixnum 1))))
       (emit-label done))))
 
-
 ;;; More args are stored consequtively on the stack, starting immediately at
 ;;; the context pointer.  The context pointer is not typed, so the lowtag is 0.
 ;;;
 (define-full-reffer more-arg * 0 0 (descriptor-reg any-reg) * %more-arg)
-
 
 ;;; Turn more arg (context, count) into a list.
 ;;;
@@ -1333,7 +1304,6 @@ default-value-8
   (:generator 5
     (inst addu count supplied (fixnum (- fixed)))
     (inst subu context csp-tn count)))
-
 
 ;;; Signal wrong argument count error if Nargs isn't = to Count.
 ;;;

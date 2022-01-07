@@ -82,8 +82,13 @@
 (defun spell-add-entry (line &optional
 			     (word-end (or (position #\/ line :test #'char=)
 					   (length line))))
-  "Line is of the form \"entry/flag1/flag2\" or \"entry\".  It is parsed and
-   added to the spelling dictionary.  Line is desstructively modified."
+  "Add the entry described by $line to the spelling dictionary.
+
+   The fallback for $word-end is the position of the first slash character
+   or the length $line.
+
+   $line is of the form \"entry/flag1/flag2\" or \"entry\".  Modify $line
+   if necessary."
   (declare (simple-string line) (fixnum word-end))
   (nstring-upcase line :end word-end)
   (when (> word-end max-entry-length)
@@ -98,7 +103,7 @@
 	 (desc-ptr+1 (1+ desc-ptr))
 	 (desc-ptr+2 (1+ desc-ptr+1)))
     (declare (fixnum string-ptr))
-    (when (not hash-loc) (error "Dictionary Overflow!"))
+    (or hash-loc (error "Dictionary overflow."))
     (when (> 3 *free-descriptor-elements*) (grow-descriptors))
     (when (> word-end *free-string-table-bytes*) (grow-string-table))
     (decf *free-descriptor-elements* 3)
@@ -140,9 +145,8 @@
 ;;; dictionary location to spell-deleted-entry.
 ;;;
 (defun spell-remove-entry (entry)
-  "Removes entry from the dictionary, so it will be an unknown word.  Entry
-   is a simple string and is destructively modified.  If entry is a root
-   word, then all words derived with entry and its flags will also be deleted."
+  "Remove $entry, a simple-string, from the spelling dictionary.  Modify
+   $entry if necessary.  Also remove any words derived from $entry."
   (declare (simple-string entry))
   (nstring-upcase entry)
   (let ((entry-len (length entry)))
@@ -174,8 +178,9 @@
 				     (return spell-deleted-entry))))))))))))
 
 (defun spell-root-flags (index)
-  "Return the flags associated with the root word corresponding to a
-   dictionary entry at index."
+  "Return a list of suffix flags as capital letters that apply to the
+   dictionary root entry at $index.  This index is the same as returned by
+   `spell-try-word'."
   (let ((desc-word (descriptor-ref (+ 2 index)))
 	(result ()))
     (declare (fixnum desc-word))

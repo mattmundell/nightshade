@@ -1,21 +1,6 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/hppa/support.lisp,v 1.2 1994/10/31 04:56:18 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the machine specific support routines needed by
-;;; the file assembler.
-;;;
-;;; Written by William Lott.
-;;;
-(in-package "HPPA")
+;;; Machine specific support routines needed by the file assembler.
 
+(in-package "HPPA")
 
 (def-vm-support-routine generate-call-sequence (name style vop)
   (ecase style
@@ -64,7 +49,6 @@
 	    (inst be fixup lisp-heap-space ,fixup :nullify t)))
 	`((:temporary (:scs (any-reg) :from (:eval 0) :to (:eval 1))
 		      ,fixup)))))))
-
 
 (def-vm-support-routine generate-return-sequence (style)
   (ecase style

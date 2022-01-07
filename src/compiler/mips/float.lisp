@@ -1,24 +1,9 @@
-;;; -*- Package: MIPS; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/float.lisp,v 1.20.2.2 2000/05/23 16:37:39 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains floating point support for the MIPS.
-;;;
-;;; Written by Rob MacLachlan
-;;; Complex-float support by Douglas Crosher 1998.
-;;;
+;;; Floating point support for the MIPS.
+
 (in-package "MIPS")
 
 
-;;;; Move functions:
-
+;;;; Move functions.
 
 (define-move-function (load-single 1) (vop x y)
   ((single-stack) (single-reg))
@@ -38,7 +23,7 @@
     (:little-endian
      (inst lwc1 r base offset)
      (inst lwc1-odd r base (+ offset word-bytes)))))
-  
+
 (define-move-function (load-double 2) (vop x y)
   ((double-stack) (double-reg))
   (let ((nfp (current-nfp-tn vop))
@@ -61,9 +46,8 @@
 	(offset (* (tn-offset y) word-bytes)))
     (str-double x nfp offset)))
 
-
 
-;;;; Move VOPs:
+;;;; Move VOPs.
 
 (macrolet ((frob (vop sc format)
 	     `(progn
@@ -80,7 +64,6 @@
 		(define-move-vop ,vop :move (,sc) (,sc)))))
   (frob single-move single-reg :single)
   (frob double-move double-reg :double))
-
 
 (define-vop (move-from-float)
   (:args (x :to :save))
@@ -107,7 +90,6 @@
   (frob move-from-double double-reg
     t double-float-size double-float-type double-float-value-slot))
 
-
 (macrolet ((frob (name sc double-p value)
 	     `(progn
 		(define-vop (,name)
@@ -117,7 +99,7 @@
 		  (:generator 2
 		    ,@(ecase (backend-byte-order *target-backend*)
 			(:big-endian
-			 (cond 
+			 (cond
 			  (double-p
 			   `((inst lwc1 y x (- (* (1+ ,value) word-bytes)
 					       other-pointer-type))
@@ -137,7 +119,6 @@
 		(define-move-vop ,name :move (descriptor-reg) (,sc)))))
   (frob move-to-single single-reg nil single-float-value-slot)
   (frob move-to-double double-reg t double-float-value-slot))
-
 
 (macrolet ((frob (name sc stack-sc format double-p)
 	     `(progn
@@ -173,7 +154,7 @@
   (frob move-double-float-argument double-reg double-stack :double t))
 
 
-;;;; Complex float move functions
+;;;; Complex float move functions.
 
 (defun complex-single-reg-real-tn (x)
   (make-random-tn :kind :normal :sc (sc-or-lose 'single-reg *backend*)
@@ -188,7 +169,6 @@
 (defun complex-double-reg-imag-tn (x)
   (make-random-tn :kind :normal :sc (sc-or-lose 'double-reg *backend*)
 		  :offset (+ (tn-offset x) 2)))
-
 
 (define-move-function (load-complex-single 2) (vop x y)
   ((complex-single-stack) (complex-single-reg))
@@ -209,7 +189,6 @@
     (let ((imag-tn (complex-single-reg-imag-tn x)))
       (inst swc1 imag-tn nfp (+ offset vm:word-bytes)))))
 
-
 (define-move-function (load-complex-double 4) (vop x y)
   ((complex-double-stack) (complex-double-reg))
   (let ((nfp (current-nfp-tn vop))
@@ -229,7 +208,6 @@
     (let ((imag-tn (complex-double-reg-imag-tn x)))
       (str-double imag-tn nfp (+ offset (* 2 word-bytes))))))
 
-;;;
 ;;; Complex float register to register moves.
 ;;;
 (define-vop (complex-single-move)
@@ -270,7 +248,6 @@
 (define-move-vop complex-double-move :move
   (complex-double-reg) (complex-double-reg))
 
-;;;
 ;;; Move from a complex float to a descriptor register allocating a
 ;;; new complex float object in the process.
 ;;;
@@ -316,7 +293,6 @@
 (define-move-vop move-from-complex-double :move
   (complex-double-reg) (descriptor-reg))
 
-;;;
 ;;; Move from a descriptor to a complex float register
 ;;;
 (define-vop (move-to-complex-single)
@@ -349,7 +325,6 @@
 (define-move-vop move-to-complex-double :move
   (descriptor-reg) (complex-double-reg))
 
-;;;
 ;;; Complex float move-argument vop
 ;;;
 (define-vop (move-complex-single-float-argument)
@@ -400,13 +375,12 @@
 (define-move-vop move-complex-double-float-argument :move-argument
   (complex-double-reg descriptor-reg) (complex-double-reg))
 
-
 (define-move-vop move-argument :move-argument
   (single-reg double-reg complex-single-reg complex-double-reg)
   (descriptor-reg))
 
 
-;;;; stuff for c-call float-in-int-register arguments
+;;;; Stuff for c-call float-in-int-register arguments.
 
 (define-vop (move-to-single-int-reg)
   (:args (x :scs (single-reg descriptor-reg)))
@@ -467,7 +441,7 @@
   (double-int-carg-reg) (double-int-carg-reg))
 
 
-;;;; Arithmetic VOPs:
+;;;; Arithmetic VOPs.
 
 (define-vop (float-op)
   (:args (x) (y))
@@ -526,7 +500,7 @@
   (frob %negate/double-float fneg %negate :double double-reg double-float))
 
 
-;;;; Comparison:
+;;;; Comparison.
 
 (define-vop (float-compare)
   (:args (x) (y))
@@ -567,7 +541,7 @@
   (frob = :seq nil =/single-float =/double-float))
 
 
-;;;; Conversion:
+;;;; Conversion.
 
 (macrolet ((frob (name translate
 		       from-sc from-type from-format
@@ -604,7 +578,6 @@
     single-reg single-float :single
     double-reg double-float :double))
 
-
 (macrolet ((frob (name from-sc from-type from-format)
 	     `(define-vop (,name)
 		(:args (x :scs (,from-sc)))
@@ -624,7 +597,6 @@
 		  (inst nop)))))
   (frob %unary-round/single-float single-reg single-float :single)
   (frob %unary-round/double-float double-reg double-float :double))
-
 
 ;;; These VOPs have to uninterruptibly frob the rounding mode in order to get
 ;;; the desired round-to-zero behavior.
@@ -664,7 +636,6 @@
 		    (inst ctc1 status-save 31))))))
   (frob %unary-truncate/single-float single-reg single-float :single)
   (frob %unary-truncate/double-float double-reg double-float :double))
-
 
 (define-vop (make-single-float)
   (:args (bits :scs (signed-reg)))
@@ -724,7 +695,7 @@
     (inst nop)))
 
 
-;;;; Float mode hackery:
+;;;; Float mode hackery.
 
 (deftype float-modes () '(unsigned-byte 24))
 (defknown floating-point-modes () float-modes (flushable))
@@ -752,7 +723,7 @@
     (move res new)))
 
 
-;;;; Complex float VOPs
+;;;; Complex float VOPs.
 
 (define-vop (make-complex-single-float)
   (:translate complex)
@@ -805,7 +776,6 @@
 	     (offset (* (tn-offset r) vm:word-bytes)))
 	 (str-double real nfp offset)
 	 (str-double imag nfp (+ offset (* 2 vm:word-bytes))))))))
-
 
 (define-vop (complex-single-float-value)
   (:args (x :scs (complex-single-reg) :target r

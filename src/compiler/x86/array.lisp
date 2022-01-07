@@ -1,28 +1,9 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/array.lisp,v 1.4.2.2 2000/05/23 16:37:51 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the x86 definitions for array operations.
-;;;
-;;; Written by William Lott
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; Enhancements/debugging by Douglas T. Crosher 1996,1997,1998,1999.
-;;;
-(in-package :x86)
+;;; The x86 definitions for array operations.
+
+(in-package "X86")
 
 
 ;;;; Allocator for the array header.
-
 
 (define-vop (make-array-header)
   (:translate make-array-header)
@@ -66,7 +47,6 @@
   array-dimensions-offset other-pointer-type
   (any-reg) positive-fixnum lisp::%set-array-dimension)
 
-
 (defknown lisp::%array-rank (t) index (flushable))
 
 (define-vop (array-rank-vop)
@@ -79,7 +59,6 @@
     (loadw res x 0 other-pointer-type)
     (inst shr res type-bits)
     (inst sub res (1- array-dimensions-offset))))
-
 
 
 ;;;; Bounds checking routine.
@@ -138,7 +117,7 @@
 
 ;;; Integer vectors whos elements are smaller than a byte.  I.e. bit, 2-bit,
 ;;; and 4-bit vectors.
-;;; 
+;;;
 
 (eval-when (compile eval)
 
@@ -179,7 +158,7 @@
 	 (:result-types positive-fixnum)
 	 (:generator 15
 	   (multiple-value-bind (word extra) (floor index ,elements-per-word)
-	     (loadw result object (+ word vector-data-offset) 
+	     (loadw result object (+ word vector-data-offset)
 		    other-pointer-type)
 	     (unless (zerop extra)
 	       (inst shr result (* extra ,bits)))
@@ -270,7 +249,6 @@
 	       (unsigned-reg
 		(move result value)))))))))
 
-
 ); eval-when (compile eval)
 
 (def-small-data-vector-frobs simple-bit-vector 1)
@@ -278,7 +256,6 @@
 (def-small-data-vector-frobs simple-array-unsigned-byte-4 4)
 
 ;;; And the float variants.
-;;; 
 
 (define-vop (data-vector-ref/simple-array-single-float)
   (:note "inline array access")
@@ -448,7 +425,6 @@
 		  (unless (location= value result)
 			  (inst fstd result))
 		  (inst fxch value)))))))
-
 
 (define-vop (data-vector-set-c/simple-array-double-float)
   (:note "inline array store")
@@ -751,7 +727,6 @@
 	(inst fst result-imag))
       (inst fxch value-imag))))
 
-
 (define-vop (data-vector-ref/simple-array-complex-double-float)
   (:note "inline array access")
   (:translate data-vector-ref)
@@ -896,7 +871,6 @@
       (unless (location= value-imag result-imag)
 	(inst fstd result-imag))
       (inst fxch value-imag))))
-
 
 #+long-float
 (define-vop (data-vector-ref/simple-array-complex-long-float)
@@ -1055,11 +1029,6 @@
       (inst fxch value-imag))))
 
 
-;;;;
-;;;; dtc expanded and fixed the following:
-
-
-
 ;;; unsigned-byte-8
 
 (define-vop (data-vector-ref/simple-array-unsigned-byte-8)
@@ -1076,7 +1045,6 @@
 		   :disp (- (* vector-data-offset word-bytes)
 			    other-pointer-type)))))
 
-
 (define-vop (data-vector-ref-c/simple-array-unsigned-byte-8)
   (:translate data-vector-ref)
   (:policy :fast-safe)
@@ -1090,7 +1058,6 @@
 	  (make-ea :byte :base object
 		   :disp (- (+ (* vector-data-offset word-bytes) index)
 			    other-pointer-type)))))
-
 
 (define-vop (data-vector-set/simple-array-unsigned-byte-8)
   (:translate data-vector-set)
@@ -1111,7 +1078,6 @@
 				other-pointer-type))
 	  al-tn)
     (move result eax)))
-
 
 (define-vop (data-vector-set-c/simple-array-unsigned-byte-8)
   (:translate data-vector-set)
@@ -1134,7 +1100,6 @@
 	  al-tn)
     (move result eax)))
 
-
 ;;; unsigned-byte-16
 
 (define-vop (data-vector-ref/simple-array-unsigned-byte-16)
@@ -1151,7 +1116,6 @@
 		   :disp (- (* vector-data-offset word-bytes)
 			    other-pointer-type)))))
 
-
 (define-vop (data-vector-ref-c/simple-array-unsigned-byte-16)
   (:translate data-vector-ref)
   (:policy :fast-safe)
@@ -1165,7 +1129,6 @@
 	  (make-ea :word :base object
 		   :disp (- (+ (* vector-data-offset word-bytes) (* 2 index))
 			    other-pointer-type)))))
-
 
 (define-vop (data-vector-set/simple-array-unsigned-byte-16)
   (:translate data-vector-set)
@@ -1186,7 +1149,6 @@
 				other-pointer-type))
 	  ax-tn)
     (move result eax)))
-
 
 (define-vop (data-vector-set-c/simple-array-unsigned-byte-16)
   (:translate data-vector-set)
@@ -1209,7 +1171,6 @@
 				other-pointer-type))
 	  ax-tn)
     (move result eax)))
-
 
 ;;; simple-string
 
@@ -1253,7 +1214,6 @@
 			    other-pointer-type)))
     (move value al-tn)))
 
-
 (define-vop (data-vector-set/simple-string)
   (:translate data-vector-set)
   (:policy :fast-safe)
@@ -1263,13 +1223,12 @@
   (:arg-types simple-string positive-fixnum base-char)
   (:results (result :scs (base-char-reg)))
   (:result-types base-char)
-  (:generator 5 
+  (:generator 5
     (inst mov (make-ea :byte :base object :index index :scale 1
 		       :disp (- (* vector-data-offset word-bytes)
 				other-pointer-type))
 	  value)
     (move result value)))
-
 
 (define-vop (data-vector-set/simple-string-c)
   (:translate data-vector-set)
@@ -1286,7 +1245,6 @@
 			       other-pointer-type))
 	 value)
    (move result value)))
-
 
 ;;; signed-byte-8
 
@@ -1432,7 +1390,6 @@
 	  ax-tn)
     (move result eax)))
 
-
 
 ;;; These VOPs are used for implementing float slots in structures (whose raw
 ;;; data is an unsigned-32 vector.
@@ -1551,10 +1508,9 @@
   (:arg-types simple-array-unsigned-byte-32 (:constant (signed-byte 30))
 	      complex-long-float))
 
-
 ;;; These vops are useful for accessing the bits of a vector irrespective of
 ;;; what type of vector it is.
-;;; 
+;;;
 (define-full-reffer raw-bits * 0 other-pointer-type (unsigned-reg)
   unsigned-num %raw-bits)
 (define-full-setter set-raw-bits * 0 other-pointer-type (unsigned-reg)
@@ -1577,4 +1533,3 @@
 
 (define-vop (get-vector-subtype get-header-data))
 (define-vop (set-vector-subtype set-header-data))
-

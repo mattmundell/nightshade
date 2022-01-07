@@ -20,6 +20,65 @@
 
 (in-package "LISP")
 
+
+#[ Packages
+
+The user package is made current on startup.  The user package uses the
+lisp and extensions packages.  The symbols exported from these three
+packages can be referenced alone, while symbols from other package need
+package qualifiers.  This section describes packages which have exported
+interfaces relevant for user programming.  There are numerous internal
+packages in addition to these.  Package nicknames are in parenthesis after
+the full name.
+
+{package:alien}
+{package:c-call}
+{package:debug}
+{package:debug-internals}
+{package:extensions}
+{package:ed}
+{package:edi}
+
+The keyword package contains keywords (e.g., :start).  All symbols in the
+keyword package are exported and evaluate to themselves (i.e., the value of
+the symbol is the symbol itself).
+
+{package:keyword}
+
+{package:loop}
+{package:profile}
+{package:unix}
+{package:system}
+{package:user}
+{package:wire}
+]#
+
+#[ Package Structure
+
+Goals: with the single exception of LISP, symbols are exported from the
+package in which the code is defined.
+
+This is a list of the main packages relevant to the compiler.  The editor
+command Packdired invokes the package browser, which lists and describes
+all packages.
+
+{package:system}
+{package:kernel}
+{package:lisp}
+{package:extensions}
+{package:VM}
+
+FIX package:compiler
+hides the algorithms used to map Lisp semantics onto the
+operations supplied by the VM.  Exports the mechanisms used for defining the
+VM.  All the VM-independent code in the compiler, partially hiding the compiler
+intermediate representations.  Uses KERNEL.
+
+{package:eval}
+{package:debug-internals}
+{package:debug}
+]#
+
 (defvar *default-package-use-list* '("COMMON-LISP")
   "The list of packages to use by default of no :USE argument is supplied
    to MAKE-PACKAGE or other package creation forms.")
@@ -98,8 +157,7 @@
 ;;;
 (defvar *package-names* (make-hash-table :test #'equal))
 
-;;; Lots of people want the keyword package and Lisp package without a lot
-;;; of fuss, so we give them their own variables.
+;;; Easy access to the Lisp and keyword packages.
 ;;;
 (defvar *lisp-package*)
 (defvar *keyword-package*)
@@ -113,7 +171,6 @@
 
 ;;; Find-Package  --  Public
 ;;;
-;;;
 (defun find-package (name)
   "Find the package having the specified name."
   (if (packagep name)
@@ -122,8 +179,8 @@
 
 ;;; Package-Listify  --  Internal
 ;;;
-;;;    Return a list of packages given a package-or-string-or-symbol or
-;;; list thereof, or die trying.
+;;; Return a list of packages given a package-or-string-or-symbol or list
+;;; thereof, or die trying.
 ;;;
 (defun package-listify (thing)
   (let ((res ()))
@@ -132,19 +189,19 @@
 
 ;;; PACKAGE-NAMIFY  --  Internal
 ;;;
-;;;    Make a package name into a simple-string.
+;;; Make a package name into a simple-string.
 ;;;
 (defun package-namify (n)
   (stringify-name n "package"))
 
 ;;; Package-Or-Lose  --  Internal
 ;;;
-;;;    Take a package-or-string-or-symbol and return a package.
+;;; Take a package-or-string-or-symbol and return a package.
 ;;;
 (defun package-or-lose (thing)
   (cond ((packagep thing)
-	 (unless (package-%name thing)
-	   (error "Can't do anything to a deleted package: ~S" thing))
+	 (or (package-%name thing)
+	     (error "Can't do anything to a deleted package: ~S" thing))
 	 thing)
 	(t
 	 (let ((thing (package-namify thing)))
@@ -163,20 +220,22 @@
 
 ;;;; Package-Hashtables
 ;;;
-;;;    Packages are implemented using a special kind of hashtable.  It is
-;;; an open hashtable with a parallel 8-bit I-vector of hash-codes.  The
+;;; Packages are implemented using a special kind of hashtable.  It is an
+;;; open hashtable with a parallel 8-bit I-vector of hash-codes.  The
 ;;; primary purpose of the hash for each entry is to reduce paging by
 ;;; allowing collisions and misses to be detected without paging in the
-;;; symbol and pname for an entry.  If the hash for an entry doesn't
-;;; match that for the symbol that we are looking for, then we can
-;;; go on without touching the symbol, pname, or even hastable vector.
-;;;    It turns out that, contrary to my expectations, paging is a very
+;;; symbol and pname for an entry.  If the hash for an entry doesn't match
+;;; that for the symbol that we are looking for, then we can go on without
+;;; touching the symbol, pname, or even hastable vector.
+;;;
+;;; It turns out that, contrary to my expectations, paging is a very
 ;;; important consideration the design of the package representation.
 ;;; Using a similar scheme without the entry hash, the fasloader was
 ;;; spending more than half its time paging in INTERN.
-;;;    The hash code also indicates the status of an entry.  If it zero,
-;;; the entry is unused.  If it is one, then it is deleted.
-;;; Double-hashing is used for collision resolution.
+;;;
+;;; The hash code also indicates the status of an entry.  If it zero, the
+;;; entry is unused.  If it is one, then it is deleted.  Double-hashing is
+;;; used for collision resolution.
 
 (deftype hash-vector () '(simple-array (unsigned-byte 8) (*)))
 
@@ -201,20 +260,20 @@
   ;; The maximum number of entries allowed.
   (size 0 :type index)
   ;;
-  ;; The entries that can be made before we have to rehash.
+  ;; The entries that can be made before a rehash is required.
   (free 0 :type index)
   ;;
   ;; The number of deleted entries.
   (deleted 0 :type index))
 
-;;; The maximum density we allow in a package hashtable.
+;;; The maximum density of a package hashtable.
 ;;;
 (defparameter package-rehash-threshold 3/4)
 
 ;;; Entry-Hash  --  Internal
 ;;;
-;;;    Compute a number from the sxhash of the pname and the length which
-;;; must be between 2 and 255.
+;;; Compute a number from the sxhash of the pname and the length which must
+;;; be between 2 and 255.
 ;;;
 (defmacro entry-hash (length sxhash)
   `(the fixnum
@@ -230,11 +289,10 @@
 
 ;;; Make-Package-Hashtable  --  Internal
 ;;;
-;;;    Make a package hashtable having a prime number of entries at least
-;;; as great as (/ size package-rehash-threshold).  If Res is supplied,
-;;; then it is destructively modified to produce the result.  This is
-;;; useful when changing the size, since there are many pointers to
-;;; the hashtable.
+;;; Make a package hashtable having a prime number of entries at least as
+;;; great as (/ size package-rehash-threshold).  If Res is supplied, then
+;;; it is destructively modified to produce the result.  This is useful
+;;; when changing the size, since there are many pointers to the hashtable.
 ;;;
 (defun make-package-hashtable (size &optional
 				    (res (internal-make-package-hashtable)))
@@ -255,7 +313,7 @@
 
 ;;; Internal-Symbol-Count, External-Symbols-Count  --  Internal
 ;;;
-;;;    Return internal and external symbols.  Used by Genesis and stuff.
+;;; Return internal and external symbols.  Used by Genesis and stuff.
 ;;;
 (flet ((stuff (table)
 	 (let ((size (the fixnum
@@ -277,8 +335,8 @@
 
 ;;; Add-Symbol  --  Internal
 ;;;
-;;;    Add a symbol to a package hashtable.  The symbol is assumed
-;;; not to be present.
+;;; Add a symbol to a package hashtable.  The symbol is assumed not to be
+;;; present.
 ;;;
 (defun add-symbol (table symbol)
   (let* ((vec (package-hashtable-table table))
@@ -316,10 +374,10 @@
 
 ;;; With-Symbol  --  Internal
 ;;;
-;;;    Find where the symbol named String is stored in Table.  Index-Var
-;;; is bound to the index, or NIL if it is not present.  Symbol-Var
-;;; is bound to the symbol.  Length and Hash are the length and sxhash
-;;; of String.  Entry-Hash is the entry-hash of the string and length.
+;;; Find where the symbol named String is stored in Table.  Index-Var is
+;;; bound to the index, or NIL if it is not present.  Symbol-Var is bound
+;;; to the symbol.  Length and Hash are the length and sxhash of String.
+;;; Entry-Hash is the entry-hash of the string and length.
 ;;;
 (defmacro with-symbol ((index-var symbol-var table string length sxhash
 				  entry-hash)
@@ -361,7 +419,7 @@
 
 ;;; Nuke-Symbol  --  Internal
 ;;;
-;;;    Delete the entry for String in Table.  The entry must exist.
+;;; Delete the entry for String in Table.  The entry must exist.
 ;;;
 (defun nuke-symbol (table string)
   (declare (simple-string string))
@@ -627,29 +685,55 @@
 
 ;;;; DEFPACKAGE.
 
+(defstruct (pkg-info)
+  "Meta-information for a particular package."
+  name
+  version
+  nicknames
+  size
+  shadows
+  shadowing-imports
+  use
+  imports
+  interns
+  exports
+  requires
+  doc)
+
+(defvar *define-packages* t
+  "If true then `defpackage' define the package, otherwise it just returns
+   a pkg-info structure for the package.")
+
 (defmacro defpackage (package &rest options)
-  "Defines a new package called PACKAGE.  Each of OPTIONS should be one of the
-   following:
+  "Define a new package called $package.  Each of $options should be one of
+   the following:
+
      (:NICKNAMES {package-name}*)
      (:SIZE <integer>)
      (:SHADOW {symbol-name}*)
      (:SHADOWING-IMPORT-FROM <package-name> {symbol-name}*)
      (:USE {package-name}*)
+     (:REQUIRE {package-name}*)
      (:IMPORT-FROM <package-name> {symbol-name}*)
      (:INTERN {symbol-name}*)
      (:EXPORT {symbol-name}*)
      (:DOCUMENTATION doc-string)
-   All options except :SIZE and :DOCUMENTATION can be used multiple times."
+     (:VERSION version-number)
+
+   Accept the :SIZE, :VERSION and :DOCUMENTATION options only once each.
+   Accept any number of occurences of the other options."
   (let ((nicknames nil)
 	(size nil)
 	(shadows nil)
 	(shadowing-imports nil)
 	(use nil)
 	(use-p nil)
+	requires
 	(imports nil)
 	(interns nil)
 	(exports nil)
-	(doc nil))
+	(doc nil)
+	(version nil))
     (dolist (option options)
       (or (consp option)
 	  (error 'program-error
@@ -686,6 +770,9 @@
 	 (let ((new (stringify-names (cdr option) "package")))
 	   (setf use (delete-duplicates (nconc use new) :test #'string=))
 	   (setf use-p t)))
+	(:requires
+	 (let ((new (stringify-names (cdr option) "package")))
+	   (setf requires (delete-duplicates (nconc requires new) :test #'string=))))
 	(:import-from
 	 (let ((package-name (stringify-name (second option) "package"))
 	       (names (stringify-names (cddr option) "symbol")))
@@ -700,14 +787,26 @@
 	(:export
 	 (let ((new (stringify-names (cdr option) "symbol")))
 	   (setf exports (append exports new))))
+	(:version
+	 (cond (size
+		(error 'program-error
+		       :format-control "$version can only occur once."))
+	       ((and (consp (cdr option))
+		     (typep (second option) 'unsigned-byte))
+		(setf version (second option)))
+	       (t
+		(error
+		 'program-error
+		 :format-control "Bogus $version, must be a positive integer: ~S"
+		 :format-arguments (list (second option))))))
 	(:documentation
 	 (when doc
 	   (error 'program-error
-		  :format-control "Can't specify :DOCUMENTATION twice."))
+		  :format-control "$documentation can only occur once."))
 	 (setf doc (coerce (second option) 'simple-string)))
 	(t
 	 (error 'program-error
-		:format-control "Bogus DEFPACKAGE option: ~S"
+		:format-control "Bogus `defpackage' option: ~S"
 		:format-arguments (list option)))))
     (check-disjoint `(:intern ,@interns) `(:export  ,@exports))
     (check-disjoint `(:intern ,@interns)
@@ -717,9 +816,22 @@
 		    `(:shadowing-import-from
 		      ,@(apply #'append (mapcar #'rest shadowing-imports))))
     `(eval-when (compile load eval)
-       (%defpackage ,(stringify-name package "package") ',nicknames ',size
-		    ',shadows ',shadowing-imports ',(if use-p use :default)
-		    ',imports ',interns ',exports ',doc))))
+       (if *define-packages*
+	   (%defpackage ,(stringify-name package "package") ',nicknames ',size
+			',shadows ',shadowing-imports ',(if use-p use :default)
+			',imports ',interns ',exports ',doc)
+	   (make-pkg-info :name ,(stringify-name package "package")
+			  :version ',version
+			  :nicknames ',nicknames
+			  :size ',size
+			  :shadows ',shadows
+			  :shadowing-imports ',shadowing-imports
+			  :use ',(if use-p use :default)
+			  :requires ',requires
+			  :imports ',imports
+			  :interns ',interns
+			  :exports ',exports
+			  :doc ',doc)))))
 
 (defun check-disjoint (&rest args)
   ;; An arg is (:key . set)
@@ -763,11 +875,11 @@
 				     :use nil
 				     :internal-symbols (or size 10)
 				     :external-symbols (length exports))))))
-    (unless (string= (the string (package-name package)) name)
-      (error 'simple-package-error
-	     :package name
-	     :format-control "~A is a nick-name for the package ~A"
-	     :format-arguments (list name (package-name name))))
+    (or (string= (the string (package-name package)) name)
+	(error 'simple-package-error
+	       :package name
+	       :format-control "~A is a nick-name for the package ~A"
+	       :format-arguments (list name (package-name name))))
     (enter-new-nicknames package nicknames)
     ;; Shadows and Shadowing-imports.
     (let ((old-shadows (package-%shadowing-symbols package)))
@@ -834,9 +946,8 @@
 
 ;;; Enter-New-Nicknames  --  Internal
 ;;;
-;;;    Enter any new Nicknames for Package into *package-names*.
-;;; If there is a conflict then give the user a chance to do
-;;; something about it.
+;;; Enter any new Nicknames for Package into *package-names*.  If there is
+;;; a conflict then give the user a chance to do something about it.
 ;;;
 (defun enter-new-nicknames (package nicknames)
   (check-type nicknames list)
@@ -865,12 +976,15 @@
 
 ;;; Make-Package  --  Public
 ;;;
-;;;    Check for package name conflicts in name and nicknames, then
-;;; make the package.  Do a use-package for each thing in the use list
-;;; so that checking for conflicting exports among used packages is done.
+;;; Check for package name conflicts in name and nicknames, then make the
+;;; package.  Do a use-package for each thing in the use list so that
+;;; checking for conflicting exports among used packages is done.
 ;;;
-(defun make-package (name &key (use *default-package-use-list*) nicknames
-			  (internal-symbols 10) (external-symbols 10))
+(defun make-package (name &key
+			  (use *default-package-use-list*)
+			  nicknames
+			  (internal-symbols 10)
+			  (external-symbols 10))
   "Makes a new package having the specified Name and Nicknames.  The
    package will inherit all external symbols from each package in the use
    list.  :Internal-Symbols and :External-Symbols are estimates for the
@@ -892,7 +1006,7 @@
 
 ;;; Old-In-Package  --  Sorta Public.
 ;;;
-;;;    Like Make-Package, only different.  Should go away someday.
+;;; Like Make-Package, only different.  Should go away someday.
 ;;;
 (defun old-in-package (name &rest keys &key nicknames use)
   "Sets *package* to package with given name, creating the package if
@@ -936,8 +1050,8 @@
 
 ;;; Rename-Package  --  Public
 ;;;
-;;;    Change the name if we can, blast any old nicknames and then
-;;; add in any new ones.
+;;; Change the name if we can, blast any old nicknames and then add in any
+;;; new ones.
 ;;;
 (defun rename-package (package name &optional (nicknames ()))
   "Changes the name and nicknames for a package."
@@ -996,7 +1110,6 @@
 
 ;;; List-All-Packages  --  Public
 ;;;
-;;;
 (defun list-all-packages ()
   "Returns a list of all existing packages."
   (let ((res ()))
@@ -1005,27 +1118,30 @@
 		 (pushnew v res))
 	     *package-names*)
     res))
+
 
 ;;; Intern  --  Public
 ;;;
-;;;    Simple-stringify the name and call intern*.
+;;; Simple-stringify the name and call intern*.
 ;;;
 (defun intern (name &optional package)
   "Returns a symbol having the specified name, creating it if necessary."
-  (let ((name (if (simple-string-p name) name (coerce name 'simple-string))))
+  (let ((name (if (simple-string-p name)
+		  name
+		  (coerce name 'simple-string))))
     (declare (simple-string name))
     (intern* name (length name)
 	     (if package (package-or-lose package) *package*))))
 
 ;;; Find-Symbol  --  Public
 ;;;
-;;;    Ditto.
+;;; Simple-stringify the name and call find-symbol*.
 ;;;
 (defun find-symbol (name &optional package)
   "Returns the symbol named String in Package.  If such a symbol is found
-  then the second value is :internal, :external or :inherited to indicate
-  how the symbol is accessible.  If no symbol is found then both values
-  are NIL."
+   then the second value is :internal, :external or :inherited to indicate
+   how the symbol is accessible.  If no symbol is found then both values
+   are ()."
   (let ((name (if (simple-string-p name) name (coerce name 'simple-string))))
     (declare (simple-string name))
     (find-symbol* name (length name)
@@ -1033,8 +1149,8 @@
 
 ;;; Intern*  --  Internal
 ;;;
-;;;    If the symbol doesn't exist then create it, special-casing
-;;; the keyword package.
+;;; If the symbol doesn't exist then create it, special-casing the keyword
+;;; package.
 ;;;
 (defun intern* (name length package)
   (declare (simple-string name))
@@ -1052,9 +1168,9 @@
 
 ;;; Find-Symbol*  --  Internal
 ;;;
-;;;    Check internal and external symbols, then scan down the list
-;;; of hashtables for inherited symbols.  When an inherited symbol
-;;; is found pull that table to the beginning of the list.
+;;; Check internal and external symbols, then scan down the list of
+;;; hashtables for inherited symbols.  When an inherited symbol is found
+;;; pull that table to the beginning of the list.
 ;;;
 (defun find-symbol* (string length package)
   (declare (simple-string string)
@@ -1082,9 +1198,9 @@
 
 ;;; Find-External-Symbol  --  Internal
 ;;;
-;;;    Similar to Find-Symbol, but only looks for an external symbol.
-;;; This is used for fast name-conflict checking in this file and symbol
-;;; printing in the printer.
+;;; Similar to Find-Symbol, but only looks for an external symbol.  This is
+;;; used for fast name-conflict checking in this file and symbol printing
+;;; in the printer.
 ;;;
 (defun find-external-symbol (string package)
   (declare (simple-string string))
@@ -1095,16 +1211,17 @@
     (with-symbol (found symbol (package-external-symbols package)
 			string length hash ehash)
       (values symbol found))))
+
 
 ;;; Unintern  --  Public
 ;;;
-;;;    If we are uninterning a shadowing symbol, then a name conflict can
+;;; If we are uninterning a shadowing symbol, then a name conflict can
 ;;; result, otherwise just nuke the symbol.
 ;;;
 (defun unintern (symbol &optional (package *package*))
-  "Makes Symbol no longer present in Package.  If Symbol was present
-  then T is returned, otherwise NIL.  If Package is Symbol's home
-  package, then it is made uninterned."
+  "Make $symbol no longer present in $package.  If Symbol was present then
+   #t is returned, otherwise ().  If $package is $symbol's home package,
+   then it is made uninterned."
   (let* ((package (package-or-lose package))
 	 (name (symbol-name symbol))
 	 (shadowing-symbols (package-%shadowing-symbols package)))
@@ -1150,7 +1267,7 @@
 
 ;;; Symbol-Listify  --  Internal
 ;;;
-;;;    Take a symbol-or-list-of-symbols and return a list, checking types.
+;;; Take a symbol-or-list-of-symbols and return a list, checking types.
 ;;;
 (defun symbol-listify (thing)
   (cond ((listp thing)
@@ -1163,10 +1280,10 @@
 
 ;;; Moby-Unintern  --  Internal
 ;;;
-;;;    Like Unintern, but if symbol is inherited chases down the
-;;; package it is inherited from and uninterns it there.  Used
-;;; for name-conflict resolution.  Shadowing symbols are not
-;;; uninterned since they do not cause conflicts.
+;;; Like Unintern, but if symbol is inherited chases down the package it is
+;;; inherited from and uninterns it there.  Used for name-conflict
+;;; resolution.  Shadowing symbols are not uninterned since they do not
+;;; cause conflicts.
 ;;;
 (defun moby-unintern (symbol package)
   (unless (member symbol (package-%shadowing-symbols package))
@@ -1185,7 +1302,7 @@
 ;;; Export  --  Public
 ;;;
 (defun export (symbols &optional (package *package*))
-  "Exports Symbols from Package, checking that no name conflicts result."
+  "Export the list of $symbols from $package, checking for name conflicts."
   (let ((package (package-or-lose package))
 	(syms ()))
     ;;
@@ -1255,10 +1372,11 @@
 	(nuke-symbol internal (symbol-name sym))
 	(add-symbol external sym)))
     t))
+
 
 ;;; Unexport  --  Public
 ;;;
-;;;    Check that all symbols are accessible, then move from external to
+;;; Check that all symbols are accessible, then move from external to
 ;;; internal.
 ;;;
 (defun unexport (symbols &optional (package *package*))
@@ -1280,10 +1398,11 @@
 	(add-symbol internal sym)
 	(nuke-symbol external (symbol-name sym))))
     t))
+
 
 ;;; Import  --  Public
 ;;;
-;;;    FIX Check for name conflic caused by the import and let the user
+;;; FIX Check for name conflic caused by the import and let the user
 ;;; shadowing-import if there is.
 ;;;
 (defun import (symbols &optional (package *package*))
@@ -1323,11 +1442,12 @@
     (dolist (sym symbols)
       (unless (symbol-package sym) (%set-symbol-package sym package)))
     (shadowing-import cset package)))
+
 
 ;;; Shadowing-Import  --  Public
 ;;;
-;;;    If a conflicting symbol is present, unintern it, otherwise just
-;;; stick the symbol in.
+;;; If a conflicting symbol is present, unintern it, otherwise just stick
+;;; the symbol in.
 ;;;
 (defun shadowing-import (symbols &optional (package *package*))
   "Import Symbols into package, disregarding any name conflict.  If a
@@ -1350,7 +1470,6 @@
 
 ;;; Shadow  --  Public
 ;;;
-;;;
 (defun shadow (symbols &optional (package *package*))
   "Make an internal symbol in Package with the same name as each of the
    specified symbols, adding the new symbols to the
@@ -1372,7 +1491,7 @@
 
 ;;; Use-Package  --  Public
 ;;;
-;;;    Do stuff to use a package, with all kinds of fun name-conflict
+;;; Do stuff to use a package, with all kinds of fun name-conflict
 ;;; checking.
 ;;;
 (defun use-package (packages-to-use &optional (package *package*))
@@ -1544,10 +1663,10 @@
 
 ;;; Initialization.
 
-;;; The cold loader (Genesis) makes the data structure in *initial-symbols*.
-;;; We grovel over it, making the specified packages and interning the
-;;; symbols.  For a description of the format of *initial-symbols* see
-;;; the Genesis source.
+;;; The cold loader (Genesis) makes the data structure in
+;;; *initial-symbols*.  We grovel over it, making the specified packages
+;;; and interning the symbols.  For a description of the format of
+;;; *initial-symbols* see the Genesis source.
 
 (defvar *initial-symbols*)
 
@@ -1580,7 +1699,11 @@
     (makunbound '*initial-symbols*) ; So it gets GC'ed.
 
     ;; Make some other packages that should be around in the cold load.
-    (make-package "COMMON-LISP-USER" :nicknames '("CL-USER" "USER"))
+    (setf (package-doc-string
+	   (make-package "USER"
+			 :nicknames '("CL-USER" "COMMON-LISP-USER")))
+	  "The initial package, where a user code and data is placed.  This
+	   package is initially empty.")
 
     ;; Now do the *deferred-use-packages*.
     (dolist (args *deferred-use-packages*)
@@ -1591,5 +1714,5 @@
     (setq *keyword-package* (find-package "KEYWORD"))
 
     ;; For the kernel core image wizards, set the package to
-    ;; *Lisp-Package*.
+    ;; *lisp-package*.
     (setq *package* *lisp-package*)))

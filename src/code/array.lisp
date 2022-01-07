@@ -13,8 +13,16 @@
 
 (in-package "KERNEL")
 (export '(%with-array-data))
+
 (in-package "LISP")
 
+
+#[ Array Initialization
+
+If no \code{:initial-value} is specified, arrays are initialized to zero.
+]#
+
+
 (declaim (inline fill-pointer array-has-fill-pointer-p adjustable-array-p
 		 array-displacement))
 
@@ -282,12 +290,13 @@
 			    (frob (1+ axis) (cdr dims) (aref contents i))))))))
       (frob 0 dimensions initial-contents))))
 
+;; FIX
 ;;; Some people out there are still calling MAKE-VECTOR.
 ;;;
 (setf (symbol-function 'make-vector) #'make-array)
 
 (defun vector (&rest objects)
-  "Constructs a simple-vector from the given objects."
+  "Construct a simple-vector from $objects."
   (coerce (the list objects) 'simple-vector))
 
 
@@ -362,9 +371,9 @@
   (declare (array array)
 	   (list subscripts))
   (let ((rank (array-rank array)))
-    (unless (= rank (length subscripts))
-      (error "Wrong number of subscripts, ~D, for array of rank ~D"
-	     (length subscripts) rank))
+    (or (= rank (length subscripts))
+	(error "Wrong number of subscripts, ~D, for array of rank ~D"
+	       (length subscripts) rank))
     (if (array-header-p array)
 	(do ((subs (nreverse subscripts) (cdr subs))
 	     (axis (1- (array-rank array)) (1- axis))
@@ -375,22 +384,22 @@
 	  (let ((index (car subs))
 		(dim (%array-dimension array axis)))
 	    (declare (fixnum index dim))
-	    (unless (< -1 index dim)
-	      (if invalid-index-error-p
-		  (error "Invalid index ~D~[~;~:; on axis ~:*~D~] in ~S"
-			 index axis array)
-		  (return-from %array-row-major-index nil)))
+	    (or (< -1 index dim)
+		(if invalid-index-error-p
+		    (error "Invalid index ~D~[~;~:; on axis ~:*~D~] in ~S"
+			   index axis array)
+		    (return-from %array-row-major-index nil)))
 	    (incf result (* chunk-size index))
 	    (setf chunk-size (* chunk-size dim))))
 	(let ((index (first subscripts)))
-	  (unless (< -1 index (length (the (simple-array * (*)) array)))
-	    (if invalid-index-error-p
-		(error "Invalid index ~D in ~S" index array)
-		(return-from %array-row-major-index nil)))
+	  (or (< -1 index (length (the (simple-array * (*)) array)))
+	      (if invalid-index-error-p
+		  (error "Invalid index ~D in ~S" index array)
+		  (return-from %array-row-major-index nil)))
 	  index))))
 
 (defun array-in-bounds-p (array &rest subscripts)
-  "Returns T if the Subscipts are in bounds for the Array, Nil otherwise."
+  "Return t if $subscipts are in bounds for $array, else ()."
   (if (%array-row-major-index array subscripts nil)
       t))
 
@@ -398,7 +407,7 @@
   (%array-row-major-index array subscripts))
 
 (defun aref (array &rest subscripts)
-  "Returns the element of the Array specified by the Subscripts."
+  "Return the element of the $array specified by the $subscripts."
   (row-major-aref array (%array-row-major-index array subscripts)))
 
 (defun %aset (array &rest stuff)
@@ -414,8 +423,9 @@
 	new-value))
 
 (defun row-major-aref (array index)
-  "Returns the element of array corressponding to the row-major index.
-   This is SETF'able."
+  "Return the element of $array corressponding to the row-major $index.
+
+   This is `setf'able."
   (declare (optimize (safety 1)))
   (row-major-aref array index))
 
@@ -424,7 +434,7 @@
   (setf (row-major-aref array index) new-value))
 
 (defun svref (simple-vector index)
-  "Returns the Index'th element of the given Simple-Vector."
+  "Return the $index'th element of $simple-vector."
   (declare (optimize (safety 1)))
   (aref simple-vector index))
 
@@ -567,8 +577,8 @@
       (values nil 0)))
 
 (defun adjustable-array-p (array)
-  "Returns T if (adjust-array array...) would return an array identical
-   to the argument, this happens for complex arrays."
+  "Returns T if (adjust-array array...) would return an array identical to
+   the argument, this happens for complex arrays."
   (declare (array array))
   (not (typep array 'simple-array)))
 
@@ -656,7 +666,7 @@
 			   (initial-element nil initial-element-p)
 			   initial-contents fill-pointer
 			   displaced-to displaced-index-offset)
-  "Adjusts the Array's dimensions to the given Dimensions and stuff."
+  "Adjusts the Array's dimensions to the given Dimensions and stuff." ; FIX
   (let ((dimensions (if (listp dimensions) dimensions (list dimensions))))
     (cond ((/= (the fixnum (length (the list dimensions)))
 	       (the fixnum (array-rank array)))
@@ -672,7 +682,7 @@
 	     ;; Array former contents replaced by initial-contents.
 	     (if (or initial-element-p displaced-to)
 		 (error "Initial contents may not be specified with ~
-		 the :initial-element or :displaced-to option."))
+			 the :initial-element or :displaced-to option."))
 	     (let* ((array-size (apply #'* dimensions))
 		    (array-data (data-vector-from-inits
 				 dimensions array-size element-type
@@ -680,9 +690,9 @@
 				 initial-element-p)))
 	       (if (adjustable-array-p array)
 		   (set-array-header array array-data array-size
-				 (get-new-fill-pointer array array-size
-						       fill-pointer)
-				 0 dimensions nil)
+				     (get-new-fill-pointer array array-size
+							   fill-pointer)
+				     0 dimensions nil)
 		   (if (array-header-p array)
 		       ;; Simple multidimensional or single dimensional array.
 		       (make-array dimensions
@@ -773,9 +783,9 @@
 		    old-array new-array-size (fill-pointer old-array)))
 	   (%array-fill-pointer old-array)))
 	((not (array-has-fill-pointer-p old-array))
-	 (error "Cannot supply a non-NIL value (~S) for :fill-pointer ~
-		 in adjust-array unless the array (~S) was originally ~
-		 created with a fill pointer."
+	 (error "Can only supply a true value (~S) for :fill-pointer in ~
+		 adjust-array if the array (~S) was originally created ~
+		 with a fill pointer."
 		fill-pointer
 		old-array))
 	((numberp fill-pointer)

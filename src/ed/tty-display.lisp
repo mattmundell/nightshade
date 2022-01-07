@@ -5,6 +5,22 @@
 (export '(redisplay redisplay-all define-tty-font))
 
 
+#[ Terminal Redisplay
+
+Redisplay is substantially different on a terminal.  The editor uses
+different algorithms, and different parameters control redisplay and screen
+management.
+
+Terminal redisplay uses the Unix termcap database to find out how to use a
+terminal.  the editor is useful with terminals that lack capabilities for
+inserting and deleting lines and characters, and some terminal emulators
+implement these operations very inefficiently (such as xterm).  If you
+realize poor performance when scrolling, create a termcap entry that
+excludes these capabilities.
+
+{evariable:Scroll Redraw Ratio}
+]#
+
 
 ;;;; Macros.
 
@@ -12,7 +28,6 @@
 (defmacro tty-hunk-modeline-pos (hunk)
   `(tty-hunk-text-height ,hunk))
 ) ;eval-when
-
 
 (defvar *currently-selected-hunk* nil)
 (defvar *hunk-top-line*)
@@ -32,7 +47,6 @@
 				 (tty-hunk-text-height ,hunk)))))))))
 ) ;eval-when
 
-
 ;;; Screen image lines.
 ;;;
 (defstruct (si-line (:print-function print-screen-image-line)
@@ -49,7 +63,6 @@
   (write-string "#<Screen Image Line \"" str)
   (write-string (si-line-chars obj) str :end (si-line-length obj))
   (write-string "\">" str))
-
 
 (defun find-identical-prefix (dis-line dis-line-fonts si-line)
   (declare (type dis-line dis-line)
@@ -84,93 +97,29 @@
 	    (si-font (caar si-fonts))
 	    (si-start (cadar si-fonts))
 	    (si-stop (cddar si-fonts)))
-	(unless (and (= dl-font si-font)
-		     (= dl-start si-start))
-	  (let ((font-lossage (min dl-start si-start)))
-	    (return (or (string/= dl-chars si-chars
-				  :start1 okay-until :start2 okay-until
-				  :end1 font-lossage :end2 font-lossage)
-			font-lossage))))
-	(unless (= dl-stop si-stop)
-	  (let ((font-lossage (min dl-stop si-stop)))
-	    (return (or (string/= dl-chars si-chars
-				  :start1 okay-until :start2 okay-until
-				  :end1 font-lossage :end2 font-lossage)
-			font-lossage))))
+	;; (ca*r dl/si-font) may be () if font mark is for some other
+	;; attribute.
+	(or (and (eq (car si-font) (car dl-font)) ; Font.
+		 (eq (cadr si-font) (cadr dl-font)) ; Foreground.
+		 (eq (caddr si-font) (caddr dl-font)) ; Background.
+		 (= dl-start si-start))
+	    (let ((font-lossage (min dl-start si-start)))
+	      (return (or (string/= dl-chars si-chars
+				    :start1 okay-until :start2 okay-until
+				    :end1 font-lossage :end2 font-lossage)
+			  font-lossage))))
+	(or (= dl-stop si-stop)
+	    (let ((font-lossage (min dl-stop si-stop)))
+	      (return (or (string/= dl-chars si-chars
+				    :start1 okay-until :start2 okay-until
+				    :end1 font-lossage :end2 font-lossage)
+			  font-lossage))))
 	(let ((mismatch (string/= dl-chars si-chars
 				  :start1 okay-until :start2 okay-until
 				  :end1 dl-stop :end2 si-stop)))
 	  (if mismatch
 	      (return mismatch)
 	      (setf okay-until dl-stop)))))))
-
-#|
-(defun find-identical-prefix2 (dis-line dis-line-fonts si-line)
-  (declare (type dis-line dis-line)
-	   (type list dis-line-fonts)
-	   (type si-line si-line))
-  (trc "f-i-p~%")
-  (let* ((dl-chars (dis-line-chars dis-line))
-	 (dl-len (dis-line-length dis-line))
-	 (si-chars (si-line-chars si-line))
-	 (si-len (si-line-length si-line))
-	 (okay-until 0))
-    (declare (type simple-string dl-chars si-chars)
-	     (type (and unsigned-byte fixnum) dl-len si-len)
-	     (type (and unsigned-byte fixnum) okay-until))
-    (trc "pre-do~%")
-    (trc "d-l-fonts ~A~%" dis-line-fonts)
-    (trc "si-l-fonts ~A~%" (si-line-fonts si-line))
-    (do ((dl-fonts dis-line-fonts (cdr dl-fonts))
-	 (si-fonts (si-line-fonts si-line) (cdr si-fonts)))
-	((or (null dl-fonts) (null si-fonts))
-	 (trc "do exit~%")
-	 (let ((next-font (car (or dl-fonts si-fonts))))
-	   (trc "okay-until ~A~%" okay-until)
-	   (trc "next-font ~A~%" next-font)
-	   (trc "dl-fonts ~A~%" dl-fonts)
-	   (trc "si-fonts ~A~%" si-fonts)
-	   (if next-font
-	       (let ((end (min dl-len si-len (cadr next-font))))
-		 (trc "end ~A~%" end)
-		 (or (string/= dl-chars si-chars
-			       :start1 okay-until :start2 okay-until
-			       :end1 end :end2 end)
-		     end))
-	       (let ((end (min dl-len si-len)))
-		 (or (string/= dl-chars si-chars
-			       :start1 okay-until :start2 okay-until
-			       :end1 end :end2 end)
-		     (if (= dl-len si-len) nil end))))))
-      (let ((dl-font (caar dl-fonts))
-	    (dl-start (cadar dl-fonts))
-	    (dl-stop (cddar dl-fonts))
-	    (si-font (caar si-fonts))
-	    (si-start (cadar si-fonts))
-	    (si-stop (cddar si-fonts)))
-	(unless (and (= dl-font si-font)
-		     (= dl-start si-start))
-	  (let ((font-lossage (min dl-start si-start)))
-	    (trc "1 f-l: ~A~%" font-lossage)
-	    (return (or (string/= dl-chars si-chars
-				  :start1 okay-until :start2 okay-until
-				  :end1 font-lossage :end2 font-lossage)
-			font-lossage))))
-	(unless (= dl-stop si-stop)
-	  (let ((font-lossage (min dl-stop si-stop)))
-	    (trc "2 f-l: ~A~%" font-lossage)
-	    (return (or (string/= dl-chars si-chars
-				  :start1 okay-until :start2 okay-until
-				  :end1 font-lossage :end2 font-lossage)
-			font-lossage))))
-	(let ((mismatch (string/= dl-chars si-chars
-				  :start1 okay-until :start2 okay-until
-				  :end1 dl-stop :end2 si-stop)))
-	  (trc "3 m: ~A~%" mismatch)
-	  (if mismatch
-	      (return mismatch)
-	      (setf okay-until dl-stop)))))))
-|#
 
 (defun find-identical-suffix (dis-line dis-line-fonts si-line)
   (declare (type dis-line dis-line)
@@ -201,18 +150,20 @@
 	    (si-font (caar si-fonts))
 	    (si-start (- si-len (cadar si-fonts)))
 	    (si-stop (- si-len (cddar si-fonts))))
-	(unless (and (= dl-font si-font)
-		     (= dl-stop si-stop))
-	  (return (min dl-stop si-stop count)))
-	(unless (= dl-start si-start)
-	  (return (min dl-start si-start count)))
-	(when (<= count dl-start)
-	  (return count))))))
-
+	;; (ca*r dl/si-font) may be () if font mark is for some other
+	;; attribute.
+	(or (and (eq (car si-font) (car dl-font)) ; Font.
+		 (eq (cadr si-font) (cadr dl-font)) ; Foreground.
+		 (eq (caddr si-font) (caddr dl-font)) ; Background.
+		 (= dl-stop si-stop))
+	    (return (min dl-stop si-stop count)))
+	(or (= dl-start si-start)
+	    (return (min dl-start si-start count)))
+	(if (<= count dl-start)
+	    (return count))))))
 
 (defmacro si-line (screen-image n)
   `(svref ,screen-image ,n))
-
 
 
 ;;; Font support.
@@ -234,29 +185,34 @@
 	 (error "Bogus font spec: ~S~%Must be either a list of keywords or ~
 		 a list of the start string and end string." stuff))))
 
-
 (defun compute-font-usages (dis-line)
   (do ((results nil)
        (change (dis-line-font-changes dis-line) (font-change-next change))
        (prev nil change))
       ((null change)
        (when prev
-	 (let ((font (font-change-font prev)))
-	   (when (and (not (zerop font))
-		      (aref *tty-font-strings* font))
-	     (push (list* (font-change-font prev)
-			  (font-change-x prev)
-			  (dis-line-length dis-line))
-		   results))))
+	 (let ((font (font-change-font prev))
+	       (fore-color (font-change-fore-color prev))
+	       (back-color (font-change-back-color prev)))
+	   (or (fi (or fore-color back-color) (zerop font))
+	       (push (list* (list (font-change-font prev)
+				  (font-change-fore-color prev)
+				  (font-change-back-color prev))
+			    (font-change-x prev)
+			    (dis-line-length dis-line))
+		     results))))
        (nreverse results))
     (when prev
-      (let ((font (font-change-font prev)))
-	(when (and (not (zerop font))
-		   (aref *tty-font-strings* font))
-	  (push (list* (font-change-font prev)
-		       (font-change-x prev)
-		       (font-change-x change))
-		results))))))
+      (let ((font (font-change-font prev))
+	    (fore-color (font-change-fore-color prev))
+	    (back-color (font-change-back-color prev)))
+	(or (fi (or fore-color back-color) (zerop font))
+	    (push (list* (list (font-change-font prev)
+			       (font-change-fore-color prev)
+			       (font-change-back-color prev))
+			 (font-change-x prev)
+			 (font-change-x change))
+		  results))))))
 
 
 ;;;; Dumb window redisplay.
@@ -305,14 +261,47 @@
     (when (window-modeline-buffer window)
       (let ((dl (window-modeline-dis-line window))
 	    (y (tty-hunk-modeline-pos hunk)))
+	(let ((font-changes (dis-line-font-changes dl))
+	      (colors (tty-device-colors device)))
+	  (unwind-protect
+	      (progn
+		(or (and colors (plusp colors))
+		    (funcall (tty-device-standout-init device) hunk))
+		(funcall (tty-device-clear-to-eol device) hunk 0 y)
+		(tty-dumb-line-redisplay device hunk dl y)
+		(funcall (tty-device-space-to-eol device) hunk
+			 (dis-line-length dl) y
+			 (if font-changes
+			     (font-change-back-color font-changes))))
+	    (or (and colors (plusp colors))
+		(funcall (tty-device-standout-end device) hunk))))
+
+#|
+	(let* ((x (dis-line-length dl))
+	       (num (- (the fixnum (tty-device-columns device)) x)))
+	  (dotimes (i num) (tty-write-char #\space))
+	  (setf (tty-device-cursor-x device) (+ x num)))
+
+	(funcall (tty-device-space-to-eol device) hunk
+		 (dis-line-length dl) y ())
+
 	(unwind-protect
 	    (progn
 	      (funcall (tty-device-standout-init device) hunk)
 	      (funcall (tty-device-clear-to-eol device) hunk 0 y)
 	      (tty-dumb-line-redisplay device hunk dl y))
 	  (funcall (tty-device-standout-end device) hunk))
-	(setf (dis-line-flags dl) unaltered-bits)))))
 
+	(unwind-protect
+	    (progn
+	      (funcall (tty-device-standout-init device) hunk)
+	      ;; space-to-eol instead of clear-to-eol for xterm.
+	      (funcall (tty-device-space-to-eol device) hunk
+		       (dis-line-length dl) y ()))
+	  (funcall (tty-device-standout-end device) hunk))
+|#
+
+	(setf (dis-line-flags dl) unaltered-bits)))))
 
 
 ;;;; Dumb redisplay top n lines of a window.
@@ -362,12 +351,52 @@
     (when (window-modeline-buffer window)
       (let ((dl (window-modeline-dis-line window)))
 	(when (/= (dis-line-flags dl) unaltered-bits)
-	  (unwind-protect
-	      (progn
-		(funcall (tty-device-standout-init device) hunk)
-		(tty-smart-line-redisplay device hunk dl
-					  (tty-hunk-modeline-pos hunk)))
-	    (funcall (tty-device-standout-end device) hunk)))))))
+	  (let ((y (tty-hunk-modeline-pos hunk)))
+	    (let ((font-changes (dis-line-font-changes dl))
+		  (colors (tty-device-colors device)))
+	      (unwind-protect
+		  (progn
+		    (or (and colors (plusp colors))
+			(funcall (tty-device-standout-init device)
+				 hunk))
+		    (funcall (tty-device-clear-to-eol device) hunk 0 y)
+		    (tty-dumb-line-redisplay device hunk dl y)
+		    (funcall (tty-device-space-to-eol device) hunk
+			     (dis-line-length dl) y
+			     (if font-changes
+				 (font-change-back-color
+				  font-changes))))
+		(or (and colors (plusp colors))
+		    (funcall (tty-device-standout-end device) hunk))))
+
+#|
+	    (tty-dumb-line-redisplay device hunk dl y)
+	    (let ((font-changes (dis-line-font-changes dl)))
+	      (funcall (tty-device-space-to-eol device) hunk
+		       (dis-line-length dl) y
+		       (if font-changes
+			   (font-change-back-color font-changes))))
+
+	    (let* ((x (dis-line-length dl))
+		   (num (- (the fixnum (tty-device-columns device)) x)))
+	      (dotimes (i num) (tty-write-char #\space))
+	      (setf (tty-device-cursor-x device) (+ x num)))
+
+	    (unwind-protect
+		(progn
+		  (funcall (tty-device-standout-init device) hunk)
+		  (tty-smart-line-redisplay device hunk dl y))
+	      (funcall (tty-device-standout-end device) hunk))
+
+	    (unwind-protect
+		(progn
+		  (funcall (tty-device-standout-init device) hunk)
+		  ;; space-to-eol instead of clear-to-eol for xterm.
+		  (funcall (tty-device-space-to-eol device) hunk
+			   (dis-line-length dl) y ()))
+	      (funcall (tty-device-standout-end device) hunk))
+|#
+	    ))))))
 
 ;;; NEXT-DIS-LINE is used in DO-SEMI-DUMB-LINE-WRITES and
 ;;; COMPUTE-TTY-CHANGES.
@@ -458,7 +487,6 @@
 ;;; This is used for creating temporary smart redisplay structures.
 ;;;
 (defconstant tty-hunk-height-limit 100)
-
 
 ;;; Queues for redisplay operations and access macros.
 ;;;
@@ -633,125 +661,53 @@
     (when (window-modeline-buffer window)
       (let ((dl (window-modeline-dis-line window)))
 	(when (/= (dis-line-flags dl) unaltered-bits)
-	  (unwind-protect
-	      (progn
-		(funcall (tty-device-standout-init device) hunk)
-		(tty-smart-line-redisplay device hunk dl
-					  (tty-hunk-modeline-pos hunk)))
-	    (funcall (tty-device-standout-end device) hunk)))))))
-
-(defun tty-smart-window-redisplay2 (window)
-  (let* ((hunk (window-hunk window))
-	 (device (device-hunk-device hunk)))
-    (let ((first-changed (window-first-changed window))
-	  (last-changed (window-last-changed window)))
-      ;; Is there anything to do?
-      (unless (eq first-changed the-sentinel)
-; 	(or (eq window *echo-area-window*)
-; 	    (ed::message "re ~A" window))
-	(if (and (eq first-changed last-changed)
-		 (zerop (dis-line-delta (car first-changed))))
-	    ;; One line changed.
-	    (tty-smart-line-redisplay device hunk (car first-changed))
-	    ;; More lines changed.
-	    (multiple-value-bind (ins outs writes moves)
-				 (compute-tty-changes
-				  first-changed last-changed
-				  (tty-hunk-modeline-pos hunk))
-	      (let ((ratio (variable-value 'ed::scroll-redraw-ratio)))
-		(cond ((and ratio
-			    (> (/ (insert-line-count ins)
-				  (tty-hunk-text-height hunk))
-			       ratio))
-		       (do-semi-dumb-line-writes first-changed last-changed
-						 hunk))
-		      (t
-		       (do-line-insertions hunk ins
-					   (do-line-deletions hunk outs))
-		       (note-line-moves moves)
-		       (do-line-writes hunk writes))))))
-	;; Set the bounds so we know we displayed...
-	(setf (window-first-changed window) the-sentinel
-	      (window-last-changed window) (window-first-line window))))
-    ;;
-    ;; Clear any extra lines at the end of the window.
-    (let ((pos (dis-line-position (car (window-last-line window)))))
-      (when (< pos (1- (window-height window)))
-	(tty-smart-clear-to-eow hunk (1+ pos)))
-      (setf (window-old-lines window) pos))
-    ;;
-    ;; Update the modeline if needed.
-    (when (window-modeline-buffer window)
-      (let ((dl (window-modeline-dis-line window)))
-	(when (/= (dis-line-flags dl) unaltered-bits)
-	  (unwind-protect
-	      (progn
-		(funcall (tty-device-standout-init device) hunk)
-		(tty-smart-line-redisplay device hunk dl
-					  (tty-hunk-modeline-pos hunk)))
-	    (funcall (tty-device-standout-end device) hunk)))))))
+	  (let ((y (tty-hunk-modeline-pos hunk)))
+	    (let ((font-changes (dis-line-font-changes dl))
+		  (colors (tty-device-colors device)))
+	      (unwind-protect
+		  (progn
+		    (or (and colors (plusp colors))
+			(funcall (tty-device-standout-init device) hunk))
+		    (funcall (tty-device-clear-to-eol device) hunk 0 y)
+		    (tty-dumb-line-redisplay device hunk dl y)
+		    (funcall (tty-device-space-to-eol device) hunk
+			     (dis-line-length dl) y
+			     (if font-changes
+				 (font-change-back-color font-changes))))
+		(or (and colors (plusp colors))
+		    (funcall (tty-device-standout-end device) hunk))))
 
 #|
-(defun tty-smart-window-redisplay2 (window)
-  (let* ((hunk (window-hunk window))
-	 (device (device-hunk-device hunk)))
-    (let ((first-changed (window-first-changed window))
-	  (last-changed (window-last-changed window)))
-;      (trc "fc: ~A~%" first-changed)
-      ;; Is there anything to do?
-      (unless (eq first-changed the-sentinel)
-	(if (and (eq first-changed last-changed)
-		 (zerop (dis-line-delta (car first-changed))))
-	    ;; One line changed.
-	    (tty-smart-line-redisplay2 device hunk (car first-changed))
-	    ;; More lines changed.
-	    (multiple-value-bind (ins outs writes moves)
-				 (compute-tty-changes2
-				  first-changed last-changed
-				  (tty-hunk-modeline-pos hunk))
-	      (let ((ratio (variable-value 'ed::scroll-redraw-ratio)))
-		(cond ((and ratio
-			    (> (/ (insert-line-count ins)
-				  (tty-hunk-text-height hunk))
-			       ratio))
-		       (do-semi-dumb-line-writes first-changed last-changed
-						 hunk))
-		      (t
-; 		       (trc "multi line~%")
-; 		       (trc "outs: ~A~%*t-l-d*: ~A~%" outs *tty-line-deletions*)
-; 		       (trc "ins: ~A~%*t-l-i*: ~A~%" ins *tty-line-insertions*)
-; 		       (trc "writes: ~A~%*t-l-w* ~A~%" writes *tty-line-writes*)
-; 		       (trc "moves: ~A~%*t-l-m* ~A~%" moves *tty-line-moves*)
-; 		       (trc "si before: ~A~%"
-; 			    (tty-device-screen-image (device-hunk-device (window-hunk (current-window)))))
-		       (do-line-insertions hunk ins
-					   (do-line-deletions hunk outs))
-		       (note-line-moves moves)
-		       (do-line-writes hunk writes)
-; 		       (trc "si after: ~A~%"
-; 			    (tty-device-screen-image (device-hunk-device (window-hunk (current-window)))))
-		       )))))
-	;; Set the bounds so we know we displayed...
-	(setf (window-first-changed window) the-sentinel
-	      (window-last-changed window) (window-first-line window))))
-    ;;
-    ;; Clear any extra lines at the end of the window.
-    (let ((pos (dis-line-position (car (window-last-line window)))))
-      (when (< pos (1- (window-height window)))
-	(tty-smart-clear-to-eow hunk (1+ pos)))
-      (setf (window-old-lines window) pos))
-    ;;
-    ;; Update the modeline if needed.
-    (when (window-modeline-buffer window)
-      (let ((dl (window-modeline-dis-line window)))
-	(when (/= (dis-line-flags dl) unaltered-bits)
-	  (unwind-protect
-	      (progn
-		(funcall (tty-device-standout-init device) hunk)
-		(tty-smart-line-redisplay device hunk dl
-					  (tty-hunk-modeline-pos hunk)))
-	    (funcall (tty-device-standout-end device) hunk)))))))
+	    (tty-dumb-line-redisplay device hunk dl y)
+	    (let ((font-changes (dis-line-font-changes dl)))
+	      (funcall (tty-device-space-to-eol device) hunk
+		       (dis-line-length dl) y
+		       (if font-changes
+			   (font-change-back-color font-changes))))
+
+	    (let* ((x (dis-line-length dl))
+		   (num (- (the fixnum (tty-device-columns device)) x)))
+	      (dotimes (i num) (tty-write-char #\space))
+	      (setf (tty-device-cursor-x device) (+ x num)))
+
+	    (funcall (tty-device-space-to-eol device) hunk
+		     (dis-line-length dl) y ())
+
+	    (unwind-protect
+		(progn
+		  (funcall (tty-device-standout-init device) hunk)
+		  (tty-smart-line-redisplay device hunk dl y))
+	      (funcall (tty-device-standout-end device) hunk))
+
+	    (unwind-protect
+		(progn
+		  (funcall (tty-device-standout-init device) hunk)
+		  ;; space-to-eol instead of clear-to-eol for xterm.
+		  (funcall (tty-device-space-to-eol device) hunk
+			   (dis-line-length dl) y ()))
+	      (funcall (tty-device-standout-end device) hunk))
 |#
+	    ))))))
 
 
 ;;;; Smart window redisplay -- computing changes to the display.
@@ -851,11 +807,11 @@
 ;;; done to the screen, we save the changed bit on, so the line will be
 ;;; queued to be written after redisplay is re-entered.
 ;;;
-;;; If the line is changed or new, then queue it to be written.  Since we can
-;;; abort out of the actual display at any time (due to pending input), we
-;;; don't clear the flags or delta here.  A dis-line may be groveled many times
-;;; by this function before it actually makes it to the screen, so we may have
-;;; odd combinations of bits such as both new and changed.
+;;; If the line is changed or new, then queue it to be written.  Since we
+;;; can abort out of the actual display at any time (due to pending input),
+;;; we don't clear the flags or delta here.  A dis-line may be groveled
+;;; many times by this function before it actually makes it to the screen,
+;;; so we may have odd combinations of bits such as both new and changed.
 ;;;
 ;;; Otherwise, get the next display line, loop, and see if it's
 ;;; interesting.
@@ -1078,7 +1034,7 @@
 
 ;;; NOTE-LINE-MOVES  --  Internal
 ;;;
-;;;    Clear out the flags and delta of lines that have been moved.
+;;; Clear out the flags and delta of lines that have been moved.
 ;;;
 (defun note-line-moves (moves)
   (let ((i 0))
@@ -1174,6 +1130,7 @@
     (declare (fixnum dl-len) (simple-string dl-chars))
     (when (listen-editor-input *editor-input*)
       (throw 'redisplay-catcher :editor-input))
+    ;(trc "(tty-smart-line-redisplay .~%    ~A~%    ~A)~%" hunk dl)
     (select-hunk hunk)
     (let* ((screen-image-line (si-line (tty-device-screen-image device)
 				       (+ *hunk-top-line* dl-pos)))
@@ -1184,10 +1141,12 @@
       ;;
       ;; When the dis-line and screen chars are not string=.
       (when findex
+	;(trc "findex ~A~%" findex)
 	(block tslr-main-body
 	  ;;
 	  ;; See if the screen shows an initial substring of the dis-line.
 	  (when (= findex si-line-length)
+	    ;(trc "shows initial~%")
 	    (funcall (tty-device-display-string device)
 		     hunk findex dl-pos dl-chars dl-fonts findex dl-len)
 	    (replace-si-line si-line-chars dl-chars findex findex dl-len)
@@ -1195,6 +1154,7 @@
 	  ;;
 	  ;; When the dis-line is an initial substring of what's on the screen.
 	  (when (= findex dl-len)
+	    ;(trc "is an initial~%")
 	    (funcall (tty-device-clear-to-eol device) hunk dl-len dl-pos)
 	    (return-from tslr-main-body t))
 	  ;;
@@ -1209,6 +1169,7 @@
 	    ;;
 	    ;; No trailing substrings -- blast and clear to eol.
 	    (when (= dindex dl-len)
+	      ;(trc "blast and clear~%")
 	      (funcall (tty-device-display-string device)
 		       hunk findex dl-pos dl-chars dl-fonts findex dl-len)
 	      (when (< dindex sindex)
@@ -1217,8 +1178,9 @@
 	      (replace-si-line si-line-chars dl-chars findex findex dl-len)
 	      (return-from tslr-main-body t))
 	    (let ((lindex (min sindex dindex)))
+	      ;(trc "lindex ~A~%" lindex)
 	      (cond ((< lindex findex)
-		     ;; This can happen in funny situations -- believe me!
+		     ;; This can happen in funny situations -- believe me! FIX
 		     (setf lindex findex))
 		    (t
 		     (funcall (tty-device-display-string device)
@@ -1226,6 +1188,7 @@
 			      findex lindex)
 		     (replace-si-line si-line-chars dl-chars
 				      findex findex lindex)))
+	      ;(trc "dindex ~A, sindex ~A~%" dindex sindex)
 	      (cond
 	       ((= dindex sindex))
 	       ((< dindex sindex)
@@ -1256,118 +1219,6 @@
 	(setf (si-line-fonts screen-image-line) dl-fonts)))
     (setf (dis-line-flags dl) unaltered-bits)
     (setf (dis-line-delta dl) 0)))
-
-#|
-(defun test ()
-  (ed::with-output-to-mark
-   (edi::*trace-stream* (ed::buffer-point (ed::getstring "trc" ed::*buffer-names*)))
-
-   (trc "test~%")
-   (ed::kill-characters (current-point) -1)
-   (redisplay-window2 (current-window)) ; display.lisp
-   (trc "after r-w2~%")))
-
-(defun tty-smart-line-redisplay2 (device hunk dl
-				 &optional (dl-pos (dis-line-position dl)))
-  (declare (fixnum dl-pos))
-  (trc "t-s-l-r2~%")
-  (let* ((dl-chars (dis-line-chars dl))
-	 (dl-len (dis-line-length dl))
-	 (dl-fonts (compute-font-usages dl)))
-    (declare (fixnum dl-len) (simple-string dl-chars))
-    (trc "dl-length ~A~%" dl-len)
-    (when (listen-editor-input *editor-input*)
-      (trc "throw~%")
-      (throw 'redisplay-catcher :editor-input))
-    (trc "pre select-hunk~%")
-    (select-hunk hunk)
-    (trc "after select-hunk~%")
-    (let* ((screen-image-line (si-line (tty-device-screen-image device)
-				       (+ *hunk-top-line* dl-pos)))
-	   (si-line-chars (si-line-chars screen-image-line))
-	   (si-line-length (si-line-length screen-image-line))
-	   (findex (find-identical-prefix2 dl dl-fonts screen-image-line)))
-      (declare (type (or fixnum null) findex) (simple-string si-line-chars))
-      ;;
-      ;; When the dis-line and screen chars are not string=.
-      (when findex
-	(trc "findex ~A~%" findex)
-	(trc "si-line-length ~A~%" si-line-length)
-	(block tslr-main-body
-	  ;;
-	  ;; See if the screen shows an initial substring of the dis-line.
-	  (when (= findex si-line-length)
-	    (funcall (tty-device-display-string device)
-		     hunk findex dl-pos dl-chars dl-fonts findex dl-len)
-	    (replace-si-line si-line-chars dl-chars findex findex dl-len)
-	    (return-from tslr-main-body t))
-	  ;;
-	  ;; When the dis-line is an initial substring of what's on the screen.
-	  (when (= findex dl-len)
-	    (funcall (tty-device-clear-to-eol device) hunk dl-len dl-pos)
-	    (return-from tslr-main-body t))
-	  ;;
-	  ;; Find trailing substrings that are the same.
-	  (multiple-value-bind
-	      (sindex dindex)
-	      (let ((count (find-identical-suffix dl dl-fonts
-						  screen-image-line)))
-		(values (- si-line-length count)
-			(- dl-len count)))
-	    (declare (fixnum sindex dindex))
-	    ;;
-	    ;; No trailing substrings -- blast and clear to eol.
-	    (when (= dindex dl-len)
-	      (funcall (tty-device-display-string device)
-		       hunk findex dl-pos dl-chars dl-fonts findex dl-len)
-	      (when (< dindex sindex)
-		(funcall (tty-device-clear-to-eol device)
-			 hunk dl-len dl-pos))
-	      (replace-si-line si-line-chars dl-chars findex findex dl-len)
-	      (return-from tslr-main-body t))
-	    (let ((lindex (min sindex dindex)))
-	      (cond ((< lindex findex)
-		     ;; This can happen in funny situations -- believe me!
-		     (setf lindex findex))
-		    (t
-		     (funcall (tty-device-display-string device)
-			      hunk findex dl-pos dl-chars dl-fonts
-			      findex lindex)
-		     (replace-si-line si-line-chars dl-chars
-				      findex findex lindex)))
-	      (cond
-	       ((= dindex sindex))
-	       ((< dindex sindex)
-		(let ((delete-char-num (- sindex dindex)))
-		  (cond ((and (tty-device-delete-char device)
-			      (worth-using-delete-mode
-			       device delete-char-num (- si-line-length dl-len)))
-			 (funcall (tty-device-delete-char device)
-				  hunk dindex dl-pos delete-char-num))
-			(t
-			 (funcall (tty-device-display-string device)
-				  hunk dindex dl-pos dl-chars dl-fonts
-				  dindex dl-len)
-			 (funcall (tty-device-clear-to-eol device)
-				  hunk dl-len dl-pos)))))
-	       (t
-		(if (and (tty-device-insert-string device)
-			 (worth-using-insert-mode device (- dindex sindex)
-						  (- dl-len sindex)))
-		    (funcall (tty-device-insert-string device)
-			     hunk sindex dl-pos dl-chars sindex dindex)
-		    (funcall (tty-device-display-string device)
-			     hunk sindex dl-pos dl-chars dl-fonts
-			     sindex dl-len))))
-	      (replace-si-line si-line-chars dl-chars
-			       lindex lindex dl-len))))
-	(setf (si-line-length screen-image-line) dl-len)
-	(setf (si-line-fonts screen-image-line) dl-fonts)))
-    (setf (dis-line-flags dl) unaltered-bits)
-    (setf (dis-line-delta dl) 0))
-  (trc "end t-s-l-r2~%"))
-|#
-
 
 
 ;;;; Device methods
@@ -1413,12 +1264,11 @@
     `(funcall (device-put-cursor (device-hunk-device ,hunk)) ,hunk ,x ,y))
 ) ;eval-when
 
-;;; CURSOR-MOTION takes two coordinates on the screen's axis,
-;;; moving the cursor to that location.  X is the column index,
-;;; and y is the line index, but Unix and Termcap believe that
-;;; the default order of indexes is first the line and then the
-;;; column or (y,x).  Because of this, when reversep is non-nil,
-;;; we send first x and then y.
+;;; CURSOR-MOTION takes two coordinates on the screen's axis, moving the
+;;; cursor to that location.  X is the column index, and y is the line
+;;; index.  Unix and Termcap believe that the default order of indexes
+;;; is first the line and then the column or (y,x).  Because of this, when
+;;; reversep is true, we send first x and then y.
 ;;;
 (defun cursor-motion (device x y)
   (let ((x-add-char (tty-device-cm-x-add-char device))
@@ -1460,7 +1310,7 @@
   (cond (pad
 	 (let ((i (1- cm-coordinate-buffer-len)))
 	   (loop
-	     (when (= i -1) (error "Terminal has too many lines!"))
+	     (if (= i -1) (error "Terminal has too many lines."))
 	     (multiple-value-bind (tens ones)
 				  (truncate coordinate 10)
 	       (setf (schar *cm-coordinate-buffer* i) (digit-char ones))
@@ -1490,25 +1340,82 @@
 	    (< start (cddar font-info)))
 	(return)
 	(pop font-info)))
-  (let ((posn start))
+  (let* ((posn start)
+	 (device (device-hunk-device hunk))
+	 (hunk-foreground-color (tty-hunk-foreground-color hunk))
+	 (hunk-background-color (tty-hunk-background-color hunk))
+	 (adjust-foreground (tty-device-adjust-fg-string device))
+	 (adjust-background (tty-device-adjust-bg-string device)))
     (dolist (next-font font-info)
-      (let ((font (car next-font))
+      (let ((font (caar next-font))
+	    (foreground-color (case (cadar next-font)
+				((:window-foreground ()))
+				(t (device-color device (cadar next-font)))))
+	    (background-color (case (caddar next-font)
+				((:window-background ()))
+				(t (device-color device (caddar next-font)))))
 	    (start (cadr next-font))
 	    (stop (cddr next-font)))
 	(when (<= end start)
 	  (return))
+	;; Write anything up to the first font.
 	(when (< posn start)
+	  (or (and hunk-foreground-color hunk-background-color)
+	      (device-write-string
+	       (tty-device-original-pair-string device)))
+	  (if hunk-foreground-color
+	      (device-write-string (format () adjust-foreground
+					   hunk-foreground-color)))
+	  (if hunk-background-color
+	      (device-write-string  (format () adjust-background
+					    hunk-background-color)))
 	  (device-write-string string posn start)
 	  (setf posn start))
+	;; Write the fonted parts.
 	(let ((new-posn (min stop end))
-	      (font-strings (aref *tty-font-strings* font)))
-	  (unwind-protect
-	      (progn
-		(device-write-string (car font-strings))
-		(device-write-string string posn new-posn))
-	    (device-write-string (cdr font-strings)))
+	      (font-strings
+	       (if font (aref *tty-font-strings* font))))
+	  (or (and (or foreground-color hunk-foreground-color)
+		   (or background-color hunk-background-color))
+	      (device-write-string
+	       (tty-device-original-pair-string device)))
+	  (if foreground-color
+	      (device-write-string (format () adjust-foreground
+					   foreground-color))
+	      (if hunk-foreground-color
+		  (device-write-string (format () adjust-foreground
+					       hunk-foreground-color))))
+	  (if background-color
+	      (device-write-string (format () adjust-background
+					   background-color))
+	      (if hunk-background-color
+		  (device-write-string (format () adjust-background
+					       hunk-background-color))))
+	  (if font-strings
+	      (unwind-protect
+		  (progn
+		    (device-write-string (car font-strings))
+		    (device-write-string string posn new-posn))
+		(device-write-string (cdr font-strings)))
+	      (device-write-string string posn new-posn))
+	  (if (and foreground-color hunk-foreground-color)
+	      (device-write-string (format () adjust-foreground
+					   hunk-foreground-color)))
+	  (if (and background-color hunk-background-color)
+	      (device-write-string (format () adjust-background
+					   hunk-background-color)))
 	  (setf posn new-posn))))
+    ;; Write anything after the last font.
     (when (< posn end)
+      (or (and hunk-foreground-color hunk-background-color)
+	  (device-write-string
+	   (tty-device-original-pair-string device)))
+      (if hunk-foreground-color
+	  (device-write-string (format () adjust-foreground
+				       hunk-foreground-color)))
+      (if hunk-background-color
+	  (device-write-string  (format () adjust-background
+					hunk-background-color)))
       (device-write-string string posn end)))
   (setf (tty-device-cursor-x (device-hunk-device hunk))
 	(the fixnum (+ x (the fixnum (- end start))))))
@@ -1555,33 +1462,54 @@
     (setf (tty-device-cursor-x device)
 	  (the fixnum (+ x (the fixnum (- end start)))))))
 
-
 ;;; DEVICE-WRITE-STRING is used to shove a string at the terminal regardless
 ;;; of cursor position.
 ;;;
-(defun device-write-string (string &optional (start 0) (end (strlen string)))
-  (declare (fixnum start end))
-  (unless (= start end)
-    (tty-write-string string start (the fixnum (- end start)))))
-
+(defun device-write-string (string &optional (start 0) end)
+  (declare (fixnum start))
+  (if string
+      (let ((end (or end (strlen string))))
+	(unless (= start end)
+	  (tty-write-string string start (the fixnum (- end start)))))))
 
 ;;; Clearing lines (TTY-DEVICE-CLEAR-TO-EOL, DEVICE-CLEAR-LINES, and
 ;;; TTY-DEVICE-CLEAR-TO-EOW functions.)
 
 (defun clear-to-eol (hunk x y)
   (update-cursor hunk x y)
-  (device-write-string
-   (tty-device-clear-to-eol-string (device-hunk-device hunk))))
+  (let ((device (device-hunk-device hunk))
+	(hunk-background-color (tty-hunk-background-color hunk)))
+    (device-write-string
+     (if hunk-background-color
+	 (format () (tty-device-adjust-bg-string device)
+		 hunk-background-color)
+	 (tty-device-original-pair-string device)))
+    (device-write-string
+     (tty-device-clear-to-eol-string device))))
 
-(defun space-to-eol (hunk x y)
+(defun space-to-eol (hunk x y &optional back-color)
   (declare (fixnum x))
   (update-cursor hunk x y)
   (let* ((device (device-hunk-device hunk))
 	 (num (- (the fixnum (tty-device-columns device))
-		 x)))
+		 x))
+	 (hunk-background-color (tty-hunk-background-color hunk)))
     (declare (fixnum num))
-    (dotimes (i num) (tty-write-char #\space))
-    (setf (tty-device-cursor-x device) (+ x num))))
+    (let ((back-color (if back-color
+			  (device-color device back-color)
+			  hunk-background-color)))
+      (device-write-string
+       (if back-color
+	   (format () (tty-device-adjust-bg-string device) back-color)
+	   (tty-device-original-pair-string device)))
+      (dotimes (i num) (tty-write-char #\space))
+      (setf (tty-device-cursor-x device) (+ x num))
+      (if back-color
+	  (device-write-string
+	   (if hunk-background-color
+	       (format () (tty-device-adjust-bg-string device)
+		       hunk-background-color)
+	       (tty-device-original-pair-string device)))))))
 
 (defun clear-lines (hunk x y n)
   (let* ((device (device-hunk-device hunk))
@@ -1607,7 +1535,9 @@
 (defun open-tty-line (hunk x y &optional (n 1))
   (update-cursor hunk x y)
   (dotimes (i n)
-    (device-write-string (tty-device-open-line-string (device-hunk-device hunk)))))
+    (device-write-string (tty-device-open-line-string (device-hunk-device hunk))))
+  (funcall (tty-device-clear-lines (device-hunk-device hunk))
+	   hunk x y n))
 
 (defun delete-tty-line (hunk x y &optional (n 1))
   (update-cursor hunk x y)

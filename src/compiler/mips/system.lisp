@@ -1,24 +1,9 @@
-;;; -*- Package: MIPS -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/system.lisp,v 1.49 1994/10/31 04:44:16 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    MIPS VM definitions of various system hacking operations.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Mips conversion by William Lott and Christopher Hoover.
-;;;
+;;; MIPS VM definitions of various system hacking operations.
+
 (in-package "MIPS")
 
 
-;;;; Random pointer comparison VOPs
+;;;; Random pointer comparison VOPs.
 
 (define-vop (pointer-compare)
   (:args (x :scs (sap-reg))
@@ -43,9 +28,8 @@
   (frob pointer< :lt)
   (frob pointer> :gt))
 
-
 
-;;;; Type frobbing VOPs
+;;;; Type frobbing VOPs.
 
 (define-vop (get-lowtag)
   (:translate get-lowtag)
@@ -96,7 +80,7 @@
     OTHER-PTR
     (load-type result object (- other-pointer-type))
     (inst nop)
-      
+
     DONE))
 
 (define-vop (function-subtype)
@@ -120,7 +104,6 @@
   (:generator 6
     (inst sb type function (- function-pointer-type))
     (move result type)))
-
 
 (define-vop (get-header-data)
   (:translate get-header-data)
@@ -190,7 +173,7 @@
        (inst or res res temp)))))
 
 
-;;;; Allocation
+;;;; Allocation.
 
 (define-vop (dynamic-space-free-pointer)
   (:results (int :scs (sap-reg)))
@@ -282,7 +265,7 @@
 
 ;; Would have really liked to use a source-transform for this, but they
 ;; don't work with setf functions.
-;; 
+;;
 (defknown ((setf %funcallable-instance-function)) (function function) function
   (unsafe))
 (deftransform (setf %funcallable-instance-function) ((value fin))
@@ -293,7 +276,6 @@
 
 ;;;; Other random VOPs.
 
-
 (defknown unix::do-pending-interrupt () (values))
 (define-vop (unix::do-pending-interrupt)
   (:policy :fast-safe)
@@ -301,13 +283,12 @@
   (:generator 1
     (inst break pending-interrupt-trap)))
 
-
 (define-vop (halt)
   (:generator 1
     (inst break halt-trap)))
 
 
-;;;; Dynamic vop count collection support
+;;;; Dynamic vop count collection support.
 
 (define-vop (count-me)
   (:args (count-vector :scs (descriptor-reg)))

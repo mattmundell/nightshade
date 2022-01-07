@@ -1,18 +1,5 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/sparc/insts.lisp,v 1.14.2.2 2000/05/23 16:37:47 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Description of the SPARC architecture.
-;;;
-;;; Written by William Lott.
-;;;
+
 (in-package "SPARC")
 
 (use-package "NEW-ASSEM")
@@ -89,7 +76,7 @@
        (:fsr 98)
        (:y 99)))))
 
-;;; symbols used for disassembly printing
+;;; Symbols used for disassembly printing.
 ;;;
 (defparameter reg-symbols
   (map 'vector
@@ -110,7 +97,7 @@
 		  dstate))))
 
 (defparameter float-reg-symbols
-  (coerce 
+  (coerce
    (loop for n from 0 to 63 collect (make-symbol (format nil "%F~d" n)))
    'vector))
 
@@ -316,7 +303,7 @@
 	  fcc
 	  ", "
 	  disp))
-  
+
 (disassem:define-instruction-format
     (format-2-fp-branch-pred 32 :default-printer fp-branch-pred-printer)
   (op   :field (byte 2 30) :value 0)
@@ -326,8 +313,6 @@
   (fcc  :field (byte 2 20) :type 'fp-condition-register)
   (p    :field (byte 1 19))
   (disp :field (byte 19 0) :type 'relative-label))
-  
-
 
 (disassem:define-instruction-format
     (format-2-unimp 32 :default-printer '(:name :tab data))
@@ -440,7 +425,7 @@
   (immed :field (byte 12 0) :sign-extend nil))
 
 
-;;; Conditional moves (only available for Sparc V9 architectures)
+;;; Conditional moves (only available for Sparc V9 architectures).
 
 ;; The names of all of the condition registers on the V9: 4 FP
 ;; conditions, the original integer condition register and the new
@@ -583,7 +568,7 @@
   (byte 2 30) (byte 1 29) (byte 4 25) (byte 3 22) (byte 2 20) (byte 1 19) (byte 19 0))
 (define-emitter emit-format-2-fp-branch-pred 32
   (byte 2 30) (byte 1 29) (byte 4 25) (byte 3 22) (byte 2 20) (byte 1 19) (byte 19 0))
-  
+
 (define-emitter emit-format-2-unimp 32
   (byte 2 30) (byte 5 25) (byte 3 22) (byte 22 0))
 
@@ -677,7 +662,6 @@
      (emit-format-3-shift-immed segment op (reg-tn-encoding dst)
 				op3 (reg-tn-encoding src1) 1
 				(if extended 1 0) src2))))
-
 
 (eval-when (compile eval)
 
@@ -901,14 +885,14 @@
   (:delay 0)
   (:emitter (emit-format-3-immed segment #b11 1 #b100001
 				 (reg-tn-encoding src1) 1 src2)))
-  
+
 ;; stfsr is deprecated on the Sparc V9.  Use stxfsr instead.
 (define-instruction stfsr (segment src1 src2)
   (:declare (type tn src1) (type (signed-byte 13) src2))
   (:printer format-3-immed ((op #b11) (op3 #b100101) (rd 0)))
   :pinned
   (:delay 0)
-  (:emitter (emit-format-3-immed segment #b11 0 #b100101 
+  (:emitter (emit-format-3-immed segment #b11 0 #b100101
 				 (reg-tn-encoding src1) 1 src2)))
 
 #+sparc-64
@@ -919,7 +903,7 @@
 	    :print-name 'stx)
   :pinned
   (:delay 0)
-  (:emitter (emit-format-3-immed segment #b11 1 #b100101 
+  (:emitter (emit-format-3-immed segment #b11 1 #b100101
 				 (reg-tn-encoding src1) 1 src2)))
 
 (eval-when (compile load eval)
@@ -943,7 +927,7 @@
      (fixup
       (note-fixup segment :sethi src1)
       (emit-format-2-immed segment #b00 (reg-tn-encoding dst) #b100 0)))))
-			   
+
 ;; rdy is deprecated on the Sparc V9.  It's not needed with 64-bit
 ;; registers.
 (define-instruction rdy (segment dst)
@@ -968,7 +952,7 @@
   (:delay 3)
   (:emitter
    (etypecase src2
-     (null 
+     (null
       (emit-format-3-reg segment #b10 0 #b110000 (reg-tn-encoding src1) 0 0 0))
      (tn
       (emit-format-3-reg segment #b10 0 #b110000 (reg-tn-encoding src1) 0 0
@@ -1028,8 +1012,7 @@
       (#.vm:function-end-breakpoint-trap
        (nt "Function end breakpoint trap"))
       (#.vm:object-not-instance-trap
-       (nt "Object not instance trap"))
-    )))
+       (nt "Object not instance trap")))))
 
 (define-instruction unimp (segment data)
   (:declare (type (unsigned-byte 22) data))
@@ -1037,7 +1020,6 @@
 	    :print-name #-sparc-v9 'unimp #+sparc-v9 'illtrap)
   (:delay 0)
   (:emitter (emit-format-2-unimp segment 0 0 0 data)))
-
 
 
 ;;;; Branch instructions.
@@ -1252,7 +1234,6 @@
       (emit-format-3-immed segment #b10 0 #b111000 (reg-tn-encoding src1) 1
 			   0)))))
 
-
 
 ;;;; Unary and binary fp insts.
 
@@ -1339,7 +1320,6 @@
 
 ); eval-when (compile eval)
 
-
 (define-unary-fp-inst fitos #b011000100 :reads :fsr)
 (define-unary-fp-inst fitod #b011001000 :reads :fsr :extended t)
 (define-unary-fp-inst fitoq #b011001100 :reads :fsr :extended t)	; v8
@@ -1347,7 +1327,6 @@
 (define-unary-fp-inst fxtos #b010000100 :reads :fsr)                    ; v9
 (define-unary-fp-inst fxtod #b010001000 :reads :fsr :extended t)        ; v9
 (define-unary-fp-inst fxtoq #b010001100 :reads :fsr :extended t)	; v9
-
 
 ;; I (toy@rtp.ericsson.se) don't think these f{sd}toir instructions
 ;; exist on any Ultrasparc, but I only have a V9 manual.  The code in
@@ -1410,7 +1389,6 @@
 (define-cmp-fp-inst fcmped #b0110 :extended t)
 (define-cmp-fp-inst fcmpeq #b0111 :extended t)	; v8
 
-
 
 ;;;; li, jali, ji, nop, cmp, not, neg, move, and more
 
@@ -1427,7 +1405,7 @@
     (fixup
      (inst sethi reg value)
      (inst add reg value))))
-  
+
 (define-instruction-macro li (reg value)
   `(%li ,reg ,value))
 
@@ -1532,7 +1510,6 @@
   (:emitter (emit-format-3-reg segment #b10 (reg-tn-encoding dst) #b000010
 			       0 0 0 (reg-tn-encoding src1))))
 
-
 
 ;;;; Instructions for dumping data and header objects.
 
@@ -1559,7 +1536,7 @@
 
 (define-emitter emit-header-object 32
   (byte 24 8) (byte 8 0))
-  
+
 (defun emit-header-data (segment type)
   (emit-back-patch
    segment 4
@@ -1644,10 +1621,9 @@
 		      #'(lambda (label posn delta-if-after)
 			  (+ (label-position label posn delta-if-after)
 			     (component-header-length))))))
+
 
-;;; Sparc V9 additions
-
-
+;;; Sparc V9 additions.
 
 ;; Conditional move integer on condition code
 (define-instruction cmove (segment condition dst src &optional (ccreg :icc))
@@ -1786,7 +1762,6 @@
 (define-cond-fp-move cfmovd fmovd #b10 #b110101 #b0010 :extended t)
 (define-cond-fp-move cfmovq fmovq #b10 #b110101 #b0011 :extended t)
 
-
 ;; Move on integer register condition
 ;;
 ;; movr dst src reg reg-cond
@@ -1824,7 +1799,6 @@
       (emit-format-4-cond-move-integer-immed
        segment #b10 (reg-tn-encoding dst) #b101111 (reg-tn-encoding src1)
        1 (register-condition reg-condition) src2)))))
-
 
 ;; Same as MOVR, except we move FP registers depending on the value of
 ;; an integer register.

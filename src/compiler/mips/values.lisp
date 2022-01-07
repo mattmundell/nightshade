@@ -1,20 +1,4 @@
-;;; -*- Package: MIPS -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/values.lisp,v 1.17 1994/10/31 04:44:16 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the implementation of unknown-values VOPs.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Converted for MIPS by William Lott.
-;;; 
+;;; The implementation of unknown-values VOPs.
 
 (in-package "MIPS")
 
@@ -22,7 +6,6 @@
   (:args (ptr :scs (any-reg)))
   (:generator 1
     (move csp-tn ptr)))
-
 
 ;;; Push some values onto the stack, returning the start and number of values
 ;;; pushed as results.  It is assumed that the Vals are wired to the standard
@@ -60,7 +43,6 @@
     (move start start-temp)
     (inst li count (fixnum nvals))))
 
-
 ;;; Push a list of values on the stack, returning Start and Count as used in
 ;;; unknown values continuations.
 ;;;
@@ -78,7 +60,7 @@
   (:generator 0
     (move list arg)
     (move start csp-tn)
-    
+
     LOOP
     (inst beq list null-tn done)
     (loadw temp list cons-car-slot list-pointer-type)
@@ -90,10 +72,9 @@
     (inst beq ndescr zero-tn loop)
     (inst nop)
     (error-call vop bogus-argument-to-values-list-error list)
-    
+
     DONE
     (inst subu count csp-tn start)))
-
 
 ;;; Copy the more arg block to the top of the stack so we can use them
 ;;; as function arguments.

@@ -1,24 +1,6 @@
-;;; -*- Package: ALPHA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/type-vops.lisp,v 1.2.2.2 2000/05/23 16:37:29 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the VM definition of type testing and checking VOPs
-;;; for the MIPS.
-;;;
-;;; Written by William Lott
-;;; Earlier versions by Rob MacLachlan and Christopher Hoover.
-;;; Alpha conversion by Sean Hallgren
-;;; Complex-float support by Douglas Crosher 1998.
-;;;
-(in-package "ALPHA")
+;;; The VM definition of type testing and checking VOPs.
 
+(in-package "ALPHA")
 
 
 ;;;; Test generation utilities.
@@ -192,9 +174,8 @@
 		      (inst ble temp when-true))))))))
 	(emit-label drop-through)))))
 
-
 
-;;;; Type checking and testing:
+;;;; Type checking and testing.
 
 (define-vop (check-type)
   (:args (value :target result :scs (any-reg descriptor-reg)))
@@ -533,7 +514,7 @@
       ;; All zeros, its an (unsigned-byte 32).
       (inst beq temp yep)
       (inst br zero-tn nope)
-	
+
       SINGLE-WORD
       ;; Get the single digit.
       (loadw temp value bignum-digits-offset other-pointer-type)
@@ -561,10 +542,9 @@
     OKAY
     (move value result)))
 
-
 
-;;;; List/symbol types:
-;;; 
+;;;; List/symbol types.
+;;;
 ;;; symbolp (or symbol (eq nil))
 ;;; consp (and list (not (eq nil)))
 
@@ -586,7 +566,7 @@
       (test-type value temp error t symbol-header-type))
     DROP-THRU
     (move value result)))
-  
+
 (define-vop (consp type-predicate)
   (:translate consp)
   (:temporary (:scs (non-descriptor-reg)) temp)

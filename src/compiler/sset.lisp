@@ -1,54 +1,39 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/sset.lisp,v 1.6.2.1 2000/07/07 09:34:29 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    A sparse set abstraction, implemented as a sorted linked list.  We don't
-;;; use bit-vectors to represent sets in flow analysis, since the universe may
-;;; be quite large but the average number of elements is small.  We keep the
-;;; list sorted so that we can do union and intersection in linear time.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; A sparse set abstraction, implemented as a sorted linked list.  We
+;;; don't use bit-vectors to represent sets in flow analysis, since the
+;;; universe may be quite large but the average number of elements is
+;;; small.  We keep the list sorted so that we can do union and
+;;; intersection in linear time.
+
+;;; FIX mv to code:?
+
 (in-package "C")
 
-;;;
-;;; Each structure that may be placed in a SSet must include the SSet-Element
-;;; structure.  We allow an initial value of NIL to mean that no ordering has
-;;; been assigned yet (although an ordering must be assigned before doing set
-;;; operations.)
+;;; Each structure that may be placed in a SSet must include the
+;;; SSet-Element structure.  We allow an initial value of NIL to mean that
+;;; no ordering has been assigned yet (although an ordering must be
+;;; assigned before doing set operations.)
 ;;;
 (defstruct sset-element
   (number nil :type (or index null)))
-
 
 (defstruct (sset (:constructor make-sset ())
 		 (:copier nil)
 		 (:print-function %print-sset))
   (elements (list nil) :type list))
 
-
 (defprinter sset
   (elements :prin1 (cdr elements)))
 
-
 ;;; Do-Elements  --  Interface
 ;;;
-;;;    Iterate over the elements in Set, binding Var to each element in turn.
+;;; Iterate over the elements in Set, binding Var to each element in turn.
 ;;;
 (defmacro do-elements ((var set &optional result) &body body)
   `(dolist (,var (cdr (sset-elements ,set)) ,result) ,@body))
 
-
 ;;; SSet-Adjoin  --  Interface
 ;;;
-;;;    Destructively add Element to Set.  If Element was not in the set, then
+;;; Destructively add Element to Set.  If Element was not in the set, then
 ;;; we return true, otherwise we return false.
 ;;;
 (defun sset-adjoin (element set)
@@ -67,11 +52,10 @@
 	  (setf (cdr prev) (cons element current))
 	  (return t))))))
 
-
 ;;; SSet-Delete  --  Interface
 ;;;
-;;;    Destructively remove Element from Set.  If element was in the set,
-;;; then return true, otherwise return false.
+;;; Destructively remove Element from Set.  If element was in the set, then
+;;; return true, otherwise return false.
 ;;;
 (defun sset-delete (element set)
   (declare (type sset-element element) (type sset set) (values boolean))
@@ -83,29 +67,26 @@
 	(setf (cdr prev) (cdr current))
 	(return t)))))
 
-
 ;;; SSet-Member  --  Interface
 ;;;
-;;;    Return true if Element is in Set, false otherwise.
+;;; Return true if Element is in Set, false otherwise.
 ;;;
 (defun sset-member (element set)
   (declare (type sset-element element) (type sset set) (values boolean)
 	   (inline member))
   (not (null (member element (cdr (sset-elements set)) :test #'eq))))
 
-
 ;;; SSet-Empty  --  Interface
 ;;;
-;;;    Return true if Set contains no elements, false otherwise.
+;;; Return true if Set contains no elements, false otherwise.
 ;;;
 (defun sset-empty (set)
   (declare (type sset set) (values boolean))
   (null (cdr (sset-elements set))))
 
-
 ;;; SSet-Singleton  --  Interface
 ;;;
-;;;    If Set contains exactly one element, then return it, otherwise return
+;;; If Set contains exactly one element, then return it, otherwise return
 ;;; NIL.
 ;;;
 (defun sset-singleton (set)
@@ -115,10 +96,9 @@
 	(car elements)
 	nil)))
 
-
 ;;; SSet-Subsetp  --  Interface
 ;;;
-;;;    If Set1 is a (not necessarily proper) subset of Set2, then return true,
+;;; If Set1 is a (not necessarily proper) subset of Set2, then return true,
 ;;; otherwise return false.
 ;;;
 (defun sset-subsetp (set1 set2)
@@ -134,10 +114,10 @@
 	      (when (> num2 num1) (return-from sset-subsetp nil))
 	      (return))))))))
 
-
 ;;; SSet-Equal  --  Interface
 ;;;
-;;;    Return true if Set1 and Set2 contain the same elements, false otherwise.
+;;; Return true if Set1 and Set2 contain the same elements, false
+;;; otherwise.
 ;;;
 (defun sset-equal (set1 set2)
   (declare (type sset set1 set2) (values boolean))
@@ -148,17 +128,15 @@
     (when (null el2) (return nil))
     (unless (eq (car el1) (car el2)) (return nil))))
 
-
 ;;; Copy-SSet  --  Interface
 ;;;
-;;;    Return a new copy of Set.
+;;; Return a new copy of Set.
 ;;;
 (defun copy-sset (set)
   (declare (type sset set) (values sset))
   (let ((res (make-sset)))
     (setf (sset-elements res) (copy-list (sset-elements set)))
     res))
-
 
 ;;; SSet-Union, SSet-Intersection, SSet-Difference  --  Interface
 ;;;
@@ -232,10 +210,9 @@
 	      (return))
 	    (shiftf prev-el1 el1 (cdr el1))))))))
 
-
 ;;; SSet-Union-Of-Difference  --  Interface
 ;;;
-;;;    Destructively modify Set1 to include its union with the difference of
+;;; Destructively modify Set1 to include its union with the difference of
 ;;; Set2 and Set3.  We return true if Set1 was modified, false otherwise.
 ;;;
 (defun sset-union-of-difference (set1 set2 set3)

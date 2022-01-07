@@ -11,5 +11,5 @@
 
 (defun ftp-write (pathname stream)
   "Write from stream into file at FTP Pathname."
-  (declare (ignore pathname))
+  (declare (ignore pathname stream))
   (error "ftp-write"))

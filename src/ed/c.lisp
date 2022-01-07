@@ -1,12 +1,26 @@
 ;;; C-like language modes.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
-(defhvar "Preprocessor Start"
+#[ Editing Other Languages
+
+The editor's programming language modes are currently fairly crude.  Most
+modes provide syntax highlighting, at least of comments.  Many modes also
+provide parenthesis highlighting and basic syntax-aware indenting.
+
+FIX lisp [ Editing Lisp ]
+    C-like: C, C++, Java, Perl
+    Python, m4
+    dylan, roff
+
+{mode:Pascal}
+]#
+
+(defevar "Preprocessor Start"
   "String that indicates the start of a comment."
   :value ())
 
-(defhvar "C Special Forms"
+(defevar "C Special Forms"
   "Hashtable of C special forms."
   :value ())
 
@@ -19,7 +33,7 @@
 (defun setup-c-mode (buffer)
   (if (editor-bound-p 'c-special-forms)
       (setv c-special-forms c-special-forms)
-      (defhvar "C Special Forms"
+      (defevar "C Special Forms"
 	"Hashtable of C special forms."
 	:buffer buffer
 	:value c-special-forms))
@@ -28,12 +42,6 @@
 
 (defmode "C" :major-p t
   :setup-function 'setup-c-mode)
-
-(defcommand "C Mode" (p)
-  "Put the current buffer into \"C\" mode."
-  "Put the current buffer into \"C\" mode."
-  (declare (ignore p))
-  (setf (buffer-major-mode (current-buffer)) "C"))
 
 ;; FIX add a big test, handle comments,strings (end begin inbetween)
 ;; FIX handle function name line and following line
@@ -110,34 +118,35 @@
   (delete-horizontal-space mark)
   (funcall (value indent-with-tabs) mark (c-indentation mark)))
 
-(defhvar "Indent Function"
-  "Indentation function which is invoked by \"Indent\" command.
-   It must take one argument that is the prefix argument."
+(defevar "Indent Function"
+  "Indentation function invoked by the `Indent' command.  The function
+   takes a :left-inserting mark that may be moved, and indents the line
+   that the mark is on."
   :value #'indent-for-c
   :mode "C")
 
-(defhvar "Auto Fill Space Indent"
-  "When non-nil, uses \"Indent New Comment Line\" to break lines instead of
-   \"New Line\"."
+(defevar "Auto Fill Space Indent"
+  "When true, uses `Indent New Comment Line' to break lines instead of `New
+   Line'."
   :mode "C" :value t)
 
-(defhvar "Comment Start"
+(defevar "Comment Start"
   "String that indicates the start of a comment."
   :mode "C" :value "/*")
 
-(defhvar "Comment End"
-  "String that ends comments.  Nil indicates #\newline termination."
+(defevar "Comment End"
+  "String that ends comments.  () indicates #\newline termination."
   :mode "C" :value "*/")
 
-(defhvar "Comment Begin"
+(defevar "Comment Begin"
   "String that is inserted to begin a comment."
-  :mode "C" :value "/* ")
+  :mode "C" :value "// ")
 
-(defhvar "Preprocessor Start"
+(defevar "Preprocessor Start"
   "String that indicates the start of a preprocessor directive."
   :mode "C" :value "#")
 
-(shadow-attribute :scribe-syntax #\< nil "C")
+(shadow-attribute :scribe-syntax #\< () "C")
 
 ;;; Context highlighting.
 
@@ -154,12 +163,14 @@
 (setf (gethash "return" c-special-forms) t)
 (setf (gethash "goto" c-special-forms) t)
 (setf (gethash "exit" c-special-forms) t)
+(setf (gethash "break" c-special-forms) t)
+(setf (gethash "continue" c-special-forms) t)
 
 (setf (gethash "cast" c-special-forms) t)
 (setf (gethash "typedef" c-special-forms) t)
 
 (declaim (inline highlight-c-line))
-(declaim (special *in-string* *in-comment*))
+(declaim (special *context*))
 
 (defun search-for-c-qmark (string &optional (start 0))
   "Return position of first \" in String if there are any, else nil.  Skip
@@ -178,25 +189,27 @@
 			    while (eq (aref string start) #\\))))))
        string-start)))
 
+;;; FIX return;
+
 (defun highlight-c-line (line chi-info)
   (when (next-character (mark line 0))
     (let ((chars (line-string line))
 	  (comment-end (value comment-end))
 	  (pos 0))
-      (if *in-string*
-	  (progn
-	    (chi-mark line 0 *string-font* chi-info)
-	    (setq pos (1+ (or (search-for-c-qmark chars)
-			      (return-from highlight-c-line))))
-	    (chi-mark line pos *original-font* chi-info)
-	    (setq *in-string* nil))
-	  (when *in-comment*
-	    (chi-mark line 0 *comment-font* chi-info)
-	    (setq pos (+ (or (search comment-end chars)
-			     (return-from highlight-c-line))
-			 (length comment-end)))
-	    (chi-mark line pos *original-font* chi-info)
-	    (setq *in-comment* nil)))
+      (case *context*
+	(:string
+	 (chi-mark line 0 *string-font* :string chi-info)
+	 (setq pos (1+ (or (search-for-c-qmark chars)
+			   (return-from highlight-c-line))))
+	 (chi-mark line pos *original-font* :window-foreground chi-info)
+	 (setq *context* ()))
+	(:comment
+	 (chi-mark line 0 *comment-font* :comment chi-info)
+	 (setq pos (+ (or (search comment-end chars)
+			  (return-from highlight-c-line))
+		      (length comment-end)))
+	 (chi-mark line pos *original-font* :comment chi-info)
+	 (setq *context* ())))
       (let ((comment-start (value comment-start))
 	    (pp-start (value preprocessor-start)))
 	(loop
@@ -225,38 +238,46 @@
 		      (return-from nil))
 		  (when (gethash (subseq chars start (mark-charpos end))
 				 (value c-special-forms))
-		    (chi-mark line start *special-form-font* chi-info)
-		    (chi-mark line (mark-charpos end) *original-font* chi-info)))))
+		    (chi-mark line start *special-form-font*
+			      :special-form chi-info)
+		    (chi-mark line (mark-charpos end) *original-font*
+			      :window-foreground chi-info)))))
 	    ;; Highlight the rest.
 	    (cond ((< string (min preproc comment multic))
-		   (chi-mark line string *string-font* chi-info)
+		   (chi-mark line string *string-font*
+			     :string chi-info)
 		   (setq pos (search-for-c-qmark chars (1+ string)))
 		   (if pos
-		       (chi-mark line (incf pos) *original-font* chi-info)
+		       (chi-mark line (incf pos) *original-font*
+				 :window-foreground chi-info)
 		       (progn
-			 (setq *in-string* t)
+			 (setq *context* :string)
 			 (return-from highlight-c-line))))
 
 		  ((< preproc (min string comment multic))
 		   ; FIX handle run-on lines (lines ending in \)
-		   (chi-mark line preproc *preprocessor-font* chi-info)
+		   (chi-mark line preproc *preprocessor-font*
+			     :preprocessor chi-info)
 		   (return-from highlight-c-line))
 
 		  ((< comment (min string preproc multic))
-		   (chi-mark line comment *comment-font* chi-info)
+		   (chi-mark line comment *comment-font*
+			     :comment chi-info)
 		   (return-from highlight-c-line))
 
 		  ((< multic (min string preproc comment))
-		   (chi-mark line multic *comment-font* chi-info)
+		   (chi-mark line multic *comment-font*
+			     :comment chi-info)
 		   (or comment-end (return-from highlight-c-line))
 		   (setq pos
 			 (search comment-end chars
 				 :start2 (+ multic (length comment-start))))
 		   (if pos
 		       (chi-mark line (incf pos (length comment-end))
-				 *original-font* chi-info)
+				 *original-font* :window-foreground
+				 chi-info)
 		       (progn
-			 (setq *in-comment* t)
+			 (setq *context* :comment)
 			 (return-from highlight-c-line))))
 
 		  (t
@@ -289,46 +310,42 @@
 (defun setup-c++-mode (buffer)
   (if (editor-bound-p 'c-special-forms)
       (setv c-special-forms c++-special-forms)
-      (defhvar "C Special Forms"
+      (defevar "C Special Forms"
 	"Hashtable of C special forms."
 	:buffer buffer
 	:value c-special-forms))
+  ;; FIX use c++ special forms
   (highlight-visible-c-buffer buffer)
   (pushnew '("C++" t highlight-visible-c-buffer) *mode-highlighters*))
 
 (defmode "C++" :major-p t
   :setup-function 'setup-c++-mode)
 
-(defcommand "C++ Mode" (p)
-  "Put the current buffer into \"C++\" mode."
-  "Put the current buffer into \"C++\" mode."
-  (declare (ignore p))
-  (setf (buffer-major-mode (current-buffer)) "C++"))
-
-(defhvar "Indent Function"
-  "Indentation function which is invoked by \"Indent\" command.
-   It must take one argument that is the prefix argument."
+(defevar "Indent Function"
+  "Indentation function invoked by the `Indent' command.  The function
+   takes a :left-inserting mark that may be moved, and indents the line
+   that the mark is on."
   :value #'indent-for-c
   :mode "C++")
 
-(defhvar "Auto Fill Space Indent"
-  "When non-nil, uses \"Indent New Comment Line\" to break lines instead of
-   \"New Line\"."
+(defevar "Auto Fill Space Indent"
+  "When true, uses `Indent New Comment Line' to break lines instead of
+   `New Line'."
   :mode "C++" :value t)
 
-(defhvar "Comment Start"
+(defevar "Comment Start"
   "String that indicates the start of a comment."
   :mode "C++" :value "/*")
 
-(defhvar "Comment End"
+(defevar "Comment End"
   "String that ends comments.  Nil indicates #\newline termination."
   :mode "C++" :value "*/")
 
-(defhvar "Comment Begin"
+(defevar "Comment Begin"
   "String that is inserted to begin a comment."
   :mode "C++" :value "/* ")
 
-(defhvar "Preprocessor Start"
+(defevar "Preprocessor Start"
   "String that indicates the start of a preprocessor directive."
   :mode "C++" :value "#")
 
@@ -340,7 +357,7 @@
 (defun setup-perl-mode (buffer)
   (if (editor-bound-p 'c-special-forms)
       (setv c-special-forms c-special-forms)
-      (defhvar "C Special Forms"
+      (defevar "C Special Forms"
 	"Hashtable of C special forms."
 	:buffer buffer
 	:value c-special-forms))
@@ -350,32 +367,27 @@
 (defmode "Perl" :major-p t
   :setup-function 'setup-perl-mode)
 
-(defcommand "Perl Mode" (p)
-  "Put the current buffer into \"Perl\" mode."
-  "Put the current buffer into \"Perl\" mode."
-  (declare (ignore p))
-  (setf (buffer-major-mode (current-buffer)) "Perl"))
-
-(defhvar "Indent Function"
-  "Indentation function which is invoked by \"Indent\" command.
-   It must take one argument that is the prefix argument."
+(defevar "Indent Function"
+  "Indentation function invoked by the `Indent' command.  The function
+   takes a :left-inserting mark that may be moved, and indents the line
+   that the mark is on."
   :value #'indent-for-c
   :mode "Perl")
 
-(defhvar "Auto Fill Space Indent"
-  "When non-nil, uses \"Indent New Comment Line\" to break lines instead of
-   \"New Line\"."
+(defevar "Auto Fill Space Indent"
+  "When true, uses `Indent New Comment Line' to break lines instead of
+   `New Line'."
   :mode "Perl" :value t)
 
-(defhvar "Comment Start"
+(defevar "Comment Start"
   "String that indicates the start of a comment."
   :mode "Perl" :value "#")
 
-(defhvar "Comment End"
+(defevar "Comment End"
   "String that ends comments.  Nil indicates #\newline termination."
-  :mode "Perl" :value nil)
+  :mode "Perl")
 
-(defhvar "Comment Begin"
+(defevar "Comment Begin"
   "String that is inserted to begin a comment."
   :mode "Perl" :value "# ")
 
@@ -387,7 +399,7 @@
 (defun setup-java-mode (buffer)
   (if (editor-bound-p 'c-special-forms)
       (setv c-special-forms c-special-forms)
-      (defhvar "C Special Forms"
+      (defevar "C Special Forms"
 	"Hashtable of C special forms."
 	:buffer buffer
 	:value c-special-forms))
@@ -397,32 +409,27 @@
 (defmode "Java" :major-p t
   :setup-function 'setup-java-mode)
 
-(defcommand "Java Mode" (p)
-  "Put the current buffer into \"Java\" mode."
-  "Put the current buffer into \"Java\" mode."
-  (declare (ignore p))
-  (setf (buffer-major-mode (current-buffer)) "Java"))
-
-(defhvar "Indent Function"
-  "Indentation function which is invoked by \"Indent\" command.
-   It must take one argument that is the prefix argument."
+(defevar "Indent Function"
+  "Indentation function invoked by the `Indent' command.  The function
+   takes a :left-inserting mark that may be moved, and indents the line
+   that the mark is on."
   :value #'indent-for-c
   :mode "Java")
 
-(defhvar "Auto Fill Space Indent"
-  "When non-nil, uses \"Indent New Comment Line\" to break lines instead of
-   \"New Line\"."
+(defevar "Auto Fill Space Indent"
+  "When true, uses `Indent New Comment Line' to break lines instead of
+   `New Line'."
   :mode "Java" :value t)
 
-(defhvar "Comment Start"
+(defevar "Comment Start"
   "String that indicates the start of a comment."
   :mode "Java" :value "#")
 
-(defhvar "Comment End"
+(defevar "Comment End"
   "String that ends comments.  Nil indicates #\newline termination."
-  :mode "Java" :value nil)
+  :mode "Java")
 
-(defhvar "Comment Begin"
+(defevar "Comment Begin"
   "String that is inserted to begin a comment."
   :mode "Java" :value "# ")
 

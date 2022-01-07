@@ -1,9 +1,34 @@
-;;; Code to implement commands using the spelling checking/correcting stuff
-;;; in spell-corr.lisp and the dictionary augmenting stuff in
-;;; spell-aug.lisp.
+;;; Commands that use the spelling checking/correcting stuff in
+;;; spell-corr.lisp and the dictionary augmenting stuff in spell-aug.lisp.
 
 (in-package "ED")
 
+
+#[ Spelling Correction
+
+the editor has a spelling correction facility based on the dictionary for the ITS
+spell program.  This dictionary is fairly small, having only 45,000 word or so,
+which means it fits on your disk, but it also means that many reasonably common
+words are not in the dictionary.  A correct spelling for a misspelled word will
+be found if the word is in the dictionary and is only erroneous in that it has
+a wrong character, a missing character, an extra character or a transposition
+of two characters.
+
+{command:Check Word Spelling}
+{command:Correct Buffer Spelling}
+{evariable:Spell Ignore Uppercase}
+{command:Add Word to Spelling Dictionary}
+{command:Remove Word from Spelling Dictionary}
+{command:List Incremental Spelling Insertions}
+{command:Read Spelling Dictionary}
+{command:Set Buffer Spelling Dictionary}
+{command:Save Incremental Spelling Insertions}
+{evariable:Default User Spelling Dictionary}
+
+[ Auto Spell Mode ]
+]#
+
+
 (defstruct (spell-info (:print-function print-spell-info)
 		       (:constructor make-spell-info (pathname)))
   pathname	;Dictionary file.
@@ -24,7 +49,6 @@
   (setf (character-attribute :spell-word-character c) 1))
 (setf (character-attribute :spell-word-character #\') 1)
 
-
 (defvar *spelling-corrections* (make-hash-table :test #'equal)
   "Mapping from incorrect words to their corrections.")
 
@@ -32,54 +56,83 @@
   "A hashtable with true values for words that will be quietly ignored when
   they appear.")
 
-(defhvar "Spell Ignore Uppercase"
-  "If true, then \"Check Word Spelling\" and \"Correct Buffer Spelling\" will
-  ignore unknown words that are all uppercase.  This is useful for
-  abbreviations and cryptic formatter directives."
-  :value nil)
-
+(defevar "Spell Ignore Uppercase"
+  "If true, then `Check Word Spelling' and `Correct Buffer Spelling' skip
+   over words that are all uppercase.  This is useful for abbreviations,
+   acronyms and cryptic formatter directives.")
 
 
-;;;; Basic Spelling Correction Command (Esc-$ in EMACS)
+;;;; Basic Spelling Correction Command
 
-(defcommand "Check Word Spelling" (p)
-  "Check the spelling of the previous word and offer possible corrections
-   if the word in unknown. To add words to the dictionary from a text file see
-   the command \"Augment Spelling Dictionary\"."
-  "Check the spelling of the previous word and offer possible correct
-   spellings if the word is known to be misspelled."
-  (declare (ignore p))
+(defcommand "Check Word Spelling" ()
+  "Check and attempt to correct the spelling of the previous or current
+   word.  There are four possible results of invoking this command:
+
+      1) Display the message \"Found it.\" in the echo area.  This means
+	 the word is in the dictionary exactly as given.
+
+      2) Display the message \"Found it because of word.\", where
+	 word is some other word with the same root and a some other ending.  The
+	 word is as in case 1.
+
+      3) Prompt with \"Correction choice:\" in the echo area and pop up a
+         list of possible correct spellings associated with numbers.
+         Replace the word with the correction corresponding to the prompted
+         number, preserving case by the same heuristic as `Query Replace'.
+         Typing anything else rejects all the choices.
+
+      4) Display the message \"Word not found.\".  The word may be spelled
+         correctly anyway.  If this happens, it may be worth trying some
+         alternate spellings since one of them might be close enough to
+         some known words that this command could display.
+
+   `Augment Spelling Dictionary' adds words to the dictionary from a text
+   file."
   (spell:maybe-read-spell-dictionary)
   (let* ((region (spell-previous-word (current-point) nil))
 	 (word (if region
 		   (region-to-string region)
-		   (editor-error "No previous word.")))
+		   (editor-error "First word.")))
 	 (folded (string-upcase word)))
     (message "Checking spelling of ~A." word)
     (unless (check-out-word-spelling word folded)
       (get-word-correction (region-start region) word folded))))
 
 
+#[ Auto Spell Mode
+
+`Auto Spell Mode' checks the spelling of each word as it is typed.
+When an unknown word is typed the user is notified and allowed to take a
+number of actions to correct the word.
+
+{mode:Spell}
+{command:Auto Check Word Spelling}
+{evariable:Check Word Spelling Beep}
+{evariable:Correct Unique Spelling Immediately}
+{command:Undo Last Spelling Correction}
+{evariable:Spelling Un-Correct Prompt for Insert}
+{command:Correct Last Spelling Error}
+]#
+
+
 ;;;; Auto-Spell mode:
 
-(defhvar "Check Word Spelling Beep"
-  "If true, \"Auto Check Word Spelling\" will beep when an unknown word is
+(defevar "Check Word Spelling Beep"
+  "If true, `Auto Check Word Spelling' beeps when an unknown word is
    found."
   :value t)
 
-(defhvar "Correct Unique Spelling Immediately"
-  "If true, \"Auto Check Word Spelling\" will immediately attempt to correct any
-   unknown word, automatically making the correction if there is only one
-   possible."
+(defevar "Correct Unique Spelling Immediately"
+  "If true, `Auto Check Word Spelling' will immediately attempt to correct
+   any unknown word, automatically making the correction if there is only
+   one possible."
   :value t)
 
-
-(defhvar "Default User Spelling Dictionary"
-  "This is the pathname of a dictionary to read the first time \"Spell\" mode
-   is entered in a given editing session.  When \"Set Buffer Spelling
-   Dictionary\" or the \"dictionary\" file option is used to specify a
-   dictionary, this default one is read also.  It defaults to nil."
-  :value nil)
+(defevar "Default User Spelling Dictionary"
+  "The pathname of a dictionary to read the first time \"Spell\" mode is
+   entered in a given editing session.  When `Set Buffer Spelling
+   Dictionary' or the \"dictionary\" file option is used to specify a
+   dictionary, this one is read also.")
 
 (defvar *default-user-dictionary-read-p* nil)
 
@@ -90,39 +143,37 @@
       (spell:spell-read-dictionary (truename default-dict))
       (setf *default-user-dictionary-read-p* t))))
 
-
 (defmode "Spell"
   :transparent-p t :precedence 1.0 :setup-function 'spell-mode-setup)
 
 (defun spell-mode-setup (buffer)
-  (defhvar "Buffer Misspelled Words"
+  (defevar "Buffer Misspelled Words"
     "This variable holds a ring of marks pointing to misspelled words."
     :buffer buffer  :value (make-ring 10 #'delete-mark))
   (maybe-read-default-user-spelling-dictionary))
 
-(defcommand "Auto Spell Mode" (p)
+(defcommand "Auto Spell Mode" ()
   "Toggle \"Spell\" mode in the current buffer.  When in \"Spell\" mode,
-  the spelling of each word is checked after it is typed."
+   the spelling of each word is checked after it is typed."
   "Toggle \"Spell\" mode in the current buffer."
-  (declare (ignore p))
   (setf (buffer-minor-mode (current-buffer) "Spell")
 	(not (buffer-minor-mode (current-buffer) "Spell"))))
 
+(defcommand "Auto Check Word Spelling" ()
+  "Check the spelling of the word before the point.  If the word is has a
+   previously supplied correction, then correct the spelling.  Otherwise if
+   the word is spelled in error then displays a message in the echo area
+   indicating the error.  The error may be corrected using the `Correct
+   Last Spelling Error' command.
 
-(defcommand "Auto Check Word Spelling" (p)
-  "Check the spelling of the previous word and display a message in the echo
-   area if the word is not in the dictionary.  To add words to the dictionary
-   from a text file see the command \"Augment Spelling Dictionary\".  If a
-   replacement for an unknown word has previously been specified, then the
-   replacement will be made immediately.  If \"Correct Unique Spelling
-   Immediately\" is true, then this command will immediately correct words
-   which have a unique correction.  If there is no obvious correction, then we
-   place the word in a ring buffer for access by the \"Correct Last Misspelled
-   Word\" command.  If \"Check Word Spelling Beep\" is true, then this command
-   beeps when an unknown word is found, in addition to displaying the message."
-  "Check the spelling of the previous word, making obvious corrections, or
-  queuing the word in buffer-misspelled-words if we are at a loss."
-  (declare (ignore p))
+   Execute in addition to other commands bound to the same key; for
+   example, if `Fill' mode is on, any of the `Fill' mode commands bound to
+   the same keys also run.
+
+   If `Check Word Spelling Beep' is true, then beep when a spelling error
+   is found.  If `Correct Unique Spelling Immediately' is true, then
+   immediately attempt to correct any error, automatically making the
+   correction if there is only one possible."
   (unless (eq (last-command-type) :spell-check)
     (spell:maybe-read-spell-dictionary)
     (let ((region (spell-previous-word (current-point) t)))
@@ -135,8 +186,10 @@
 	    (let ((found (gethash word *spelling-corrections*))
 		  (save (region-to-string region)))
 	      (cond (found
-		     (undoable-replace-word (region-start region) save found)
-		     (message "Corrected ~S to ~S." save found)
+		     (message "Corrected ~S to ~S."
+			      save
+			      (undoable-replace-word
+			       (region-start region) save found))
 		     (when (value check-word-spelling-beep) (beep)))
 		    ((and (value spell-ignore-uppercase)
 			  (every #'upper-case-p save))
@@ -149,9 +202,11 @@
 				   (null (rest close))
 				   (value correct-unique-spelling-immediately))
 			      (let ((fix (first close)))
-				(undoable-replace-word (region-start region)
-						       save fix)
-				(message "Corrected ~S to ~S." save fix)))
+				(message "Corrected ~S to ~S."
+					 save
+					 (undoable-replace-word
+					  (region-start region)
+					  save fix))))
 			     (t
 			      (ring-push (copy-mark (region-end region)
 						    :right-inserting)
@@ -159,22 +214,51 @@
 			      (let ((nclose
 				     (do ((i 0 (1+ i))
 					  (words close (cdr words))
-					  (nwords () (cons (list i (car words))
-							   nwords)))
+					  (nwords ()
+						  (cons (list i
+							      (match-case save
+									 (car words)))
+							nwords)))
 					 ((null words) (nreverse nwords)))))
 				(message
 				 "Corrections for ~S:~:{ ~D=~A~}"
 				 save nclose)))))
-		     (when (value check-word-spelling-beep) (beep))))))))))
+		     (when (value check-word-spelling-beep)
+		       (beep))))))))))
   (setf (last-command-type) :spell-check))
 
-(defcommand "Correct Last Misspelled Word" (p)
-  "Fix a misspelling found by \"Auto Check Word Spelling\".  This prompts for
-   a single character command to determine which action to take to correct the
-   problem."
-  "Prompt for a single character command to determine how to fix up a
-   misspelling detected by Check-Word-Spelling-Command."
-  (declare (ignore p))
+(defcommand "Correct Last Spelling Error" ()
+  "Correct a spelling error found by `Auto Check Word Spelling'.
+
+   Place the cursor after the last spelling error then prompts for a
+   key-event for further action:
+
+     c
+	Display possible corrections in a pop-up window, and prompt for the
+	one to make according to the corresponding displayed digit or
+	letter.  Add the correction to the known corrections.
+
+     any digit
+	Similar to c digit, only make the correction immediately instead of
+	displaying the possible corrections.
+
+     i
+	Insert the word in the dictionary.
+
+     r
+	Replace the word with another.  Add the correction to the known
+	corrections.
+
+     Backspace, Delete, n
+	Skip this word and try again on the next most recent spelling
+	error.
+
+     C-r
+	Enter a recursive edit at the word, exiting when the recursive edit
+	is exited.
+
+     Escape
+	 Exit and forget about this word."
   (spell:maybe-read-spell-dictionary)
   (do ((info (value spell-information)))
       ((sub-correct-last-misspelled-word info))))
@@ -193,68 +277,64 @@
     (declare (simple-string word))
     (unwind-protect
       (progn
-       (when (check-out-word-spelling word folded)
-	 (delete-mark (ring-pop missed))
-	 (return-from sub-correct-last-misspelled-word t))
-       (move-mark point (region-end region))
-       (command-case (:prompt "Action: "
-		      :change-window nil
+	(when (check-out-word-spelling word folded)
+	  (delete-mark (ring-pop missed))
+	  (return-from sub-correct-last-misspelled-word t))
+	(move-mark point (region-end region))
+	(command-case (:prompt "Action: "
+		       :change-window nil
  :help "Type a single character command to do something to the misspelled word.")
-	 (#\c "Try to find a correction for this word."
-	  (unless (get-word-correction (region-start region) word folded)
-	    (reprompt)))
-	 (#\i "Insert this word in the dictionary."
-	  (spell:spell-add-entry folded)
-	  (push folded (spell-info-insertions info))
-	  (message "~A inserted in the dictionary." word))
-	 (#\r "Prompt for a word to replace this word with."
-	  (let ((s (prompt-for-string :prompt "Replace with: "
-				      :default word
+	  (#\c "Try to find a correction for this word."
+	    (unless (get-word-correction (region-start region) word folded)
+	      (reprompt)))
+	  (#\i "Insert this word in the dictionary."
+	    (spell:spell-add-entry folded)
+	    (push folded (spell-info-insertions info))
+	    (message "~A inserted in the dictionary." word))
+	  (#\r "Prompt for a word to replace this word with."
+	    (let ((s (prompt-for-string :prompt "Replace with: "
+					:default word
  :help "Type a string to replace occurrences of this word with.")))
 	    (delete-region region)
 	    (insert-string point s)
 	    (setf (gethash folded *spelling-corrections*) s)))
-	 (:cancel "Ignore this word and go to the previous misspelled word."
-	  (setq res nil))
-	 (:recursive-edit
-	  "Go into a recursive edit and leave when it exits."
-	  (do-recursive-edit))
-	 ((:exit #\q) "Exit and forget about this word.")
-	 ((#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9)
-	  "Choose this numbered word as the correct spelling."
-	  (let ((num (digit-char-p (ext:key-event-char *last-key-event-typed*)))
-		(close-words (spell:spell-collect-close-words folded)))
-	    (cond ((> num (length close-words))
-		   (editor-error "Choice out of range."))
-		  (t (let ((s (nth num close-words)))
-		       (setf (gethash folded *spelling-corrections*) s)
-		       (undoable-replace-word (region-start region)
-					      word s)))))))
-       (delete-mark (ring-pop missed))
-       res)
+	  (:cancel "Ignore this word and go to the previous misspelled word."
+	    (setq res nil))
+	  (:recursive-edit
+	    "Go into a recursive edit and leave when it exits."
+	    (do-recursive-edit))
+	  ((:exit #\q) "Exit and forget about this word.")
+	  ((#\0 #\1 #\2 #\3 #\4 #\5 #\6 #\7 #\8 #\9)
+	   "Choose this numbered word as the correct spelling."
+	   (let ((num (digit-char-p (ext:key-event-char *last-key-event-typed*)))
+		 (close-words (spell:spell-collect-close-words folded)))
+	     (cond ((> num (length close-words))
+		    (editor-error "Choice out of range."))
+		   (t (let ((s (nth num close-words)))
+			(setf (gethash folded *spelling-corrections*) s)
+			(undoable-replace-word (region-start region)
+					       word s)))))))
+	(delete-mark (ring-pop missed))
+	res)
       (move-mark point save)
       (delete-mark save))))
 
-(defhvar "Spelling Un-Correct Prompt for Insert"
-  "When this is set, \"Undo Last Spelling Correction\" will prompt before
-   inserting the old word into the dictionary."
-  :value nil)
+(defevar "Spelling Un-Correct Prompt for Insert"
+  "When set, `Undo Last Spelling Correction' prompts before inserting the
+   old word into the dictionary.")
 
-(defcommand "Undo Last Spelling Correction" (p)
-  "Undo the last incremental spelling correction.
-   The \"correction\" is replaced with the old word, and the old word is
-   inserted in the dictionary.  When \"Spelling Un-Correct Prompt for Insert\"
-   is set, the user is asked about inserting the old word.  Any automatic
-   replacement for the old word is eliminated."
-  "Undo the last incremental spelling correction, nuking any undesirable
-   side-effects."
-  (declare (ignore p))
-  (unless (editor-bound-p 'last-spelling-correction-mark)
-    (editor-error "No last spelling correction."))
+(defcommand "Undo Last Spelling Correction" ()
+  "Undo the last incremental spelling correction.  Replace the
+   \"correction\" with the old word, and insert the old word in the
+   dictionary.  When *Spelling Un-Correct Prompt for Insert* is set, ask
+   for confirmation before inserting the old word.  Eliminate any automatic
+   replacement for the old word."
+  (or (editor-bound-p 'last-spelling-correction-mark)
+      (editor-error "Need a previous spelling correction."))
   (let ((mark (value last-spelling-correction-mark))
 	(words (value last-spelling-correction-words)))
-    (unless words
-      (editor-error "No last spelling correction."))
+    (or words
+	(editor-error "Need a last spelling correction."))
     (let* ((new (car words))
 	   (old (cdr words))
 	   (folded (string-upcase old)))
@@ -273,11 +353,10 @@
 	(spell:spell-add-entry folded)
 	(message "Added ~S to spelling dictionary." old)))))
 
-
 ;;; Check-Out-Word-Spelling  --  Internal
 ;;;
-;;;    Return Nil if Word is a candidate for correction, otherwise
-;;; return T and message as to why it isn't.
+;;; Return () if Word is a candidate for correction, otherwise return T and
+;;; message as to why it isn't.
 ;;;
 (defun check-out-word-spelling (word folded)
   (declare (simple-string word))
@@ -295,10 +374,10 @@
 
 ;;; Get-Word-Correction  --  Internal
 ;;;
-;;;    Find all known close words to the either unknown or incorrectly
-;;; spelled word we are checking.  Word is the unmunged word, and Folded is
-;;; the uppercased word.  Mark is a mark which points to the beginning of
-;;; the offending word.  Return True if we successfully corrected the word.
+;;; Find all known close words to the either unknown or incorrectly spelled
+;;; word we are checking.  Word is the unmunged word, and Folded is the
+;;; uppercased word.  Mark is a mark which points to the beginning of the
+;;; offending word.  Return True if we successfully corrected the word.
 ;;;
 (defun get-word-correction (mark word folded)
   (let ((close-words (spell:spell-collect-close-words folded)))
@@ -308,7 +387,7 @@
 	  (do ((i 0 (1+ i))
 	       (words close-words (cdr words)))
 	      ((null words))
-	    (format s "~36R=~A " i (car words)))
+	    (format s "~36R=~A " i (match-case word (car words))))
 	  (finish-output s)
 	  (let* ((key-event (prompt-for-key-event
 			     :prompt "Correction choice: "))
@@ -325,27 +404,26 @@
 	  (write-line "No corrections found." s)
 	  nil))))
 
-
 ;;; Undoable-Replace-Word  --  Internal
 ;;;
-;;;    Like Spell-Replace-Word, but makes annotations in buffer local variables
-;;; so that "Undo Last Spelling Correction" can undo it.
+;;; Like Spell-Replace-Word, but makes annotations in buffer local
+;;; variables so that "Undo Last Spelling Correction" can undo it.
 ;;;
 (defun undoable-replace-word (mark old new)
   (unless (editor-bound-p 'last-spelling-correction-mark)
     (let ((buffer (current-buffer)))
-      (defhvar "Last Spelling Correction Mark"
+      (defevar "Last Spelling Correction Mark"
 	"This variable holds a park pointing to the last spelling correction."
 	:buffer buffer  :value (copy-mark (buffer-start-mark buffer)))
-      (defhvar "Last Spelling Correction Words"
+      (defevar "Last Spelling Correction Words"
 	"The replacement done for the last correction: (new . old)."
-	:buffer buffer  :value nil)))
+	:buffer buffer)))
   (move-mark (value last-spelling-correction-mark) mark)
   (setf (value last-spelling-correction-words) (cons new old))
   (spell-replace-word mark old new))
 
 
-;;;; Buffer Correction
+;;;; Buffer Correction.
 
 (defvar *spell-word-characters*
   (make-array char-code-limit :element-type 'bit  :initial-element 0)
@@ -355,23 +433,47 @@
   (setf (sbit *spell-word-characters* (char-code c)) 1))
 (setf (sbit *spell-word-characters* (char-code #\')) 1)
 
+(defcommand "Correct Buffer Spelling" (p start)
+  "Scan the entire buffer looking for spelling errors and offer to correct
+   them.  Create a window into the `Spell Corrections' buffer, and in
+   this buffer maintain a log of any actions taken.  On finding
+   an new word, prompts for a key-event with the following options:
 
-(defcommand "Correct Buffer Spelling" (p &optional start)
-  "Correct spelling over whole buffer.  A log of the found misspellings is
-   kept in the buffer \"Spell Corrections\".  For each unknown word the
-   user may accept it, insert it in the dictionary, correct its spelling
-   with one of the offered possibilities, replace the word with a user
-   supplied word, or go into a recursive edit.  Words may be added to the
-   dictionary in advance from a text file (see the command \"Augment
-   Spelling Dictionary\").  With a prefix skip over commented lines."
-  "Correct spelling over whole buffer.  If P is true skip over cited (FIX
-   commented) lines."
+      a
+	  Skip this word.  If the command finds the word again, it will
+	  prompt again.
+
+      i
+	  Insert this word in the dictionary.
+
+      c
+	  Choose one of the corrections displayed in the `Spell
+	  Corrections' window by specifying the correction number.  If the
+	  same error is encountered again, then make the same correction
+	  automatically, leaving a note in the log window.
+
+      r
+	  Prompt for a word to use instead of the erroneous one,
+	  remembering the correction as with c.
+
+      C-r
+
+	  Go into a recursive edit at the current position, and resume
+	  checking when the recursive edit is exited.
+
+   On completion, delete the log window, leaving the buffer around for
+   future reference.
+
+   With a prefix skip over commented lines.
+
+   `Augment Spelling Dictionary' adds words to the dictionary from a text
+   file."
   (clrhash *ignored-misspellings*)
   (let* ((buffer (current-buffer))
 	 (log (or (make-buffer "Spelling Corrections")
 		  (getstring "Spelling Corrections" *buffer-names*)))
 	 (point (buffer-end (buffer-point log)))
-	 (*standard-output* (make-hemlock-output-stream point))
+	 (*standard-output* (make-editor-output-stream point))
 	 (window (or (car (buffer-windows log)) (make-window point))))
     (format t
 	    ;; FIX how to list [some] help chars?
@@ -486,9 +588,9 @@
 
 ;;; Fix-Word  --  Internal
 ;;;
-;;;    Handles the case where the word has a known correction.  If is does
-;;; not then call Correct-Buffer-Word-Not-Found.  In either case, the point
-;;; is left at the place to resume checking.  Returns nil if all following
+;;; Handles the case where the word has a known correction.  If is does not
+;;; then call Correct-Buffer-Word-Not-Found.  In either case, the point is
+;;; left at the place to resume checking.  Returns nil if all following
 ;;; words must be accepted, else t.
 ;;;
 (defun fix-word (word unfolded-word window info)
@@ -567,7 +669,7 @@
 	   (spell-replace-word mark unfolded-word s))
 	 (terpri))
       (#\q "Quit checking the buffer."
-	 (editor-error))
+	 (editor-error "Spell check exited."))
       (#\! "Accept this and all following words."
 	 (return-from correct-buffer-word-not-found nil))
       (:recursive-edit
@@ -575,24 +677,32 @@
        (do-recursive-edit)))
     t))
 
+;;; Match-Case  --  Internal
+;;;
+;;; Return a version of New, case converted according to Old.
+;;;
+(defun match-case (old new)
+  (cond ((lower-case-p (schar old 0))
+	 (string-downcase new))
+	((lower-case-p (schar old 1))
+	 (let ((res (string-downcase new)))
+	   (setf (char res 0) (char-upcase (char res 0)))
+	   res))
+	(t
+	 (string-upcase new))))
+
 ;;; Spell-Replace-Word  --  Internal
 ;;;
-;;;    Replaces Old with New, starting at Mark.  The case of Old is used
-;;; to derive the new case.
+;;; Replaces Old with New, starting at Mark.  The case of Old is used to
+;;; derive the new case.
 ;;;
 (defun spell-replace-word (mark old new)
   (declare (simple-string old new))
-  (let ((res (cond ((lower-case-p (schar old 0))
-		    (string-downcase new))
-		   ((lower-case-p (schar old 1))
-		    (let ((res (string-downcase new)))
-		      (setf (char res 0) (char-upcase (char res 0)))
-		      res))
-		   (t
-		    (string-upcase new)))))
+  (let ((res (match-case old new)))
     (with-mark ((m mark :left-inserting))
       (delete-characters m (length old))
-      (insert-string m res))))
+      (insert-string m res))
+    res))
 
 
 ;;;; User Spelling Dictionaries.
@@ -600,7 +710,7 @@
 (defvar *pathname-to-spell-info* (make-hash-table :test #'equal)
   "This maps dictionary files to spelling information.")
 
-(defhvar "Spell Information"
+(defevar "Spell Information"
   "This is the information about a spelling dictionary and its incremental
    insertions."
   :value (make-spell-info nil))
@@ -623,13 +733,13 @@
     (save-spelling-insertions
      (variable-value 'spell-information :buffer buffer))))
 
-
-(defcommand "Save Incremental Spelling Insertions" (p)
-  "Append incremental spelling dictionary insertions to a file.  The file
-   is prompted for unless \"Set Buffer Spelling Dictionary\" has been
-   executed in the buffer."
-  "Append incremental spelling dictionary insertions to a file."
-  (declare (ignore p))
+(defcommand "Save Incremental Spelling Insertions" ()
+  "Append incremental spelling dictionary insertions to a file.  Append to
+   the file any words added to the dictionary since the last time this was
+   done.  Except for `Augment Spelling Dictionary', all the commands that
+   add words to the dictionary put their insertions in this list.  If `Set
+   Buffer Spelling Dictionary' has been executed in the buffer then use
+   that file, otherwise prompt for the file."
   (let* ((info (value spell-information))
 	 (file (or (spell-info-pathname info)
 		   (value default-user-spelling-dictionary)
@@ -664,12 +774,15 @@
     (message "Incremental spelling insertions for ~A written."
 	     (namestring name))))
 
-(defcommand "Set Buffer Spelling Dictionary" (p &optional file buffer)
-  "Prompts for the dictionary file to associate with the current buffer.
-   If this file has not been read for any other buffer, then it is read.
-   Incremental spelling insertions from this buffer can be appended to
-   this file with \"Save Incremental Spelling Insertions\"."
-  "Sets the buffer's spelling dictionary and reads it if necessary."
+(defcommand "Set Buffer Spelling Dictionary" (p file buffer)
+  "Associate a dictionary file with the current buffer.  Read in the file
+   if this is the first buffer to use the file.  Incremental spelling
+   insertions from this buffer can be appended to this file with `Save
+   Incremental Spelling Insertions'.  If a buffer has an associated
+   spelling dictionary, then saving the buffer's associated file also saves
+   any incremental dictionary insertions.  The \"Dictionary: file\" file
+   option (as in [File Options]) may also be used to specify the dictionary
+   for a buffer."
   (declare (ignore p))
   (maybe-read-default-user-spelling-dictionary)
   (let* ((file (truename (or file
@@ -682,7 +795,7 @@
 	 (spell-info-p (gethash file-name *pathname-to-spell-info*))
 	 (spell-info (or spell-info-p (make-spell-info file)))
 	 (buffer (or buffer (current-buffer))))
-    (defhvar "Spell Information"
+    (defevar "Spell Information"
       "This is the information about a spelling dictionary and its incremental
        insertions."
       :value spell-info :buffer buffer)
@@ -691,7 +804,7 @@
       (setf (gethash file-name *pathname-to-spell-info*) spell-info)
       (read-spelling-dictionary-command nil file))))
 
-(defcommand "Read Spelling Dictionary" (p &optional file)
+(defcommand "Read Spelling Dictionary" (p file)
   "Adds entries to the dictionary from a file in the following format:
 
       entry1/flag1/flag2/flag3
@@ -702,7 +815,6 @@
    the available flags and their correct use may be found at the beginning
    of spell-correct.lisp in the editor sources.  There must be exactly one
    entry per line, and each line must be flushleft."
-  "Add entries to the dictionary from a text file in a specified format."
   (declare (ignore p))
   (spell:maybe-read-spell-dictionary)
   (spell:spell-read-dictionary
@@ -717,10 +829,8 @@
   (make-pathname :defaults (buffer-default-pathname (current-buffer))
 		 :type "dict"))
 
-(defcommand "Add Word to Spelling Dictionary" (p)
+(defcommand "Add Word to Spelling Dictionary" ()
   "Add the previous word to the spelling dictionary."
-  "Add the previous word to the spelling dictionary."
-  (declare (ignore p))
   (spell:maybe-read-spell-dictionary)
   (let ((word (region-to-string (spell-previous-word (current-point) nil))))
     ;;
@@ -729,10 +839,10 @@
       (message "Word ~(~S~) added to the spelling dictionary." word)
       (push word (spell-info-insertions (value spell-information))))))
 
-(defcommand "Remove Word from Spelling Dictionary" (p)
-  "Prompts for word to remove from the spelling dictionary."
-  "Prompts for word to remove from the spelling dictionary."
-   (declare (ignore p))
+(defcommand "Remove Word from Spelling Dictionary" ()
+  "Remove a prompted word and all words with the same root from the
+   spelling dictionary.  Prompt for confirmation before removing a root
+   word with valid suffix flags."
   (spell:maybe-read-spell-dictionary)
   (let* ((word (prompt-for-string
 		:prompt "Word to remove from spelling dictionary: "
@@ -741,8 +851,7 @@
     (declare (simple-string word))
     (multiple-value-bind (index flagp)
 			 (spell:spell-try-word upword (length word))
-      (unless index
-	(editor-error "~A not in dictionary." upword))
+      (or index	(editor-error "~A not in dictionary." upword))
       (if flagp
 	  (remove-spelling-word upword)
 	  (let ((flags (spell:spell-root-flags index)))
@@ -766,12 +875,9 @@
     (setf (spell-info-insertions info)
 	  (delete word (spell-info-insertions info) :test #'string=))))
 
-(defcommand "List Incremental Spelling Insertions" (p)
+(defcommand "List Incremental Spelling Insertions" ()
   "Display the incremental spelling insertions for the current buffer's
    associated spelling dictionary file."
-  "Display the incremental spelling insertions for the current buffer's
-   associated spelling dictionary file."
-  (declare (ignore p))
   (let* ((info (value spell-information))
 	 (file (spell-info-pathname info))
 	 (insertions (spell-info-insertions info)))
@@ -784,14 +890,13 @@
       (dolist (w insertions)
 	(write-line w s)))))
 
-
 
 ;;;; Utilities for above stuff.
 
-;;; SPELL-PREVIOUS-WORD returns as a region the current or previous word, using
-;;; the spell word definition.  If there is no such word, return nil.  If end-p
-;;; is non-nil, then mark ends the word even if there is a non-delimiter
-;;; character after it.
+;;; SPELL-PREVIOUS-WORD returns as a region the current or previous word,
+;;; using the spell word definition.  If there is no such word, return nil.
+;;; If end-p is true, then mark ends the word even if there is a
+;;; non-delimiter character after it.
 ;;;
 ;;; Actually, if mark is between the first character of a word and a
 ;;; non-spell-word characer, it is considered to be in that word even

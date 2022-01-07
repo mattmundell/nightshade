@@ -42,11 +42,163 @@
 (in-package "KERNEL")
 
 
-;;;; Utilities:
+#[ Floats
+
+Nightshade supports two floating point formats: \tindexed{single-float} and
+\tindexed{double-float}.  These are implemented with IEEE single and
+double float arithmetic, respectively.  \code{short-float} is a
+synonym for \code{single-float}, and \code{long-float} is a synonym
+for \code{double-float}.  The initial value of
+\vindexed{read-default-float-format} is \code{single-float}.
+
+Both \code{single-float} and \code{double-float} are represented with a pointer
+descriptor, so float operations can cause number consing.  Number consing is
+greatly reduced if programs are written to allow the use of non-descriptor
+representations (\pxlref{numeric-types}.)
+
+[ IEEE Special Values ]
+[ Negative Zero ]
+[ Denormalized Floats ]
+[ Floating Point Exceptions ]
+[ Floating Point Rounding Mode ]
+[ Accessing the Floating Point Modes ]
+]#
+
+#[ IEEE Special Values
+
+Nightshade supports the IEEE infinity and NaN special values.  These non-numeric
+values will only be generated when trapping is disabled for some floating point
+exception (\pxlref{float-traps}), so users of the default
+configuration need not concern themselves with special values.
+
+{constant:ext:short-float-positive-infinity}
+{constant:ext:short-float-negative-infinity}
+{constant:ext:single-float-positive-infinity}
+{constant:ext:single-float-negative-infinity}
+{constant:ext:double-float-positive-infinity}
+{constant:ext:double-float-negative-infinity}
+{constant:ext:long-float-positive-infinity}
+{constant:ext:long-float-negative-infinity}
+
+{function:ext:float-infinity-p}
+{function:ext:float-nan-p}
+{function:ext:float-trapping-nan-p}
+]#
+
+#[ Negative Zero
+
+The IEEE float format provides for distinct positive and negative
+zeros.  To test the sign on zero (or any other float), use the
+\clisp{} \findexed{float-sign} function.  Negative zero prints as
+\code{-0.0f0} or \code{-0.0d0}.
+]#
+
+#[ Denormalized Floats
+
+Nightshade supports IEEE denormalized floats.  Denormalized floats provide
+a mechanism for gradual underflow.  The Lisp `float-precision' function
+returns the actual precision of a denormalized float, which will be less
+than `float-digits'.  Note that in order to generate (or even print)
+denormalized floats, trapping must be disabled for the underflow exception
+(\pxlref{float-traps}.)  The Lisp least-positive-*-float constants are
+denormalized.
+
+{function:ext:float-denormalized-p}
+]#
+
+#[ Floating Point Exceptions
+
+The IEEE floating point standard defines several exceptions that occur when the
+result of a floating point operation is unclear or undesirable.  Exceptions can
+be ignored, in which case some default action is taken, such as returning a
+special value.  When trapping is enabled for an exception, a error is signalled
+whenever that exception occurs.  These are the possible floating point
+exceptions:
+
+  % :underflow
+
+    This exception occurs when the result of an operation is too small to
+    be represented as a normalized float in its format.  If trapping is
+    enabled, the "floating-point-underflow" condition is signalled.
+    Otherwise, the operation results in a denormalized float or zero.
+
+  % :overflow
+
+    This exception occurs when the result of an operation is too large to
+    be represented as a float in its format.  If trapping is enabled, the
+    "floating-point-overflow" exception is signalled.  Otherwise, the
+    operation results in the appropriate infinity.
+
+  % :inexact
+
+    This exception occurs when the result of a floating point operation is
+    not exact, i.e. the result was rounded.  If trapping is enabled, the
+    "extensions:floating-point-inexact" condition is signalled.  Otherwise,
+    the rounded result is returned.
+
+  % :invalid
+
+    This exception occurs when the result of an operation is ill-defined,
+    such as (/ 0.0 0.0).  If trapping is enabled, the
+    "extensions:floating-point-invalid" condition is signalled.  Otherwise,
+    a quiet NaN is returned.
+
+  % :divide-by-zero
+
+    This exception occurs when a float is divided by zero.  If trapping is
+    enabled, the "divide-by-zero" condition is signalled.  Otherwise, the
+    appropriate infinity is returned.
+]#
+
+#[ Floating Point Rounding Mode
+
+IEEE floating point specifies four possible rounding modes:
+
+  % :nearest
+
+    In this mode, the inexact results are rounded to the nearer of the two
+    possible result values.  If the neither possibility is nearer, then the
+    even alternative is chosen.  This form of rounding is also called
+    "round to even", and is the form of rounding specified for the `round'
+    function.
+
+  % :positive-infinity
+
+    This mode rounds inexact results to the possible value closer to
+    positive infinity.  This is analogous to the `ceiling' function.
+
+  % :negative-infinity
+
+    This mode rounds inexact results to the possible value closer to
+    negative infinity.  This is analogous to the Lisp `floor' function.
+
+  % :zero
+
+    This mode rounds inexact results to the possible value closer to zero.
+    This is analogous to the Lisp `truncate' function.
+
+Warning: Although the rounding mode can be changed with
+`set-floating-point-modes', use of any value other than :nearest can cause
+unusual behavior, since it will affect rounding done by Lisp system code as
+well as rounding in user code.  In particular, the unary `round' function
+will stop doing round-to-nearest on floats, and instead do the selected
+form of rounding.
+]#
+
+#[ Accessing the Floating Point Modes
+
+These functions can be used to modify or read the floating point modes:
+
+{function:ext:get-floating-point-modes}
+{function:ext:set-floating-point-modes}
+]#
+
+
+;;;; Utilities.
 
 ;;; SINGLE-FROM-BITS, DOUBLE-FROM-BITS  --  Internal
 ;;;
-;;;    These functions let us create floats from bits with the significand
+;;; These functions let us create floats from bits with the significand
 ;;; uniformly represented as an integer.  This is less efficient for double
 ;;; floats, but is more convenient when making special values, etc.
 ;;;
@@ -75,7 +227,7 @@
 		   (ldb (byte 32 0) sig)))
 
 
-;;;; Float parameters:
+;;;; Float parameters.
 
 (defconstant least-positive-single-float (single-from-bits 0 0 1))
 (defconstant least-positive-short-float least-positive-single-float)
@@ -203,7 +355,7 @@
 		  (+ 1 (ash vm:long-float-hidden-bit 32))))
 
 
-;;;; Float predicates and environment query:
+;;;; Float predicates and environment query.
 
 (proclaim '(maybe-inline float-denormalized-p float-infinity-p float-nan-p
 			 float-trapping-nan-p))
@@ -279,9 +431,9 @@
 
 ;;; FLOAT-PRECISION  --  Public
 ;;;
-;;;    If denormalized, use a subfunction from INTEGER-DECODE-FLOAT to find the
-;;; actual exponent (and hence how denormalized it is), otherwise we just
-;;; return the number of digits or 0.
+;;; If denormalized, use a subfunction from INTEGER-DECODE-FLOAT to find
+;;; the actual exponent (and hence how denormalized it is), otherwise we
+;;; just return the number of digits or 0.
 ;;;
 (proclaim '(maybe-inline float-precision))
 (defun float-precision (f)
@@ -334,8 +486,7 @@
 
 (defun float-digits (f)
   "Returns a non-negative number of radix-b digits used in the
-   representation of it's argument.  See Common Lisp: The Language
-   by Guy Steele for more details."
+   representation of it's argument."
   (number-dispatch ((f float))
     ((single-float) vm:single-float-digits)
     ((double-float) vm:double-float-digits)
@@ -349,14 +500,14 @@
   2)
 
 
-;;;; INTEGER-DECODE-FLOAT and DECODE-FLOAT:
+;;;; INTEGER-DECODE-FLOAT and DECODE-FLOAT.
 
 (proclaim '(maybe-inline integer-decode-single-float
 			 integer-decode-double-float))
 
 ;;; INTEGER-DECODE-SINGLE-DENORM  --  Internal
 ;;;
-;;;    Handle the denormalized case of INTEGER-DECODE-FLOAT for SINGLE-FLOAT.
+;;; Handle the denormalized case of INTEGER-DECODE-FLOAT for SINGLE-FLOAT.
 ;;;
 (defun integer-decode-single-denorm (x)
   (declare (type single-float x))
@@ -376,8 +527,8 @@
 
 ;;; INTEGER-DECODE-SINGLE-FLOAT  --  Internal
 ;;;
-;;;    Handle the single-float case of INTEGER-DECODE-FLOAT.  If an infinity or
-;;; NAN, error.  If a denorm, call i-d-s-DENORM to handle it.
+;;; Handle the single-float case of INTEGER-DECODE-FLOAT.  If an infinity
+;;; or NAN, error.  If a denorm, call i-d-s-DENORM to handle it.
 ;;;
 (defun integer-decode-single-float (x)
   (declare (single-float x))
@@ -398,7 +549,7 @@
 
 ;;; INTEGER-DECODE-DOUBLE-DENORM  --  Internal
 ;;;
-;;;    Like INTEGER-DECODE-SINGLE-DENORM, only doubly so.
+;;; Like INTEGER-DECODE-SINGLE-DENORM, only doubly so.
 ;;;
 (defun integer-decode-double-denorm (x)
   (declare (type double-float x))
@@ -433,7 +584,7 @@
 
 ;;; INTEGER-DECODE-DOUBLE-FLOAT  --  Internal
 ;;;
-;;;    Like INTEGER-DECODE-SINGLE-FLOAT, only doubly so.
+;;; Like INTEGER-DECODE-SINGLE-FLOAT, only doubly so.
 ;;;
 (defun integer-decode-double-float (x)
   (declare (double-float x))
@@ -516,7 +667,7 @@
 
 ;;; INTEGER-DECODE-FLOAT  --  Public
 ;;;
-;;;    Dispatch to the correct type-specific i-d-f function.
+;;; Dispatch to the correct type-specific i-d-f function.
 ;;;
 (defun integer-decode-float (x)
   "Returns three values:
@@ -539,7 +690,7 @@
 
 ;;; DECODE-SINGLE-DENORM  --  Internal
 ;;;
-;;;    Handle the denormalized case of DECODE-SINGLE-FLOAT.  We call
+;;; Handle the denormalized case of DECODE-SINGLE-FLOAT.  We call
 ;;; INTEGER-DECODE-SINGLE-DENORM and then make the result into a float.
 ;;;
 (defun decode-single-denorm (x)
@@ -554,7 +705,7 @@
 
 ;;; DECODE-SINGLE-FLOAT  --  Internal
 ;;;
-;;;    Handle the single-float case of DECODE-FLOAT.  If an infinity or NAN,
+;;; Handle the single-float case of DECODE-FLOAT.  If an infinity or NAN,
 ;;; error.  If a denorm, call d-s-DENORM to handle it.
 ;;;
 (defun decode-single-float (x)
@@ -579,7 +730,7 @@
 
 ;;; DECODE-DOUBLE-DENORM  --  Internal
 ;;;
-;;;    Like DECODE-SINGLE-DENORM, only doubly so.
+;;; Like DECODE-SINGLE-DENORM, only doubly so.
 ;;;
 (defun decode-double-denorm (x)
   (declare (double-float x))
@@ -595,7 +746,7 @@
 
 ;;; DECODE-DOUBLE-FLOAT  --  Public
 ;;;
-;;;    Like DECODE-SINGLE-FLOAT, only doubly so.
+;;; Like DECODE-SINGLE-FLOAT, only doubly so.
 ;;;
 (defun decode-double-float (x)
   (declare (double-float x))
@@ -657,14 +808,17 @@
 
 ;;; DECODE-FLOAT  --  Public
 ;;;
-;;;    Dispatch to the appropriate type-specific function.
+;;; Dispatch to the appropriate type-specific function.
 ;;;
 (defun decode-float (f)
-  "Returns three values:
-   1) a floating-point number representing the significand.  This is always
-      between 0.5 (inclusive) and 1.0 (exclusive).
-   2) an integer representing the exponent.
-   3) -1.0 or 1.0 (i.e. the sign of the argument.)"
+  "Return three values:
+
+     * a floating-point number representing the significand.  This is
+       always between 0.5 (inclusive) and 1.0 (exclusive).
+
+     * an integer representing the exponent.
+
+     * -1.0 or 1.0 (i.e. the sign of the argument)."
   (number-dispatch ((f float))
     ((single-float)
      (decode-single-float f))
@@ -675,13 +829,13 @@
      (decode-long-float f))))
 
 
-;;;; SCALE-FLOAT:
+;;;; SCALE-FLOAT.
 
 (proclaim '(maybe-inline scale-single-float scale-double-float))
 
 ;;; SCALE-FLOAT-MAYBE-UNDERFLOW  --  Internal
 ;;;
-;;;    Handle float scaling where the X is denormalized or the result is
+;;; Handle float scaling where the X is denormalized or the result is
 ;;; denormalized or underflows to 0.
 ;;;
 (defun scale-float-maybe-underflow (x exp)
@@ -717,9 +871,10 @@
 
 ;;; SCALE-FLOAT-MAYBE-OVERFLOW  --  Internal
 ;;;
-;;;    Called when scaling a float overflows, or the oringinal float was a NaN
-;;; or infinity.  If overflow errors are trapped, then error, otherwise return
-;;; the appropriate infinity.  If a NaN, signal or not as appropriate.
+;;; Called when scaling a float overflows, or the oringinal float was a NaN
+;;; or infinity.  If overflow errors are trapped, then error, otherwise
+;;; return the appropriate infinity.  If a NaN, signal or not as
+;;; appropriate.
 ;;;
 (defun scale-float-maybe-overflow (x exp)
   (cond
@@ -746,7 +901,7 @@
 
 ;;; SCALE-SINGLE-FLOAT, SCALE-DOUBLE-FLOAT  --  Internal
 ;;;
-;;;    Scale a single or double float, calling the correct over/underflow
+;;; Scale a single or double float, calling the correct over/underflow
 ;;; functions.
 ;;;
 (defun scale-single-float (x exp)
@@ -790,7 +945,7 @@
 
 ;;; SCALE-FLOAT  --  Public
 ;;;
-;;;    Dispatch to the correct type-specific scale-float function.
+;;; Dispatch to the correct type-specific scale-float function.
 ;;;
 (defun scale-float (f ex)
   "Returns the value (* f (expt (float 2 f) ex)), but with no unnecessary loss
@@ -837,7 +992,7 @@
 
 ;;; FLOAT-RATIO  --  Internal
 ;;;
-;;;    Convert a ratio to a float.  We avoid any rounding error by doing an
+;;; Convert a ratio to a float.  We avoid any rounding error by doing an
 ;;; integer division.  Accuracy is important to preserve read/print
 ;;; consistency, since this is ultimately how the reader reads a float.  We
 ;;; scale the numerator by a power of two until the division results in the
@@ -852,15 +1007,15 @@
 	 (scale 0))
     (declare (fixnum digits scale))
     ;;
-    ;; Strip any trailing zeros from the denominator and move it into the scale
-    ;; factor (to minimize the size of the operands.)
+    ;; Strip any trailing zeros from the denominator and move it into the
+    ;; scale factor (to minimize the size of the operands.)
     (let ((den-twos (1- (integer-length (logxor den (1- den))))))
       (declare (fixnum den-twos))
       (decf scale den-twos)
       (setq den (ash den (- den-twos))))
     ;;
-    ;; Guess how much we need to scale by from the magnitudes of the numerator
-    ;; and denominator.  We want one extra bit for a guard bit.
+    ;; Guess how much we need to scale by from the magnitudes of the
+    ;; numerator and denominator.  We want one extra bit for a guard bit.
     (let* ((num-len (integer-length num))
 	   (den-len (integer-length den))
 	   (delta (- den-len num-len))
@@ -913,7 +1068,7 @@ rounding modes & do ieee round-to-integer.
 
 ;;; %UNARY-TRUNCATE-SINGLE-FLOAT/FIXNUM  --  Interface
 ;;;
-;;;    The compiler compiles a call to this when we are doing %UNARY-TRUNCATE
+;;; The compiler compiles a call to this when we are doing %UNARY-TRUNCATE
 ;;; and the result is known to be a fixnum.  We can avoid some generic
 ;;; arithmetic in this case.
 ;;;
@@ -969,14 +1124,14 @@ rounding modes & do ieee round-to-integer.
 
 ;;; %UNARY-TRUNCATE  --  Interface
 ;;;
-;;;    This function is called when we are doing a truncate without any funky
-;;; divisor, i.e. converting a float or ratio to an integer.  Note that we do
-;;; *not* return the second value of truncate, so it must be computed by the
-;;; caller if needed.
+;;; This function is called when we are doing a truncate without any funky
+;;; divisor, i.e. converting a float or ratio to an integer.  Note that we
+;;; do *not* return the second value of truncate, so it must be computed by
+;;; the caller if needed.
 ;;;
-;;;    In the float case, we pick off small arguments so that compiler can use
-;;; special-case operations.  We use an exclusive test, since (due to round-off
-;;; error), (float most-positive-fixnum) may be greater than
+;;; In the float case, we pick off small arguments so that compiler can use
+;;; special-case operations.  We use an exclusive test, since (due to
+;;; round-off error), (float most-positive-fixnum) may be greater than
 ;;; most-positive-fixnum.
 ;;;
 (defun %unary-truncate (number)
@@ -997,12 +1152,12 @@ rounding modes & do ieee round-to-integer.
 
 ;;; %UNARY-ROUND  --  Interface
 ;;;
-;;;    Similar to %UNARY-TRUNCATE, but rounds to the nearest integer.  If we
-;;; can't use the round primitive, then we do our own round-to-nearest on the
-;;; result of i-d-f.  [Note that this rounding will really only happen with
-;;; double floats, since the whole single-float fraction will fit in a fixnum,
-;;; so all single-floats larger than most-positive-fixnum can be precisely
-;;; represented by an integer.]
+;;; Similar to %UNARY-TRUNCATE, but rounds to the nearest integer.  If we
+;;; can't use the round primitive, then we do our own round-to-nearest on
+;;; the result of i-d-f.  [Note that this rounding will really only happen
+;;; with double floats, since the whole single-float fraction will fit in a
+;;; fixnum, so all single-floats larger than most-positive-fixnum can be
+;;; precisely represented by an integer.]
 ;;;
 (defun %unary-round (number)
   (number-dispatch ((number real))
@@ -1043,13 +1198,14 @@ rounding modes & do ieee round-to-integer.
 		 (integer-/-integer (ash int ex) (ash 1 digits)))))))
     ((rational) x)))
 
-#+nil
 (defun rationalize (x)
   "Converts any REAL to a RATIONAL.  Floats are converted to a simple
    rational representation exploiting the assumption that floats are only
    accurate to their precision.  RATIONALIZE (and also RATIONAL) preserve
    the invariant:
        (= x (float (rationalize x) x))"
+  (rational x)
+#|
   (number-dispatch ((x real))
     (((foreach single-float double-float #+long-float long-float))
      ;; Thanks to Kim Fateman, who stole this function rationalize-float
@@ -1059,131 +1215,8 @@ rounding modes & do ieee round-to-integer.
      ;; only living 17th century mathematician and is also the best
      ;; pdp-10 hacker I know." So, if you can understand or debug this
      ;; code you win big.
-     (cond ((minusp x) (- (rationalize (- x))))
-	   ((zerop x) 0)
-	   (t
-	    (let ((eps (etypecase x
-			   (single-float single-float-epsilon)
-			   (double-float double-float-epsilon)
-			   #+long-float
-			   (long-float long-float-epsilon)))
-		  (y ())
-		  (a ()))
-	      (do ((xx x (setq y (/ (float 1.0 x) (- xx (float a x)))))
-		   (num (setq a (truncate x))
-			(+ (* (setq a (truncate y)) num) onum))
-		   (den 1 (+ (* a den) oden))
-		   (onum 1 num)
-		   (oden 0 den))
-		  ((or (= xx (float a x))
-		       (and (not (zerop den))
-			    (not (> (abs (/ (- x (/ (float num x)
-						    (float den x)))
-					    x))
-                                    eps))))
-		   (integer-/-integer num den))
-		(declare ((dispatch-type x) xx)))))))
-    ((rational) x)))
-
-;;; RATIONALIZE  --  Public
-;;;
-;;; The algorithm here is the method described in CLISP.  Bruno Haible has
-;;; graciously given permission to use this algorithm.  He says, "You can use
-;;; it, if you present the following explanation of the algorithm."
-;;;
-;;; Algorithm (recursively presented):
-;;;   If x is a rational number, return x.
-;;;   If x = 0.0, return 0.
-;;;   If x < 0.0, return (- (rationalize (- x))).
-;;;   If x > 0.0:
-;;;     Call (integer-decode-float x). It returns a m,e,s=1 (mantissa,
-;;;     exponent, sign).
-;;;     If m = 0 or e >= 0: return x = m*2^e.
-;;;     Search a rational number between a = (m-1/2)*2^e and b = (m+1/2)*2^e
-;;;     with smallest possible numerator and denominator.
-;;;     Note 1: If m is a power of 2, we ought to take a = (m-1/4)*2^e.
-;;;       But in this case the result will be x itself anyway, regardless of
-;;;       the choice of a. Therefore we can simply ignore this case.
-;;;     Note 2: At first, we need to consider the closed interval [a,b].
-;;;       but since a and b have the denominator 2^(|e|+1) whereas x itself
-;;;       has a denominator <= 2^|e|, we can restrict the seach to the open
-;;;       interval (a,b).
-;;;     So, for given a and b (0 < a < b) we are searching a rational number
-;;;     y with a <= y <= b.
-;;;     Recursive algorithm fraction_between(a,b):
-;;;       c := (ceiling a)
-;;;       if c < b
-;;;         then return c       ; because a <= c < b, c integer
-;;;         else
-;;;           ; a is not integer (otherwise we would have had c = a < b)
-;;;           k := c-1          ; k = floor(a), k < a < b <= k+1
-;;;           return y = k + 1/fraction_between(1/(b-k), 1/(a-k))
-;;;                             ; note 1 <= 1/(b-k) < 1/(a-k)
-;;;
-;;; You can see that we are actually computing a continued fraction expansion.
-;;;
-;;; Algorithm (iterative):
-;;;   If x is rational, return x.
-;;;   Call (integer-decode-float x). It returns a m,e,s (mantissa,
-;;;     exponent, sign).
-;;;   If m = 0 or e >= 0, return m*2^e*s. (This includes the case x = 0.0.)
-;;;   Create rational numbers a := (2*m-1)*2^(e-1) and b := (2*m+1)*2^(e-1)
-;;;   (positive and already in lowest terms because the denominator is a
-;;;   power of two and the numerator is odd).
-;;;   Start a continued fraction expansion
-;;;     p[-1] := 0, p[0] := 1, q[-1] := 1, q[0] := 0, i := 0.
-;;;   Loop
-;;;     c := (ceiling a)
-;;;     if c >= b
-;;;       then k := c-1, partial_quotient(k), (a,b) := (1/(b-k),1/(a-k)),
-;;;            goto Loop
-;;;   finally partial_quotient(c).
-;;;   Here partial_quotient(c) denotes the iteration
-;;;     i := i+1, p[i] := c*p[i-1]+p[i-2], q[i] := c*q[i-1]+q[i-2].
-;;;   At the end, return s * (p[i]/q[i]).
-;;;   This rational number is already in lowest terms because
-;;;   p[i]*q[i-1]-p[i-1]*q[i] = (-1)^i.
-;;;
-(defun rationalize (x)
-  "Converts any REAL to a RATIONAL.  Floats are converted to a simple rational
-   representation exploiting the assumption that floats are only accurate to
-   their precision.  RATIONALIZE (and also RATIONAL) preserve the invariant:
-      (= x (float (rationalize x) x))"
-  (number-dispatch ((x real))
-    (((foreach single-float double-float #+long-float long-float))
-     ;; This is a fairly straigtforward implementation of the iterative
-     ;; algorithm above.
-     (multiple-value-bind (frac expo sign)
-	 (integer-decode-float x)
-       (cond ((or (zerop frac) (>= expo 0))
-	      (if (minusp sign)
-		  (- (ash frac expo))
-		  (ash frac expo)))
-	     (t
-	      ;; expo < 0 and (2*m-1) and (2*m+1) are coprime to 2^(1-e),
-	      ;; so build the fraction up immediately, without having to do
-	      ;; a gcd.
-	      (let ((a (build-ratio (- (* 2 frac) 1) (ash 1 (- 1 expo))))
-		    (b (build-ratio (+ (* 2 frac) 1) (ash 1 (- 1 expo))))
-		    (p0 0)
-		    (q0 1)
-		    (p1 1)
-		    (q1 0))
-		(do ((c (ceiling a) (ceiling a)))
-		    ((< c b)
-		     (let ((top (+ (* c p1) p0))
-			   (bot (+ (* c q1) q0)))
-		       (build-ratio (if (minusp sign)
-					(- top)
-					top)
-				    bot)))
-		  (let* ((k (- c 1))
-			 (p2 (+ (* k p1) p0))
-			 (q2 (+ (* k q1) q0)))
-		    (psetf a (/ (- b k))
-			   b (/ (- a k)))
-		    (setf p0 p1
-			  q0 q1
-			  p1 p2
-			  q1 q2))))))))
-    ((rational) x)))
+     ;;
+     ;; FIX Guessing copyrighted if from Macsyma, add new version.
+     ))
+|#
+  )

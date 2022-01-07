@@ -1,20 +1,6 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/print.lisp,v 1.2 1994/10/31 04:42:45 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains temporary printing utilities and similar noise.
-;;;
-;;; Written by William Lott.
+;;; Temporary printing utilities and similar noise.
 
 (in-package "HPPA")
-
 
 (define-vop (print)
   (:args (object :scs (descriptor-reg) :target arg))

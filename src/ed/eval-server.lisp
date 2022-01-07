@@ -3,6 +3,76 @@
 
 (in-package "ED")
 
+(export '(create-slave get-current-eval-server get-current-compile-server))
+
+#[ Eval Servers
+
+The editor runs in a dedicated process and interacts with other Lisp
+processes called eval servers.  A user's Lisp program normally runs in an
+eval server process.  The separation between editor and eval server has
+several advantages:
+
+  - The editor is protected from any bad things which may happen while
+    debugging a Lisp program.
+
+  - Editing may occur while running a Lisp program.
+
+  - The eval server may be on a different machine, removing the load from
+    the editing machine.
+
+  - Multiple eval servers allow the use of several distinct Lisp
+    environments.  Instead of providing an interface to a single Lisp
+    environment, the editor coordinates multiple Lisp environments.
+
+[ The Current Eval Server        ]
+[ Slaves                         ]
+[ Slave Creation and Destruction ]
+[ Eval Server Operations         ]
+]#
+
+
+#[ Slaves
+
+For now, all eval servers are slaves.  A slave is a Lisp process that uses
+a typescript (see page pagereftypescripts) to run its top-level
+read-eval-print loop in an editor buffer.  We refer to the buffer that a
+slave uses for I/O as its interactive or slave buffer.  The name of the
+interactive buffer is the same as the eval server's name.
+
+The editor creates a background buffer for each eval server.  The
+background buffer's name is `Background 'name, where name is the name of
+the eval server.  Slaves direct compiler warning output to the background
+buffer to keep the interactive buffer neater.
+
+The editor locally sets `Current Eval Server' in interactive and background
+buffers to their associated slave.  When in a slave or background buffer, eval
+server requests will go to the associated slave, regardless of the global value
+of `Current Eval Server'.
+
+{command:Select Slave}
+{command:Select Background}
+]#
+
+#[ Slave Lisps
+
+Some implementations of the editor feature the ability to manage multiple
+slave Lisps, each connected to one editor Lisp.  The routines discussed
+here spawn slaves, send evaluation and compilation requests, return the
+current server, etc.  This is very powerful because without it you can lose
+your editing state when code you are developing causes a fatal error in
+Lisp.
+
+The routines described in this section are best suited for creating editor
+commands that interact with slave Lisps, but in the past users implemented
+several independent Lisps as nodes communicating via these functions.  There is
+a better level on which to write such code that avoids the extra effort these
+routines take for the editor's sake.  See the CMU Common Lisp User's Manual
+for the remote and wire packages.
+
+[ The Current Slave              ]
+[ Asynchronous Operation Queuing ]
+[ Synchronous Operation Queuing  ]
+]#
 
 
 ;;;; Structures.
@@ -26,7 +96,6 @@
   (declare (ignore n))
   (format stream "#<Server-info for ~A>" (server-info-name obj)))
 
-
 (defstruct (error-info (:print-function print-error-info))
   buffer		      ; Buffer this error is for.
   message		      ; Error Message
@@ -37,15 +106,14 @@
   (declare (ignore n))
   (format stream "#<Error: ~A>" (error-info-message obj)))
 
-
 (defvar *server-names* (make-string-table)
   "A string-table of the name of all Eval servers and their corresponding
    server-info structures.")
 
-(defvar *abort-operations* nil
+(defvar *abort-operations* ()
   "T iff we should ignore any operations sent to us.")
 
-(defvar *inside-operation* nil
+(defvar *inside-operation* ()
   "T iff we are currenly working on an operation. A catcher for the tag
    abort-operation will be established whenever this is T.")
 
@@ -54,57 +122,97 @@
 ;;; Used internally for communications.
 ;;;
 (defvar *newly-created-slave* nil)
+(defvar *create-slave-quietly* nil)
 (defvar *compiler-wire* nil)
 (defvar *compiler-error-stream* nil)
 (defvar *compiler-note* nil)
 
-
 
 ;;;; Editor variables.
 
-(defhvar "Current Eval Server"
-  "The Server-Info object for the server currently used for evaluation and
-   compilation."
-  :value nil)
+(defevar "Current Eval Server"
+  "The server-info for the server currently used for evaluation and
+   compilation.")
 
-(defhvar "Current Compile Server"
-  "The Server-Info object for the server currently used for compilation
-   requests."
-  :value nil)
+(defevar "Current Compile Server"
+  "The server-info for the server currently used for compilation
+   requests.")
 
-(defhvar "Current Package"
+(defevar "Current Package"
   "This variable holds the name of the package currently used for Lisp
    evaluation and compilation.  If it is Nil, the value of *Package* is
-   used instead."
-  :value nil)
+   used instead.")
 
-(defhvar "Slave Utility"
-  "This is the pathname of the utility to fire up slave Lisps.  It defaults
-   to \"cmucl\"."
-  :value "cmucl")
+(defevar "Slave Utility"
+  "The pathname of the utility used to start slave Lisps.  The utility is
+   past the arguments specified by the list of strings *Slave Utility
+   Switches*.
 
-(defhvar "Slave Utility Switches"
-  "These are additional switches to pass to the Slave Utility.
-   For example, (list \"-core\" <core-file-name>).  The -slave
-   switch and the editor name are always supplied, and they should
-   not be present in this variable."
-  :value nil)
+   This is useful primarily when running customized Lisp systems.
 
-(defhvar "Ask About Old Servers"
-  "If true prompt for an existing server's name in preference to prompting
-   for a new slave's name and creating it."
+   The -slave switch and the editor name are always supplied as arguments
+   to the utility."
+  :value "nightshade")
+
+(defevar "Slave Utility Switches"
+  "A list of strings passed as arguments to *Slave Utility* to start a new
+   slave Lisp.
+
+   This is useful primarily when running customized Lisp systems.  For
+   example, setting it to (\"-core\" \"my.core\") will cause \"my.core\" to
+   be used instead of the fallback core image.
+
+   The -slave switch and the editor name are always supplied as arguments,
+   and so should be left out of *Slave Utility Switches*'.")
+
+(defevar "Ask About Old Servers"
+  "If true prompt for an existing server to use, instead of prompting for
+   and creating a new slave."
   :value t)
 
-(defhvar "Confirm Slave Creation"
-  "If true always confirms a slave's creation for whatever reason."
+(defevar "Confirm Slave Creation"
+  "If this variable is true, then always prompt for confirmation before
+   creating a slave."
   :value t)
 
+(defevar "Slave GC Alarm"
+  "The action to take when the slave notifies that it is GCing:
 
-(defhvar "Slave GC Alarm"
-  "Determines that is done when the slave notifies that it is GCing.
-  :MESSAGE prints a message in the echo area, :LOUD-MESSAGE beeps as well.
-  NIL does nothing."
+    :loud-message
+       Beep and display a message in the echo area indicating
+       which buffer is waiting for input.
+
+    :message
+       Display a message, but don't beep.
+
+    nil
+       Don't do anything."
   :value :message)
+
+
+#[ Slave Creation and Destruction
+
+When the editor first starts up, there is no current eval server.  If there is no
+a current eval server, commands that need to use the current eval server will
+create a slave as the current eval server.
+
+If an eval server's Lisp process terminates, then we say the eval server is
+dead.  The editor displays a message in the echo area, interactive, and
+background buffers whenever an eval server dies.  If the user deletes an
+interactive or background buffer, the associated eval server effectively
+becomes impotent, but the editor does not try to kill the process.  If a command
+attempts to use a dead eval server, then the command will beep and display a
+message.
+
+{evariable:Confirm Slave Creation}
+{evariable:Ask About Old Servers}
+{command:Editor Server Name}
+{command:Accept Slave Connections}
+{evariable:Slave Utility}
+{evariable:Slave Utility Switches}
+{command:Kill Slave}
+{command:Kill Slave and Buffers}
+]#
 
 
 ;;;; Slave destruction.
@@ -212,7 +320,6 @@
     (setf (server-info-error-index server)
 	  (position current array))))
 
-
 
 ;;;; Slave creation.
 
@@ -222,7 +329,6 @@
 ;;;
 (defun initialize-server-stuff ()
   (clrstring *server-names*))
-
 
 (defvar *editor-name* nil "Name of this editor.")
 (defvar *accept-connections* nil
@@ -250,8 +356,7 @@
 					     #'(lambda () (wire-died wire)))))
 		    (error () nil))
 	      (return (setf *editor-name*
-			    (format nil "~A:~D" (machine-instance) port)))))))))
-
+			    (format () "~A:~D" (machine-instance) port)))))))))
 
 ;;; MAKE-BUFFERS-FOR-TYPESCRIPT -- Internal.
 ;;;
@@ -279,14 +384,32 @@
 	   (background-buffer (or (getstring background-name *buffer-names*)
 				  (make-buffer background-name
 					       :modes '("Lisp"))))
-	   (server-info (make-server-info :name slave-name
-					  :wire wire:*current-wire*
-					  :slave-buffer slave-buffer
-					  :background-buffer background-buffer))
+	   (server-info (make-server-info
+			 :name slave-name
+			 :wire wire:*current-wire*
+			 :slave-buffer slave-buffer
+			 :background-buffer background-buffer))
 	   (slave-info (typescriptify-buffer slave-buffer server-info
 					     wire:*current-wire*))
 	   (background-info (typescriptify-buffer background-buffer server-info
 						  wire:*current-wire*)))
+      (if *create-slave-quietly*
+	  (defevar "Input Wait Alarm"
+	    "The action to take when a slave Lisp goes into an input wait on a
+	     typescript that isn't currently displayed in any window.
+
+	     The following are legal values:
+
+	     :loud-message
+	     Beep and display a message in the echo area indicating
+	     which buffer is waiting for input.
+
+	     :message
+	     Display a message, but don't beep.
+
+	     ()
+	     Don't do anything."
+	    :buffer slave-buffer))
       (setf (server-info-slave-info server-info) slave-info)
       (setf (server-info-background-info server-info) background-info)
       (setf (getstring slave-name *server-names*) server-info)
@@ -299,20 +422,22 @@
       (setf *newly-created-slave* server-info)
       (values))))
 
-
-;;; CREATE-SLAVE -- Public.
+;;; CREATE-SLAVE -- Public
 ;;;
-(defun create-slave (&optional name)
-  "This creates a slave that tries to connect to the editor.  When the slave
-   connects to the editor, this returns a slave-information structure.  Name is
-   the name of the interactive buffer.  If name is nil, this generates a name.
-   If name is supplied, and a buffer with that name already exists, this
-   signals an error.  In case the slave never connects, this will eventually
-   timeout and signal an editor-error."
-  (when (and name (getstring name *buffer-names*))
-    (editor-error "Buffer ~A is already in use." name))
-  (let ((lisp (unix-namestring (merge-pathnames (value slave-utility) "path:")
-			       t t)))
+(defun create-slave (&optional name quiet)
+  "Create a slave that tries to connect to the editor.  When the slave
+   connects to the editor, return a slave-information structure.
+
+   $name is the name of the interactive buffer.  If $name is (), generate a
+   name.  If $name is supplied and a buffer with that name already exists,
+   signal an error.
+
+   Eventually timeout and signal an editor-error if connecting takes too
+   long."
+  (and name (getstring name *buffer-names*)
+       (editor-error "Buffer ~A is already in use." name))
+  (let ((lisp (os-namestring (merge-pathnames (value slave-utility) "path:")
+			     t t)))
     (or lisp
 	(editor-error "Can't find ``~S'' in your path to run."
 		      (value slave-utility)))
@@ -331,7 +456,7 @@
 	  (editor-error "Buffer ~A is already in use." slave))
 	(when (getstring background *buffer-names*)
 	  (editor-error "Buffer ~A is already in use." background)))
-      (message "Spawning slave ... ")
+      (or quiet (message "Spawning slave ... "))
       (let ((proc
 	     (ext:run-program lisp
 			      `("-slave" ,(get-editor-name)
@@ -343,27 +468,28 @@
 			      :output "/dev/null"
 			      :if-output-exists :append))
 	    (*accept-connections* t)
+	    (*create-slave-quietly* quiet)
 	    (*newly-created-slave* nil))
-	(or proc (editor-error "Could not start slave."))
+	(or proc (editor-error "Failed to start slave."))
 	(dotimes (i *slave-connect-wait*
 		    (editor-error
 		     "Client Lisp is still unconnected.  ~
-		      You must use \"Accept Slave Connections\" to ~
+		      Use `Accept Slave Connections' to ~
 		      allow the slave to connect at this point."))
 	  (system:serve-event 1)
 	  (case (ext:process-status proc)
 	    (:exited
 	     (editor-error "The slave lisp exited before connecting."))
 	    (:signaled
-	     (editor-error "The slave lisp was kill before connecting.")))
+	     (editor-error "The slave lisp was killed before connecting.")))
 	  (when *newly-created-slave*
-	    (message "DONE")
+	    (or quiet (message "DONE"))
 	    (return *newly-created-slave*)))))))
 
 ;;; MAYBE-CREATE-SERVER -- Internal interface.
 ;;;
 (defun maybe-create-server ()
-  "If there is an existing server and \"Ask about Old Servers\" is set, then
+  "If there is an existing server and *Ask about Old Servers* is set, then
    prompt for a server's name and return that server's info.  Otherwise,
    create a new server."
   (if (value ask-about-old-servers)
@@ -385,7 +511,6 @@
 	    (create-slave)))
       (create-slave)))
 
-
 (defvar *next-slave-index* 0
   "Number to use when creating the next slave.")
 
@@ -401,17 +526,40 @@
 		  (getstring background *buffer-names*))
 	(return (values slave background))))))
 
-
 
 ;;;; Slave selection.
+
+#[ The Current Slave
+
+There is a slave-information structure that these return which is suitable for
+passing to the routines described in the following subsections.
+
+{function:ed:create-slave}
+{function:ed:get-current-eval-server}
+{evariable:Current Eval Server}
+{function:ed:get-current-compile-server}
+{evariable:Current Compile Server}
+
+Since multiple slaves may exist, it is convenient to use one for
+developing code and one for compiling files.  The compilation commands
+that use slave Lisps prefer to use the current compile server but will
+fall back on the current eval server when necessary.  Typically, users
+only have separate compile servers when the slave Lisp can live on a
+separate workstation to save cycles on the editor machine, and the editor
+commands only use this for compiling files.
+]#
 
 ;;; GET-CURRENT-EVAL-SERVER -- Public.
 ;;;
 (defun get-current-eval-server (&optional errorp)
-  "Returns the server-info struct for the current eval server.  If there is
-   none, and errorp is true, then signal an editor error.  If there is no
-   current server, and errorp is nil, then create one, prompting the user for
-   confirmation.  Also, set the current server to be the newly created one."
+  "Return the server-information for the *Current Eval Server* after making
+   sure it is valid.
+
+   A slave Lisp can die at any time.  If this variable is (), and $errorp
+   is true, then signal an editor-error; otherwise, try to make a new
+   slave.  Prompt for details for creating the slave based on *Confirm
+   Slave Creation*, *Slave Utility* and *Slave Utility Switches*.  Set the
+   current server to be the newly created one."
   (let ((info (value current-eval-server)))
     (cond (info)
 	  (errorp
@@ -421,52 +569,47 @@
 
 ;;; GET-CURRENT-COMPILE-SERVER -- Public.
 ;;;
-;;; If a current compile server is defined, return it, otherwise return the
-;;; current eval server using get-current-eval-server.
-;;;
 (defun get-current-compile-server (&optional errorp)
-  "Returns the server-info struct for the current compile server. If there is
-   no current compile server, return the current eval server."
-  (or (value current-compile-server)
-      (get-current-eval-server errorp)))
-
+  "If a current compile server is defined, return it, otherwise return the
+   current eval server using `get-current-eval-server', which may be ()."
+  (or (value current-compile-server) (get-current-eval-server errorp)))
 
 
 ;;;; Server Manipulation commands.
 
 (defcommand "Select Slave" (p)
-  "Switch to the current slave's buffer.  When given an argument, create a new
-   slave."
-  "Switch to the current slave's buffer.  When given an argument, create a new
-   slave."
+  "Change the current buffer to the current eval server's interactive
+   buffer.  If the current eval server is something other than a slave,
+   then beep.  If there is current eval server is (), then create a slave
+   (as in [Slave Creation]).  If a prefix argument is supplied, then create
+   a new slave in any case.
+
+   Be the standard way to create a slave.
+
+   The slave buffer is a typescript ([typescripts]) that the slave uses for
+   its top-level read-eval-print loop."
   (let* ((info (if p (create-slave) (get-current-eval-server)))
 	 (slave (server-info-slave-buffer info)))
     (or slave
-	(editor-error "The current eval server doesn't have a slave buffer!"))
+	(editor-error "The current eval server must have a slave buffer."))
     (change-to-buffer slave)))
 
 (defcommand "Select Background" (p)
-  "Switch to the current slave's background buffer. When given an argument, use
-   the current compile server instead of the current eval server."
-  "Switch to the current slave's background buffer. When given an argument, use
+  "Switch to the current slave's background buffer.  When given an argument, use
    the current compile server instead of the current eval server."
   (let* ((info (if p
 		 (get-current-compile-server t)
 		 (get-current-eval-server t)))
 	 (background (server-info-background-buffer info)))
-    (unless background
-      (editor-error "The current ~A server doesn't have a background buffer!"
-		    (if p "compile" "eval")))
+    (or background
+	(editor-error "The current ~A server must have a background buffer."
+		      (if p "compile" "eval")))
     (change-to-buffer background)))
 
-(defcommand "Kill Slave" (p)
-  "This aborts any operations in the slave, tells the slave to QUIT, and shuts
-   down the connection to the specified eval server.  This makes no attempt to
-   assure the eval server actually dies."
-  "This aborts any operations in the slave, tells the slave to QUIT, and shuts
-   down the connection to the specified eval server.  This makes no attempt to
-   assure the eval server actually dies."
-  (declare (ignore p))
+(defcommand "Kill Slave" ()
+  "Cancel any operations in a prompted slave, tell the slave to quit, and
+   shut down the connection to the specified eval server.  The eval server
+   is left to die on its own."
   (let ((default (and (value current-eval-server)
 		      (server-info-name (value current-eval-server)))))
     (multiple-value-bind
@@ -486,12 +629,11 @@
 	  (wire:wire-force-output wire)))
       (server-died info))))
 
-(defcommand "Kill Slave and Buffers" (p)
-  "This is the same as \"Kill Slave\", but it also deletes the slaves
-   interaction and background buffers."
-  "This is the same as \"Kill Slave\", but it also deletes the slaves
-   interaction and background buffers."
-  (declare (ignore p))
+(defcommand "Kill Slave and Buffers" ()
+  "Cancel any operations in a prompted slave, tell the slave to quit, shut
+   down the connection to the specified eval server, and kill the slave
+   interaction and background buffers.  The eval server is left to die on
+   its own."
   (let ((default (and (value current-eval-server)
 		      (server-info-name (value current-eval-server)))))
     (multiple-value-bind
@@ -516,22 +658,17 @@
       (server-died info))))
 
 (defcommand "Accept Slave Connections" (p)
-  "This causes the editor to accept slave connections and displays the port
-   of the editor's connections request server.  This is suitable for use
-   with the Lisp's -slave switch.  Given an argument, this inhibits slave
-   connections."
-  "This causes the editor to accept slave connections and displays the port
-   of the editor's connections request server.  This is suitable for use
-   with the Lisp's -slave switch.  Given an argument, this inhibits slave
+  "Start accepting slave connections, and display the editor server's name,
+   which is suitable for use with the Nightshade -slave switch (as
+   described in [Command Line Switches]).  With an argument turn off slave
    connections."
   (let ((accept (not p)))
     (setf *accept-connections* accept)
     (message "~:[Inhibiting~;Accepting~] connections to ~S"
 	     accept (get-editor-name))))
 
-
 
-;;;; Slave initialization junk.
+;;;; Slave initialization.
 
 (defvar *original-beep-function* nil
   "Handle on original beep function.")
@@ -681,20 +818,19 @@
 ;;;
 (defun start-slave (editor)
   (declare (simple-string editor))
-  (let ((seperator (position #\: editor :test #'char=)))
-    (unless seperator
+  (let ((separator (position #\: editor :test #'char=)))
+    (unless separator
       (error "Editor name ~S invalid. ~
               Must be of the form \"MachineName:PortNumber\"."
 	     editor))
-    (let ((machine (subseq editor 0 seperator))
-	  (port (parse-integer editor :start (1+ seperator))))
+    (let ((machine (subseq editor 0 separator))
+	  (port (parse-integer editor :start (1+ separator))))
       (format t "Connecting to ~A:~D~%" machine port)
       (connect-to-editor machine port))))
 
-
 ;;; PRINT-SLAVE-STATUS  --  Internal
 ;;;
-;;;    Print out some useful information about what the slave is up to.
+;;; Print out some useful information about what the slave is up to.
 ;;;
 (defun print-slave-status ()
   (ignore-errors
@@ -719,11 +855,10 @@
 		       (not (string= name "Foreign function call land")))))
 	   (prin1 (di:debug-function-name (di:frame-debug-function frame))
 		  *error-output*))
-	(unless frame (return)))
+	(or frame (return)))
       (terpri *error-output*)
       (force-output *error-output*)))
   (values))
-
 
 ;;; CONNECT-TO-EDITOR -- internal
 ;;;
@@ -774,8 +909,9 @@
    (make-broadcast-stream)))
 
 ;;; SERVER-EVAL-FORM -- Public.
-;;;   Evaluates the given form (which is a string to be read from in the given
-;;; package) and returns the results as a list.
+;;;
+;;; Evaluates the given form (which is a string to be read from in the
+;;; given package) and returns the results as a list.
 ;;;
 (defun server-eval-form (package form)
   (declare (type (or string null) package) (simple-string form))
@@ -790,9 +926,9 @@
 	  (*terminal-io* *eval-form-stream*))
       (stringify-list (multiple-value-list (eval (read-from-string form)))))))
 
-
 ;;; DO-OPERATION -- Internal.
-;;;   Checks to see if we are aborting operations. If not, do the operation
+;;;
+;;; Checks to see if we are aborting operations. If not, do the operation
 ;;; wrapping it with operation-started and operation-completed calls. Also
 ;;; deals with setting up *terminal-io* and *package*.
 ;;;
@@ -819,18 +955,17 @@
 	 (operation-completed ,note aborted))
        (wire:wire-force-output wire:*current-wire*))))
 
-
-;;; unique-thingie is a unique eof-value for READ'ing.  Its a parameter, so
-;;; we can reload the file.
+;;; `unique-thingie' is a unique eof-value for READ'ing.  Its a parameter,
+;;; so we can reload the file.
 ;;;
 (defparameter unique-thingie (gensym)
   "Used as eof-value in reads to check for the end of a file.")
 
 ;;; SERVER-EVAL-TEXT -- Public.
 ;;;
-;;;   Evaluate all the forms read from text in the given package, and send the
-;;; results back.  The error handler bound does not handle any errors.  It
-;;; simply notifies the client that an error occurred and then returns.
+;;; Evaluate all the forms read from text in the given package, and send
+;;; the results back.  The error handler bound does not handle any errors.
+;;; It simply notifies the client that an error occurred and then returns.
 ;;;
 (defun server-eval-text (note package text terminal-io)
   (do-operation (note package terminal-io)
@@ -880,11 +1015,11 @@
 	 (*compiler-wire* wire:*current-wire*)
 	 (c:*compiler-notification-function* #'compiler-note-in-editor))
      (do-operation (*compiler-note* ,package ,terminal-io)
-		   (unwind-protect
-		       (handler-bind ((error #'compiler-error-handler))
-			 ,@body)
-		     (when *compiler-error-stream*
-		       (force-output *compiler-error-stream*))))))
+       (unwind-protect
+	   (handler-bind ((error #'compiler-error-handler))
+	     ,@body)
+	 (when *compiler-error-stream*
+	   (force-output *compiler-error-stream*))))))
 
 ;;; COMPILER-NOTE-IN-EDITOR -- Internal.
 ;;;
@@ -905,12 +1040,11 @@
       (compiler-error *compiler-note* pos pos function severity)))
     (wire:wire-force-output *compiler-wire*))
 
-
 ;;; COMPILER-ERROR-HANDLER -- Internal.
 ;;;
-;;;    The error handler function for the compiler interfaces.
-;;; DO-COMPILER-OPERATION binds this as an error handler while evaluating the
-;;; compilation form.
+;;; The error handler function for the compiler interfaces.
+;;; DO-COMPILER-OPERATION binds this as an error handler while evaluating
+;;; the compilation form.
 ;;;
 (defun compiler-error-handler (condition)
   (when *compiler-wire*
@@ -918,10 +1052,9 @@
       (lisp-error *compiler-note* nil nil
 		  (format nil "~A~&" condition)))))
 
-
 ;;; SERVER-COMPILE-TEXT -- Public.
 ;;;
-;;;    Similar to server-eval-text, except that the stuff is compiled.
+;;; Similar to server-eval-text, except that the stuff is compiled.
 ;;;
 (defun server-compile-text (note package text defined-from
 			    terminal-io error-output)
@@ -936,7 +1069,7 @@
 
 ;;; SERVER-COMPILE-FILE -- Public.
 ;;;
-;;;    Compiles the file sending error info back to the editor.
+;;; Compiles the file sending error info back to the editor.
 ;;;
 (defun server-compile-file (note package input output error trace
 			    load terminal background)
@@ -973,22 +1106,50 @@
 
 ;;; SERVER-SET-PACKAGE -- Public.
 ;;;
-;;;   Serves package setting requests.  It simply sets
-;;; *package* to an already existing package or newly created one.
+;;; Serves package setting requests.  It simply sets *package* to an
+;;; already existing package or newly created one.
 ;;;
 (defun server-set-package (package)
   (setf *package* (maybe-make-package package)))
 
 ;;; SERVER-ACCEPT-OPERATIONS -- Public.
 ;;;
-;;;   Start accepting operations again.
+;;; Start accepting operations again.
 ;;;
 (defun server-accept-operations ()
   (setf *abort-operations* nil))
 
-
 
 ;;;; Command line switches.
+
+#[ Editor Command Line Options
+
+Two command line options control the initialization of editor and eval
+servers for a Lisp process:
+
+  % -edit
+
+    This switch starts up the editor.  If there is a non-switch command line word
+    immediately following the program name, then the system interprets it as a file
+    to edit.  For example, given
+
+        lisp file.txt -edit
+
+    Lisp will go immediately into the editor finding the file file.txt.
+
+  % -slave [name]
+
+    This switch causes the Lisp process to become a slave of the editor process
+    name.  An editor Lisp determines name when it allows connections from
+    slaves.  Once the editor chooses a name, it keeps the same name until the
+    editor's Lisp process terminates.  Since the editor can automatically create
+    slaves on its own machine, this switch is useful primarily for creating slaves
+    that run on a different machine.  hqb's machine is ME.CS.CMU.EDU, and
+    he wants want to run a slave on SLAVE.CS.CMU.EDU, then he should use the
+    `Accept Slave Connections' command, telnet to the machine, and invoke Lisp
+    supplying -slave and the editor's name.  The command displays the editor's
+    name.
+]#
 
 ;;; FIND-EVAL-SERVER-SWITCH -- Internal.
 ;;;
@@ -1003,27 +1164,12 @@
 	(or (ext:cmd-switch-value switch)
 	    (car (ext:cmd-switch-words switch))))))
 
-
 (defun slave-switch-demon (switch)
   (let ((editor (ext:cmd-switch-arg switch)))
-    (unless editor
-      (error "Editor to connect to unspecified."))
+    (or editor (error "An editor to connect to must be specified."))
     (start-slave editor)
     (setf debug:*help-line-scroll-count* most-positive-fixnum)))
 ;;;
 (defswitch "slave" 'slave-switch-demon)
 (defswitch "slave-buffer")
 (defswitch "background-buffer")
-
-
-(defun edit-switch-demon (switch)
-  (declare (ignore switch))
-#|  (let ((arg (or (ext:cmd-switch-value switch)
-		 (car (ext:cmd-switch-words switch)))))
-    (when (stringp arg) (setq *editor-name* arg)))|#
-  (let ((initp (not (ext:get-command-line-switch "noinit"))))
-    (if (stringp (car ext:*command-line-words*))
-	(ed (car ext:*command-line-words*) :init initp)
-	(ed nil :init initp))))
-;;;
-(defswitch "edit" 'edit-switch-demon)

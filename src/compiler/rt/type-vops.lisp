@@ -1,32 +1,12 @@
-;;; -*- Package: RT; Log: c.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/type-vops.lisp,v 1.6 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/rt/type-vops.lisp,v 1.6 1994/10/31 04:45:41 ram Exp $
-;;; 
-;;; This file contains the VM definition of type testing and checking VOPs
-;;; for the IBM RT.
-;;;
-;;; Written by William Lott.
-;;; Converted to IBM RT by Bill Chiles.
-;;;
+;;; The VM definition of type testing and checking VOPs for the IBM RT.
 
 (in-package "RT")
-
 
 
 ;;;; Simple type checking and testing.
 
 ;;; These types are represented by a single type code and are easily open-coded
 ;;; as a mask and compare.
-;;;
 
 ;;; CHECK-TYPE -- VOP.
 ;;;
@@ -52,7 +32,6 @@
   (:info target not-p)
   (:policy :fast-safe)
   (:temporary (:scs (non-descriptor-reg)) temp))
-
 
 (eval-when (compile eval)
 
@@ -80,7 +59,6 @@
 	   `((primitive-type-vop ,check-name (:check) ,ptype))))))
 
 ); eval-when (compile eval)
-
 
 (def-type-vops fixnump check-fixnum fixnum object-not-fixnum-error
   vm:even-fixnum-type vm:odd-fixnum-type)
@@ -229,9 +207,8 @@
 
 ;;;; Other integer ranges.
 
-;;; A (signed-byte 32) can be represented with either fixnum or a bignum with
-;;; exactly one digit.
-;;;
+;;; A (signed-byte 32) can be represented with either fixnum or a bignum
+;;; with exactly one digit.
 
 (define-vop (signed-byte-32-p type-predicate)
   (:translate signed-byte-32-p)
@@ -271,10 +248,9 @@
       (emit-label yep)
       (move result value))))
 
-
-;;; An (unsigned-byte 32) can be represented with either a positive fixnum, a
-;;; bignum with exactly one positive digit, or a bignum with exactly two digits
-;;; and the second digit all zeros.
+;;; An (unsigned-byte 32) can be represented with either a positive fixnum,
+;;; a bignum with exactly one positive digit, or a bignum with exactly two
+;;; digits and the second digit all zeros.
 
 (define-vop (unsigned-byte-32-p type-predicate)
   (:translate unsigned-byte-32-p)
@@ -308,7 +284,7 @@
 	(inst bc :eq yep)
 	;; Otherwise, it isn't.
 	(inst b nope)
-	
+
 	(emit-label single-word)
 	;; Get the single digit.
 	(loadw temp value vm:bignum-digits-offset vm:other-pointer-type)
@@ -320,7 +296,7 @@
 	    (inst bc :lt target)
 	    (inst bnc :lt target))
 
-	(emit-label not-target)))))	  
+	(emit-label not-target)))))
 
 (define-vop (check-unsigned-byte-32 check-type)
   (:generator 45
@@ -351,20 +327,18 @@
       (inst bc :eq yep)
       ;; Otherwise, it isn't.
       (inst bnc :eq nope)
-      
+
       (emit-label single-word)
       ;; Get the single digit.
       (loadw temp value vm:bignum-digits-offset vm:other-pointer-type)
       ;; positive implies (unsigned-byte 32).
       (inst c temp 0)
-      
+
       (emit-label fixnum)
       (inst bc :lt nope)
-      
+
       (emit-label yep)
       (move result value))))
-
-
 
 
 ;;;; List/symbol types:
@@ -392,7 +366,7 @@
       (test-type value temp error t vm:symbol-header-type)
       (emit-label drop-thru)
       (move result value))))
-  
+
 ;;; CONSP -- VOP.
 ;;;
 ;;; This is (and list (not (eq nil))).
@@ -415,9 +389,8 @@
       (test-type value temp error t vm:list-pointer-type)
       (move result value))))
 
-
 
-;;;; Function Coercion
+;;;; Function Coercion.
 
 ;;; If not a function, get the symbol value and test for that being a
 ;;; function.  Since we test for a function rather than the unbound
@@ -449,7 +422,7 @@
 	(test-type result nd-temp done-label nil
 		   vm:function-pointer-type)
 	(error-call vop undefined-symbol-error saved-object)
-	
+
 	(emit-label not-coercable-label)
 	(error-call vop object-not-coercable-to-function-error object)))))
 

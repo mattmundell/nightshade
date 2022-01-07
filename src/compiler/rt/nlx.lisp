@@ -1,25 +1,7 @@
-;;; -*- Package: RT -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/nlx.lisp,v 1.5 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/rt/nlx.lisp,v 1.5 1994/10/31 04:45:41 ram Exp $
-;;;
-;;; This file contains the definitions of VOPs used for non-local exit (throw,
-;;; lexical exit, etc.)
-;;;
-;;; Written by Rob MacLachlan
-;;; Converted to IBM RT by William Lott and Bill Chiles.
-;;;
+;;; The definitions of VOPs used for non-local exit (throw, lexical exit,
+;;; etc.)
 
 (in-package "RT")
-
 
 ;;; MAKE-NLX-SP-TN  --  Interface.
 ;;;
@@ -31,17 +13,15 @@
 			   (sc-number-or-lose 'word-pointer-reg *backend*))
    env))
 
-
 
 ;;; Save and restore dynamic environment.
 ;;;
-;;;    These VOPs are used in the reentered function to restore the appropriate
-;;; dynamic environment.  Currently we only save the Current-Catch and binding
-;;; stack pointer.  We don't need to save/restore the current unwind-protect,
-;;; since unwind-protects are implicitly processed during unwinding.  If there
-;;; were any additional stacks, then this would be the place to restore the top
-;;; pointers.
-
+;;; These VOPs are used in the reentered function to restore the
+;;; appropriate dynamic environment.  Currently we only save the
+;;; Current-Catch and binding stack pointer.  We don't need to save/restore
+;;; the current unwind-protect, since unwind-protects are implicitly
+;;; processed during unwinding.  If there were any additional stacks, then
+;;; this would be the place to restore the top pointers.
 
 ;;; MAKE-DYNAMIC-STATE-TNS  --  Interface.
 ;;;
@@ -92,9 +72,8 @@
   (:generator 1
     (load-symbol-value res *binding-stack-pointer*)))
 
-
 
-;;;; Unwind block hackery:
+;;;; Unwind block hackery.
 
 ;;; MAKE-UNWIND-BLOCK -- VOP.
 ;;;
@@ -116,7 +95,6 @@
     (inst compute-lra-from-code temp code-tn entry-label)
     (storew temp block-ptr vm:catch-block-entry-pc-slot)
     (move block block-ptr)))
-
 
 ;;; MAKE-CATCH-BLOCK -- VOP.
 ;;;
@@ -163,7 +141,7 @@
 ;;;
 ;;; Remove the catch block from the chain of catches.  This happens when
 ;;; we drop out of a catch instead of throwing.
-;;; 
+;;;
 (define-vop (unlink-catch-block)
   (:temporary (:scs (word-pointer-reg)) block)
   (:policy :fast-safe)
@@ -176,7 +154,7 @@
 ;;; UNLINK-UNWIND-PROTECT -- VOP.
 ;;;
 ;;; Same thing with unwind protects.
-;;; 
+;;;
 (define-vop (unlink-unwind-protect)
   (:temporary (:scs (word-pointer-reg)) block)
   (:policy :fast-safe)
@@ -187,13 +165,12 @@
     (store-symbol-value block lisp::*current-unwind-protect-block*)))
 
 
-;;;; NLX entry VOPs:
-
+;;;; NLX entry VOPs.
 
 ;;; NLX-ENTRY -- VOP.
 ;;;
 ;;; We were just thrown to, so load up the results.
-;;; 
+;;;
 (define-vop (nlx-entry)
   (:args (sp) ; Note: we can't list an sc-restriction, 'cause any load vops
 	      ; would be inserted before the LRA.
@@ -222,7 +199,7 @@
 	       (let ((default-lab (gen-label))
 		     (tn (tn-ref-tn tn-ref)))
 		 (defaults (cons default-lab tn))
-		 
+
 		 (inst bc :eq default-lab)
 		 (inst s count (fixnum 1))
 		 (sc-case tn
@@ -231,7 +208,7 @@
 		   (control-stack
 		    (loadw move-temp start i)
 		    (store-stack-tn move-temp tn)))))
-	     
+
 	     (let ((defaulting-done (gen-label)))
 	       (emit-label defaulting-done)
 	       (assemble (*elsewhere*)
@@ -245,7 +222,6 @@
 			(store-stack-tn null-tn tn)))))
 		 (inst b defaulting-done))))))
     (load-stack-tn csp-tn sp)))
-
 
 (define-vop (nlx-entry-multiple)
   ;; Again, no SC restrictions for the args, 'cause the loading would
@@ -291,7 +267,6 @@
 
       (emit-label done)
       (move csp-tn dst))))
-
 
 ;;; This VOP is just to force the TNs used in the cleanup onto the stack.
 ;;;

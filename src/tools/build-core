@@ -1,8 +1,9 @@
 #!/bin/sh
 #
-#  build-core -- build full lisp core.
+# build-core -- build full Lisp core.
 
-# FIX how to make this quit explicitly so that if backtrace process still alive?
+# FIX how to make this quit explicitly so that on error,backtrace the process stays alive
+#       (to show the err,backt)?
 
 #cd $1
 #exec $1/lisp/lisp -core $1/lisp/kernel.core  -eval "(progn (setf (search-list \"target:\") '(\"$1/\" \"$1/../src/\")) (load (open \"target:tools/worldload.lisp\"))"
@@ -10,6 +11,8 @@
 cd $1/lisp/
 $1/lisp/nightshade -core $1/lisp/kernel.core << EOF
 (setf (search-list "target:") '("$1/" "$1/../src/"))
+(declaim (special *load-target))
+(setf *save-target* "/usr/local/nightshade/src/")
 (load (open "target:tools/worldload.lisp"))
 (quit)
 EOF

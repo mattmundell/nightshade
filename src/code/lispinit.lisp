@@ -10,7 +10,7 @@
 (export '(compiler-version scrub-control-stack))
 
 (in-package :extensions)
-(export '(quit *prompt*))
+(export '(quit *prompt* prompt-long))
 
 (in-package :lisp)
 
@@ -22,12 +22,16 @@
 (defconstant most-negative-fixnum #.vm:target-most-negative-fixnum
   "The fixnum closest in value to negative infinity.")
 
-;;; Random information:
+
+;;;; Random information.
 
-;; Set in worldload.lisp from target:VERSION.
-(defvar *lisp-implementation-version* "???")
+;; Set for kernel.core.  Overwritten for lisp.core in worldload.lisp.
+(defvar *version* #.(read-line (open "target:VERSION")))
 
-;;; Must be initialized in %INITIAL-FUNCTION before the DEFVAR runs...
+;; FIX Set for kernel.core.  Overwritten for lisp.core in worldload.lisp.
+(defvar *build-time* 0)
+
+;;; Must be initialized in %INITIAL-FUNCTION before the DEFVAR runs.
 (declaim
   #-gengc
   (special *gc-inhibit* *already-maybe-gcing*
@@ -60,9 +64,9 @@
 ;;;; Random stuff that needs to be in the cold load which would otherwise be
 ;;;; byte-compiled.
 ;;;;
-;(defvar hi::*in-the-editor* nil)
+;(defvar edi::*in-the-editor* nil)
 
-;;;; Called by defmacro expanders...
+;;;; Called by defmacro expanders.
 
 ;;; VERIFY-KEYWORDS -- internal
 ;;;
@@ -106,8 +110,8 @@
 (in-package "CONDITIONS")
 
 (defvar *break-on-signals* nil
-  "When (typep condition *break-on-signals*) is true, then calls to SIGNAL will
-   enter the debugger prior to signalling that condition.")
+  "When (typep condition *break-on-signals*) is true, then calls to
+   `signal' will enter the debugger prior to signalling that condition.")
 
 (defun signal (datum &rest arguments)
   "Invokes the signal facility on a condition formed from datum and arguments.
@@ -123,7 +127,7 @@
 	(break "~A~%Break entered because of *break-on-signals* (now NIL.)"
 	       condition)))
     (loop
-      (unless *handler-clusters* (return))
+      (or *handler-clusters* (return))
       (let ((cluster (pop *handler-clusters*)))
 	(dolist (handler cluster)
 	  (when (typep condition (car handler))
@@ -158,6 +162,13 @@
 		:format-control "Bad argument to ~S: ~S"
 		:format-arguments (list function-name datum)))))
 
+#[ Exceptions
+
+{function:catch}
+{function:throw}
+{function:error}
+]#
+
 (defun error (datum &rest arguments)
   "Invokes the signal facility on a condition formed from datum and arguments.
    If the condition is not handled, the debugger is invoked."
@@ -165,14 +176,14 @@
     (let ((condition (coerce-to-condition datum arguments
 					  'simple-error 'error))
 	  (debug:*stack-top-hint* debug:*stack-top-hint*))
-      (unless (and (condition-function-name condition) debug:*stack-top-hint*)
-	(multiple-value-bind
-	    (name frame)
-	    (kernel:find-caller-name)
-	  (unless (condition-function-name condition)
-	    (setf (condition-function-name condition) name))
-	  (unless debug:*stack-top-hint*
-	    (setf debug:*stack-top-hint* frame))))
+      (or (and (condition-function-name condition) debug:*stack-top-hint*)
+	  (multiple-value-bind
+	      (name frame)
+	      (kernel:find-caller-name)
+	    (or (condition-function-name condition)
+		(setf (condition-function-name condition) name))
+	    (or debug:*stack-top-hint*
+		(setf debug:*stack-top-hint* frame))))
       (let ((debug:*stack-top-hint* nil))
 	(signal condition))
       (invoke-debugger condition))))
@@ -235,13 +246,282 @@
 (in-package "LISP")
 
 
-;;; %Initial-Function is called when a cold system starts up.  First we zoom
-;;; down the *Lisp-Initialization-Functions* doing things that wanted to happen
-;;; at "load time."  Then we initialize the various subsystems and call the
-;;; read-eval-print loop.  The top-level Read-Eval-Print loop is executed until
-;;; someone (most likely the Quit function) throws to the tag
-;;; %End-Of-The-World.  We quit this way so that all outstanding cleanup forms
-;;; in Unwind-Protects will get executed.
+;;;; Documentation.
+
+(defvar *documentation* (make-string-table))
+
+(defstruct (docnode (:constructor
+		     make-doc-node (content &optional file position)))
+  "A documentation node."
+  content    ; doc text
+  file       ; file in which node is defined
+  position)  ; position in file
+
+#[ Documentation
+
+[ Introduction      ]     A brief overview.
+
+[ Editor Tutorial   ]     Editor introduction, for new users.
+[ Editor            ]     Using the editor.
+[ Applications      ]     Editor extensions: Mail, News and more.
+
+[ Read-Eval-Print   ]     The command line interface.
+[ Lisp              ]     The programming language of this system.
+[ Lisp Tutorial     ]     A quick tutorial.
+[ Editor Extension  ]     How to extend the editor.
+[ Scripting         ]     Writing standalone scripts.
+[ System Usage      ]     Lisp libraries for the programmer.
+[ Compiler          ]     The compiler; styles and techniques it encourages.
+[ Debugger          ]     The run-time program inspector.
+[ Profiler          ]
+
+[ Installation      ]     Installing the system.
+[ System Building   ]     Building and testing the system.
+
+[ Internal Design   ]     Internal system details.
+[ Directory Layout  ]     Layout of source and build directories.
+
+[ Reference Tables  ]
+
+[ Support           ]     Getting help from outside the system.
+[ Feedback          ]     Giving feedback, reporting errors.
+
+[ Authors           ]     Acknowledgments.
+[ Future Plans      ]     TODO.
+[ Copying           ]     The legal rights to this work.
+]#
+
+; single-language, n-dimensional
+
+#[ Introduction
+
+Nightshade is a dynamic programming environment.
+
+The goal of the Nightshade project is an entirely public domain system
+defined in a single language, which a single person can maintain fairly
+easily.
+
+The system is most probably entirely in the public domain already.  Most of
+the [Authors] have been contacted to verify that they have given up
+ownership rights to the system.
+
+Included in the system is an Emacs-like editor, an interpreter, a byte
+compiler, a native compiler, a run-time program inspector, a profiler and
+higher-level libraries for tasks such as internet connection, mail handling
+and document processing.  The primary human interface to the system is the
+editor, which has extensions for file management, reading mail and reading
+network news.
+]#
+
+#[ Scripting
+
+Scripts can be created by adding an interpreter directive as the first
+line in a file, as in
+
+    #!/usr/bin/ni
+    ;;
+    ;; Print a greeting.
+
+    (princ "Hello world.")
+    (terpri)
+
+The Nightshade binary must be installed to /usr/bin/ for this to work,
+typically by linking to the distributed binary, as in
+
+    (symlink-file "/usr/bin/ni" "/usr/local/bin/nightshade")
+
+The script is evaluated by the Lisp interpreter, so the code in the script
+must be valid Lisp.  In particular, hashes (#) are treated as reader macros
+as usual, so comments should be made with ; or #|.
+
+Below is an example of a simple CGI script.
+
+    #!/usr/bin/ni
+    #!
+    #! Simple Nightshade CGI script.
+
+    (let ((data (with-output-to-string (stream)
+                  (format stream "<HTML><BODY>")
+                  (format stream "cgi.lisp at ~A" (format-time))
+                  (format stream "</BODY></HTML>~%"))))
+      (format t "Content-Length: ~A~%" (length data))
+      (format t "Connection: close~%")
+      (format t "Content-Type: text/html~%~%")
+      (write-string data))
+]#
+
+#[ Reference Tables
+
+[ ASCII        ]
+[ Numbers      ]     Decimal, hex, binary.
+[ C Precedence ]     Operator precedence in the C programming language.
+
+[ Mail Bindings Wallchart    ]   Editor mail reader key bindings.
+[ Netnews Bindings Wallchart ]   Editor news reader key bindings.
+]#
+
+#[ ASCII
+
+[FIX]
+]#
+
+#[ Number table
+
+[FIX]
+]#
+
+#[ C Precedence
+
+[FIX]
+]#
+
+#[ Support
+
+Please email matt@mundell.ukfsn.org for any help.
+]#
+
+#[ Feedback
+
+Reports of errors and general feedback are welcome and appreciated.  Please
+email them to matt@mundell.ukfsn.org.
+]#
+
+#[ Future Plans
+
+The file etc:TODO (src/etc/TODO in the distribution) roughly lists plans
+and ideas for future work.  The editor command `Edit TODO' (which is bound
+to "meta-g t") brings up the TODO file.
+]#
+
+#[ Copying
+
+As of version 1b Nightshade is most probably entirely public domain.  It is
+based on CMUCL 18c.
+
+All parts of CMUCL 18c that were explicitly marked as copyrighted have been
+removed.  This includes PCL, the CLX interface, the MIT version of the loop
+macro and some of the contrib directory.
+
+Everyone who committed to the CMUCL 18c repository after the CMU public
+domain release has confirmed that the additions they made are public
+domain.  They are Douglas Crosher (dtc), Robert MacLachlan (ram) and Paul
+Werkowski (pw).
+
+Contributions committed on behalf of the contributor after the CMU public
+domain release were recorded in the CVS logs.  The status of these
+additions is:
+
+        - confirmed public domain by contributor
+                  Marco Antoniotti, Julian Dolby, Peter Van Eynde, Fred Gilham,
+                  Eric Marsden, Mike McDonald, Timothy Miller, Tim Moore, Ken Olum,
+                  Raymond Toy.
+
+        - reverted
+                  Pierpaolo Bernardi, Casper Dik, Pierre Mai, Juergen Weiss.
+
+        - pending contact with the author
+                  Casper Dik, Marcus Krummenacker, Simon.
+
+Every new addition to the CMUCL 18c base is public domain.  A few of these
+new additions come from outside the Nightshade project; their sources are
+detailed in the file src/etc/AUTHORS.
+]#
+
+#[ Internal Design
+
+[ Directory Layout       ]  Layout of source and build directories.
+
+[ Compiler Organisation  ]
+[ Compiler Retargeting   ]
+[ Run-Time System        ]
+[ Virtual Machine        ]
+[ Package Structure      ]  Packages relevant to the compiler
+[ Compiler Glossary      ]
+
+[ Writing System Tests   ]
+]#
+
+#[ Run-Time System
+[ Type System          ]
+[ Info Database        ]
+[ Interpreter          ]
+[ Debugger Information ]
+[ Object Format        ]
+[ Low-level            ]
+[ Fasload File Format  ]
+]#
+
+#[ Low-level
+[ Memory Management            ]
+\section{Stacks and Globals}
+\section{Heap Layout}
+\section{Garbage Collection}
+[ Interface to C and Assembler ]
+[ Low-level debugging          ]
+[ Core File Format             ]
+]#
+
+#[ Type System
+[FIX]
+]#
+
+#[ Info Database
+[FIX]
+]#
+
+
+#[ System Usage
+
+[ Command Line Options                       ]
+
+[ Default Interrupts for Lisp                ]
+
+== Sort of part of the language ==
+
+FIX ref to interfaces to compile, byte-compiler, interpreter
+
+[ Packages                                   ]
+[ Garbage Collection                         ]
+[ The Reader                                 ]
+
+== Libraries ==
+
+[ Load                                       ]
+[ Test Suite                                 ]  `deftest'
+[ The Inspector                              ]
+[ Saving a Core Image                        ]
+[ Describe                                   ]
+[ Running Programs from Lisp                 ]
+[ Pathnames                                  ]
+[ Filesystem Operations                      ]
+[ Time Parsing and Formatting                ]
+[ Unix Interface                             ]
+[ Event Dispatching with SERVE-EVENT         ]
+[ Aliens                                     ]
+[ Interprocess Communication                 ]
+[ Debugger Programmer Interface              ]
+]#
+
+#[ Interprocess Communication
+
+Nightshade offers a facility for interprocess communication (IPC) on top of
+using Unix system calls and the complications of that level of IPC.  There
+is a simple remote-procedure-call (RPC) package build on top of TCP/IP
+sockets.
+
+[ The REMOTE Package ]
+[ The WIRE Package   ]
+[ Out-Of-Band Data   ]
+]#
+
+
+;;; %Initial-Function is called when a cold system starts up.  First we
+;;; zoom down the *lisp-initialization-functions* doing things that wanted
+;;; to happen at "load time."  Then we initialize the various subsystems
+;;; and call the read-eval-print loop.  The top-level Read-Eval-Print loop
+;;; (%top-level) is executed until someone (most likely the Quit function)
+;;; throws to the tag %end-of-the-world.  We quit this way so that all
+;;; outstanding cleanup forms in unwind-protects will get executed.
 
 (proclaim '(special *lisp-initialization-functions*
 		    *load-time-values*))
@@ -251,8 +531,8 @@
     `(progn
        (%primitive print ,(symbol-name name))
        (,name))))
-#+nil
-(defun hexstr(thing)
+
+(defun hexstr (thing)
   (let ((addr (kernel:get-lisp-obj-address thing))
 	(str (make-string 10)))
     (setf (char str 0) #\0
@@ -266,8 +546,8 @@
 	      addr (ash addr -4))))
     str))
 
-(defun %initial-function ()
-  "Gives the world a shove and hopes it spins."
+(defun %initial-function ()  ;; FIX change name to verb  initiate init -kernel
+  "Spin the world."
   (%primitive print "In initial-function, and running.")
   #-gengc (setf *already-maybe-gcing* t)
   #-gengc (setf *gc-inhibit* t)
@@ -287,14 +567,16 @@
   ;; Set up the fdefn database.
   (print-and-call fdefn-init)
 
-  ;; Some of the random top-level forms call Make-Array, which calls Subtypep
+  ;; Some of the random top-level forms call Make-Array, which calls
+  ;; Subtypep.
   (print-and-call typedef-init)
   (print-and-call class-init)
   (print-and-call type-init)
 
   (let ((funs (nreverse *lisp-initialization-functions*)))
-    (%primitive print "Calling top-level forms.")
-    (dolist (fun funs) #+nil (%primitive print (hexstr fun))
+    (%primitive print "Calling initialization functions...")
+    (dolist (fun funs)
+      #+() (%primitive print (hexstr fun))
       (typecase fun
 	(function
 	 (funcall fun))
@@ -321,7 +603,8 @@
 	(t
 	 (%primitive print
 		     "Bogus function in *lisp-initialization-functions*")
-	 (%halt)))))
+	 (%halt))))
+    (%primitive print "Done calling initialization functions."))
   (makunbound '*lisp-initialization-functions*)	; So it gets GC'ed.
   (makunbound '*load-time-values*)
 
@@ -345,7 +628,7 @@
   (set-floating-point-modes :traps '(:overflow #-x86 :underflow :invalid
 					       :divide-by-zero))
   ;; This is necessary because some of the initial top level forms might
-  ;; have changed the compliation policy in strange ways.
+  ;; have changed the compilation policy in strange ways.
   (print-and-call c::proclaim-init)
 
   (print-and-call kernel::class-finalize)
@@ -354,18 +637,32 @@
 
   #-gengc (setf *already-maybe-gcing* nil)
   #+gengc (setf *gc-verbose* t)
+  (defun add-documentation (string &optional file position)
+    "Add $string as a node of documentation.  The first line of $string is
+     the title of the node."
+    (with-input-from-string (stream string)
+      (let ((title (string-trim '(#\space #\tab) (read-line stream))))
+	(setf (getstring title *documentation*)
+	      (make-doc-node (subseq string
+				     (file-position stream))
+			     file
+			     position))))
+    t)
+  ;;; Add any documentation accumulated so far.
+  ;;;
+  (do ((doc *pre-doc* (cdr doc)))
+      ((null doc))
+    (add-documentation (caar doc) (cadar doc) (caddar doc)))
   (terpri)
   (princ "Nightshade kernel core image ")
-  (princ (lisp-implementation-version))
+  (princ (version))
   (princ ".")
   (terpri)
   (princ "[Current package: ")
   (princ (package-%name *package*))
   (princ "]")
   (terpri)
-  (let ((wot (catch '%end-of-the-world
-	       (%top-level))))
-    (unix:unix-exit wot)))
+  (unix:unix-exit (catch '%end-of-the-world (%top-level))))
 
 #+gengc
 (defun do-load-time-value-fixup (object offset index)
@@ -395,12 +692,11 @@
 ;;;; Initialization functions:
 
 ;;; Print seems to not like x86 NPX denormal floats like
-;;; least-negative-single-float, so the :underflow exceptions
-;;; is disabled by default. Joe User can explicitly enable them
-;;; if desired.
+;;; least-negative-single-float, so the :underflow exceptions is disabled
+;;; by default.  The user can explicitly enable them if desired.
 
 (defun reinit ()
-  (without-interrupts
+  (system:block-interrupts
    (without-gcing
     (os-init)
     (stream-reinit)
@@ -425,11 +721,52 @@
       (unix:unix-exit 0)
       (throw '%end-of-the-world 0)))
 
+(defconstant repl-help-string
+  "
+This is the read-eval-print loop.  It reads a Lisp expression, evaluates
+the expression, prints the result, then repeats.  Any Lisp expression can
+be entered at the prompt, for example
+
+    (use-package \"SHELL\")
+
+makes the :shell package available in the current packages.
+
+To exit, enter (quit).  To start the editor, enter (ed).
+
+FIX Special symbols  * ** *** + ++ +++ -
+
+The :shell package provides many Lisp equivalents of Unix style commands
+for working in the read-eval-print loop.  These include
+
+        (pwd)             print the working (current) directory
+        (cd)              change to home:
+        (cd \"/dir/\")      change to directory dir
+        (ls)              list the current directory briefly
+        (ls -l)           list the current directory verbosely
+        (rm \"file\")       remove file
+        (mv \"f\" \"g\")      move f to g
+        (touch \"file\")    touch file.
+
+The text printed as the prompt is controlled by the variable ext:*prompt*,
+which can be set to a string or a function, for example
+
+  (setq ext:*prompt* #'ext::prompt-long)
+
+produces a prompt with the current package, user, host and directory.
+
+FIX There's more information in the [Read-Eval-Print] documentation, which
+is accessible inside the editor.
+")
+
+(defun help (&optional (stream *standard-output*))
+  "Print a help message about the read-eval-print loop to $stream."
+  (write-line repl-help-string stream)
+  t)
 
 #-mp ; Multi-processing version defined in multi-proc.lisp.
 (defun sleep (n)
-  "This function causes execution to be suspended for N seconds.  N may
-  be any non-negative, non-complex number."
+  "This function causes execution to be suspended for N seconds.  N may be
+   any non-negative, non-complex number."
   (when (or (not (realp n))
 	    (minusp n))
     (error "Invalid argument to SLEEP: ~S.~%~
@@ -497,6 +834,15 @@
   (scrub-control-stack))
 
 
+#[ Read-Eval-Print
+
+{function:quit}
+{function:help}
+
+shell package
+
+]#
+
 ;;;; TOP-LEVEL loop.
 
 (defvar / nil
@@ -542,7 +888,7 @@
 (defconstant eofs-before-quit 10)
 
 (defun %top-level ()
-  "Top-level READ-EVAL-PRINT loop."
+  "Top-level read-eval-print loop."
   (let  ((* nil) (** nil) (*** nil)
 	 (- nil) (+ nil) (++ nil) (+++ nil)
 	 (/// nil) (// nil) (/ nil)
@@ -555,27 +901,31 @@
 	  (let ((*in-top-level-catcher* t))
 	    (loop
 	      (scrub-control-stack)
-	      (fresh-line)
-	      (princ (if (functionp *prompt*)
-			 (funcall *prompt*)
-			 *prompt*))
-	      (force-output)
+	      (or *batch-mode*
+		  (progn
+		    (fresh-line)
+		    (princ (if (functionp *prompt*)
+			       (funcall *prompt*)
+			       *prompt*))
+		    (force-output)))
 	      (let ((form (read *standard-input* nil magic-eof-cookie)))
 		(cond ((not (eq form magic-eof-cookie))
 		       (let ((results
 			      (multiple-value-list (interactive-eval form))))
-			 (dolist (result results)
-			   (fresh-line)
-			   (prin1 result)))
+			 (or *batch-mode*
+			     (dolist (result results)
+			       (fresh-line)
+			       (prin1 result))))
 		       (setf number-of-eofs 0))
-		      ((eql (incf number-of-eofs) 1)
+		      ((< number-of-eofs 1)
 		       (if *batch-mode*
 			   (quit)
 			   (let ((stream (make-synonym-stream '*terminal-io*)))
 			     (setf *standard-input* stream)
 			     (setf *standard-output* stream)
 			     (format t "~&Received EOF on *standard-input*, ~
-					switching to *terminal-io*.~%"))))
+					switching to *terminal-io*.~%")))
+		       (incf number-of-eofs))
 		      ((> number-of-eofs eofs-before-quit)
 		       (format t "~&Received more than ~D EOFs; Aborting.~%"
 			       eofs-before-quit)
@@ -586,7 +936,58 @@
 
 ;;; %Halt  --  Interface
 ;;;
-;;;    A convenient way to get into the assembly level debugger.
+;;; A convenient way to get into the assembly level debugger.
 ;;;
 (defun %halt ()
-  (%primitive halt))
+  (with-screen
+   (%primitive halt)))
+
+
+#[ Authors
+
+Many people contributed to the CMU Common Lisp (CMUCL) on which Nightshade
+is based.  After the CMU public domain release of CMUCL many people also
+worked on that same CMUCL.
+
+The sections below list all known authors of all the Nightshade code and
+documentation.  Thanks to them all.
+
+The file etc:AUTHORS (src/etc/AUTHORS) provides more details of the
+contributions.
+
+== Authors noted in the original CMUCL source and documentation ==
+
+David Adam, Dan Aronson, David Axmark, Miles Bader, Joseph Bates, Blaine
+Burks, Rick Busdiecker, Bill Chiles, David Dill, Casper Dik, Carl Ebeling,
+Scott E. Fahlman, Neal Feinberg, Charles L. Forgy, Mike Garland, Joseph
+Ginder, Paul Gleichauf, Dario Guise, Sean Hallgren, Steven Handerson,
+Richard Harris, Jim Healy, Joerg-Cyril Hoehl, Christopher Hoover, Todd
+Kaufmann, John Kolojejchick, Jim Kowalski, Dan Kuokka, Jim Large, Simon
+Leinen, Sandra Loosemore, William Lott, Robert A.  MacLachlan, Bill Maddox,
+David B.  McDonald, Tim Moore, Jim Muller, Lee Schumacher, Guy L.  Steele
+Jr., Dave Touretzky, Walter van Roggen, Ivan Vazquez, Skef Wholey, George
+Wood, Jamie W.  Zawinski and Dan Zigmond.
+
+== Post CMU Authors ==
+
+Marco Antoniotti, Mike Clarkson, Douglas T. Crosher, Julian Dolby, Fred
+Gilham, Richard Harris, Marcus Krummenacker, Akira Kurihara, Eric Marsden,
+Makoto Matsumoto, Mike McDonald, Timothy Miller, T.  Nishimura, Ken Olum,
+Alexander Petrov, Tom Russ, Sam Steingold, Raymond Toy, Peter Van Eynde,
+Paul F.  Werkowski and Simon XXX.
+
+== Authors of integrated public domain code ==
+
+Stewart M. Clamen, Nachum Dershowitz, Luke Gorrie, Juri Pakaste, Edward M.
+Reingold and Thomas Russ.
+
+== Post CMUCL Authors ==
+
+Matthew Mundell
+]#
+
+
+#[ FIX
+
+A reference to this node marks documentation that needs work.
+]#

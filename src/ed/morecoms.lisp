@@ -5,35 +5,51 @@
 (export '(check-region-query-size display-page-directory goto-page
 	  page-directory page-offset supply-generic-pointer-up-function))
 
-(defhvar "Region Query Size"
-  "A number-of-lines threshold that destructive, undoable region commands
-   should ask the user about when the indicated region is too big."
+(defevar "Region Query Size"
+  "The region size, in lines, above which various commands ask for
+   confirmation before modifying a region.  If (), then these commands
+   refrain from asking, even if the region is very large."
   :value 30)
 
 (defun check-region-query-size (region)
-  "Checks the number of lines in region against \"Region Query Size\" and
-   asks the user if the region crosses this threshold.  If the user responds
-   negatively, then an editor error is signaled."
+  "Count the lines in $region, and if their number exceeds *Region Query
+   Size*, prompt for confirmation.  If the response is negative then signal
+   an editor error."
   (let ((threshold (or (value region-query-size) 0)))
     (if (and (plusp threshold)
-	     (>= (count-lines region) threshold)
-	     (not (prompt-for-y-or-n
-		   :prompt "Region size exceeds \"Region Query Size\".  Confirm: "
-		   :must-exist t)))
-	(editor-error))))
+	     (>= (count-lines region) threshold))
+	(or (prompt-for-y-or-n
+	     :prompt "Region size exceeds *Region Query Size*.  Continue? "
+	     :default ()
+	     :must-exist t)
+	    (editor-error "Command canceled.")))))
 
-;;;; Casing commands...
+
+#[ Case Modification Commands
+
+The editor provides a few case modification commands, which are often
+useful for correcting typos.
+
+{command:Capitalize Word}
+{command:Lowercase Word}
+{command:Uppercase Word}
+{command:Lowercase Region}
+{command:Uppercase Region}
+]#
+
+
+;;;; Casing commands.
 
 (defcommand "Uppercase Word" (p)
-  "Uppercase a word at point.
-   With prefix argument uppercase that many words."
-  "Uppercase p words at the point."
+  "Uppercase the word at point.  With a prefix argument, uppercase that
+   many words.  With a negative argument uppercase words before the point,
+   leaving the point where it was."
   (filter-words p (current-point) #'string-upcase))
 
 (defcommand "Lowercase Word" (p)
-  "Uppercase a word at point.
-   With prefix argument uppercase that many words."
-  "Uppercase p words at the point."
+  "Lowercase the word at point.  With a prefix argument, lowercase that
+   many words.  With a negative argument lowercase words before the point,
+   leaving the point where it was."
   (filter-words p (current-point) #'string-downcase))
 
 ;;; FILTER-WORDS implements "Uppercase Word" and "Lowercase Word".
@@ -47,46 +63,43 @@
 
 ;;; "Capitalize Word" is different than uppercasing and lowercasing because
 ;;; the differences between the editor's notion of what a word is and
-;;; Common Lisp's notion are too annoying.
+;;; Lisp's notion are too annoying.
 ;;;
 (defcommand "Capitalize Word" (p)
-  "Lowercase a word capitalizing the first character.  With a prefix
-  argument, capitalize that many words.  A negative argument capitalizes
-  words before the point, but leaves the point where it was."
-  "Capitalize p words at the point."
+  "Lowercase a word then capitalize the first character.  With a prefix
+   argument, capitalize that many words.  With a negative argument
+   capitalize words before the point, leaving the point where it was."
   (let ((point (current-point))
 	(arg (or p 1)))
     (with-mark ((start point :left-inserting)
 		(end point))
-      (when (minusp arg)
-	(unless (word-offset start arg) (editor-error "No previous word.")))
+      (if (minusp arg)
+	  (or (word-offset start arg) (editor-error "First word.")))
       (do ((region (region start end))
 	   (cnt (abs arg) (1- cnt)))
 	  ((zerop cnt) (move-mark point end))
-	(unless (find-attribute start :word-delimiter #'zerop)
-	  (editor-error "No next word."))
+	(or (find-attribute start :word-delimiter #'zerop)
+	    (editor-error "Last word."))
 	(move-mark end start)
 	(find-attribute end :word-delimiter)
 	(loop
 	  (when (mark= start end)
 	    (move-mark point end)
 	    (editor-error "No alphabetic characters in word."))
-	  (when (alpha-char-p (next-character start)) (return))
+	  (if (alpha-char-p (next-character start)) (return))
 	  (character-offset start 1))
 	(setf (next-character start) (char-upcase (next-character start)))
 	(mark-after start)
 	(filter-region #'string-downcase region)))))
 
-(defcommand "Uppercase Region" (p)
-  "Uppercase words from point to mark."
-  "Uppercase words from point to mark."
-  (declare (ignore p))
+(defcommand "Uppercase Region" ()
+  "Uppercase words from point to mark.  Ask for confirmation before
+   modifying large regions."
   (twiddle-region (current-region) #'string-upcase "Uppercase Region"))
 
-(defcommand "Lowercase Region" (p)
-  "Lowercase words from point to mark."
-  "Lowercase words from point to mark."
-  (declare (ignore p))
+(defcommand "Lowercase Region" ()
+  "Lowercase words from point to mark.  Ask for confirmation before
+   modifying large regions."
   (twiddle-region (current-region) #'string-downcase "Lowercase Region"))
 
 ;;; TWIDDLE-REGION implements "Uppercase Region" and "Lowercase Region".
@@ -105,15 +118,18 @@
 ;;;; More stuff.
 
 (defcommand "Delete Previous Character Expanding Tabs" (p)
-  "Delete the previous character.
-  When deleting a tab pretend it is the equivalent number of spaces.
-  With prefix argument, do it that many times."
-  "Delete the P previous characters, expanding tabs into spaces."
+  "Delete the character immediately before the point (that is, the
+   character which appears before the cursor), treating tabs as the
+   equivalent number of spaces.  With a prefix argument, delete that many
+   characters before the point.  With a negative prefix delete characters
+   after the point."
+  "Delete $p characters before point, treating tabs as the equivalent number
+   of spaces."
   (let ((point (current-point))
         (n (or p 1)))
-    (when (minusp n)
-      (editor-error "Delete Previous Character Expanding Tabs only accepts ~
-                     positive arguments."))
+    (if (minusp n)
+	(editor-error "Delete Previous Character Expanding Tabs only accepts ~
+		       positive arguments."))
     ;; Pre-calculate the number of characters that need to be deleted
     ;; and any remaining white space filling, allowing modification to
     ;; be avoided if there are not enough characters to delete.
@@ -166,11 +182,28 @@
 		      :default (buffer-major-mode (current-buffer)))))
       (:global :global))))
 
-(defcommand "Bind Key" (p)
-  "Bind a command to a key.
-  The command, key and place to make the binding are prompted for."
-  "Prompt for stuff to do a bind-key."
-  (declare (ignore p))
+#[ Binding Keys
+
+{command:Bind Key}
+{command:Delete Key Binding}
+]#
+
+(defcommand "Bind Key" ()
+  "Bind a command to a key in a prompted place.  The following places are
+   available:
+
+     buffer
+	Make a key binding which is only present when a buffer is the
+	current buffer.
+
+     mode
+	Makes a key binding which is only in present when a mode is active
+	in the current buffer.
+
+     global
+
+	Makes a global key binding which is always in effect and can be
+	shadowed by a buffer or mode binding."
   (multiple-value-call #'bind-key
     (values (prompt-for-keyword
 	     (list *command-names*)
@@ -182,26 +215,52 @@
     (prompt-for-place "Kind of binding: "
 		      "The kind of binding to make.")))
 
-(defcommand "Delete Key Binding" (p)
-  "Delete a key binding.
-  The key and place to remove the binding are prompted for."
-  "Prompt for stuff to do a delete-key-binding."
-  (declare (ignore p))
+(defcommand "Delete Key Binding" ()
+  "Delete a key binding in a mode or buffer, or globally."
   (let ((key (prompt-for-key
 	      :prompt "Delete binding: " :must-exist nil
 	      :help "Key to delete binding from.")))
     (multiple-value-bind (kind where)
 			 (prompt-for-place "Kind of binding: "
 					   "The kind of binding to make.")
-      (unless (get-command key kind where)
-	(editor-error "No such binding: ~S" key))
+      (or (get-command key kind where)
+	  (editor-error "No such binding: ~S" key))
       (delete-key-binding key kind where))))
 
+
+#[ Editor Variables
 
-(defcommand "Set Variable" (p)
-  "Prompt for an editor variable and a new value."
-  "Prompt for an editor variable and a new value."
-  (declare (ignore p))
+A number of commands use the editor variables as flags to control their
+behavior.  Often you can get a command to do what you want by setting a
+variable.  Generally the default value for a variable is chosen to be the
+safest value for novice users.
+
+{command:Set Variable}
+{command:Set Buffer Variable}
+{command:Set Mode Variable}
+{command:Clear Variable}
+{command:Defevar}
+
+`Defevar' is most useful for making mode or buffer local bindings of
+variables.  Redefining a variable in a mode or buffer creates a
+customization that takes effect only when in that mode or buffer.
+
+{command:List Buffer Variable}
+{command:List Mode Variable}
+]#
+
+(defcommand "Clear Variable" ()
+  "Clear the value of an editor variable."
+  (multiple-value-bind (name var)
+		       (prompt-for-variable
+			:prompt "Variable: "
+			:help "The name of a variable to clear.")
+    (declare (ignore name))
+    (setf (variable-value var) ())))
+
+(defcommand "Set Variable" ()
+  "Set the value of an editor variable to the result of the evaluation of a
+   prompted expression."
   (multiple-value-bind (name var)
 		       (prompt-for-variable
 			:prompt "Variable: "
@@ -213,12 +272,73 @@
 		  :prompt "Value: "
 		  :help "Expression to evaluate for new value."))))))
 
-(defcommand "Defhvar" (p)
-  "Define an editor variable in some location.  If the named variable exists
-   currently, its documentation is propagated to the new instance, but this
-   never prompts for documentation."
-  "Define an editor variable in some location."
-  (declare (ignore p))
+;; FIX Defevar does this?
+(defcommand "Set Buffer Variable" ()
+  "Set the value of an editor variable in the current buffer to the result
+   of the evaluation of a prompted expression."
+  (multiple-value-bind (name var)
+		       (prompt-for-variable
+			:prompt "Buffer Variable: "
+			:help "The name of a variable to set.")
+    (if (editor-bound-p var :buffer (current-buffer))
+	(setf (variable-value var :buffer (current-buffer))
+	      (handle-lisp-errors
+	       (eval (prompt-for-expression
+		      :prompt "Value: "
+		      :help "Expression to evaluate for new value."))))
+	(defevar name
+	  (documentation var 'function)
+	  :buffer (current-buffer)
+	  :value (handle-lisp-errors
+		  (eval (prompt-for-expression
+			 :prompt "Value: "
+			 :help "Expression to evaluate for new value.")))))))
+
+(defcommand "Set Mode Variable" ()
+  "Set the value of an editor variable in the current major mode to the
+   result of the evaluation of a prompted expression."
+  (multiple-value-bind (name var)
+		       (prompt-for-variable
+			:prompt "Mode Variable: "
+			:help "The name of a variable to set.")
+    (let ((mode (buffer-major-mode (current-buffer))))
+      (if (editor-bound-p var :mode mode)
+	(setf (variable-value var :mode mode)
+	      (handle-lisp-errors
+	       (eval (prompt-for-expression
+		      :prompt "Value: "
+		      :help "Expression to evaluate for new value."))))
+	(defevar name
+	  (documentation var 'function)
+	  :mode mode
+	  :value (handle-lisp-errors
+		  (eval (prompt-for-expression
+			 :prompt "Value: "
+			 :help "Expression to evaluate for new value."))))))))
+
+(defcommand "List Buffer Variables" ()
+  "List all the buffer variables of the current buffer."
+  (let ((buffer (current-buffer)))
+    (with-pop-up-display (stream)
+      (do-strings (string value (buffer-variables buffer))
+	(format stream "~A: ~A~%"
+		string
+		(variable-value value :buffer buffer))))))
+
+(defcommand "List Mode Variables" ()
+  "List all the mode variables of the current major mode."
+  (let ((mode (buffer-major-mode (current-buffer))))
+    (with-pop-up-display (stream)
+      (do-strings (string value (mode-variables mode))
+	(format stream "~A: ~A~%"
+		string
+		(variable-value value :mode mode))))))
+
+(defcommand "Defevar" ()
+  "Define an editor variable with a value in some location (mode, buffer,
+   globally).  The variable can be a new variable.  If the named variable
+   exists currently, its documentation and hooks are propagated to the new
+   instance."
   (let* ((name (nstring-capitalize (prompt-for-variable :must-exist nil)))
 	 (var (string-to-variable name))
 	 (doc (if (editor-bound-p var)
@@ -234,22 +354,30 @@
 	 "Whether the variable is global, mode, or buffer specific.")
       (case kind
 	(:global
-	 (defhvar name doc :value val :hooks hooks))
+	 (defevar name doc :value val :hooks hooks))
 ; FIX orig (results in note)
 ; 	(t
-; 	 (defhvar name doc type where :value val :hooks hooks))
+; 	 (defevar name doc type where :value val :hooks hooks))
 	(:mode
-	 (defhvar name doc :mode where :value val :hooks hooks))
+	 (defevar name doc :mode where :value val :hooks hooks))
 	(:buffer
-	 (defhvar name doc :buffer where :value val :hooks hooks))))))
+	 (defevar name doc :buffer where :value val :hooks hooks))))))
 
+
+;; FIX Identity? T? Return Immediately?
+(defcommand "Continue" ()
+  "Continue processing, as before.")
 
 (defcommand "List Buffers" (p)
-  "Show a list of all buffers.
-   If the buffer is modified then a * is displayed before the name.  If there
-   is an associated file then it's name is displayed last.  With prefix
-   argument, only list modified buffers."
-  "Display the names of all buffers in a with-random-typeout window."
+  "Pop up a list of all existing buffers.  Display a * before the name of
+   each modified buffer.  If buffer is associated with a file print the
+   file name, type, device, directory and buffer name, otherwise print the
+   buffer name followed by the number of lines in the buffer.
+
+   If the buffer name matches the associated file name then just print the
+   file name.
+
+   When given a prefix argument, list only the modified buffers."
   (with-pop-up-display (s)
     (do-strings (n b *buffer-names*)
       (declare (simple-string n))
@@ -259,7 +387,7 @@
 	      (buffer-pathname (buffer-pathname b)))
 	  (when (or (not p) modified)
 	    (write-char (if modified #\* #\space) s)
-	    (if buffer-pathname
+	    (if (and buffer-pathname (file-namestring buffer-pathname))
 		(format s "~A  ~25T~A~:[~68T~A~;~]~%"
 			(file-namestring buffer-pathname)
 			(directory-namestring buffer-pathname)
@@ -268,21 +396,20 @@
 		(format s "~A~68T~D Line~:P~%"
 			n (count-lines (buffer-region b))))))))))
 
-(defcommand "Select Random Typeout Buffer" (p)
+(defcommand "Select Random Typeout Buffer" ()
+  "Make the most recently used random typeout buffer the current buffer in
+   the current window."
   "Select last random typeout buffer."
-  "Select last random typeout buffer."
-  (declare (ignore p))
   (if *random-typeout-buffers*
       (change-to-buffer (caar *random-typeout-buffers*))
       (editor-error "There are no random typeout buffers.")))
-
 
 (defcommand "Room" (p)
   "Display stats on allocated storage.  With a positive prefix print the
    maximum amount of information, with a negative prefix print the
    minimum."
   "Run Room into a With-Random-Typeout window.  If P is positive pass room
-   T, if P is negative pass nil, else pass :default."
+   T, if P is negative pass (), else pass :default."
   (with-pop-up-display (*standard-output*)
     (room (if p (> p 0) :default))))
 
@@ -298,10 +425,8 @@
 
 (defcommand "Garbage Collect" (p)
   "Call Collect Garbage"
-  "Call Collect Garbage"
   (collect-garbage-command p))
 (defcommand "GC" (p)
-  "Call Collect Garbage"
   "Call Collect Garbage"
   (collect-garbage-command p))
 
@@ -309,22 +434,17 @@
 (defcommand "Collect Garbage" (p)
   "Initiate a garbage collection.  *gc-verbose* determines verbosity.  With
    a prefix collect prefix many generations, else collect all generations."
-  "Initiate a garbage collection.  *gc-verbose* determines verbosity.  If P
-   collect P generations, else collect all generations."
   (let ((*gc-notify-before* #'gc-message-before)
 	(*gc-notify-after* #'gc-message-after))
     (if p (gc :gen p) (gc :full t))))
 #-gencgc
 (defcommand "Collect Garbage" (p)
   "Initiate a garbage collection.  *gc-verbose* determines verbosity."
-  "Initiate a garbage collection.  *gc-verbose* determines verbosity."
   (declaim (ignore p))
   (gc))
 
-(defcommand "List Fonts" (p)
+(defcommand "List Fonts" ()
   "Pop-up an list of examples of each font."
-  "Pop-up an list of examples of each font."
-  (declare (ignore p))
   (let* ((buf-name "Font List")
 	 (new-buffer (make-buffer buf-name
 				  :modes '("Fundamental" "View")))
@@ -336,14 +456,14 @@
 	(let ((mark (current-point)))
 	  (with-writable-buffer (buffer)
 	    (dotimes (font edi::font-map-size)
-	      (insert-string mark (format nil "~A " font))
+	      (insert-string mark (format nil "~2D " font))
 	      (font-mark (mark-line mark) (mark-charpos mark) font)
 	      (insert-string mark (format nil "Font number ~A~%" font))
 	      (font-mark (mark-line mark) (mark-charpos mark) 0)))))))
 
-(defcommand "Clear Buffer Fonts" (p &optional (buffer (current-buffer)))
+(defcommand "Clear Buffer Fonts" (p (buffer (current-buffer)))
   "Clear any font marks from the current buffer."
-  "Clear any font marks from Buffer."
+  "Clear any font marks from $buffer."
   (declare (ignore p))
   (loop for line = (mark-line (buffer-start-mark buffer))
               then (line-next line)
@@ -351,55 +471,64 @@
     (setf (getf (line-plist line) 'chi-info) nil)
     (delete-line-font-marks line)))
 
-(defcommand "Clear Line Fonts" (p &optional (line (mark-line (current-point))))
+(defcommand "Clear Line Fonts" (p (line (mark-line (current-point))))
   "Clear any font marks from the current line."
-  "Clear any font marks from Line."
+  "Clear any font marks from $line."
   (declare (ignore p))
   (delete-line-font-marks line))
 
-;;; This is used by the :edit-level modeline field which is defined in Main.Lisp.
+#[ Recursive Edits
+
+Some sophisticated commands, such as `Query Replace', can place you in a
+recursive edit.  A recursive edit is simply a recursive invocation of the
+editor, done within a command.  A recursive edit is useful because it
+allows arbitrary editing to be done during the execution of a command while
+maintaining the state of the command.  When the user exits a recursive
+edit, the command that entered it proceeds as before.  The editor notes
+recursive edits in the `Echo Area' modeline, or status line.  A counter
+reflects the number of pending recursive edits.
+
+{command:Exit Recursive Edit}
+{command:Abort Recursive Edit}
+]#
+
+;;; This is used by the :edit-level modeline field which is defined in
+;;; main.lisp.
 ;;;
 (defvar *recursive-edit-count* 0)
 
-(defun do-recursive-edit ()
+(defun do-recursive-edit (&optional (handle-abort t))
   "Does a recursive edit, wrapping []'s around the modeline of the current
-  window during its execution.  The current window and buffer are saved
-  beforehand and restored afterward.  If they have been deleted by the
-  time the edit is done then an editor-error is signalled."
+   window during its execution.  The current window and buffer are saved
+   beforehand and restored afterward.  If they have been deleted by the
+   time the edit is done then an editor-error is signalled."
   (let* ((win (current-window))
 	 (buf (current-buffer)))
     (unwind-protect
 	(let ((*recursive-edit-count* (1+ *recursive-edit-count*)))
 	  (update-modeline-field *echo-area-buffer* *echo-area-window*
 				 (modeline-field :edit-level))
-	  (recursive-edit))
+	  (recursive-edit handle-abort))
       (update-modeline-field *echo-area-buffer* *echo-area-window*
 			     (modeline-field :edit-level))
-      (unless (and (memq win *window-list*) (memq buf *buffer-list*))
-	(editor-error "Old window or buffer has been deleted."))
+      (or (and (memq win *window-list*) (memq buf *buffer-list*))
+	  (editor-error "Old window or buffer has been deleted."))
       (setf (current-window) win)
-      (unless (eq (window-buffer win) buf)
-	(setf (window-buffer win) buf))
+      (or (eq (window-buffer win) buf)
+	  (setf (window-buffer win) buf))
       (setf (current-buffer) buf))))
 
-(defcommand "Exit Recursive Edit" (p)
-  "Exit a level of recursive edit.  Signals an error when not in a
-   recursive edit."
-  "Exit a level of recursive edit.  Signals an error when not in a
-   recursive edit."
-  (declare (ignore p))
-  (unless (in-recursive-edit) (editor-error "Not in a recursive edit!"))
-  (exit-recursive-edit ()))
+(defcommand "Exit Recursive Edit" ()
+  "Exit a level of recursive edit.  Signal an error when already at the
+   top-level edit."
+  (or (in-recursive-edit) (editor-error "Already in the top-level edit."))
+  (exit-recursive-edit))
 
-(defcommand "Abort Recursive Edit" (p)
-  "Abort the current recursive edit.  Signals an error when not in a
-   recursive edit."
-  "Abort the current recursive edit.  Signals an error when not in a
-   recursive edit."
-  (declare (ignore p))
-  (unless (in-recursive-edit) (editor-error "Not in a recursive edit!"))
+(defcommand "Abort Recursive Edit" ()
+  "Send and error to the command which invoked the recursive edit.  Signal
+   an error when already at the top-level edit."
+  (or (in-recursive-edit) (editor-error "Already in the top-level edit."))
   (abort-recursive-edit "Recursive edit aborted."))
-
 
 ;;; TRANSPOSE REGIONS uses CURRENT-REGION to signal an error if the current
 ;;; region is not active and to get start2 and end2 in proper order.  Delete1,
@@ -412,16 +541,12 @@
 ;;; text at them.  We copy point into ipoint for insertion purposes since one
 ;;; of our four marks is the point.
 ;;;
-(defcommand "Transpose Regions" (p)
-  "Transpose two regions with endpoints defined by the mark stack and point.
-   To use:  mark start of region1, mark end of region1, mark start of region2,
-   and place point at end of region2.  Invoking this immediately following
-   one use will put the regions back, but you will have to activate the
-   current region."
-  "Transpose two regions with endpoints defined by the mark stack and point."
-  (declare (ignore p))
-  (unless (>= (ring-length (value buffer-mark-ring)) 3)
-    (editor-error "Need two marked regions to do Transpose Regions."))
+(defcommand "Transpose Regions" ()
+  "Transpose (swap) two regions with endpoints defined by the mark stack
+   and point.  When invoked immediately following a previous invocation put
+   the regions back."
+  (or (>= (ring-length (value buffer-mark-ring)) 3)
+      (editor-error "Need two marked regions to do Transpose Regions."))
   (let* ((region (current-region))
 	 (end2 (region-end region))
 	 (start2 (region-start region))
@@ -431,17 +556,17 @@
 	 (start1 (pop-buffer-mark))
 	 (delete3 start1))
     ;;get marks in the right order, to simplify the code that follows
-    (unless (mark<= start1 end1) (rotatef start1 end1))
+    (or (mark<= start1 end1) (rotatef start1 end1))
     (unless (mark<= start1 start2)
       (rotatef start1 start2)
       (rotatef end1 end2))
     ;;order now guaranteed:  <Buffer Start> start1 end1 start2 end2 <Buffer End>
-    (unless (mark<= end1 start2)
-      (editor-error "Can't transpose overlapping regions."))
+    (or (mark<= end1 start2)
+	(editor-error "Can't transpose overlapping regions."))
     (let* ((adjacent-p (mark= end1 start2))
 	   (region1 (delete-and-save-region (region start1 end1)))
-	   (region2 (unless adjacent-p
-		      (delete-and-save-region (region start2 end2))))
+	   (region2 (fi adjacent-p
+			(delete-and-save-region (region start2 end2))))
 	   (point (current-point)))
       (with-mark ((ipoint point :left-inserting))
 	(let ((save-end2-loc (push-buffer-mark (copy-mark end2))))
@@ -458,19 +583,19 @@
     (delete-mark delete3)))
 
 (defcommand "Goto Absolute Line" (p)
-  "Goes to the indicated line, if you counted them starting at the beginning
-   of the buffer with the number one.  If a prefix argument is supplied, that
-   is the line number; otherwise, the user is prompted."
+  "Goes to the indicated line, as if counted from the beginning of the
+   buffer with the number one.  If a prefix argument is supplied, that is
+   the line number; otherwise, the user is prompted."
   "Go to a user perceived line number."
   (let ((p (or p (prompt-for-expression
 		  :prompt "Line number: "
 		  :help "Enter an absolute line number to goto."))))
-    (unless (and (integerp p) (plusp p))
-      (editor-error "Must supply a positive integer."))
+    (or (and (integerp p) (plusp p))
+	(editor-error "Must supply a positive integer."))
     (let ((point (current-point)))
       (with-mark ((m point))
-	(unless (line-offset (buffer-start m) (1- p) 0)
-	  (editor-error "Too few lines in buffer."))
+	(or (line-offset (buffer-start m) (1- p) 0)
+	    (editor-error "Too few lines in buffer."))
 	(move-mark point m)))))
 
 (defcommand "Goto Absolute Character" (p)
@@ -481,20 +606,44 @@
   (let ((p (or p (prompt-for-expression
 		  :prompt "Character number: "
 		  :help "Enter an absolute character number to goto."))))
-    (unless (and (integerp p) (plusp p))
-      (editor-error "Must supply a positive integer."))
+    (or (and (integerp p) (plusp p))
+	(editor-error "Must supply a positive integer."))
     (let ((point (current-point)))
       (with-mark ((m point))
-	(unless (character-offset (buffer-start m) (1- p))
-	  (editor-error "Too few characters in buffer."))
+	(or (character-offset (buffer-start m) (1- p))
+	    (editor-error "Too few characters in buffer."))
 	(move-mark point m)))))
+
+
+#[ Using The Mouse
+
+It can be convenient to use the mouse to point to positions in
+text, especially when moving large distances.  the editor defines several
+commands for using the mouse.  These commands can only be used when running
+under X Windows (see page pagerefusing-x.)
+
+{command:Here to Top of Window}
+{command:Top Line to Here}
+{command:Point to Here}
+{command:Generic Pointer Up}
+{command:Insert Kill Buffer}
+]#
 
 
 ;;;; Mouse Commands.
 
+#[ Generic Pointer Up
+
+`Generic Pointer Up' is an editor command bound to mouse up-clicks.  It
+invokes a function supplied with the interface described below.  This
+command allows various commands to be bound to the same down-click in
+various modes with one command bound to the corresponding up-click.
+
+{function:ed:supply-generic-pointer-up-function}
+]#
+
 (defcommand "Do Nothing" (p)
-  "Do nothing.
-  With prefix argument, do it that many times."
+  "Do nothing.  With prefix argument, do it that many times."
   "Do nothing p times."
   (dotimes (i (or p 1)))
   (setf (last-command-type) (last-command-type)))
@@ -513,15 +662,14 @@
       (unless (eq (current-buffer) buffer)
 	(setf (current-buffer) buffer)))))
 
-(defcommand "Top Line to Here" (p)
-  "Move the top line to the line the mouse is on.
-  If in the first two columns then scroll continuously until the button is
-  released."
+(defcommand "Top Line to Here" ()
+  "Move the top line to the line the mouse is on.  If in the first two
+   columns then scroll continuously upwards as long as the mouse button is
+   pressed."
   "Move the top line to the line the mouse is on."
-  (declare (ignore p))
   (multiple-value-bind (x y window)
 		       (last-key-event-cursorpos)
-    (unless y (editor-error))
+    (or y (editor-error "Failed to get cursor position."))
     (cond ((< x 2)
 	   (loop
 	     (when (listen-editor-input *editor-input*) (return))
@@ -531,15 +679,13 @@
 	  (t
 	   (scroll-window window (- y))))))
 
-(defcommand "Here to Top of Window" (p)
-  "Move the line the mouse is on to the top of the window.
-  If in the first two columns then scroll continuously until the button is
-  released."
-  "Move the line the mouse is on to the top of the window."
-  (declare (ignore p))
+(defcommand "Here to Top of Window" ()
+  "Move the line the mouse is on to the top of the window.  If the mouse is
+   in the first two columns then scroll continuously downwards while the
+   button is pressed."
   (multiple-value-bind (x y window)
 		       (last-key-event-cursorpos)
-    (unless y (editor-error))
+    (or y (editor-error "Failed to get cursor position."))
     (cond ((< x 2)
 	   (loop
 	     (when (listen-editor-input *editor-input*) (return))
@@ -549,192 +695,178 @@
 	  (t
 	   (scroll-window window y)))))
 
-
-(defvar *generic-pointer-up-fun* nil
-  "This is the function for the \"Generic Pointer Up\" command that defines
-   its action.  Other commands set this in preparation for this command's
-   invocation.")
+(defvar *generic-pointer-up-fun* ()
+  "This is the function for the `Generic Pointer Up' command that defines
+   its action.  Other commands set this in preparation for the invocation
+   of `Generic Pointer Up'.")
 ;;;
 (defun supply-generic-pointer-up-function (fun)
-  "This provides the action \"Generic Pointer Up\" command performs."
+  "Supply a function that `Generic Pointer Up' invokes the next time it
+   executes."
   (check-type fun function)
   (setf *generic-pointer-up-fun* fun))
 
-(defcommand "Generic Pointer Up" (p)
-  "Other commands determine this command's action by supplying functions that
-   this command invokes.  The following built-in commands supply the following
-   generic up actions:
-      \"Point to Here\"
-         When the position of the pointer is different than the current
-	 point, the action pushes a buffer mark at point and moves point
-         to the pointer's position.
-      \"Bufed Goto and Quit\"
-         The action is a no-op."
-  "Invoke whatever is on *generic-pointer-up-fun*."
-  (declare (ignore p))
-  (unless *generic-pointer-up-fun*
-    (editor-error "No commands have supplied a \"Generic Pointer Up\" action."))
+(defcommand "Generic Pointer Up" ()
+  "Invoke the command in *generic-pointer-up-fun*."
+  (or *generic-pointer-up-fun*
+      (editor-error "*generic-pointer-up-fun* is empty."))
   (funcall *generic-pointer-up-fun*))
 
+(defevar "Point to Here Return Skip"
+  "A list of command names that `Point to Here' skips if they are bound to
+   Return."
+  :value '("New Line"))
 
-(defcommand "Point to Here" (p)
-  "Move the point to the position of the mouse.
-   If in the modeline, move to the absolute position in the file indicated by
-   the position within the modeline, pushing the old position on the mark
-   stack.  This supplies a function \"Generic Pointer Up\" invokes if it runs
-   without any intervening generic pointer up predecessors running.  If the
-   position of the pointer is different than the current point when the user
-   invokes \"Generic Pointer Up\", then this function pushes a buffer mark at
-   point and moves point to the pointer's position.  This allows the user to
-   mark off a region with the mouse."
-  "Move the point to the position of the mouse."
-  (declare (ignore p))
+(defcommand "Point to Here" ()
+  "Move the point to the position of the mouse, moving to a new window if
+   necessary.
+
+   If the line at the new position has a primary-click-hook property then
+   function call that property.  This is useful for the likes of clickable
+   menus.
+
+   When the mouse is in the first four characters of the echo window
+   modeline, invoke `Menu'.  When the mouse is anywhere else in the echo
+   window invoke `Extended Command'.
+
+   When the mouse is in any other modeline, move the point of the window's
+   buffer to the position that is the same percentage, start to end, as the
+   horizontal position of the mouse within the modeline.  Also make the
+   window current if necessary.
+
+   Supply a function that `Generic Pointer Up' invokes if it runs before
+   any intervening generic pointer up predecessors.  If the mouse has moved
+   from the position of the current point, then the supplied function
+   pushes a buffer mark at point and moves point to the mouse position.
+   This allows the caller to mark off a region with the mouse."
   (multiple-value-bind (x y window)
 		       (last-key-event-cursorpos)
-    (unless x (editor-error))
-    (maybe-change-window window)
-    (if y
-	(let ((m (cursorpos-to-mark x y window)))
-	  (unless m (editor-error))
-	  (move-mark (current-point) m))
-	(let* ((buffer (window-buffer window))
-	       (region (buffer-region buffer))
-	       (point (buffer-point buffer)))
-	  (push-buffer-mark (copy-mark point))
-	  (move-mark point (region-start region))
-	  (line-offset point (round (* (1- (count-lines region)) x)
-				    (1- (window-width window)))))))
-  (supply-generic-pointer-up-function #'point-to-here-up-action))
+    (or x (editor-error "Failed to get cursor position."))
+    (if (eq window *echo-area-window*)
+	(progn
+	  (or (eq window (current-window))
+	      (if (or y (> x 4))
+		  (extended-command-command)
+		  (menu-command)))
+	  (supply-generic-pointer-up-function
+	   #'continue-command))
+	(progn
+	  (maybe-change-window window)
+	  (if y
+	      (let* ((m (or (cursorpos-to-mark x y window)
+			    (editor-error
+			     "Cursor position out of view.")))
+		     (hook (getf (line-plist (mark-line m))
+				 'primary-click-hook)))
+		(if hook
+		    (progn
+		      (supply-generic-pointer-up-function
+		       #'continue-command)
+		      (funcall hook m))
+		    (progn
+		      (move-mark (current-point) m)
+		      (pacify-region)
+		      (let ((bind (get-command #k"return" :current)))
+			(supply-generic-pointer-up-function
+			 (if (commandp bind)
+			     (if (member (command-name bind)
+					 (value point-to-here-return-skip)
+					 :test #'string=)
+				 #'point-to-here-up-action
+				 (progn
+				   (funcall (command-function bind))
+				   #'continue-command))
+			     #'point-to-here-up-action))))))
+	      ;; In the modeline.
+	      (let* ((buffer (window-buffer window))
+		     (region (buffer-region buffer))
+		     (point (buffer-point buffer)))
+		(push-buffer-mark (copy-mark point))
+		(move-mark point (region-start region))
+		(line-offset point (round (* (1- (count-lines region)) x)
+					  (1- (window-width window))))
+		(supply-generic-pointer-up-function
+		 #'continue-command)))))))
 
 (defun point-to-here-up-action ()
   (multiple-value-bind (x y window)
 		       (last-key-event-cursorpos)
-    (unless x (editor-error))
+    (or x (editor-error "Failed to get cursor position."))
     (when y
       (maybe-change-window window)
       (let ((m (cursorpos-to-mark x y window)))
-	(unless m (editor-error))
+	(or m (editor-error "Cursor position out of view."))
 	(when (eq (line-buffer (mark-line (current-point)))
 		  (line-buffer (mark-line m)))
-	  (unless (mark= m (current-point))
-	    (push-buffer-mark (copy-mark (current-point)) t)))
+	  (or (mark= m (current-point))
+	      (push-buffer-mark (copy-mark (current-point)) t)))
 	(move-mark (current-point) m)))))
 
-
-(defcommand "Insert Kill Buffer" (p)
-  "Move current point to the mouse location and insert the kill buffer."
-  "Move current point to the mouse location and insert the kill buffer."
-  (declare (ignore p))
+(defcommand "Insert Kill Buffer" ()
+  "Move the point to the mouse location and insert the most recently killed
+   text."
   (multiple-value-bind (x y window)
 		       (last-key-event-cursorpos)
-    (unless x (editor-error))
+    (or x (editor-error "Failed to get cursor position."))
     (maybe-change-window window)
     (if y
 	(let ((m (cursorpos-to-mark x y window)))
-	  (unless m (editor-error))
+	  (or m (editor-error "Cursor position out of view."))
 	  (move-mark (current-point) m)
-	  (un-kill-command nil))
-	(editor-error "Can't insert kill buffer in modeline."))))
+	  (yank-command))
+	(editor-error "Attempt to insert kill buffer in modeline."))))
 
 
-;;;; Page commands & stuff.
+#[ Logical Pages
+
+Logical pages are a way of dividing a file into coarse divisions.  This is
+analogous to dividing a paper into sections, and the editor provides
+primitives for moving between the pages of a file and listing a directory
+of the page titles.  Pages are separated by `Page Delimiter' characters (as
+in [System Defined Character Attributes]) that appear at the beginning of a
+line.
+
+{function:ed:goto-page}
+{function:ed:page-offset}
+{function:ed:page-directory}
+{function:ed:display-page-directory}
+]#
 
 (defvar *goto-page-last-num* 0)
 (defvar *goto-page-last-string* "")
 
-(defcommand "Goto Page" (p)
-  "Go to an absolute page number (argument).  If no argument, then go to
-  next page.  A negative argument moves back that many pages if possible.
-  If argument is zero, prompt for string and goto page with substring
-  in title."
-  "Go to an absolute page number (argument).  If no argument, then go to
-  next page.  A negative argument moves back that many pages if possible.
-  If argument is zero, prompt for string and goto page with substring
-  in title."
-  (let ((point (current-point)))
-    (cond ((not p)
-	   (page-offset point 1))
-	  ((zerop p)
-	   (let* ((againp (eq (last-command-type) :goto-page-zero))
-		  (name (prompt-for-string :prompt "Substring of page title: "
-					   :default (if againp
-							*goto-page-last-string*
-							*parse-default*)))
-		  (dir (page-directory (current-buffer)))
-		  (i 1))
-	     (declare (simple-string name))
-	     (cond ((not againp)
-		    (push-buffer-mark (copy-mark point)))
-		   ((string-equal name *goto-page-last-string*)
-		    (setf dir (nthcdr *goto-page-last-num* dir))
-		    (setf i (1+ *goto-page-last-num*))))
-	     (loop
-	       (when (null dir)
-		 (editor-error "No page title contains ~S." name))
-	       (when (search name (the simple-string (car dir))
-			     :test #'char-equal)
-		 (goto-page point i)
-		 (setf (last-command-type) :goto-page-zero)
-		 (setf *goto-page-last-num* i)
-		 (setf *goto-page-last-string* name)
-		 (return t))
-	       (incf i)
-	       (setf dir (cdr dir)))))
-	    ((minusp p)
-	     (page-offset point p))
-	    (t (goto-page point p)))
-    (line-start (move-mark (window-display-start (current-window)) point))))
-
 (defun goto-page (mark i)
+  "Move $mark to the absolute page numbered $i, returning $mark.
+
+   If there are less than $i pages, signal an editor-error.
+
+   Number pages starting with one for the page delimited by the beginning
+   of the buffer and the first *Page Delimiter* (or the end of the
+   buffer)."
   (with-mark ((m mark))
     (buffer-start m)
-    (unless (page-offset m (1- i))
-      (editor-error "No page numbered ~D." i))
+    (or (page-offset m (1- i))
+	(editor-error "No page numbered ~D." i))
     (move-mark mark m)))
 
-(defcommand "View Page Directory" (p)
-  "Print a listing of the first line with after each page mark in a pop-up
-   window."
-  "Print a listing of the first line with text after each page mark in a
-   pop-up window."
-  (declare (ignore p))
-  (let ((dir (page-directory (current-buffer))))
-    (declare (list dir))
-    (with-pop-up-display (s :height (1+ (the fixnum (length dir))))
-      (display-page-directory s dir))))
-
-(defcommand "Insert Page Directory" (p)
-  "Insert a listing of the first line with text after each page mark at the
-   beginning of the buffer.  A mark is dropped before going to the
-   beginning of the buffer.  If an argument is supplied, insert the page
-   directory at point."
-  "Insert a listing of the first line with text after each page mark at the
-   beginning of the buffer."
-  (let ((point (current-point)))
-    (unless p
-      (push-buffer-mark (copy-mark point))
-      (buffer-start point))
-    (push-buffer-mark (copy-mark point))
-    (display-page-directory (make-hemlock-output-stream point :full)
-			    (page-directory (current-buffer))))
-  (setf (last-command-type) :ephemerally-active))
-
 (defun display-page-directory (stream directory)
-  "This writes the list of strings, directory, to stream, enumerating them
-   in a field of three characters.  The number and string are separated by
-   two spaces, and the first line contains headings for the numbers and
-   strings columns."
-  (write-line "Page    First Line With Text" stream)
+  "Write the list of strings, $directory, to $stream, enumerating them in a
+   field three characters wide.  The number and string are separated by two
+   spaces, and the first line contains headings for the page numbers and
+   title strings."
+  (write-line "Page  First Line With Text" stream)
   (do ((dir directory (cdr dir))
        (count 1 (1+ count)))
       ((null dir))
     (declare (fixnum count))
-    (format stream "~3D  " count)
+    (format stream "~4D  " count)
     (write-line (car dir) stream)))
 
 (defun page-directory (buffer)
-  "Return a list of strings where each is the first line with text
-   following a :page-delimiter in buffer."
+  "Return a list of each first line of size in buffer that follows a *Page
+   Delimiter* character that is at the beginning of a line.  This includes
+   the first line of the buffer as the first page title.  If a page is
+   empty, then its title is the empty string."
   (with-mark ((m (buffer-point buffer)))
     (buffer-start m)
     (let ((end-of-buffer (buffer-end-mark buffer)) result)
@@ -751,10 +883,10 @@
 			     (subseq str 1)
 			     str)
 			 result))
-		 (unless (page-offset m 1)
-		   (return-from page-directory (nreverse result)))
-		 (when (mark= m end-of-buffer)
-		   (return-from page-directory (nreverse result)))
+		 (or (page-offset m 1)
+		     (return-from page-directory (nreverse result)))
+		 (if (mark= m end-of-buffer)
+		     (return-from page-directory (nreverse result)))
 		 (return))
 		((not (line-offset m 1 0))
 		 (return-from page-directory (nreverse result)))
@@ -764,43 +896,15 @@
 		 (mark-after m)
 		 (return))))))))
 
-
-(defcommand "Previous Page" (p)
-  "Move to the beginning of the current page.
-  With prefix argument move that many pages."
-  "Move backward P pages."
-  (let ((point (current-point)))
-    (or (page-offset point (- (or p 1)))
-	(editor-error "No such page."))
-    (line-start (move-mark (window-display-start (current-window)) point))))
-
-(defcommand "Next Page" (p)
-  "Move to the beginning of the next page.
-  With prefix argument move that many pages."
-  "Move forward P pages."
-  (let ((point (current-point)))
-    (or (page-offset point (or p 1))
-	(editor-error "No such page."))
-    (line-start (move-mark (window-display-start (current-window)) point))))
-
-(defcommand "Mark Page" (p)
-  "Put point at beginning, mark at end of current page.
-   With prefix argument, mark the page that many pages after the current one."
-  "Mark the P'th page after the current one."
-  (let ((point (current-point)))
-    (if p
-	(or (page-offset point (1+ p)) (editor-error "No such page."))
-	(page-offset point 1)) ;If this loses, we're at buffer-end.
-    (with-mark ((m point))
-      (or (page-offset point -1)
-	  (editor-error "No such page."))
-      (push-buffer-mark (copy-mark m) t)
-      (line-start (move-mark (window-display-start (current-window)) point)))))
-
 (defun page-offset (mark n)
-  "Move mark past n :page-delimiters that are in the zero'th line position.
-   If a :page-delimiter is the immediately next character after mark in the
-   appropriate direction, then skip it before starting."
+  "Move mark forward $n (-$n backwards, if $n is negative) *Page Delimiter*
+   characters that are at the beginning of a line.
+
+   If a *Page Delimiter* is the immediately next character after $mark (or
+   before $mark, if $n is negative), then skip it before starting.
+
+   Always move mark.  If there are enough pages to move over, return mark;
+   otherwise, returns ()."
   (cond ((plusp n)
 	 (find-attribute mark :page-delimiter #'zerop)
 	 (dotimes (i n mark)
@@ -826,28 +930,36 @@
 		    (mark-after mark))))))))
 
 
+#[ Counting Commands
+
+{command:Count Words}
+{command:Count Lines}
+{command:Count Lines Page}
+{command:Count Occurrences}
+]#
+
+
 ;;;; Counting some stuff
 
 (defcommand "Count Lines Page" (p)
-  "Display number of lines in current page and position within page.
-   With prefix argument do on entire buffer."
-  "Count some lines, Man."
+  "Display number of lines in the current page and the position within the
+   current page.  With prefix argument count in the entire buffer."
   (let ((point (current-point)))
     (if p
 	(let ((r (buffer-region (current-buffer))))
 	  (count-lines-function "Buffer" (region-start r) point (region-end r)))
 	(with-mark ((m1 point)
 		    (m2 point))
-	  (unless (and (= (character-attribute :page-delimiter
-					       (previous-character m1))
-			  1)
-		       (= (mark-charpos m1) 1))
-	    (page-offset m1 -1))
-	  (unless (and (= (character-attribute :page-delimiter
-					       (next-character m2))
-			  1)
-		       (= (mark-charpos m2) 0))
-	    (page-offset m2 1))
+	  (or (and (= (character-attribute :page-delimiter
+					   (previous-character m1))
+		      1)
+		   (= (mark-charpos m1) 1))
+	      (page-offset m1 -1))
+	  (or (and (= (character-attribute :page-delimiter
+					   (next-character m2))
+		      1)
+		   (= (mark-charpos m2) 0))
+	      (page-offset m2 1))
 	  (count-lines-function "Page" m1 point m2)))))
 
 (defun count-lines-function (msg start mark end)
@@ -855,49 +967,43 @@
 	(after (count-lines (region mark end))))
     (message "~A: ~D lines, ~D/~D" msg (+ before after) before after)))
 
-(defcommand "Count Lines" (p)
-  "Display number of lines in the region."
-  "Display number of lines in the region."
-  (declare (ignore p))
+(defcommand "Count Lines" ()
+  "Count the number of lines from the current point to the end of the
+   buffer, displaying the result in the echo area.  If the current region
+   is active count in that region instead."
   (multiple-value-bind (region activep) (get-count-region)
     (message "~:[After point~;Active region~]: ~A lines"
 	     activep (count-lines region))))
 
-(defcommand "Count Words" (p)
-  "Prints in the Echo Area the number of words in the region
-   between the point and the mark by using word-offset. The
-   argument is ignored."
-  "Prints number of words in the region"
-  (declare (ignore p))
+(defcommand "Count Words" ()
+  "Prints in the Echo Area the number of words in the region between the
+   point and the mark, using word-offset.  If the current region is active
+   count in theat region instead."
   (multiple-value-bind (region activep) (get-count-region)
     (let ((end-mark (region-end region)))
       (with-mark ((beg-mark (region-start region)))
 	(let ((word-count 0))
 	  (loop
-	    (when (mark>= beg-mark end-mark)
-	      (return))
-	    (unless (word-offset beg-mark 1)
-	      (return))
+	    (if (mark>= beg-mark end-mark) (return))
+	    (or (word-offset beg-mark 1) (return))
 	    (incf word-count))
 	  (message "~:[After point~;Active region~]: ~D Word~:P"
 		   activep word-count))))))
 
-(defcommand "Count Lines and Characters" (p)
+(defcommand "Count Lines and Characters" ()
   "Print in the Echo Area the number of lines and characters in the current
    region, if it is active, else from point to the buffer end."
   "Print number of lines and characters in the region."
-  (declare (ignore p))
   (multiple-value-bind (region activep) (get-count-region)
     (message "~:[After point~;Active region~]: ~A lines, ~A characters"
 	     activep
 	     (count-lines region)
 	     (count-characters region))))
 
-(defcommand "Describe Cursor Position" (p)
+(defcommand "Describe Cursor Position" ()
   "Print in the Echo Area the number of lines and characters in the current
    region, if it is active, else from point to the buffer end."
   "Print number of lines and characters in the region."
-  (declare (ignore p))
   (let* ((char (next-character (current-point)))
 	 (buffer (current-buffer))
 	 (point (current-point))
@@ -926,14 +1032,15 @@
   (if (region-active-p)
       (values (current-region) t)
       (values (region (current-point) (buffer-end-mark (current-buffer)))
-	      nil)))
+	      ())))
 
-(defcommand "Tally Column" (p)
+; FIX
+; underground            55.00
+; groceries	           56.17
+; coventry interview     35.00
+(defcommand "Tally Column" ()
   "Print the sum of the column of numbers at point.
    The numbers must line up where the decimal point is or would be."
-  "Print the sum of the column of numbers at point.
-   The numbers must line up where the decimal point is or would be."
-  (declare (ignore p))
   (let ((point (current-point)))
     (or (edi::number-at-mark point)(editor-error "Point must be on a number."))
     (message "~A" (tally-column))))
@@ -976,47 +1083,54 @@
 	  total))))
 
 
+#[ Editing Documents
+
+Although the editor is dedicated to editing text, it provides a number of
+commands for word processing.  If the editor is used in conjunction with a
+text-formatting program, then decent word processing is possible.
+
+{mode:Text}
+
+[ Sentence Commands   ]
+[ Paragraph Commands  ]
+[ Filling             ]
+[ Scribe Mode         ]
+[ Spelling Correction ]
+]#
+
+
 ;;;; Some modes:
 
-(defcommand "Fundamental Mode" (p)
+(defcommand "Fundamental Mode" ()
+  "Put the current buffer into \"Fundamental\" mode.  Fundamental mode is
+   the most basic major mode."
   "Put the current buffer into \"Fundamental\" mode."
-  "Put the current buffer into \"Fundamental\" mode."
-  (declare (ignore p))
   (setf (buffer-major-mode (current-buffer)) "Fundamental"))
 
 ;;; Text mode.
 ;;;
-(defmode "Text" :major-p t)
+(defmode "Text" :major-p t
+  :documentation "Word processing for text.")
 
-(defcommand "Text Mode" (p)
-  "Put the current buffer into \"Text\" mode."
-  "Put the current buffer into \"Text\" mode."
-  (declare (ignore p))
-  (setf (buffer-major-mode (current-buffer)) "Text"))
+#[ Caps Lock Mode
 
-;;; Caps-lock mode.
+Caps Lock is a minor mode in which the editor inserts all alphabetic
+characters as uppercase letters.
+
+{mode:Caps Lock}
+{command:Self Insert Caps Lock}
+]#
+
+;;; Caps Lock mode.
 ;;;
-(defmode "CAPS-LOCK")
-
-(defcommand "Caps Lock Mode" (p)
-  "Simulate having a CAPS LOCK key.  Toggle CAPS-LOCK mode.  Zero or a
-   negative argument turns it off, while a positive argument turns it
-   on."
-  "Simulate having a CAPS LOCK key.  Toggle CAPS-LOCK mode.  Zero or a
-   negative argument turns it off, while a positive argument turns it
-   on."
-  (setf (buffer-minor-mode (current-buffer) "CAPS-LOCK")
-	(if p
-	    (plusp p)
-	    (not (buffer-minor-mode (current-buffer) "CAPS-LOCK")))))
+(defmode "Caps Lock"
+  :short-name "CAPS"
+  :documentation "Simulate a Caps Lock key.")
 
 (defcommand "Self Insert Caps Lock" (p)
-  "Insert the last character typed, or the argument number of them.
-   If the last character was an alphabetic character, then insert its
-   capital form."
-  "Insert the last character typed, or the argument number of them.
-   If the last character was an alphabetic character, then insert its
-   capital form."
+  "Insert the last character typed, or the argument number of them.  If the
+   last character was an alphabetic character, then insert its capital
+   form."
   (let ((char (char-upcase (ext:key-event-char *last-key-event-typed*))))
     (if (and p (> p 1))
 	(insert-string (current-point) (make-string p :initial-element char))
@@ -1025,6 +1139,199 @@
 
 ;;;; File type handling.
 
-(defun view (file)
-  (in-directory file
-    (run-program "xloadimage" (list (file-namestring file)))))
+(defvar *xdg-errors* #("success"
+		       "command line syntax error"
+		       "failed to find given file"
+		       "failed to find required program"
+		       "action failed"))
+
+(defcommand "Screenshot" ()
+  "Start a screenshot program."
+  (or (run-program "gnome-screenshot" ()
+		   :wait () :output t)
+      (run-program "ksnapshot" ()
+		   :wait () :output t)
+      (message "Failed to start a screenshot program.")))
+
+(defun %view (arg)
+  (message "Opening ~A externally ..." arg)
+  (let ((ret (run-program "xdg-open" (list arg)
+			  :wait t :output t)))
+    (if ret
+	(case (process-exit-code ret)
+	  (0)
+	  ((1 2 3 4)
+	   (message "xdg-open exited with ~A: ~A"
+		    (process-exit-code ret)
+		    (aref *xdg-errors* (process-exit-code ret))))
+	  (t (message "xdg-open exited with ~A"
+		      (process-exit-code ret))))
+	(message "Failed to run xdg-open."))))
+
+(defun view (pathname &optional type subtype params)
+  (in-directory pathname
+    (case= (string-downcase type)
+      ("text"
+       (case= (string-downcase subtype)
+	 ("html" (view-url pathname))
+	 ("plain" (find-file-command () pathname))))
+      ("message"
+       (case= (string-downcase subtype)
+	 ("rfc822"
+	  (let* ((buffer (make-unique-buffer
+			 (format () "Message ~A" pathname)
+			 :modes '("Message")))
+		 (stream (make-editor-output-stream
+			  (buffer-point buffer) :full)))
+	    (defevar "Message Information"
+	      "The information about the current message buffer."
+	      :value (make-message-info :folder () :msgs ())
+	      :buffer buffer)
+	    ;; Normally this is cached by mh.
+	    (defevar "Message Fields"
+	      "The fields of the current message."
+	      :value ()
+	      :buffer buffer)
+	    (setf (buffer-pathname buffer) pathname)
+	    (multiple-value-bind
+		(ret fields)
+		(mh:write-file-message stream pathname
+				       (value message-headers))
+	      (or ret (error "Failed to write message: ~A" fields))
+	      (buffer-start (buffer-point buffer))
+	      (setf (buffer-writable buffer) ())
+	      (setf (buffer-modified buffer) ())
+	      (change-to-buffer buffer)
+	      (setv message-fields fields))))))
+      ("application" "audio" "image" "multipart" "video" "extension"
+       (%view (file-namestring pathname)))
+      (t
+       (%view (file-namestring pathname))))))
+
+(defun view-url (url)
+  (%view url))
+
+
+;;;; Beeping.
+
+(defcommand "Beep" (p)
+  "Beep.  With a prefix beep that many times."
+  (if p (dotimes (i p) (beep)) (beep)))
+
+
+;;;; Break.
+
+(defcommand "Break" ()
+  "Call `break' to break out to the top level."
+  (break))
+
+
+;;;; Colors.
+
+(defcommand "Set Window Foreground Color" ()
+  "Set the foreground color of the current window to a prompted value."
+  (set-window-foreground-color (current-window) '(1 1 1))
+  (redisplay-all))
+
+(defcommand "Set Window Background Color" ()
+  "Set the background color of the current window to a prompted value."
+  (set-window-background-color (current-window) '(0 0 0))
+  (redisplay-all))
+
+(defcommand "Set Window Foreground RGB" ()
+  "Set the foreground color of the current window according to prompted
+   red, green and blue values."
+  (set-window-foreground-color
+   (current-window)
+   (list (prompt-for-expression :prompt "Red: ")
+	 (prompt-for-expression :prompt "Green: ")
+	 (prompt-for-expression :prompt "Blue: ")))
+  (redisplay-all))
+
+(defcommand "Set Window Background RGB" ()
+  "Set the background color of the current window according to prompted
+   red, green and blue values."
+  (set-window-background-color
+   (current-window)
+   (list (prompt-for-expression :prompt "Red: ")
+	 (prompt-for-expression :prompt "Green: ")
+	 (prompt-for-expression :prompt "Blue: ")))
+  (redisplay-all))
+
+(defcommand "Set Echo Window Foreground Color" ()
+  "Set the foreground color of the current window to a prompted value."
+  (set-window-foreground-color *echo-area-window* '(1 1 1))
+  (redisplay-all))
+
+(defcommand "Set Echo Window Background Color" ()
+  "Set the background color of the current window to a prompted value."
+  (set-window-background-color *echo-area-window* '(0 0 0))
+  (redisplay-all))
+
+(defcommand "Set Echo Window Foreground RGB" ()
+  "Set the foreground color of the current window according to prompted
+   red, green and blue values."
+  (set-window-foreground-color
+   *echo-area-window*
+   (list (prompt-for-expression :prompt "Red: ")
+	 (prompt-for-expression :prompt "Green: ")
+	 (prompt-for-expression :prompt "Blue: ")))
+  (redisplay-all))
+
+(defcommand "Set Echo Window Background RGB" ()
+  "Set the background color of the current window according to prompted
+   red, green and blue values."
+  (set-window-background-color
+   *echo-area-window*
+   (list (prompt-for-expression :prompt "Red: ")
+	 (prompt-for-expression :prompt "Green: ")
+	 (prompt-for-expression :prompt "Blue: ")))
+  (redisplay-all))
+
+(declaim (special *mode-highlighters*))
+
+(defun setup-colorlist-mode (buffer)
+  (highlight-visible-colorlist-buffer buffer)
+  (pushnew '("Colorlist" t highlight-visible-colorlist-buffer)
+	   *mode-highlighters*))
+
+(defmode "Colorlist" :major-p t
+  :documentation "Mode for listing colors."
+  :setup-function #'setup-colorlist-mode)
+
+(defcommand "List X Colors" ()
+  "Pop-up an list of examples of each color."
+  (let* ((buf-name "X Color List")
+	 (new-buffer (make-buffer buf-name
+				  :modes '("Colorlist" "View")))
+	 (buffer (or new-buffer (getstring buf-name *buffer-names*))))
+    (change-to-buffer buffer)
+    ;; FIX pick new buffer if exists and contains something else
+    ;;     or perhaps confirm to overwrite (possibly saving first)
+    (if new-buffer
+	(let ((point (current-point)))
+	  (with-writable-buffer (buffer)
+	    (read-file "/etc/X11/rgb.txt" point)
+	    (buffer-start point)
+	    (let ((mark (copy-mark point)))
+	      (line-end mark)
+	      (mark-after mark)
+	      (delete-region (region point mark))))))))
+
+(defun highlight-colorlist-line (line chi-info)
+  (with-input-from-string (stream (line-string line))
+    (let ((red (read stream ()))
+	  (green (read stream ()))
+	  (blue (read stream ())))
+      (and red green blue
+	   (chi-mark line 0 *original-font*
+		     (list (/ red 255)
+			   (/ green 255)
+			   (/ blue 255))
+		     chi-info)))))
+
+(defun highlight-colorlist-buffer (buffer)
+  (highlight-chi-buffer buffer highlight-colorlist-line))
+
+(defun highlight-visible-colorlist-buffer (buffer)
+  (highlight-visible-chi-buffer buffer highlight-colorlist-line))

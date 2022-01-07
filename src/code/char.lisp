@@ -7,13 +7,27 @@
 
 (in-package "LISP")
 
+;; FIX whitespace-p
+
 (export '(char-code-limit standard-char-p graphic-char-p
 	  alpha-char-p upper-case-p lower-case-p both-case-p digit-char-p
-	  alphanumericp  ;; FIX alphanumeric-p?
+	  alphanumericp  ;; FIX alphanumeric-p? alpha-num-p?
 	  char= char/= char< char> char<= char>= char-equal
 	  char-not-equal char-lessp char-greaterp char-not-greaterp
 	  char-not-lessp character char-code code-char char-upcase
 	  char-downcase digit-char char-int char-name name-char))
+
+
+#[ Characters (Lisp)
+
+Nightshade implements characters according to \i{Common Lisp: the Language II}.
+The main difference from the first version is that character bits and
+font have been eliminated, and the names of the types have been
+changed.  \tindexed{base-character} is the new equivalent of the old
+\tindexed{string-char}.  In this implementation, all characters are base
+characters (there are no extended characters.)  Character codes range
+between \code{0} and \code{255}, using the ASCII encoding.
+]#
 
 
 ;;; Compile some trivial character operations via inline expansion:

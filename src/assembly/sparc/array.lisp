@@ -1,22 +1,6 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/sparc/array.lisp,v 1.5 1995/02/27 00:51:49 wlott Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/assembly/sparc/array.lisp,v 1.5 1995/02/27 00:51:49 wlott Exp $
-;;;
-;;;    This file contains the support routines for arrays and vectors.
-;;;
-;;; Written by William Lott.
-;;; 
-(in-package "SPARC")
+;;; Support routines for arrays and vectors.
 
+(in-package "SPARC")
 
 (define-assembly-routine (allocate-vector
 			  (:policy :fast-safe)

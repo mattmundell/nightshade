@@ -1,25 +1,6 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/values.lisp,v 1.2.2.1 1998/06/23 11:24:14 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the implementation of unknown-values VOPs.
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; %more-arg-values by Douglas Thomas Crosher, March 1996.
-;;; Enhancements/debugging by Douglas T. Crosher 1996.
+;;; The implementation of unknown-values VOPs.
 
-(in-package :x86)
+(in-package "X86")
 
 (define-vop (reset-stack-pointer)
   (:args (ptr :scs (any-reg)))
@@ -90,7 +71,6 @@
 ;;; Return a context that is 4 bytes above the first value, suitable for
 ;;; defining a new stack frame.
 ;;;
-;;;
 (define-vop (%more-arg-values)
   (:args (context :scs (descriptor-reg any-reg) :target src)
          (skip :scs (any-reg immediate))
@@ -112,24 +92,23 @@
 				     :disp (- (* (tn-value skip) word-bytes))))
 	      (move count num)
 	      (inst sub count (* (tn-value skip) word-bytes)))))
-      
+
       (any-reg
        (move src context)
        (inst sub src skip)
        (move count num)
        (inst sub count skip)))
-    
+
     (move temp1 count)
     (inst mov start esp-tn)
     (inst jecxz done)  ; check for 0 count?
-    
+
     (inst shr temp1 word-shift) ; convert the fixnum to a count.
-    
+
     (inst std) ; move down the stack as more value are copied to the bottom.
     LOOP
     (inst lods temp)
     (inst push temp)
     (inst loop loop)
-    
+
     DONE))
- 

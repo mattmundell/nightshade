@@ -1,23 +1,6 @@
-;;; -*- Package: ALPHA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/static-fn.lisp,v 1.2 1994/10/31 04:39:51 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the VOPs and macro magic necessary to call static
-;;; functions.
-;;;
-;;; Written by William Lott.
-;;; Converted by Sean Hallgren.
-;;;
+;;; The VOPs and macro magic necessary to call static functions.
+
 (in-package "ALPHA")
-
-
 
 (define-vop (static-function-template)
   (:save-p t)
@@ -32,14 +15,11 @@
   (:temporary (:sc any-reg :offset ocfp-offset) ocfp)
   (:temporary (:sc control-stack :offset nfp-save-offset) nfp-save))
 
-
 (eval-when (compile load eval)
-
 
 (defun static-function-template-name (num-args num-results)
   (intern (format nil "~:@(~R-arg-~R-result-static-function~)"
 		  num-args num-results)))
-
 
 (defun moves (src dst)
   (collect ((moves))
@@ -116,16 +96,13 @@
 	       (maybe-load-stack-nfp-tn cur-nfp nfp-save temp))
 	     ,@(moves (temp-names) (result-names))))))))
 
-
 ) ; eval-when (compile load eval)
-
 
 (expand
  (collect ((templates (list 'progn)))
    (dotimes (i register-arg-count)
      (templates (static-function-template-vop i 1)))
    (templates)))
-
 
 (defmacro define-static-function (name args &key (results '(x)) translate
 				       policy cost arg-types result-types)

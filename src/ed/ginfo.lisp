@@ -4,7 +4,6 @@
 ;;       Scroll across nodes.
 ;;       Handle more than one buffer of same manual.
 ;;       Improve speed of loading large multiple-file manuals.
-;;       Show from Menu (m).
 ;;       Show from Index (i).
 ;;       Search (s).
 ;;       Goto Node (g).
@@ -41,7 +40,7 @@
       (let ((buffer (make-buffer (prin1-to-string (gensym)))))
 	(with-output-to-mark (s (copy-mark (buffer-start-mark buffer)))
 	  (let ((process (run-program "gzip"
-				      `("-d" "-c" ,(unix-namestring name))
+				      `("-d" "-c" ,(os-namestring name))
 				      :output s)))
 	    (process-close process)
 	    buffer))))))
@@ -142,6 +141,41 @@
       (if (string= (cadr a) name)
 	  (return node)))))
 
+;; FIX handle * envsubst: (gettext)envsubst Invocation.
+;;                                 ^^^^^^^^^^^^^^^^^^^
+(defun ginfo-node-at-point (&optional (mark (current-point)))
+  "Return name of node referenced at point, if any.  Return second argument
+   true if reference to external info manual."
+  (let* ((chars (region-to-string
+		 (region mark (line-end (copy-mark mark)))))
+	 (start (and (> (length chars) 4)
+		     (string= chars "* " :end1 2)
+		     0)))
+    (when start
+      (let ((end (search ":" chars :start2 start)))
+	(when end
+	  (if (and (> (length chars) (+ end 2))
+		   (char= (char chars (1+ end)) #\:))
+	      ;; * node::
+	      (subseq chars (+ start 2) end)
+	      (if (and (> (length chars) (+ end 2))
+		       (char= (char chars (+ end 2)) #\())
+		  ;; * node: (...
+		  (progn
+		    ;; Swap sense of start and end variables.
+		    (setq end (search ": (" chars :start2 start))
+		    (setq start (search ")" chars :start2 end))
+		    (values (subseq chars (+ end 3) start) t))
+		  (let ((end2 (search "." chars :start2 (1+ end))))
+		    (if end2
+			;; * index:     node.
+			(string-left-trim '(#\space #\tab)
+					  (subseq chars
+						  (1+ end)
+						  end2))
+			;; Assume * node:       ...
+			(subseq chars (+ start 2) end))))))))))
+
 (defun show-ginfo-node (name-or-node &key (add-to-history t))
   "If Name-or-node is \"(dir)\" switch to GNU Info dir, else show
    Name-or-node in current buffer."
@@ -149,30 +183,47 @@
 	(node (if (consp name-or-node)
 		  name-or-node
 		  (if (string= name-or-node "(dir)")
-		      (return-from show-ginfo-node (ginfo-command nil))
+		      (return-from show-ginfo-node (ginfo-command))
 		      (find-ginfo-node name-or-node
 				       (value ginfo-tree))))))
-    (with-writable-buffer (buffer)
-      (delete-region (buffer-region buffer))
-      (insert-region (buffer-start-mark buffer)
-		     (cadr (assoc :content node)))
-      (setv ginfo-node node)
-      (when add-to-history
-	(let* ((current-history (value current-ginfo-history))
-	       (history-element (cons node nil))
-	       (new-history (cons history-element current-history)))
-	  (if current-history
-	      ;; Link the next "slot" of the previous element to the new
-	      ;; history, for moving forward through the history.
-	      (setf (cdar current-history) new-history))
-	  (setv current-ginfo-history new-history)
-	  (setv ginfo-history new-history)))
-      (exchange-point-and-mark-command nil))))
+    (when node
+      (with-writable-buffer (buffer)
+	(delete-region (buffer-region buffer))
+	(insert-region (buffer-start-mark buffer)
+		       (cadr (assoc :content node)))
+	(setv ginfo-node node)
+	(when add-to-history
+	  (let* ((current-history (value current-ginfo-history))
+		 (history-element (cons node nil))
+		 (new-history (cons history-element current-history)))
+	    (if current-history
+		;; Link the next "slot" of the previous element to the new
+		;; history, for moving forward through the history.
+		(setf (cdar current-history) new-history))
+	    (setv current-ginfo-history new-history)
+	    (setv ginfo-history new-history)))
+	(exchange-point-and-mark-command)
+	;; Setup the menu table (any line starting with *).
+	(if (editor-bound-p 'ginfo-menu :buffer buffer)
+	    (clrstring (variable-value 'ginfo-menu :buffer buffer))
+	    (defevar "GInfo Menu"
+	      "The menu on the info node displayed in this buffer."
+	      :buffer buffer
+	      :value (make-string-table)))
+	(let ((menu (variable-value 'ginfo-menu :buffer buffer)))
+	  (do-buffer-lines (line buffer)
+	    (multiple-value-bind (item external)
+				 (ginfo-node-at-point (mark line 0))
+	      (when item
+		(or (string= (string-downcase item) "menu")
+		    (setf (getstring item menu) (if external
+						    :external
+						    :internal)))))))))))
 
 
 ;;; Commands.
 
-(defcommand "GInfo" (p &optional (filename "ginfo:dir"))
+(defcommand "GInfo" (p (filename "ginfo:dir"))
   "Switch to the GNU Info directory buffer, creating it if necessary."
   "Switch to the buffer for GNU Info file Filename, creating it if
    necessary."
@@ -190,58 +241,48 @@
 ;	  (message "") ;; FIX
 ;	  (force-output *echo-area-stream*)
 	  (setf (value view-return-function) #'(lambda ()))
-	  (defhvar "GInfo Tree"
+	  (defevar "GInfo Tree"
 	    "The tree of nodes associated with this buffer."
 	    :buffer buffer
 	    :value tree)
-	  (defhvar "GInfo Node"
+	  (defevar "GInfo Node"
 	    "The info node displayed in this buffer."
 	    :buffer buffer
 	    :value node)
-	  (defhvar "GInfo History"
+	  (defevar "GInfo History"
 	    "A history of info nodes displayed in this buffer."
 	    :buffer buffer
 	    :value ())
-	  (defhvar "Current GInfo History"
+	  (defevar "Current GInfo History"
 	    "The history from the current node to the beginning."
 	    :buffer buffer
 	    :value ())
 	  (show-ginfo-node node)))))
 
-(defcommand "Next GInfo Node" (p)
+(defcommand "Next GInfo Node" ()
   "Show the next Info node, if there is such a node."
-  "Show the next Info node, if there is such a node."
-  (declare (ignore p))
   (let ((nexta (assoc :next (value ginfo-node))))
     (when nexta
       (show-ginfo-node (cadr nexta)))))
 
-(defcommand "Previous GInfo Node" (p)
+(defcommand "Previous GInfo Node" ()
   "Show the previous Info node, if there is such a node."
-  "Show the previous Info node, if there is such a node."
-  (declare (ignore p))
   (let ((preva (assoc :previous (value ginfo-node))))
     (when preva
       (show-ginfo-node (cadr preva)))))
 
-(defcommand "Parent GInfo Node" (p)
+(defcommand "Parent GInfo Node" ()
   "Show the parent of the currently displayed node."
-  "Show the parent of the currently displayed node."
-  (declare (ignore p))
   (let ((parenta (assoc :parent (value ginfo-node))))
     (when parenta
       (show-ginfo-node (cadr parenta)))))
 
-(defcommand "Top GInfo Node" (p)
+(defcommand "Top GInfo Node" ()
   "Show the top of the tree of the currently displayed node."
-  "Show the top of the tree of the currently displayed node."
-  (declare (ignore p))
   (show-ginfo-node "Top"))
 
-(defcommand "Forward GInfo Node" (p)
+(defcommand "Forward GInfo Node" ()
   "Show the next node from the history of nodes."
-  "Show the next node from the history of nodes."
-  (declare (ignore p))
   (let* ((hist (value current-ginfo-history))
 	 (next (if hist (cdar hist))))
     (if next
@@ -250,10 +291,8 @@
 	  (show-ginfo-node (caar next) :add-to-history nil))
 	(message "End of history."))))
 
-(defcommand "Backward GInfo Node" (p)
+(defcommand "Backward GInfo Node" ()
   "Show the previous node from the history of nodes."
-  "Show the previous node from the history of nodes."
-  (declare (ignore p))
   (let* ((hist (value current-ginfo-history))
 	 (prev (if hist (cdr hist))))
     (if prev
@@ -264,12 +303,9 @@
 
 ;; FIX refs may be anywhere on line
 ;; FIX     incl return pos in line
-(defcommand "Next GInfo Reference" (p)
+(defcommand "Next GInfo Reference" ()
   "Move point to the next reference, wrapping if required.
-Return the position of the reference in the line it is on."
-  "Move point to the next reference, wrapping if required.
-Return the position of the reference in the line it is on."
-  (declare (ignore p))
+   Return the position of the reference in the line it is on."
   (let ((point (current-point))
 	(buffer (current-buffer))
 	(found nil))
@@ -289,35 +325,46 @@ Return the position of the reference in the line it is on."
 	      (eq line last-line))
 	  found)))))
 
-(defcommand "Previous GInfo Reference" (p)
+(defcommand "Previous GInfo Reference" ()
   "Move point to the previous reference, wrapping if required."
-  "Move point to the previous reference, wrapping if required."
-  (declare (ignore p))
   ;; FIX
-  (next-ginfo-reference-command nil))
+  (next-ginfo-reference-command))
 
-;; FIX handle * envsubst: (gettext)envsubst Invocation.
-;;                                 ^^^^^^^^^^^^^^^^^^^
-(defcommand "GInfo Node from Point" (p)
+(defcommand "GInfo Node from Point" ()
   "Show the node cited by the first reference after point."
-  "Show the node cited by the first reference after point."
-  (declare (ignore p))
-  (let* ((chars (line-string (mark-line (current-point))))
-	 (start (or (and (> (length chars) 4)
-			 (string= chars "* " :end1 2)
-			 0)
-		    (let ((pos (next-ginfo-reference-command nil)))
-		      (when pos
-			(setq chars (line-string (mark-line (current-point))))
-			pos)))))
-    (when start
-      (let ((end (search "::" chars :start2 start)))
-	(if end
-	  (show-ginfo-node (subseq chars (+ start 2) end))
-	  (progn
-	    ;; Swap sense of start and end.
-	    (setq end (search ": (" chars :start2 start))
-	    (setq start (search ")" chars :start2 end))
-	    (ginfo-command nil (concatenate 'simple-string
-					    "ginfo:"
-					    (subseq chars (+ end 3) start)))))))))
+  (multiple-value-bind (name external)
+		       (ginfo-node-at-point (current-point))
+    (if (or name
+	    (let* ((double-colon (new-search-pattern :string-sensitive
+						     :backward
+						     "::"))
+		   (dc-mark (copy-mark (current-point)))
+		   (star (new-search-pattern :string-sensitive
+					     :backward
+					     "* "))
+		   (star-mark (copy-mark (current-point))))
+	      (when (and (find-pattern star-mark star)
+			 (if (find-pattern dc-mark double-colon)
+			     (mark< dc-mark star-mark)
+			     t))
+		(multiple-value-setq (name external)
+		  (ginfo-node-at-point star-mark))
+		t)))
+	(when name
+	  (if external
+	      (ginfo-command () (concatenate 'simple-string
+					     "ginfo:"
+					     name))
+	      (show-ginfo-node name))))))
+
+(defcommand "GInfo Node from Menu" ()
+  "Show a prompted menu node."
+  (when (value ginfo-menu)
+    (let ((item (prompt-for-keyword (list (value ginfo-menu))
+				    :prompt "Menu item: "
+				    :help "Enter a menu item to visit.")))
+      (if (eq (getstring item (value ginfo-menu)) :external)
+	  (ginfo-command () (concatenate 'simple-string
+					 "ginfo:"
+					 item))
+	  (show-ginfo-node item)))))

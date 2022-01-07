@@ -10,6 +10,19 @@
 	  unsigned-long float double c-string void))
 
 
+#[ The C-Call Package
+
+The c-call package exports these type-equivalents to the C type of the
+same name: char, short, int, long,
+unsigned-char, unsigned-short, unsigned-int,
+unsigned-long, float, double.  c-call also exports
+these types:
+
+{alien-type:void}
+{alien-type:c-string}
+]#
+
+
 ;;;; Extra types.
 
 (def-alien-type char (integer 8))
@@ -26,13 +39,36 @@
 (def-alien-type double double-float)
 
 (def-alien-type-translator void ()
+  "This type is used in function types to declare that an arbitrary value
+   is returned.  Evaluation of an alien-funcall form will return zero
+   values."
   (parse-alien-type '(values)))
 
 
 
 ;;;; C string support.
 
-(def-alien-type-class (c-string :include pointer :include-args (to)))
+(def-alien-type-class (c-string :include pointer :include-args (to))
+  "This type is similar to (* char), but is interpreted as a
+   null-terminated string, and is automatically converted into a Lisp
+   string when accessed.  If the pointer is C NULL (or 0), then accessing
+   gives Lisp ().
+
+   Assigning a Lisp string to a c-string structure field or variable stores
+   the contents of the string to the memory already pointed to by that
+   variable.  When an Alien of type (* char) is assigned to a c-string,
+   then the c-string pointer is assigned to.  This allows c-string pointers
+   to be initialized.  For example:
+
+       (def-alien-type nil (struct foo (str c-string)))
+
+       (defun make-foo (str)
+	 (let ((my-foo (make-alien (struct foo))))
+	   (setf (slot my-foo 'str) (make-alien char (length str)))
+	   (setf (slot my-foo 'str) str)
+	   my-foo))
+
+   Storing Lisp () writes C NULL to the c-string pointer.")
 
 (def-alien-type-translator c-string ()
   (make-alien-c-string-type :to (parse-alien-type 'char)))

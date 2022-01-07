@@ -1,18 +1,5 @@
-;;; -*- Package: hppa -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/system.lisp,v 1.3 1994/10/31 04:42:45 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; HPPA VM definitions of various system hacking operations.
-;;;
-;;; Written by William Lott.
-;;;
+
 (in-package "HPPA")
 
 
@@ -45,10 +32,10 @@
     FUNCTION-PTR
     (load-type result object (- function-pointer-type))
     (inst nop :tr)
-    
+
     OTHER-PTR
     (load-type result object (- other-pointer-type))
-    
+
     DONE))
 
 (define-vop (function-subtype)
@@ -140,7 +127,7 @@
     (inst or res temp res)))
 
 
-;;;; Allocation
+;;;; Allocation.
 
 (define-vop (dynamic-space-free-pointer)
   (:results (int :scs (sap-reg)))
@@ -200,7 +187,6 @@
 
 ;;;; Other random VOPs.
 
-
 (defknown unix::do-pending-interrupt () (values))
 (define-vop (unix::do-pending-interrupt)
   (:policy :fast-safe)
@@ -208,13 +194,12 @@
   (:generator 1
     (inst break pending-interrupt-trap)))
 
-
 (define-vop (halt)
   (:generator 1
     (inst break halt-trap)))
 
 
-;;;; Dynamic vop count collection support
+;;;; Dynamic vop count collection support.
 
 (define-vop (count-me)
   (:args (count-vector :scs (descriptor-reg)))

@@ -1,28 +1,10 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/nlx.lisp,v 1.4.2.3 2000/05/23 16:38:02 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; This file contains the VM definition of non-local exit for the x86.
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; Enhancements/debugging by Douglas T. Crosher 1996,1997,1998.
-;;;
-(in-package :x86)
+
+(in-package "X86")
 
 ;;; MAKE-NLX-SP-TN  --  Interface
 ;;;
-;;;    Make an environment-live stack TN for saving the SP for NLX entry.
+;;; Make an environment-live stack TN for saving the SP for NLX entry.
 ;;;
 (def-vm-support-routine make-nlx-sp-tn (env)
   (environment-live-tn
@@ -31,8 +13,8 @@
 
 ;;; Make-NLX-Entry-Argument-Start-Location  --  Interface
 ;;;
-;;;    Make a TN for the argument count passing location for a
-;;; non-local entry.
+;;; Make a TN for the argument count passing location for a non-local
+;;; entry.
 ;;;
 (def-vm-support-routine make-nlx-entry-argument-start-location ()
   (make-wired-tn *fixnum-primitive-type* any-reg-sc-number ebx-offset))
@@ -45,10 +27,9 @@
 
 ;;; Save and restore dynamic environment.
 ;;;
-;;;    These VOPs are used in the reentered function to restore the
+;;; These VOPs are used in the reentered function to restore the
 ;;; appropriate dynamic environment.  Currently we only save the
-;;; Current-Catch, the eval stack pointer, and the alien stack
-;;; pointer.
+;;; Current-Catch, the eval stack pointer, and the alien stack pointer.
 ;;;
 ;;; We don't need to save/restore the current unwind-protect, since
 ;;; unwind-protects are implicitly processed during unwinding.
@@ -57,7 +38,7 @@
 
 ;;; Make-Dynamic-State-TNs  --  Interface
 ;;;
-;;;    Return a list of TNs that can be used to snapshot the dynamic state for
+;;; Return a list of TNs that can be used to snapshot the dynamic state for
 ;;; use with the Save/Restore-Dynamic-Environment VOPs.
 ;;;
 (def-vm-support-routine make-dynamic-state-tns ()
@@ -71,7 +52,7 @@
     (load-symbol-value catch lisp::*current-catch-block*)
     (load-symbol-value eval lisp::*eval-stack-top*)
     (load-symbol-value alien-stack *alien-stack*)))
-  
+
 (define-vop (restore-dynamic-state)
   (:args (catch :scs (descriptor-reg))
 	 (eval :scs (descriptor-reg))
@@ -92,7 +73,7 @@
     (load-symbol-value res *binding-stack-pointer*)))
 
 
-;;;; Unwind block hackery:
+;;;; Unwind block hackery.
 
 ;;; Compute the address of the catch block from its TN, then store into the
 ;;; block the current Fp, Env, Unwind-Protect, and the entry PC.
@@ -112,7 +93,6 @@
 
 ;;; Like Make-Unwind-Block, except that we also store in the specified tag, and
 ;;; link the block into the Current-Catch list.
-;;;
 
 (define-vop (make-catch-block)
   (:args (tn)
@@ -161,7 +141,8 @@
     (store-symbol-value block lisp::*current-unwind-protect-block*)))
 
 
-;;;; NLX entry VOPs:
+;;;; NLX entry VOPs.
+
 (define-vop (nlx-entry)
   ;; Note: we can't list an sc-restriction, 'cause any load vops would
   ;; be inserted before the return-pc label.
@@ -191,7 +172,7 @@
 	       (let ((default-lab (gen-label))
 		     (tn (tn-ref-tn tn-ref)))
 		 (defaults (cons default-lab tn))
-		 
+
 		 (inst cmp count (fixnum i))
 		 (inst jmp :le default-lab)
 		 (sc-case tn
@@ -248,7 +229,6 @@
     DONE
     ;; Reset the CSP at last moved arg.
     (inst lea esp-tn (make-ea :dword :base edi :disp word-bytes))))
-
 
 ;;; This VOP is just to force the TNs used in the cleanup onto the stack.
 ;;;

@@ -12,6 +12,49 @@
   (when numarg
     (warn "Numeric argument ignored in #~D~A." numarg sub-char)))
 
+(defun sharp-left-bracket (stream bracket numarg)
+  (ignore-numarg bracket numarg)
+  (let* ((stream (in-synonym-of stream))
+	 (pos (file-position stream)))
+    `(add-documentation
+      ,(string-trim '(#\space #\tab)
+		    (with-output-to-string (out)
+		      (if (lisp-stream-p stream)
+			  (prepare-for-fast-read-char stream
+		            (do ((level 1)
+				 (prev (fast-read-char) char)
+				 (char (fast-read-char) (fast-read-char)))
+				(())
+			      (cond ((and (char= prev #\]) (char= char #\#))
+				     (setq level (1- level))
+				     (when (zerop level)
+				       (done-with-fast-read-char)
+				       (return (values)))
+				     (setq char (fast-read-char)))
+				    ((and (char= prev #\#) (char= char #\[))
+				     (%reader-error stream "Nested #[.")
+				     (setq char (fast-read-char))
+				     (setq level (1+ level))))
+			      (write-char prev out)))
+			  ;; Fundamental-stream.
+			  (do ((level 1)
+			       (prev (read-char stream t) char)
+			       (char (read-char stream t) (read-char stream t)))
+			      (())
+			    (cond ((and (char= prev #\]) (char= char #\#))
+				   (setq level (1- level))
+				   (when (zerop level)
+				     (return (values)))
+				   (setq char (read-char stream t)))
+				  ((and (char= prev #\#) (char= char #\[))
+				   (%reader-error stream "Nested #[.")
+				   (setq char (read-char stream t))
+				   (setq level (1+ level))))
+			    (write-char prev out)))))
+      ;; FIX make relative to root? (n:src/)
+      ,(if (pathname stream) (namestring (pathname stream)))
+      ,pos)))
+
 (defun sharp-backslash (stream backslash numarg)
   (ignore-numarg backslash numarg)
   (let ((charstring (read-extended-token-escaped stream)))
@@ -88,8 +131,8 @@
 	     bvec))
 	  (t
 	   (%reader-error stream
-			 "Bit vector is longer than specified length #~A*~A"
-			 numarg bstring)))))
+			  "Bit vector is longer than specified length #~A*~A"
+			  numarg bstring)))))
 
 (defun sharp-colon (stream sub-char numarg)
   (ignore-numarg sub-char numarg)
@@ -108,7 +151,7 @@
 ;;;; #. handling.
 
 (defvar *read-eval* t
-  "If false, then the #. read macro is disabled.")
+  "If true, then the #. read macro is enabled.")
 
 (defun sharp-dot (stream sub-char numarg)
   (ignore-numarg sub-char numarg)
@@ -161,10 +204,10 @@
 		  (seq contents))
 	     (dotimes (axis dimensions
 		       (make-array (dims) :initial-contents contents))
-	       (unless (typep seq 'sequence)
-		 (%reader-error stream
-				"#~DA axis ~D is not a sequence:~%  ~S"
-				dimensions axis seq))
+	       (or (typep seq 'sequence)
+		   (%reader-error stream
+				  "#~DA axis ~D is not a sequence:~%  ~S"
+				  dimensions axis seq))
 	       (let ((len (length seq)))
 		 (dims len)
 		 (unless (= axis (1- dimensions))
@@ -189,21 +232,21 @@
   (let ((body (if (char= (read-char stream t) #\( )
 		  (read-list stream nil)
 		  (%reader-error stream "Non-list following #S"))))
-    (unless (listp body)
-      (%reader-error stream "Non-list following #S: ~S" body))
-    (unless (symbolp (car body))
-      (%reader-error stream "Structure type is not a symbol: ~S" (car body)))
+    (or (listp body)
+	(%reader-error stream "Non-list following #S: ~S" body))
+    (or (symbolp (car body))
+	(%reader-error stream "Structure type is not a symbol: ~S" (car body)))
     (let ((class (find-class (car body) nil)))
-      (unless (typep class 'structure-class)
-	(%reader-error stream "~S is not a defined structure type."
-		       (car body)))
+      (or (typep class 'structure-class)
+	  (%reader-error stream "~S is not a defined structure type."
+			 (car body)))
       (let ((def-con (dd-default-constructor
 		      (layout-info
 		       (class-layout class)))))
-	(unless def-con
-	  (%reader-error
-	   stream "The ~S structure does not have a default constructor."
-	   (car body)))
+	(or def-con
+	    (%reader-error
+	     stream "The ~S structure does not have a default constructor."
+	     (car body)))
 	(apply (fdefinition def-con) (rest body))))))
 
 
@@ -230,8 +273,8 @@
 		    ((= i end))
 		  (let* ((old (%instance-ref tree i))
 			 (new (circle-subst old-new-alist old)))
-		    (unless (eq old new)
-		      (setf (%instance-ref tree i) new)))))
+		    (or (eq old new)
+			(setf (%instance-ref tree i) new)))))
 	       ((arrayp tree)
 		(with-array-data ((data tree) (start) (end))
 		  (declare (fixnum start end))
@@ -239,20 +282,20 @@
 		      ((>= i end))
 		    (let* ((old (aref data i))
 			   (new (circle-subst old-new-alist old)))
-		      (unless (eq old new)
-			(setf (aref data i) new))))))
+		      (or (eq old new)
+			  (setf (aref data i) new))))))
 	       (t
 		(let ((a (circle-subst old-new-alist (car tree)))
 		      (d (circle-subst old-new-alist (cdr tree))))
-		  (unless (eq a (car tree))
-		    (rplaca tree a))
-		  (unless (eq d (cdr tree))
-		    (rplacd tree d)))))
+		  (or (eq a (car tree))
+		      (rplaca tree a))
+		  (or (eq d (cdr tree))
+		      (rplacd tree d)))))
 	 tree)
 	(t tree)))
 
 ;;; Sharp-equal works as follows.  When a label is assigned (ie when #= is
-;;; called) we GENSYM a symbol is which is used as an unforgeable tag.
+;;; called) we GENSYM a symbol which is used as an unforgeable tag.
 ;;; *SHARP-SHARP-ALIST* maps the integer tag to this gensym.
 ;;;
 ;;; When SHARP-SHARP encounters a reference to a label, it returns the
@@ -271,8 +314,8 @@
 (defun sharp-equal (stream ignore label)
   (declare (ignore ignore))
   (when *read-suppress* (return-from sharp-equal (values)))
-  (unless label
-    (%reader-error stream "Missing label for #=." label))
+  (or label
+      (%reader-error stream "Missing label for #=." label))
   (when (or (assoc label *sharp-sharp-alist*)
 	    (assoc label *sharp-equal-alist*))
     (%reader-error stream "Multiply defined label: #~D=" label))
@@ -289,15 +332,15 @@
 (defun sharp-sharp (stream ignore label)
   (declare (ignore ignore))
   (when *read-suppress* (return-from sharp-sharp nil))
-  (unless label
-    (%reader-error stream "Missing label for ##." label))
+  (or label
+      (%reader-error stream "Missing label for ##." label))
 
   (let ((entry (assoc label *sharp-equal-alist*)))
     (if entry
 	(third entry)
 	(let ((pair (assoc label *sharp-sharp-alist*)))
-	  (unless pair
-	    (%reader-error stream "Object is not labelled #~S#" label))
+	  (or pair
+	      (%reader-error stream "Object is not labelled #~S#" label))
 	  (cdr pair)))))
 
 
@@ -367,20 +410,48 @@
 		 (setq char (read-char stream t))
 		 (setq level (1+ level))))))))
 
+(defun sharp-exclaim (stream sub-char numarg)
+  (ignore-numarg sub-char numarg)
+  (let ((stream (in-synonym-of stream)))
+    (if (lisp-stream-p stream)
+	(prepare-for-fast-read-char stream
+          (do ((char (fast-read-char) (fast-read-char)))
+	      (())
+	    (cond ((char= char #\newline)
+		   (done-with-fast-read-char)
+		   (return (values))))))
+	;; Fundamental-stream.
+	(do ((char (read-char stream t) (read-char stream t)))
+	    (())
+	  (cond ((char= char #\newline)
+		 (return (values))))))))
+
 (defun sharp-illegal (stream sub-char ignore)
   (declare (ignore ignore))
   (%reader-error stream "Illegal sharp character ~S" sub-char))
 
 (defun sharp-P (stream sub-char numarg)
   (ignore-numarg sub-char numarg)
-  (let ((namestring (read stream t nil t)))
-    (unless *read-suppress*
-      (parse-namestring namestring))))
+  (let ((namestring (read stream t () t)))
+    (if namestring
+	(if (eq namestring t)
+	    (if (pathname stream) (namestring (pathname stream)))
+	    ;; FIX make relative to root? (n:src/)
+	    (parse-namestring namestring)))))
+
+(defun sharp-true (stream sub-char numarg)
+  (ignore-numarg sub-char numarg)
+  t)
+
+(defun sharp-false (stream sub-char numarg)
+  (ignore-numarg sub-char numarg)
+  ())
 
 (make-dispatch-macro-character #\# t)
 (set-dispatch-macro-character #\# #\\ #'sharp-backslash)
 (set-dispatch-macro-character #\# #\' #'sharp-quote)
 (set-dispatch-macro-character #\# #\( #'sharp-left-paren)
+(set-dispatch-macro-character #\# #\[ #'sharp-left-bracket)
 (set-dispatch-macro-character #\# #\* #'sharp-star)
 (set-dispatch-macro-character #\# #\: #'sharp-colon)
 (set-dispatch-macro-character #\# #\. #'sharp-dot)
@@ -403,8 +474,11 @@
 (set-dispatch-macro-character #\# #\C #'sharp-C)
 (set-dispatch-macro-character #\# #\c #'sharp-C)
 (set-dispatch-macro-character #\# #\| #'sharp-vertical-bar)
+(set-dispatch-macro-character #\# #\! #'sharp-exclaim)
 (set-dispatch-macro-character #\# #\p #'sharp-p)
 (set-dispatch-macro-character #\# #\P #'sharp-p)
+(set-dispatch-macro-character #\# #\t #'sharp-true)
+(set-dispatch-macro-character #\# #\f #'sharp-false)
 (set-dispatch-macro-character #\# #\tab #'sharp-illegal)
 (set-dispatch-macro-character #\# #\  #'sharp-illegal)
 (set-dispatch-macro-character #\# #\) #'sharp-illegal)

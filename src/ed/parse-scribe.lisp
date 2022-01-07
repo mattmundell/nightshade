@@ -13,7 +13,7 @@
 (defvar openbraces '(#\[ #\{ #\< #\())
 (defvar braces (append closebraces openbraces))
 
-(defparser
+(parse:defparser
   `((:manual         :make :head (or (many :chapter) :epsilon))
 
     (:make           "@make" :argument (group (many (or #\  #\newline))))
@@ -48,7 +48,7 @@
     (:text           (many (or #\newline
 			       :center-block :comment-block
 			       :text-block :format-block
-			       :paragraph :heading)))
+			       :paragraph :heading :verbatim)))
 
     (:heading        #\@ (or "Heading" "heading") :argument)
 
@@ -59,7 +59,7 @@
 			     :example :program-eg :program-eg-block
 			     :quotation	:lisp
 			     ;; FIX combine for speed
-			     :defun :defvar :defcon :defmac :defcom :defhvar))
+			     :defun :defvar :defcon :defmac :defcom :defevar))
 
     (:line           (many (or :tab (group (many :mchar)) :line-part)))
 
@@ -69,26 +69,26 @@
 			     (after
 			      :include
 			      (when head
-				(let* ((name (node-next
-					      (node-content
-					       (node-content
-						(node-next (node-content head))))))
+				(let* ((name (parse:node-next
+					      (parse:node-content
+					       (parse:node-content
+						(parse:node-next (parse:node-content head))))))
 				       (nstring (concatenate
 						 'simple-string
-						 (region-to-string (node-content name))
+						 (region-to-string (parse:node-content name))
 						 ".mss"))
 				       (file (merge-pathnames
 					      nstring
-					      (if (fd-stream-p *stream*)
+					      (if (fd-stream-p parse:*stream*)
 						  (directory-namestring
-						   (lisp::fd-stream-file *stream*))
+						   (lisp::fd-stream-file parse:*stream*))
 						  ".")))
 				       (s (open file
 						:direction :input
 						:if-does-not-exist :error)))
 				  (when s
-				    (care-push `(,s 0) *streams*)
-				    (setq *stream* s)
+				    (care-push `(,s 0) parse:*streams*)
+				    (setq parse:*stream* s)
 				    (values head tail)))))
 			     :comment :index :label :tag :hid :kwd
 			     :ref :pageref :funref :macref :varref :comref :hvarref
@@ -148,7 +148,7 @@
     (:bf             "bf" :argument)
     (:b              "b" :bracedarg)
     (:center         "center" :bracedarg)
-    ;; FIX Struct value-node already exists in HI, so "val" instead of "value".
+    ;; FIX Struct value-node already exists in EDI, so "val" instead of "value".
     (:val            "value" :argument)
     (:var            "var" :argument)
     (:foot           "foot" :argument)
@@ -220,6 +220,10 @@
     (:t-b-start      "@begin" :openbrace "Text" (group (many :argchar)) :closebrace)
     (:t-b-end        ,@(p-end "Text"))
 
+    (:verbatim       :verb-start :text :verb-end)
+    (:verb-start     "@begin" :openbrace "verbatim" (group (many :argchar)) :closebrace)
+    (:verb-end       ,@(p-end "verbatim"))
+
     (:format-block    :f-b-start :text :f-b-end)
     (:f-b-start      "@begin" :openbrace "format" (group (many :argchar)) :closebrace)
     (:f-b-end        ,@(p-end "format"))
@@ -229,7 +233,7 @@
     (:quota-end      ,@(p-end "quotation"))
 
     (:defun          "defun" :defun-arg
-		     (or (many (or #\newline :defun1 :defhvar1 :defvar1 :defcon1))
+		     (or (many (or #\newline :defun1 :defevar1 :defvar1 :defcon1))
  			 :epsilon)
 		     ;; Include the case where "@endefun" is on the same
 		     ;; line as the text.
@@ -270,7 +274,7 @@
 		       :argpart)
 
     (:defvar         "defvar" :defvar-arg
-		     (or (many (or #\newline :defvar1 :defhvar1))
+		     (or (many (or #\newline :defvar1 :defevar1))
  			 :epsilon)
 		     ;; Include the case where "@endefun" is on the same
 		     ;; line as the text.
@@ -296,7 +300,7 @@
     (:defcon1        "@defcon1" :defvar-arg)
 
     (:defmac         (or "defmac" "Defmac") :defun-arg
-  		     (or (many (or #\newline #\  :defmac1 :defhvar1 :defvar1))
+  		     (or (many (or #\newline #\  :defmac1 :defevar1 :defvar1))
  			 :epsilon)
 		     ;; Include the case where "@enddefmac" is on the same
 		     ;; line as the text.
@@ -306,7 +310,7 @@
     (:defmac1        "@defmac1" :defun-arg)
 
     (:defcom         "defcom" :defcom-arg
- 		     (or (many (or #\newline :defcom1 :defhvar1))
+ 		     (or (many (or #\newline :defcom1 :defevar1))
 			 :epsilon)
 		     ;; Include the case where "@enddef*" is on the same
 		     ;; line as the text.
@@ -327,20 +331,20 @@
 			    (many (or #\tab #\ ))
 			    "stuff "))
     (:bindspec       (or :bindspec1 :bindspec2 :bindspec3 :bindspec4))
-    (:bindspec1      #\[ (many (cond (if (equal ch #\]) nil t))) #\])
-    (:bindspec2      #\{ (many (cond (if (equal ch #\}) nil t))) #\})
-    (:bindspec3      #\< (many (cond (if (equal ch #\>) nil t))) #\>)
-    (:bindspec4      #\( (many (cond (if (equal ch #\)) nil t))) #\))
-    (:defhvar        "defhvar" :defhvar-arg
- 		     (or (many (or #\newline :defcom1 :defhvar1))
+    (:bindspec1      #\[ (many (cond (if (equal parse:ch #\]) nil t))) #\])
+    (:bindspec2      #\{ (many (cond (if (equal parse:ch #\}) nil t))) #\})
+    (:bindspec3      #\< (many (cond (if (equal parse:ch #\>) nil t))) #\>)
+    (:bindspec4      #\( (many (cond (if (equal parse:ch #\)) nil t))) #\))
+    (:defevar        "defevar" :defevar-arg
+ 		     (or (many (or #\newline :defcom1 :defevar1))
 			 :epsilon)
 		     ;; Include the case where "@endef*" is on the same
 		     ;; line as the text.
 		     (or (many (or :paragraph #\newline)) :epsilon)
 		     (or :line :epsilon)
 		     :enddef)
-    (:defhvar1       "@defhvar1" :defhvar-arg)
-    (:defhvar-arg    :openbrace
+    (:defevar1       "@defevar1" :defevar-arg)
+    (:defevar-arg    :openbrace
 		     "var " (or :quotedarg :bracedarg)
 		     (or :d-a-spec :epsilon)
 		     :closebrace)
@@ -371,37 +375,37 @@
 ;    (:argument1      (pass #\[) (or (group (many (cond...
 
     (:argument1      #\[ (or (group (many (cond
-					   (or (eq ch #\newline)
-					       (eq ch #\tab)
-					       (when (graphic-char-p ch)
-						 (if (eq ch #\])
+					   (or (eq parse:ch #\newline)
+					       (eq parse:ch #\tab)
+					       (when (graphic-char-p parse:ch)
+						 (if (eq parse:ch #\])
 						     nil
 						     t))))))
 			     :epsilon)
 		     #\])
     (:argument2      #\{ (or (group (many (cond
-					   (or (eq ch #\newline)
-					       (eq ch #\tab)
-					       (when (graphic-char-p ch)
-						 (if (eq ch #\})
+					   (or (eq parse:ch #\newline)
+					       (eq parse:ch #\tab)
+					       (when (graphic-char-p parse:ch)
+						 (if (eq parse:ch #\})
 						     nil
 						     t))))))
 			     :epsilon)
 		     #\})
     (:argument3      #\< (or (group (many (cond
-					   (or (eq ch #\newline)
-					       (eq ch #\tab)
+					   (or (eq parse:ch #\newline)
+					       (eq parse:ch #\tab)
 					       (when (graphic-char-p ch)
-						 (if (eq ch #\>)
+						 (if (eq parse:ch #\>)
 						     nil
 						     t))))))
 			     :epsilon)
 		     #\>)
     (:argument4      #\( (or (group (many (cond
-					   (or (eq ch #\newline)
-					       (eq ch #\tab)
-					       (when (graphic-char-p ch)
-						 (if (eq ch #\))
+					   (or (eq parse:ch #\newline)
+					       (eq parse:ch #\tab)
+					       (when (graphic-char-p parse:ch)
+						 (if (eq parse:ch #\))
 						     nil
 						     t))))))
 			     :epsilon)
@@ -410,17 +414,17 @@
 ;    (:mchar          (cond (let ((code (char-code ch)))
 ;			     (or (< 31 code 64) (< 64 code 127)))))
 ;                      or tab (9)
-    (:mchar          (cond (if (or (graphic-char-p ch)
-				   (eq ch #\tab))
-			       (if (eq ch #\@) nil t))))
-    (:argchar        (cond (if (or (eq ch #\@)
-				   (memq ch '(,@closebraces ,@openbraces)))
+    (:mchar          (cond (if (or (graphic-char-p parse:ch)
+				   (eq parse:ch #\tab))
+			       (if (eq parse:ch #\@) nil t))))
+    (:argchar        (cond (if (or (eq parse:ch #\@)
+				   (memq parse:ch '(,@closebraces ,@openbraces)))
 			       nil
 			       t)))
-    (:qargchar       (cond (if (or (eq ch #\@)
-				   (memq ch '(,@closebraces ,@openbraces))
-				   (eq ch #\')
-				   (eq ch #\"))
+    (:qargchar       (cond (if (or (eq parse:ch #\@)
+				   (memq parse:ch '(,@closebraces ,@openbraces))
+				   (eq parse:ch #\')
+				   (eq parse:ch #\"))
 			       nil
 			       t)))
     (:openbrace      (or #\[ #\{ #\< #\())

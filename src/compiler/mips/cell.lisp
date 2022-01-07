@@ -1,21 +1,4 @@
-;;; -*- Package: MIPS; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/cell.lisp,v 1.77 1994/10/31 04:44:16 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the VM definition of various primitive memory access
-;;; VOPs for the MIPS.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Converted by William Lott.
-;;; 
+;;; The VM definition of various primitive memory access VOPs for the MIPS.
 
 (in-package "MIPS")
 
@@ -45,7 +28,7 @@
     (storew value object offset lowtag)))
 
 
-;;;; Symbol hacking VOPs:
+;;;; Symbol hacking VOPs.
 
 ;;; The compiler likes to be able to directly SET symbols.
 ;;;
@@ -76,7 +59,8 @@
       (inst beq temp zero-tn err-lab)
       (inst nop))))
 
-;;; Like CHECKED-CELL-REF, only we are a predicate to see if the cell is bound.
+;;; Like CHECKED-CELL-REF, only we are a predicate to see if the cell is
+;;; bound.
 (define-vop (boundp-frob)
   (:args (object :scs (descriptor-reg)))
   (:conditional)
@@ -172,7 +156,6 @@
     (storew temp fdefn fdefn-raw-addr-slot other-pointer-type)
     (move result fdefn)))
 
-
 
 ;;;; Binding and Unbinding.
 
@@ -192,7 +175,6 @@
     (#+gengc storew-and-remember-slot #-gengc storew
 	     val symbol symbol-value-slot other-pointer-type)))
 
-
 (define-vop (unbind)
   (:temporary (:scs (descriptor-reg)) symbol value)
   (:generator 0
@@ -202,7 +184,6 @@
 	     value symbol symbol-value-slot other-pointer-type)
     (storew zero-tn bsp-tn (- binding-symbol-slot binding-size))
     (inst addu bsp-tn bsp-tn (* -2 word-bytes))))
-
 
 (define-vop (unbind-to-here)
   (:args (arg :scs (descriptor-reg any-reg) :target where))
@@ -230,7 +211,6 @@
       (inst nop)
 
       (emit-label done))))
-
 
 
 ;;;; Closure indexing.
@@ -265,9 +245,8 @@
 (define-vop (value-cell-set cell-set)
   (:variant value-cell-value-slot other-pointer-type))
 
-
 
-;;;; Instance hackery:
+;;;; Instance hackery.
 
 (define-vop (instance-length)
   (:policy :fast-safe)
@@ -297,7 +276,6 @@
 (define-full-setter instance-index-set * instance-slots-offset
   instance-pointer-type (descriptor-reg any-reg null zero) * %instance-set)
 
-
 
 ;;;; Code object frobbing.
 
@@ -306,7 +284,6 @@
 
 (define-full-setter code-header-set * 0 other-pointer-type
   (descriptor-reg any-reg null zero) * code-header-set)
-
 
 
 ;;;; Mutator accessing.
@@ -330,7 +307,6 @@
   (:results (res :scs (sap-reg)))
   (:result-types system-area-pointer))
 
-
 (define-vop (mutator-ub32-set)
   (:policy :fast-safe)
   (:args (arg :scs (unsigned-reg) :target res))
@@ -353,7 +329,6 @@
   (:arg-types system-area-pointer)
   (:results (res :scs (sap-reg)))
   (:result-types system-area-pointer))
-
 
 (eval-when (compile eval)
   (defmacro define-mutator-accessors (slot type writable)

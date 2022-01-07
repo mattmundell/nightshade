@@ -1,24 +1,9 @@
-;;; -*- Package: MIPS; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/utils.lisp,v 1.2 1994/10/31 04:44:16 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains various useful utilities for generating MIPS code.
-;;;
-;;; Written by William Lott and Christopher Hoover.
-;;; 
+;;; Various useful utilities for generating MIPS code.
 
 (in-package "MIPS")
 
-
 
-;;;; Three Way Comparison
+;;;; Three Way Comparison.
 
 (defun three-way-comparison (x y condition flavor not-p target temp)
   (ecase condition
@@ -63,7 +48,6 @@
     (inst nop)
     (inst break pending-interrupt-trap)
     (emit-label label)))
-
 
 
 ;;;; write-list support.

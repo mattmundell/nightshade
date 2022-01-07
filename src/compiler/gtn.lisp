@@ -1,26 +1,123 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/gtn.lisp,v 1.16.2.1 1998/06/23 11:22:54 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the GTN pass in the compiler.  GTN allocates the TNs
+;;; The Global TN Assignment pass in the compiler.  GTN allocates the TNs
 ;;; that hold the values of lexical variables and determines the calling
 ;;; conventions and passing locations used in function calls.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+
 (in-package "C")
 
+#[ Global TN Assignment
+
+    Iterate over all defined functions, determining calling conventions and
+    assigning Temporary Names (TNs) to local variables.
+
+Phase position: 10/23 (middle)
+
+Presence: required
+
+Files: gtn
+
+Entry functions: `gtn-analyze'
+
+Call sequences:
+
+    native-compile-component
+      gtn-analyze
+        make-ir2-component
+        assign-ir2-environment
+          make-normal-tn
+          make-ir2-environment
+        assign-return-locations
+          make-ir2-nlx-info
+        assign-lambda-var-tns
+          environment-debug-live-tn
+
+
+    XXX Rename this phase so as not to be confused with the local/global TN
+        representation.
+
+    The basic mechanism for closing over values is to pass the values as additional
+    implicit arguments in the function call.  This technique is only applicable
+    when:
+     -- the calling function knows which values the called function wants to close
+	over, and
+     -- the values to be closed over are available in the calling environment.
+
+    The first condition is always true of local function calls.  Environment
+    analysis can guarantee that the second condition holds by closing over any
+    needed values in the calling environment.
+
+    If the function that closes over values may be called in an environment where
+    the closed over values are not available, then we must store the values in a
+    "closure" so that they are always accessible.  Closures are called using the
+    "full call" convention.  When a closure is called, control is transferred to
+    the "external entry point", which fetches the values out of the closure and
+    then does a local call to the real function, passing the closure values as
+    implicit arguments.
+
+    In this scheme there is no such thing as a "heap closure variable" in code,
+    since the closure values are moved into TNs by the external entry point.  There
+    is some potential for pessimization here, since we may end up moving the values
+    from the closure into a stack memory location, but the advantages are also
+    substantial.  Simplicity is gained by always representing closure values the
+    same way, and functions with closure references may still be called locally
+    without allocating a closure.  All the TN based VMR optimizations will apply
+    to closure variables, since closure variables are represented in the same way
+    as all other variables in VMR.  Closure values will be allocated in registers
+    where appropriate.
+
+    Closures are created at the point where the function is referenced, eliminating
+    the need to be able to close over closures.  This lazy creation of closures has
+    the additional advantage that when a closure reference is conditionally not
+    done, then the closure consing will never be done at all.  The corresponding
+    disadvantage is that a closure over the same values may be created multiple
+    times if there are multiple references.  Note however, that VMR loop and common
+    subexpression optimizations can eliminate redundant closure consing.  In any
+    case, multiple closures over the same variables doesn't seem to be that common.
+
+	Having the Tail-Info would also make return convention determination trivial.
+	We could just look at the type, checking to see if it represents a fixed number
+	of values.  To determine if the standard return convention is necessary to
+	preserve tail-recursion, we just iterate over the equivalent functions, looking
+	for XEPs and uses in full calls.
+
+FIX first mention of TN
+        should be mentioned in [Virtual Machine Representation]
+
+The Global Temporary Name Assignment pass (GTN) can be considered a
+post-pass to environment analysis.  This phase assigns the TNs used to hold
+local lexical variables and pass arguments and return values and determines
+the value-passing strategy used in local calls.
+
+To assign return locations, we look at the function's tail-set.
+
+[Functions] describes the function call mechanism in the virtual machine.
+
+If the result continuation for an entry point is used as the continuation for a
+full call, then we may need to constrain the continuation's values passing
+convention to the standard one.  This is not necessary when the call is known
+not to be part of a tail-recursive loop (due to being a known function).
+
+Once we have figured out where we must use the standard value passing strategy,
+we can use a more flexible strategy to determine the return locations for local
+functions.  We determine the possible numbers of return values from each
+function by examining the uses of all the result continuations in the
+equivalence class of the result continuation.
+
+If the tail-set type is for a fixed number of
+values, then we return that fixed number of values from all the functions whose
+result continuations are equated.  If the number of values is not fixed, then
+we must use the unknown-values convention, although we are not forced to use
+the standard locations.  We assign the result TNs at this time.
+
+We also use the tail-sets to see what convention we want to use.  What we do is
+use the full convention for any function that has a XEP its tail-set, even if
+we aren't required to do so by a tail-recursive full call, as long as there are
+no non-tail-recursive local calls in the set.  This prevents us from
+gratuitously using a non-standard convention when there is no reason to.
+]#
 
 ;;; GTN-Analyze  --  Interface
 ;;;
-;;;    We make a pass over the component's environments, assigning argument
+;;; We make a pass over the component's environments, assigning argument
 ;;; passing locations and return conventions and TNs for local variables.
 ;;;
 (defun gtn-analyze (component)
@@ -36,16 +133,15 @@
 
   (undefined-value))
 
-
 ;;; Assign-Lambda-Var-TNs  --  Internal
 ;;;
-;;;    We have to allocate the home TNs for variables before we can call
-;;; Assign-IR2-Environment so that we can close over TNs that haven't had their
-;;; home environment assigned yet.  Here we evaluate the DEBUG-INFO/SPEED
-;;; tradeoff to determine how variables are allocated.  If SPEED is 3, then all
-;;; variables are subject to lifetime analysis.  Otherwise, only Let-P
-;;; variables are allocated normally, and that can be inhibited by
-;;; DEBUG-INFO = 3.
+;;; We have to allocate the home TNs for variables before we can call
+;;; Assign-IR2-Environment so that we can close over TNs that haven't had         FIX called after a-i-e
+;;; their home environment assigned yet.  Here we evaluate the
+;;; DEBUG-INFO/SPEED tradeoff to determine how variables are allocated.  If
+;;; SPEED is 3, then all variables are subject to lifetime analysis.
+;;; Otherwise, only Let-P variables are allocated normally, and that can be
+;;; inhibited by DEBUG-INFO = 3.
 ;;;
 (defun assign-lambda-var-tns (fun let-p)
   (declare (type clambda fun))
@@ -66,10 +162,9 @@
 	(setf (leaf-info var) res))))
   (undefined-value))
 
-
 ;;; Assign-IR2-Environment  --  Internal
 ;;;
-;;;    Give an IR2-Environment structure to Fun.  We make the TNs which hold
+;;; Give an IR2-Environment structure to Fun.  We make the TNs which hold
 ;;; environment values and the old-FP/return-PC.
 ;;;
 (defun assign-ir2-environment (fun)
@@ -94,13 +189,12 @@
 	      (make-old-fp-save-location env))
 	(setf (ir2-environment-return-pc res)
 	      (make-return-pc-save-location env)))))
-  
-  (undefined-value))
 
+  (undefined-value))
 
 ;;; Has-Full-Call-Use  --  Internal
 ;;;
-;;;    Return true if Fun's result continuation is used in a TR full call.  We
+;;; Return true if Fun's result continuation is used in a TR full call.  We
 ;;; only consider explicit :Full calls.  It is assumed that known calls are
 ;;; never part of a tail-recursive loop, so we don't need to enforce
 ;;; tail-recursion.  In any case, we don't know which known calls will
@@ -116,10 +210,9 @@
 		      (eq (basic-combination-kind use) :full))
 	     (return t))))))
 
-
 ;;; Use-Standard-Returns  --  Internal
 ;;;
-;;;    Return true if we should use the standard (unknown) return convention
+;;; Return true if we should use the standard (unknown) return convention
 ;;; for a tail-set.  We use the standard return convention when:
 ;;; -- We must use the standard convention to preserve tail-recursion, since
 ;;;    the tail-set contains both an XEP and a TR full call.
@@ -144,10 +237,9 @@
 			   (eq (basic-combination-kind dest) :local))
 		  (return-from punt nil)))))))))
 
-
 ;;; RETURN-VALUE-EFFICENCY-NOTE  --  Internal
 ;;;
-;;;    If policy indicates, give an efficency note about our inability to use
+;;; If policy indicates, give an efficency note about our inability to use
 ;;; the known return convention.  We try to find a function in the tail set
 ;;; with non-constant return values to use as context.  If there is no such
 ;;; function, then be more vague.
@@ -178,14 +270,13 @@
 		  (return)))))))))
   (undefined-value))
 
-
 ;;; Return-Info-For-Set  --  Internal
 ;;;
-;;;    Return a Return-Info structure describing how we should return from
-;;; functions in the specified tail set.  We use the unknown values convention
-;;; if the number of values is unknown, or if it is a good idea for some other
-;;; reason.  Otherwise we allocate passing locations for a fixed number of
-;;; values.
+;;; Return a Return-Info structure describing how we should return from
+;;; functions in the specified tail set.  We use the unknown values
+;;; convention if the number of values is unknown, or if it is a good idea
+;;; for some other reason.  Otherwise we allocate passing locations for a
+;;; fixed number of values.
 ;;;
 (defun return-info-for-set (tails)
   (declare (type tail-set tails))
@@ -203,13 +294,12 @@
 	   :types ptypes
 	   :locations (mapcar #'make-normal-tn ptypes))))))
 
-
 ;;; Assign-Return-Locations  --  Internal
 ;;;
-;;;    If Tail-Set doesn't have any Info, then make a Return-Info for it.  If
-;;; we choose a return convention other than :Unknown, and this environment is
-;;; for an XEP, then break tail recursion on the XEP calls, since we must
-;;; always use unknown values when returning from an XEP.
+;;; If Tail-Set doesn't have any Info, then make a Return-Info for it.  If
+;;; we choose a return convention other than :Unknown, and this environment
+;;; is for an XEP, then break tail recursion on the XEP calls, since we
+;;; must always use unknown values when returning from an XEP.
 ;;;
 (defun assign-return-locations (fun)
   (declare (type clambda fun))
@@ -225,13 +315,13 @@
 	(setf (node-tail-p use) nil))))
   (undefined-value))
 
-
 ;;; Assign-IR2-NLX-Info  --  Internal
 ;;;
-;;;   Make an IR2-NLX-Info structure for each NLX entry point recorded.  We
-;;; call a VM supplied function to make the Save-SP restricted on the stack.
-;;; The NLX-Entry VOP's :Force-To-Stack Save-P value doesn't do this, since the
-;;; SP is an argument to the VOP, and thus isn't live afterwards.
+;;; Make an IR2-NLX-Info structure for each NLX entry point recorded.  We
+;;; call a VM supplied function to make the Save-SP restricted on the
+;;; stack.  The NLX-Entry VOP's :Force-To-Stack Save-P value doesn't do
+;;; this, since the SP is an argument to the VOP, and thus isn't live
+;;; afterwards.
 ;;;
 (defun assign-ir2-nlx-info (fun)
   (declare (type clambda fun))

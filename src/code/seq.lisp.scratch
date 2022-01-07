@@ -1,0 +1,21 @@
+(defun split (sequence separator &key (start 0) end)
+  "Split the portion of Sequence from Start to End at Separators.  Return a
+   list of the resulting subsequences."
+  (let ((result))
+    (loop for pos = (position separator sequence :start start :end end) do
+      (or pos
+	  (return-from split
+		       (nreverse (push (subseq sequence
+					       start) result))))
+      (push (subseq sequence start pos) result)
+      (setq start (1+ pos)))))
+
+(defun split (sequence separator &key (start 0) end)
+  "Split the portion of Sequence from Start to End at Separators.  Return a
+   list of the resulting subsequences."
+  (collect ((result))
+    (loop for pos = (position separator sequence :start start :end end) do
+      (result (subseq sequence start pos))
+      (or pos (return))
+      (setq start (1+ pos)))
+    (result)))

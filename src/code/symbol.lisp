@@ -16,6 +16,13 @@
 (in-package "LISP")
 
 
+#[ Symbols
+
+All symbols and package names are printed in lower case, as a user is
+likely to type them.  Internally, they are normally stored upper case only.
+]#
+
+
 (declaim (maybe-inline get %put getf remprop %putf get-properties keywordp))
 
 (defun symbol-value (variable)
@@ -35,13 +42,14 @@
   (declare (type symbol variable))
   (cond ((null variable)
 	 ;; FIX Should it be possible to get here?
-	 (error "Nihil ex nihil, can't set NIL."))
+	 (error "Attempt to set NIL."))
 	((eq variable t)
 	 ;; FIX So t is constant? Why? (Might want to temporarily bind over it.)
-	 (error "Veritas aeterna, can't set T."))
+	 ;;     rather have #t and #f
+	 (error "Attempt to set T."))
 	((and (boundp '*keyword-package*)
 	      (keywordp variable))
-	 (error "Can't set keywords."))
+	 (error "Attempt to set a keyword."))
 	(t
 	 (%set-symbol-value variable new-value))))
 
@@ -61,7 +69,7 @@
   (raw-definition variable))
 
 (defun fset (symbol new-value)
-  (declare (type symbol symbol) (type function new-value))
+  (declare (type symbol symbol) (type (or function null) new-value))
   (setf (raw-definition symbol) new-value))
 
 (defun symbol-plist (variable)

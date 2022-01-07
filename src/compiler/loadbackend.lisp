@@ -1,16 +1,4 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/loadbackend.lisp,v 1.9 1994/10/31 04:27:28 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Load the backend of the compiler.
-;;;
 
 (in-package "C")
 
@@ -26,8 +14,8 @@
 
 (load "vm:vm")
 (load "vm:insts")
-(unless (target-featurep :rt)
-  (load "vm:primtype"))
+(or (target-featurep :rt)
+    (load "vm:primtype"))
 (load "vm:move")
 (load "vm:sap")
 (load "vm:system")

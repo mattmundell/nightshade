@@ -1,25 +1,19 @@
 ;; -*- Package: ED -*-
 
 (defpackage "DABBREV"
-  (:use "COMMON-LISP" "ED")
+  (:use "LISP" "ED")
   (:export "DABBREV-EXPAND")
   (:documentation
    "Completion of the word at point according to the current context."))
 
 (in-package "ED")
 
-(defcommand "Dabbrev Expand" (&optional p)
+(defcommand "Dabbrev Expand" ()
   "Expand previous word \"dynamically\".
    Expands to the most recent, preceding word for which this is a prefix.
    If no suitable preceding word is found, words following point are
    considered.
    Repeated calls continue by finding new expansions."
-  "Expand previous word \"dynamically\".
-   Expands to the most recent, preceding word for which this is a prefix.
-   If no suitable preceding word is found, words following point are
-   considered.
-   Repeated calls continue by finding new expansions."
-  (declare (ignore p))
   (dabbrev:dabbrev-expand))
 
 (in-package "DABBREV")

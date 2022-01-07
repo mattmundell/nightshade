@@ -1,19 +1,5 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/memory.lisp,v 1.3 1994/10/31 04:42:45 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the HPPA definitions of some general purpose memory
-;;; reference VOPs inherited by basic memory reference operations.
-;;;
-;;; Written by William Lott.
-;;; 
+;;; The HPPA definitions of some general purpose memory reference VOPs
+;;; inherited by basic memory reference operations.
 
 (in-package "HPPA")
 
@@ -58,4 +44,3 @@
   (:info offset)
   (:generator 1
     (storew value object (+ base offset) lowtag)))
-

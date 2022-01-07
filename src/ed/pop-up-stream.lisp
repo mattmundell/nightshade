@@ -2,7 +2,6 @@
 
 (in-package "EDI")
 
-
 
 ;;;; Line-buffered Stream Methods.
 
@@ -32,7 +31,6 @@
      (random-typeout-redisplay (random-typeout-stream-window stream)))
     (:charpos
      (mark-charpos (random-typeout-stream-mark stream)))))
-
 
 ;;; Bitmap line-buffered support.
 
@@ -123,7 +121,6 @@
     (unless (displayed-p (random-typeout-stream-more-mark stream) window)
       (reset-more-mark stream))))
 
-
 ;;; Tty line-buffered support.
 
 ;;; UPDATE-TTY-LINE-BUFFERED-STREAM is called when anything is written to a
@@ -154,7 +151,6 @@
     (:charpos
      (mark-charpos (random-typeout-stream-mark stream)))))
 
-
 ;;; Bitmap full-buffered support.
 
 ;;; DO-BITMAP-FULL-MORE and DO-TTY-FULL-MORE scroll through the fresh text in
@@ -166,9 +162,9 @@
 	 (buffer (window-buffer window))
 	 (height (window-height window)))
     (with-mark ((end-check (buffer-end-mark buffer)))
-      (when (and (mark/= (buffer-start-mark buffer) end-check)
-		 (empty-line-p end-check))
-	(line-end (line-offset end-check -1)))
+      (or (mark= (buffer-start-mark buffer) end-check)
+	  (if (empty-line-p end-check)
+	      (line-end (line-offset end-check -1))))
       (loop
 	(when (displayed-p end-check window)
 	  (return))
@@ -178,22 +174,20 @@
 	  (scroll-window window 1)
 	  (random-typeout-redisplay window))))))
 
-
 ;;; Tty full-buffered support.
 
 (defun do-tty-full-more (stream)
   (let* ((window (random-typeout-stream-window stream))
 	 (buffer (window-buffer window)))
     (with-mark ((end-check (buffer-end-mark buffer)))
-      (when (and (mark/= (buffer-start-mark buffer) end-check)
-		 (empty-line-p end-check))
-	(line-end (line-offset end-check -1)))
+      (or (mark= (buffer-start-mark buffer) end-check)
+	  (if (empty-line-p end-check)
+	      (line-end (line-offset end-check -1))))
       (loop
 	(when (displayed-p end-check window)
 	  (return))
 	(display-more-prompt stream)
 	(scroll-window window (window-height window))))))
-
 
 (proclaim '(special *more-prompt-action*))
 

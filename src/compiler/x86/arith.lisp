@@ -1,26 +1,6 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/arith.lisp,v 1.5.2.3 2000/09/12 07:36:27 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the VM definition arithmetic VOPs for the x86.
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; Enhancements/debugging by Douglas T. Crosher 1996,1997,2000.
-;;; 
+;;; The VM definition arithmetic VOPs for the x86.
 
-(in-package :x86)
-
+(in-package "X86")
 
 
 ;;;; Unary operations.
@@ -29,7 +9,6 @@
   (:policy :fast-safe)
   (:effects)
   (:affected))
-
 
 (define-vop (fixnum-unop fast-safe-arith-op)
   (:args (x :scs (any-reg) :target res))
@@ -68,7 +47,6 @@
   (:generator 1
     (move res x)
     (inst not res)))
-
 
 
 ;;;; Binary fixnum operations.
@@ -150,7 +128,6 @@
   (:result-types signed-num)
   (:note "inline (signed-byte 32) arithmetic"))
 
-
 (eval-when (compile load eval)
 
 (defmacro define-binop (translate untagged-penalty op)
@@ -194,14 +171,11 @@
 
 ); eval-when
 
-
-
 ;(define-binop + 4 add)
 (define-binop - 4 sub)
 (define-binop logand 2 and)
 (define-binop logior 2 or)
 (define-binop logxor 2 xor)
-
 
 ;;; Special handling of add on the x86; can use lea to avoid a
 ;;; register load, otherwise it uses add.
@@ -330,7 +304,6 @@
 	       (inst inc r)
 	     (inst add r y))))))
 
-
 ;;;; Special logand cases: (logand signed unsigned) => unsigned
 
 (define-vop (fast-logand/signed-unsigned=>unsigned
@@ -431,7 +404,6 @@
     (move eax x)
     (inst mul eax y)
     (move result eax)))
-
 
 (define-vop (fast-truncate/fixnum=>fixnum fast-safe-arith-op)
   (:translate truncate)
@@ -590,9 +562,9 @@
     (move quo eax)
     (move rem edx)))
 
-
 
 ;;;; Shifting
+
 (define-vop (fast-ash-c/fixnum=>fixnum)
   (:translate ash)
   (:policy :fast-safe)
@@ -782,11 +754,11 @@
     OKAY
     (inst shr result :cl)
     (inst jmp done)
-      
+
     POSITIVE
     ;; The result-type assures us that this shift will not overflow.
     (inst shl result :cl)
-      
+
     DONE))
 
 (define-vop (fast-ash/signed=>signed)
@@ -811,11 +783,11 @@
     OKAY
     (inst sar result :cl)
     (inst jmp done)
-      
+
     POSITIVE
     ;; The result-type assures us that this shift will not overflow.
     (inst shl result :cl)
-      
+
     DONE))
 
 
@@ -885,7 +857,6 @@
     (inst and temp #x0000ffff)
     (inst add result temp)))
 
-
 
 ;;;; Binary conditional VOPs:
 
@@ -934,7 +905,6 @@
   (:args (x :scs (unsigned-reg unsigned-stack)))
   (:arg-types unsigned-num (:constant (unsigned-byte 32)))
   (:info target not-p y))
-
 
 (defmacro define-conditional-vop (tran cond unsigned not-cond not-unsigned)
   `(progn
@@ -999,7 +969,6 @@
 ;;; the first arg and a higher cost.  The reason for doing this is to prevent
 ;;; fixnum specific operations from being used on word integers, spuriously
 ;;; consing the argument.
-;;;
 
 (define-vop (fast-eql/fixnum fast-conditional)
   (:args (x :scs (any-reg)
@@ -1156,7 +1125,6 @@
     (move ecx amount)
     (inst shl r :cl)))
 
-
 
 ;;;; Bignum stuff.
 
@@ -1184,7 +1152,6 @@
   (:generator 3
     (inst or digit digit)
     (inst jmp (if not-p :s :ns) target)))
-
 
 ;;; For add and sub with carry the sc of carry argument is any-reg so
 ;;; the it may be passed as a fixnum or word and thus may be 0, 1, or
@@ -1229,7 +1196,6 @@
     (inst mov borrow 0)
     (inst adc borrow borrow)
     (inst xor borrow 1)))
-
 
 (define-vop (bignum-mult-and-add-3-arg)
   (:translate bignum::%multiply-and-add)
@@ -1277,7 +1243,6 @@
     (inst adc edx 0)
     (move hi edx)
     (move lo eax)))
-
 
 (define-vop (bignum-mult)
   (:translate bignum::%multiply)

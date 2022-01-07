@@ -134,7 +134,7 @@ os_map(int fd, int offset, os_vm_address_t addr, os_vm_size_t len)
   if((addr=mmap(addr,len,OS_VM_PROT_ALL,MAP_PRIVATE|MAP_FIXED,fd,
 		(off_t) offset)) == (os_vm_address_t) -1)
     perror("mmap");
-  
+
   return addr;
 }
 
@@ -150,12 +150,12 @@ os_vm_size_t length;
    */
   if (flushit == -1)
     flushit = getenv("CMUCL_NO_SPARC_IFLUSH") == 0;
-  
+
   if (flushit) {
     static int traceit = -1;
     if (traceit == -1)
       traceit = getenv("CMUCL_TRACE_SPARC_IFLUSH") != 0;
-    
+
     if (traceit)
       fprintf(stderr,";;;iflush %p - %x\n", address,length);
     flush_icache(address,length);
@@ -186,7 +186,7 @@ void segv_handler(HANDLER_ARGS)
   caddr_t addr = code->si_addr;
 
   SAVE_CONTEXT();
-  
+
   if(!interrupt_maybe_gc(signal, code, context)) {
     /* a *real* protection fault */
     fprintf(stderr, "segv_handler: Real protection violation: 0x%08x\n",
@@ -359,20 +359,20 @@ round_up_sparse_size(os_vm_address_t addr)
  */
 static os_vm_address_t spaces[] =
 {
-  READ_ONLY_SPACE_START, STATIC_SPACE_START, 
+  READ_ONLY_SPACE_START, STATIC_SPACE_START,
   BINDING_STACK_START, CONTROL_STACK_START
 };
 
 /*
-  
+
  * The corresponding array for the size of each space.  Be sure that
  * the spaces and holes don't overlap!  The sizes MUST be on
  * SPARSE_BLOCK_SIZE boundaries.
- 
+
  */
-static unsigned long space_size[] = 
+static unsigned long space_size[] =
 {
-  READ_ONLY_SPACE_SIZE, STATIC_SPACE_SIZE, 
+  READ_ONLY_SPACE_SIZE, STATIC_SPACE_SIZE,
   BINDING_STACK_SIZE, CONTROL_STACK_SIZE
 };
 
@@ -387,14 +387,14 @@ void make_holes(void)
 {
   int k;
   os_vm_address_t hole;
-  
+
   /* Make holes of the appropriate size for desired spaces */
-  
+
   for (k = 0; k < sizeof(spaces)/sizeof(spaces[0]); ++k)
     {
 
       hole = spaces[k] + space_size[k];
-    
+
       if (os_validate(hole, HOLE_SIZE) == NULL) {
         fprintf(stderr,
                 "ensure_space: Failed to validate hole of %ld bytes at 0x%08X\n",
@@ -408,10 +408,10 @@ void make_holes(void)
 
   /* Round up the dynamic_space_size to the nearest SPARSE_BLOCK_SIZE */
   dynamic_space_size = round_up_sparse_size(dynamic_space_size);
-  
+
   /* Now make a hole for the dynamic spaces */
   hole = dynamic_space_size + (os_vm_address_t) dynamic_0_space;
-  
+
   if (os_validate(hole, HOLE_SIZE) == NULL)
     {
       fprintf(stderr,

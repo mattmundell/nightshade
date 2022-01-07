@@ -1,5 +1,4 @@
-;;; Any the part of the Alien implementation that is not part of the
-;;; compiler.
+;;; Any part of the Alien implementation that is not part of the compiler.
 
 (in-package "ALIEN")
 (use-package "EXT")
@@ -107,6 +106,352 @@
 	  compute-naturalize-lambda compute-deport-lambda)
 	"ALIEN-INTERNALS")
 
+
+#[ Lisp Equivalents for C Routines
+
+The Unix documentation describes the system interface in terms of C
+procedure headers.  The corresponding Lisp functions have an equivalent
+interface, tailored for Lisp argument passing conventions and datatypes.
+
+In Lisp, all argument and results are passed by value.  Interface functions
+take some fixed number of arguments and return some fixed number of values.
+A given "parameter" in the C specification will appear as an argument,
+return value, or both, depending on whether it is an In parameter, Out
+parameter, or In/Out parameter.  The basic transformation from C routine to
+Lisp equivalent is to remove the Out parameters from the call, and treat
+them as extra return values.  In/Out parameters appear both as arguments
+and return values.  Since Out and In/Out parameters are only conventions in
+C, the usage is determined from the documentation.
+
+Thus, the C routine declared as
+
+    kern_return_t lookup(servport, portsname, portsid)
+	    port        servport;
+	    char        *portsname;
+	    int        *portsid;        /* out */
+     {
+      ...
+      *portsid = <expression to compute portsid field>
+      return(KERN_SUCCESS);
+     }
+
+has as Lisp equivalent something like
+
+    (defun lookup (ServPort PortsName)
+      ...
+      (values
+       success
+       <expression to compute portsid field>))
+
+If there are multiple out or in-out arguments, then there are multiple
+additional returns values.
+
+Fortunately, programmers rarely have to worry about the nuances of this
+translation process, since the names of the arguments and return values are
+documented such that `describe' (and the editor "Describe Function Call"
+command) list this information.  Since the names of arguments and return
+values are usually descriptive, the information that `describe' prints is
+usually sufficient to write a call.
+]#
+
+
+#[ Type Translations
+
+Lisp data types have very different representations from those used by
+conventional languages such as C.  Since the system interfaces are
+designed for conventional languages, Lisp must translate objects to and
+from the Lisp representations.  Many simple objects have a direct
+translation: integers, characters, strings and floating point numbers
+are translated to the corresponding Lisp object.  A number of types,
+however, are implemented differently in Lisp for reasons of clarity and
+efficiency.
+
+Instances of enumerated types are expressed as keywords in Lisp.  Records,
+arrays, and pointer types are implemented with the Alien facility
+(described in [Aliens].)  Access functions are defined for these types
+which convert fields of records, elements of arrays, or data referenced by
+pointers into Lisp objects (possibly another object to be referenced with
+another access function).
+
+One should free Alien objects created by constructor functions or returned
+from remote procedure calls after last use, in order to free the virtual
+memory associated with the objects.  This must be done explicitly since
+aliens contain pointers to external data, which is out of the realm of the
+garbage collector.  If the memory was obtained from `make-alien' or from a
+foreign function call to a routine that used `malloc', then `free-alien'
+should be used.  If the alien was created using MACH memory allocation
+(e.g. `vm_allocate'), then the storage should be freed using
+`vm_deallocate'.
+]#
+
+
+;; FIX merge rest of this page into better places in code
+
+#[ Aliens
+
+[ Introduction to Aliens       ]
+[ Alien Types                  ]
+[ Alien Operations             ]
+[ Alien Variables              ]
+[ Alien Data Structure Example ]
+[ Loading Unix Object Files    ]
+[ Alien Function Calls         ]
+[ Step-by-Step Alien Example   ]
+]#
+
+#[ Introduction to Aliens
+
+Because of Lisp's emphasis on dynamic memory allocation and garbage
+collection, Lisp implementations use unconventional memory representations
+for objects.  These representations can create problems when a Lisp program
+must share objects with programs written in other languages.  There are
+three different approaches to establishing communication:
+
+  * The burden can be placed on the foreign program (and programmer) by
+    requiring the use of Lisp object representations.  The main difficulty
+    with this approach is that either the foreign program must be written
+    with Lisp interaction in mind, or a substantial amount of foreign
+    ``glue'' code must be written to perform the translation.
+
+  * The Lisp system can automatically convert objects back and forth between
+    the Lisp and foreign representations.  This is convenient, but
+    translation becomes prohibitively slow when large or complex data
+    structures must be shared.
+
+  * The Lisp program can directly manipulate foreign objects through the
+    use of extensions to the Lisp language.  Most Lisp systems make use of
+    this approach, but the language for describing types and expressing
+    accesses is often not powerful enough for complex objects to be easily
+    manipulated.
+
+Nightshade relies primarily on the automatic conversion and direct
+manipulation approaches: Aliens of simple scalar types are automatically
+converted, while complex types are directly manipulated in their foreign
+representation.  Any foreign objects that can't automatically be converted
+into Lisp values are represented by objects of type alien-value.  Since
+Lisp is a dynamically typed language, even foreign objects must have a
+run-time type; this type information is provided by encapsulating the raw
+pointer to the foreign data within an alien-value object.
+
+The Alien type language and operations are most similar to those of the C
+language, but Aliens can also be used when communicating with most other
+languages that can be linked with C.
+]#
+
+#[ Alien Types
+
+Alien types have a description language based on nested list structure.  For
+example:
+
+    struct foo {
+	int a;
+	struct foo *b[100];
+    };
+
+has the corresponding Alien type:
+
+    (struct foo
+      (a int)
+      (b (array (* (struct foo)) 100)))
+
+[ Defining Alien Types       ]
+[ Alien Types and Lisp Types ]
+[ Alien Type Specifiers      ]
+[ The C-Call Package         ]
+]#
+
+#[ Defining Alien Types
+
+Types may be either named or anonymous.  With structure and union types, the
+name is part of the type specifier, allowing recursively defined types such as:
+
+    (struct foo (a (* (struct foo))))
+
+An anonymous structure or union type is specified by using the name ().
+The `with-alien' macro defines a local scope which "captures" any named
+type definitions.  Other types are not inherently named, but can be given
+named abbreviations using `def-alien-type'.
+
+{function:alien:def-alien-type}
+]#
+
+#[ Alien Types and Lisp Types
+
+The Alien types form a subsystem of the Nightshade type system.  An alien
+type specifier provides a way to use any Alien type as a Lisp type
+specifier.  For example
+
+    (typep foo '(alien (* int)))
+
+can be used to determine whether foo is a pointer to an int.  alien type
+specifiers can be used in the same ways as ordinary type specifiers (like
+string.)  Alien type declarations are subject to the same precise type
+checking as any other declaration (section [precise-type-checks].)
+
+Note that the Alien type system overlaps with normal Lisp type specifiers
+in some cases.  For example, the type specifier (alien single-float) is
+identical to single-float, since Alien floats are automatically converted
+to Lisp floats.  When `type-of' is called on an Alien value that is not
+automatically converted to a Lisp value, then it will return an alien type
+specifier.
+]#
+
+#[ Alien Type Specifiers
+
+Some Alien type names are Lisp symbols, but the names are still exported
+from the alien package, so it is legal to say alien:single-float.  These
+are the basic Alien type specifiers:
+
+type:type:Alien type}
+A pointer to an object of the specified TYPE.  If TYPE is t, then it means
+a pointer to anything, similar to "void *" in ANSI C.  Currently, the only
+way to detect a null pointer is:
+
+    (zerop (sap-int (alien-sap \var{ptr})))
+
+refer to [System Area Pointers]
+
+{type:alien::alien-array-type}
+{type:alien::alien-integer-type}
+{type:alien::alien-boolean-type}
+
+{type:alien::alien-single-float-type}
+{type:alien::alien-double-float-type}
+{type:alien::alien-function-type}
+{type:alien::alien-system-area-pointer-type}
+]#
+
+#[ Alien Operations
+
+This section describes the basic operations on Alien values.
+
+[ Alien Access Operations   ]
+[ Alien Coercion Operations ]
+[ Alien Dynamic Allocation  ]
+]#
+
+#[ Alien Access Operations
+
+{function:alien:deref}
+{function:alien:slot}
+]#
+
+#[ Alien Coercion Operations
+
+{function:alien:addr}
+{function:alien:cast}
+{function:alien:sap-alien}
+{function:alien:alien-sap}
+]#
+
+#[ Alien Dynamic Allocation
+
+Dynamic Aliens are allocated using the `malloc' library, so foreign code
+can call `free' on the result of `make-alien', and Lisp code can call
+`free-alien' on objects allocated by foreign code.
+
+{function:alien:make-alien}
+{function:alien:free-alien}
+
+The function `with-alien' stack-allocates Aliens.
+]#
+
+#[ Alien Function Calls
+
+The foreign function call interface allows a Lisp program to call functions
+written in other languages.  The current implementation of the foreign
+function call interface assumes a C calling convention and thus routines
+written in any language that adheres to this convention may be called from
+Lisp.
+
+Lisp sets up various interrupt handling routines and other environment
+information when it first starts up, and expects these to be in place at all
+times.  The C functions called by Lisp should either not change the
+environment, especially the interrupt entry points, or should make sure
+that these entry points are restored when the C function returns to Lisp.
+If a C function makes changes without restoring things to the way they were
+when the C function was entered, there is no telling what will happen.
+
+
+[ alien-funcall             ]           The alien-funcall Primitive
+[ def-alien-routine         ]           The def-alien-routine Macro
+[ def-alien-routine Example ]
+[ Calling Lisp from C       ]
+]#
+
+#[ alien-funcall
+
+{function:alien:alien-funcall}
+
+Here is an example which allocates a (struct foo), calls a foreign
+function to initialize it, then returns a Lisp vector of all the
+(* (struct foo)) objects filled in by the foreign call:
+
+    ;; Allocate a foo on the stack.
+    (with-alien ((f (struct foo)))
+      ;;
+      ;; Call some C function to fill in foo fields.
+      (alien-funcall (extern-alien "mangle_foo" (function void (* foo)))
+		     (addr f))
+      ;;
+      ;; Find how many foos to use by getting the A field.
+      (let* ((num (slot f 'a))
+	     (result (make-array num)))
+	;;
+	;; Get a pointer to the array so that we don't have to keep extracting it:
+	(with-alien ((a (* (array (* (struct foo)) 100)) (addr (slot f 'b))))
+	  ;;
+	  ;; Loop over the first N elements and stash them in the result vector.
+	  (dotimes (i num)
+	    (setf (svref result i) (deref (deref a) i)))
+	  result)))
+]#
+
+#[ def-alien-routine
+
+{function:alien:def-alien-routine}
+]#
+
+#[ def-alien-routine Example
+
+Consider the C function `cfoo' with the following calling convention:
+
+    cfoo (str, a, i)
+	char *str;
+	char *a; /* update */
+	int *i; /* out */
+    {
+    /* Body of cfoo. */
+    }
+
+which can be described by the following call to `def-alien-routine':
+
+    (def-alien-routine "cfoo" void
+      (str c-string)
+      (a char :in-out)
+      (i int :out))
+
+The Lisp function `cfoo' will have two arguments (STR and A) and two return
+values (A and I).
+]#
+
+;; FIX file refs
+#[ Calling Lisp from C
+
+Calling Lisp functions from C is sometimes possible, but is rather hackish.
+See funcall0 ... funcall3 in the file "lisp/arch.h".  The arguments must be
+valid Lisp object descriptors (e.g.  fixnums must be left-shifted by 2.)
+See "compiler/generic/objdef.lisp" or the derived file "lisp/internals.h"
+for details of the object representation.  "lisp/internals.h" is
+mechanically generated, and is not part of the source distribution.  It is
+distributed in the "docs/" directory of the binary distribution.
+
+Note that the garbage collector moves objects, and won't be able to fix up
+any references in C variables, so either turn GC off or don't keep Lisp
+pointers in C data unless they are to statically allocated objects.  You
+can use `purify' to place live data structures in static space so that they
+won't move during GC.
+]#
 
 
 ;;;; Utility functions.
@@ -184,10 +529,13 @@
 
 ); eval-when
 
-;;; We define a keyword "BOA" constructor so that we can reference the slots
+;;; Define a keyword "BOA" constructor in order to reference the slots
 ;;; names in init forms.
 ;;;
 (defmacro def-alien-type-class ((name &key include include-args) &rest slots)
+  "Globally define NAME as a shorthand for the Alien type TYPE.  When
+   introducing global structure and union type definitions, NAME may be (),
+   in which case the name to define is taken from the type's name."
   (let ((defstruct-name
 	 (intern (concatenate 'string "ALIEN-" (symbol-name name) "-TYPE"))))
     (multiple-value-bind
@@ -220,7 +568,9 @@
 			 (&key class bits alignment
 			       ,@(mapcar #'(lambda (x)
 					     (if (atom x) x (car x)))
-					 slots)
+					 (if (stringp (car slots))
+					     (cdr slots)
+					     slots))
 			       ,@include-args)))
 	   ,@slots)))))
 
@@ -289,8 +639,8 @@
 ;;; PARSE-ALIEN-TYPE -- public
 ;;;
 (defun parse-alien-type (type)
-  "Parse the list structure TYPE as an alien type specifier and return
-   the resultant alien-type structure."
+  "Parse the list structure $type as an alien type specifier and return the
+   resultant alien-type structure."
   (if (boundp '*new-auxiliary-types*)
       (%parse-alien-type type)
       (let ((*new-auxiliary-types* nil))
@@ -366,7 +716,7 @@
 ;;; UNPARSE-ALIEN-TYPE -- public.
 ;;;
 (defun unparse-alien-type (type)
-  "Convert the alien-type structure TYPE back into a list specification of
+  "Convert the alien-type structure $type back into a list specification of
    the type."
   (declare (type alien-type type))
   (let ((*record-types-already-unparsed* nil))
@@ -401,19 +751,16 @@
 	 (%def-alien-type-translator ',name #',defun-name ,docs)))))
 
 (defun %def-alien-type-translator (name translator docs)
-  (declare (ignore docs))
   (setf (info alien-type kind name) :primitive)
   (setf (info alien-type translator name) translator)
   (clear-info alien-type definition name)
-  #+nil
   (setf (documentation name 'alien-type) docs)
   name)
 
-
 (defmacro def-alien-type (name type)
-  "Define the alien type NAME to be equivalent to TYPE.  Name may be NIL for
-   STRUCT and UNION types, in which case the name is taken from the type
-   specifier."
+  "Define the alien type $name to be equivalent to $type.  $name may be ()
+   for struct and union types, in which case the name is taken from the
+   type specifier."
   (with-auxiliary-alien-types
     (let ((alien-type (parse-alien-type type)))
       `(eval-when (compile load eval)
@@ -454,29 +801,27 @@
 ;;;; Interfaces to the different methods
 
 (defun alien-type-= (type1 type2)
-  "Return T iff TYPE1 and TYPE2 describe equivalent alien types."
+  "Return t iff $type1 and $type2 describe equivalent alien types."
   (or (eq type1 type2)
       (and (eq (alien-type-class type1)
 	       (alien-type-class type2))
 	   (invoke-alien-type-method :type= type1 type2))))
 
 (defun alien-subtype-p (type1 type2)
-  "Return T iff the alien type TYPE1 is a subtype of TYPE2.  Currently, the
-   only supported subtype relationships are is that any pointer type is a
-   subtype of (* t), and any array type first dimension will match
-   (array <eltype> nil ...).  Otherwise, the two types have to be
-   ALIEN-TYPE-=."
+  "Return t iff the alien type $type1 is a subtype of $type2.  Currently,
+   the only supported subtype relationships are is that any pointer type is
+   a subtype of (* t), and any array type first dimension will match (array
+   <eltype> nil ...).  Otherwise, the two types have to be ALIEN-TYPE-=."
   (or (eq type1 type2)
       (invoke-alien-type-method :subtypep type1 type2)))
 
 (defun alien-typep (object type)
-  "Return T iff OBJECT is an alien of type TYPE."
+  "Return t iff $object is an alien of type $type."
   (let ((lisp-rep-type (compute-lisp-rep-type type)))
     (if lisp-rep-type
 	(typep object lisp-rep-type)
 	(and (alien-value-p object)
 	     (alien-subtype-p (alien-value-type object) type)))))
-
 
 (defun compute-naturalize-lambda (type)
   `(lambda (alien ignore)
@@ -575,6 +920,11 @@
 ;;;; The INTEGER type.
 
 (def-alien-type-class (integer)
+  "Alien \"integer\", \"signed\" and \"unsigned\" types.  Types integer and
+   signed are the same: a signed integer with the specified number of bits
+   precision.  The upper limit on integer precision is determined by the
+   machine's word size.  If no size is specified, the maximum size will be
+   used.  Type unsigned is like signed and integer, only unsigned."
   (signed t :type (member t nil)))
 
 (def-alien-type-translator signed (&optional (bits vm:word-bits))
@@ -634,7 +984,10 @@
 
 ;;;; The BOOLEAN type.
 
-(def-alien-type-class (boolean :include integer :include-args (signed)))
+(def-alien-type-class (boolean :include integer :include-args (signed))
+  "Similar to an enumeration type that maps 0 to () and all other values to
+   t.  BITS determines the amount of storage allocated to hold the truth
+   value.")
 
 (def-alien-type-translator boolean (&optional (bits vm:word-bits))
   (make-alien-boolean-type :bits bits :signed nil))
@@ -688,8 +1041,8 @@
 	 (error "Empty enum type: ~S" type))))
 
 (defun parse-enum (name elements)
-  (when (null elements)
-    (error "An anumeration must contain at least one element."))
+  (if (null elements)
+      (error "An anumeration must contain at least one element."))
   (let ((min nil)
 	(max nil)
 	(from-alist ())
@@ -805,9 +1158,9 @@
   (declare (ignore type))
   value)
 
-
 (def-alien-type-class (single-float :include (float (:bits 32))
-				    :include-args (type)))
+				    :include-args (type))
+  "A floating-point number in IEEE single format.")
 
 (def-alien-type-translator single-float ()
   (make-alien-single-float-type :type 'single-float))
@@ -818,7 +1171,8 @@
 
 
 (def-alien-type-class (double-float :include (float (:bits 64))
-				    :include-args (type)))
+				    :include-args (type))
+  "A floating-point number in IEEE double format.")
 
 (def-alien-type-translator double-float ()
   (make-alien-double-float-type :type 'double-float))
@@ -826,7 +1180,6 @@
 (def-alien-type-method (double-float :extract-gen) (type sap offset)
   (declare (ignore type))
   `(sap-ref-double ,sap (/ ,offset vm:byte-bits)))
-
 
 #+long-float
 (def-alien-type-class (long-float :include (float (:bits #+x86 96 #+sparc 128))
@@ -842,9 +1195,11 @@
   `(sap-ref-long ,sap (/ ,offset vm:byte-bits)))
 
 
-;;;; The SAP type
+;;;; The SAP type.
 
-(def-alien-type-class (system-area-pointer))
+(def-alien-type-class (system-area-pointer)
+  "A pointer which is represented in Lisp as a system-area-pointer object
+   ([System Area Pointers].)")
 
 (def-alien-type-translator system-area-pointer ()
   (make-alien-system-area-pointer-type :bits #-alpha vm:word-bits #+alpha 64))
@@ -888,7 +1243,6 @@
 (def-alien-type-method (alien-value :deport-gen) (type value)
   (declare (ignore type))
   `(alien-sap ,value))
-
 
 
 ;;;; The POINTER type.
@@ -956,6 +1310,40 @@
 ;;;; The ARRAY type.
 
 (def-alien-type-class (array :include mem-block)
+  "Alien type \"array\".  An array of DIMENSIONS, holding elements of type
+   TYPE.  Note that (* int) and (array int) are considered to be separate
+   types FIX types are checked; pointer and array types must be explicitly
+   coerced using `cast'.  Arrays are accessed using `deref', passing the
+   indices as additional arguments.  Elements are stored in column-major
+   order (as in C), so the first dimension determines only the size of the
+   memory block, and not the layout of the higher dimensions.  An array
+   whose first dimension is variable may be specified by using () as the
+   first dimension.  Fixed-size arrays can be allocated as array elements,
+   structure slots or `with-alien' variables.  Dynamic arrays can only be
+   allocated using `make-alien'.
+
+   Also alien type \"struct\".  A structure type with the specified
+   NAME and FIELDS.  Fields are allocated at the same positions used by the
+   implementation's C compiler.  BITS is intended for C-like bit field
+   support, but is currently unused.  If NAME is (), then the type is
+   anonymous.
+
+   If a named Alien struct specifier is passed to `def-alien-type' or
+   `with-alien', then this defines, respectively, a new global or local
+   Alien structure type.  If no FIELDS are specified, then the fields are
+   taken from the current (local or global) Alien structure type definition
+   of NAME.
+
+   Also alien type \"union\".  Similar to struct, but defines a union type.
+   All fields are allocated at the same offset, and the size of the union
+   is the size of the largest field.  The programmer must determine which
+   field is active from context.
+
+   Also Alien type \"enum\". An enumeration type that maps between integer
+   values and keywords.  If NAME is (), then the type is anonymous.  Each
+   SPEC is either a keyword, or a list (KEYWORD VALUE).  If INTEGER is (),
+   then it defaults to one greater than the value for the preceding spec
+   (or to zero if it is the first spec.)"
   (element-type (required-argument) :type alien-type)
   (dimensions (required-argument) :type list))
 
@@ -1175,6 +1563,12 @@
 (defvar *values-type-okay* nil)
 
 (def-alien-type-class (function :include mem-block)
+  "A Alien function that takes arguments of the specified ARG-TYPES and
+   returns a result of type RESULT-TYPE.  Note that the only context where
+   a function type is directly specified is in the argument to
+   `alien-funcall' (as described in [alien-funcall].)  In all other
+   contexts, functions are represented by function pointer types: (*
+   (function ...))."
   (result-type (required-argument) :type alien-type)
   (arg-types (required-argument) :type list)
   (stub nil :type (or null function)))
@@ -1223,6 +1617,42 @@
 
 
 ;;;; Alien variables.
+
+#[ Alien Variables
+
+Both local (stack allocated) and external (C global) Alien variables are
+supported.
+
+[ Local Alien Variables    ]
+[ External Alien Variables ]
+]#
+
+#[ Local Alien Variables
+
+{function:alien:with-alien}
+]#
+
+#[ External Alien Variables
+
+External Alien names are strings, and Lisp names are symbols.  When an
+external Alien is represented using a Lisp variable, there must be a way to
+convert from one name syntax into the other.  The macros `extern-alien',
+`def-alien-variable' and `def-alien-routine' use this conversion heuristic:
+
+  * Alien names are converted to Lisp names by uppercasing and replacing
+    underscores with hyphens.
+
+  * Conversely, Lisp names are converted to Alien names by lowercasing and
+    replacing hyphens with underscores.
+
+  * Both the Lisp symbol and Alien string names may be separately
+    specified by using a list of the form:
+
+        (alien-string lisp-symbol)
+
+{function:alien:def-alien-variable}
+{function:alien:extern-alien}
+]#
 
 ;;; HEAP-ALIEN-INFO -- defstruct.
 ;;;
@@ -1308,10 +1738,30 @@
 ;;; DEF-ALIEN-VARIABLE -- public
 ;;;
 (defmacro def-alien-variable (name type)
-  "Define NAME as an external alien variable of type TYPE.  NAME should be
-   a list of a string holding the alien name and a symbol to use as the Lisp
-   name.  If NAME is just a symbol or string, then the other name is guessed
-   from the one supplied."
+  "Define $name as an external alien variable of alien type $type.  The
+   values of the $name and $type arguments are used directly ([FIX] vs
+   evaluated values).
+
+   Expect $name to be a list of a string holding the alien name and a
+   symbol to use as the Lisp name.  If $name is just a symbol or string,
+   then guess the other name from the one supplied.
+
+   Global Alien variables are effectively \"global symbol macros\"; a
+   reference to the variable fetches the contents of the external variable.
+   Similarly, setting the variable stores new contents --- the new contents
+   must be of the declared $type.
+
+   For example, it is often necessary to read the global C variable
+   \"errno\" to determine why a particular function call failed.  It is
+   possible to define errno and make it accessible from Lisp with the
+   following:
+
+       (def-alien-variable \"errno\" int)
+
+       ;; Now it is possible to get the value of the C variable errno
+       ;; simply by referencing that Lisp variable:
+       ;;
+       (print errno)"
   (multiple-value-bind
       (lisp-name alien-name)
       (pick-lisp-and-alien-names name)
@@ -1340,8 +1790,14 @@
 ;;; EXTERN-ALIEN -- public.
 ;;;
 (defmacro extern-alien (name type)
-  "Access the alien variable named NAME, assuming it is of type TYPE.  This
-   is setfable."
+  "Return an Alien with the specified $type which points to an externally
+   defined value.
+
+   Use the values of $name and $type directly (FIX vs evaluated values).
+   $name may be specified either as a string or a symbol.  $type is an
+   Alien type specifier.
+
+   This function is `setf'able."
   (let ((alien-name (etypecase name
 		      (symbol (guess-alien-name-from-lisp-name name))
 		      (string name))))
@@ -1352,18 +1808,32 @@
 ;;; WITH-ALIEN -- public.
 ;;;
 (defmacro with-alien (bindings &body body)
-  "Establish some local alien variables.  Each BINDING is of the form:
-     VAR TYPE [ ALLOCATION ] [ INITIAL-VALUE | EXTERNAL-NAME ]
-   ALLOCATION should be one of:
-     :LOCAL (the default)
+  "Establish some local alien variables for the extent of $body.  Each
+   $binding is of the form:
+     var type [ allocation ] [ initial-value | external-name ]
+
+   \"allocation\" should be one of:
+     :LOCAL (the fallback)
        The alien is allocated on the stack, and has dynamic extent.
      :STATIC
-       The alien is allocated on the heap, and has infinite extent.  The alien
+       The alien is allocated on the heap, and has permanent extent.  The alien
        is allocated at load time, so the same piece of memory is used each time
        this form executes.
      :EXTERN
-       No alien is allocated, but VAR is established as a local name for
-       the external alien given by EXTERNAL-NAME."
+       \"var\" is established as a local name for the external alien given
+       by \"external-name\".
+
+   Bindings may be assigned with `setq' or `setf'.  This form is analogous
+   to defining a local variable in C: additional storage is allocated, and
+   the initial value is copied.
+
+   `with-alien' also establishes a new scope for named structures and
+   unions.  Any \"type\" specified for a variable may contain name
+   structure or union types with the slots specified.  Within the lexical
+   scope of the binding specifiers and body, a locally defined structure
+   type foo can be referenced by its name using:
+
+       (struct foo)"
   (with-auxiliary-alien-types
     (dolist (binding (reverse bindings))
       (destructuring-bind
@@ -1446,13 +1916,14 @@
 
 (declaim (inline null-alien))
 (defun null-alien (x)
-  "Return true if X (which must be an Alien pointer) is null, false otherwise."
+  "Return true if $x (which must be an Alien pointer) is NULL, false
+   otherwise."
   (zerop (sap-int (alien-sap x))))
 
 
 (defmacro sap-alien (sap type)
-  "Convert the System-Area-Pointer SAP to an Alien of the specified Type (not
-   evaluated.)  Type must be pointer-like."
+  "Convert the system-area-pointer $sap to an Alien of $type.  Only
+   evaluate $sap.  $type must be some Alien pointer, array or record type."
   (let ((alien-type (parse-alien-type type)))
     (if (eq (compute-alien-rep-type alien-type) 'system-area-pointer)
 	`(%sap-alien ,sap ',alien-type)
@@ -1464,7 +1935,8 @@
   (make-alien-value :sap sap :type type))
 
 (defun alien-sap (alien)
-  "Return a System-Area-Pointer pointing to Alien's data."
+  "Return a system-area-pointer pointing to $alien's data.  The type of
+   $alien must be some Alien pointer, array or record type."
   (declare (type alien-value alien))
   (alien-value-sap alien))
 
@@ -1474,12 +1946,34 @@
 ;;; MAKE-ALIEN -- public.
 ;;;
 (defmacro make-alien (type &optional size)
-  "Allocate an alien of type TYPE and return an alien pointer to it.  If SIZE
-   is supplied, how it is interpreted depends on TYPE.  If TYPE is an array
-   type, SIZE is used as the first dimension for the allocated array.  If TYPE
-   is not an array, then SIZE is the number of elements to allocate.  The
-   memory is allocated using ``malloc'', so it can be passed to foreign
-   functions which use ``free''."
+  "Return a dynamically allocated Alien of $type using the symbol $type
+   directly.  The allocated memory may contain arbitrary junk.  If true,
+   $size is an expression to evaluate to compute the size of the allocated
+   value.
+
+   There are two cases:
+
+     * When $type is an array type, allocate an array of that type
+       and return a pointer to it.  As a result the result must be changed
+       to an array before being deref'ed to read or write elements:
+
+	 (defvar *foo* (make-alien (array char 10)))
+
+	 (type-of *foo*)
+	   => (alien (* (array (signed 8) 10)))
+
+	 (setf (deref (deref *foo*) 0) 10)
+	   => 10
+
+       Use $size as the first dimension for the array.
+
+     * When $type is any other type, then an object for that type is
+       allocated, and a pointer to it is returned.  So (make-alien int)
+       returns a (* int).  If $size is specified, then allocate a block of
+       that many values, return a pointer to the first one.
+
+   Allocate the memory using `malloc', so it can be passed to foreign
+   functions which use `free'."
   (let ((alien-type (if (alien-type-p type) type (parse-alien-type type))))
     (multiple-value-bind
 	(size-expr element-type)
@@ -1526,11 +2020,11 @@
 ;;;
 (declaim (inline free-alien))
 (defun free-alien (alien)
-  "Dispose of the storage pointed to by ALIEN.  ALIEN must have been allocated
-   by MAKE-ALIEN or ``malloc''."
+  "Free the storage pointed to by $alien.  $alien must have been allocated
+   with `make-alien' or `malloc'."
   (alien-funcall (extern-alien "free" (function (values) system-area-pointer))
 		 (alien-sap alien))
-  nil)
+  ())
 
 
 ;;;; The SLOT operator
@@ -1552,7 +2046,14 @@
 ;;; alien is actually a pointer, then deref it first.
 ;;;
 (defun slot (alien slot)
-  "Extract SLOT from the Alien STRUCT or UNION ALIEN.  May be set with SETF."
+  "Extract the value of $slot from the an Alien struct or union.  If $alien
+   is a pointer to a structure or union, then use the value pointed to
+   automatically.
+
+   This can be set with `setf' to assign a new value.
+
+   $slot is evaluated, and can be a compile-time variable.  Only constant
+   slot accesses are efficiently compiled."
   (declare (type alien-value alien)
 	   (type symbol slot)
 	   (optimize (inhibit-warnings 3)))
@@ -1658,9 +2159,12 @@
 ;;; Dereference the alien and return the results.
 ;;;
 (defun deref (alien &rest indices)
-  "De-reference an Alien pointer or array.  If an array, the indices are used
-   as the indices of the array element to access.  If a pointer, one index can
-   optionally be specified, giving the equivalent of C pointer arithmetic."
+  "Return the value pointed to by $alien, an Alien pointer or the value of
+   an Alien array element.  If an array, use the $indices as the indices of
+   the array element to access.  If a pointer, use $indices to offset
+   $alien as with pointer arithmetic in the C language.
+
+   `deref' can be set with `setf' to assign a new value."
   (declare (type alien-value alien)
 	   (type list indices)
 	   (optimize (inhibit-warnings 3)))
@@ -1788,8 +2292,8 @@
 ;;;; The ADDR macro.
 
 (defmacro addr (expr &environment env)
-  "Return an Alien pointer to the data addressed by Expr, which must be a call
-   to SLOT or DEREF, or a reference to an Alien variable."
+  "Return an Alien pointer to the data addressed by $expr, which must be a
+   call to `slot' or `deref', or a reference to an Alien variable."
   (let ((form (macroexpand expr env)))
     (or (typecase form
 	  (cons
@@ -1821,8 +2325,12 @@
 ;;;; The CAST macro.
 
 (defmacro cast (alien type)
-  "Convert ALIEN to an Alien of the specified TYPE (not evaluated.)  Both types
-   must be Alien array, pointer or function types."
+  "Convert $alien to a new Alien of $type.  Only evaluate $alien.
+
+   Both types must be Alien array, pointer or function types.
+
+   The result does refer to the same data bits, however, an `eq' comparison
+   to the original will fail."
   `(%cast ,alien ',(parse-alien-type type)))
 
 (defun %cast (alien target-type)
@@ -1889,8 +2397,20 @@
 ;;;; alien-funcall, def-alien-function
 
 (defun alien-funcall (alien &rest args)
-  "Call the foreign function ALIEN with the specified arguments.  ALIEN's
-   type specifies the argument and result types."
+  "The foreign function call primitive: call $alien with arguments $args
+   and return its value.
+
+   $alien is an arbitrary run-time expression; `extern-alien' and
+   `def-alien-routine' are for calling constant functions.
+
+   The type of $alien must be (alien (function ...)) or (alien (* (function
+   ...))), [Alien Type Specifiers].  Use the function type to determine how
+   to call the function (as through it was declared with a prototype).  The
+   type can be variable at compile time; known-type calls are efficiently
+   compiled.  The implementation lacks
+
+     * structure type return values
+     * passing of structures by value."
   (declare (type alien-value alien))
   (let ((type (alien-value-type alien)))
     (typecase type
@@ -1918,40 +2438,58 @@
        (error "~S is not an alien function." alien)))))
 
 (defmacro def-alien-routine (name result-type &rest args)
-  "Def-C-Routine Name Result-Type
-                    {(Arg-Name Arg-Type [Style])}*
+  "def-alien-routine NAME RESULT-TYPE {(ARG-NAME ARG-TYPE [STYLE])}*
 
-  Define a foreign interface function for the routine with the specified Name,
-  which may be either a string, symbol or list of the form (string symbol).
-  Return-Type is the Alien type for the function return value.  VOID may be
-  used to specify a function with no result.
+   Define a foreign interface function for the routine named $name,
+   which may be either a string, symbol or list of the foreign name and the
+   Lisp name, of the form (string symbol).  If only one name is
+   specified, the other is automatically derived ([External Alien Variables]).
 
-  The remaining forms specifiy individual arguments that are passed to the
-  routine.  Arg-Name is a symbol that names the argument, primarily for
-  documentation.  Arg-Type is the C-Type of the argument.  Style specifies the
-  say that the argument is passed.
+   $result-type is the Alien type for the function return value.  \"void\"
+   may be used to specify a void function.
 
-  :IN
-        An :In argument is simply passed by value.  The value to be passed is
-        obtained from argument(s) to the interface function.  No values are
-        returned for :In arguments.  This is the default mode.
+   This macro is a convenience for automatically generating Lisp interfaces to
+   simple foreign functions.  The primary feature is the parameter style
+   specification, which translates the C pass-by-reference idiom into additional
+   return values.
 
-  :OUT
-        The specified argument type must be a pointer to a fixed sized object.
-        A pointer to a preallocated object is passed to the routine, and the
-        the object is accessed on return, with the value being returned from
-        the interface function.  :OUT and :IN-OUT cannot be used with pointers
-        to arrays, records or functions.
+   The remaining forms specifiy arguments that are passed to the routine.
+   $arg-name is a symbol that names the argument, primarily for
+   documentation.  $arg-type is the C-Type of the argument.  $style
+   specifies the way that the argument is passed.  The semantics of the
+   actual call are the same as for `alien-funcall'.  $style should be one
+   of the following:
 
-  :COPY
-        Similar to :IN, except that the argument values are stored in on
-        the stack, and a pointer to the object is passed instead of
-        the values themselves.
+   :in
+        An :in argument is simply passed by value.  The value to be passed is
+        obtained from argument(s) to the interface function.
 
-  :IN-OUT
-        A combination of :OUT and :COPY.  A pointer to the argument is passed,
-        with the object being initialized from the supplied argument and
-        the return value being determined by accessing the object on return."
+   :out
+        The specified argument type must be a pointer to a fixed sized
+        object.  A pointer to a preallocated object is passed to the
+        routine, and the the object is accessed on return, with the value
+        being returned from the interface function.  :out and :in-out
+        cannot be used with pointers to arrays, records or functions.
+
+   :copy
+        As for :in, with the addition that the argument values are stored
+        on the stack, and a pointer to the object is passed instead of the
+        value itself.
+
+   :in-out
+        A combination of :out and :copy.  A pointer to the argument is
+        passed, with the object being initialized from the supplied
+        argument and the return value being determined by accessing the
+        object on return.
+
+   Any efficiency-critical foreign interface function should be inline
+   expanded by preceding `def-alien-routine' with:
+
+       (declaim (inline lisp-name))
+
+   In addition to saving the Lisp call overhead, this allows pointers,
+   word-integers and floats to be passed using non-descriptor representations,
+   which saves consing ([non-descriptor].)"
   (multiple-value-bind
       (lisp-name alien-name)
       (pick-lisp-and-alien-names name)
@@ -1961,14 +2499,14 @@
 	(if (stringp arg)
 	    (docs arg)
 	    (destructuring-bind (name type &optional (style :in)) arg
-	      (unless (member style '(:in :copy :out :in-out))
-		(error "Bogus argument style ~S in ~S." style arg))
-	      (unless (eq style :out)
-		(lisp-args name))
-	      (when (and (member style '(:out :in-out))
-			 (typep (parse-alien-type type) 'alien-pointer-type))
-		(error "Can't use :out or :in-out on pointer-like type:~%  ~S"
-		       type))
+	      (or (member style '(:in :copy :out :in-out))
+		  (error "Bogus argument style ~S in ~S." style arg))
+	      (or (eq style :out)
+		  (lisp-args name))
+	      (and (member style '(:out :in-out))
+		   (typep (parse-alien-type type) 'alien-pointer-type)
+		   (error "Attempt to use :out or :in-out on pointer-like type:~%  ~S"
+			  type))
 	      (cond ((eq style :in)
 		     (arg-types type)
 		     (alien-args name))
@@ -1997,3 +2535,220 @@
 		       (values ,@temps ,@(results))))
 		  `(values (alien-funcall ,lisp-name ,@(alien-args))
 			   ,@(results))))))))
+
+
+#[ Alien Data Structure Example
+
+Now that we have Alien types, operations and variables, we can manipulate
+foreign data structures.  This C declaration
+
+    struct foo {
+	int a;
+	struct foo *b[100];
+    };
+
+can be translated into this Alien type
+
+    (def-alien-type nil
+      (struct foo
+	(a int)
+	(b (array (* (struct foo)) 100))))
+
+With this definition, the following C expression
+
+    struct foo f;
+    f.b[7].a
+
+in this way
+
+    (with-alien ((f (struct foo)))
+      (slot (deref (slot f 'b) 7) 'a)
+      ;;
+      ;; Do something with f...
+      )
+
+Or consider this example of an external C variable and some accesses:
+
+    struct c_struct {
+	    short x, y;
+	    char a, b;
+	    int z;
+	    c_struct *n;
+    };
+
+    extern struct c_struct *my_struct;
+
+    my_struct->x++;
+    my_struct->a = 5;
+    my_struct = my_struct->n;
+
+which can be manipulated in Lisp like this:
+
+    (def-alien-type nil
+      (struct c-struct
+	      (x short)
+	      (y short)
+	      (a char)
+	      (b char)
+	      (z int)
+	      (n (* c-struct))))
+
+    (def-alien-variable "my_struct" (* c-struct))
+
+    (incf (slot my-struct 'x))
+    (setf (slot my-struct 'a) 5)
+    (setq my-struct (slot my-struct 'n))
+]#
+
+
+#[ Step-by-Step Alien Example
+
+This section presents a complete example of an interface to a somewhat
+complicated C function.  This example should give a fairly good idea of how to
+get the effect you want for almost any kind of C function.  Suppose you have
+the following C function which you want to be able to call from Lisp in the
+file "test.c":
+
+    struct c_struct
+    {
+      int x;
+      char *s;
+    };
+
+    struct c_struct *c_function (i, s, r, a)
+        int i;
+        char *s;
+        struct c_struct *r;
+        int a[10];
+    {
+      int j;
+      struct c_struct *r2;
+
+      printf("i = %d\n", i);
+      printf("s = %s\n", s);
+      printf("r->x = %d\n", r->x);
+      printf("r->s = %s\n", r->s);
+      for (j = 0; j < 10; j++) printf("a[%d] = %d.\n", j, a[j]);
+      r2 = (struct c_struct *) malloc (sizeof(struct c_struct));
+      r2->x = i + 5;
+      r2->s = "A C string";
+      return(r2);
+    };
+
+It is possible to call this function from Lisp using the file \file{test.lisp}
+whose contents is:
+
+    ;;; -*- Package: test-c-call -*-
+    (in-package "TEST-C-CALL")
+    (use-package "ALIEN")
+    (use-package "C-CALL")
+
+    ;;; Define the record c-struct in Lisp.
+    (def-alien-type nil
+        (struct c-struct
+                (x int)
+                (s c-string)))
+
+    ;;; Define the Lisp function interface to the C routine.  It returns a
+    ;;; pointer to a record of type c-struct.  It accepts four parameters:
+    ;;; i, an int; s, a pointer to a string; r, a pointer to a c-struct
+    ;;; record; and a, a pointer to the array of 10 ints.
+    ;;;
+    ;;; The INLINE declaration eliminates some efficiency notes about heap
+    ;;; allocation of Alien values.
+    (declaim (inline c-function))
+    (def-alien-routine c-function
+        (* (struct c-struct))
+      (i int)
+      (s c-string)
+      (r (* (struct c-struct)))
+      (a (array int 10)))
+
+    ;;; A function which sets up the parameters to the C function and
+    ;;; actually calls it.
+    (defun call-cfun ()
+      (with-alien ((ar (array int 10))
+                   (c-struct (struct c-struct)))
+        (dotimes (i 10)                     ; Fill array.
+          (setf (deref ar i) i))
+        (setf (slot c-struct 'x) 20)
+        (setf (slot c-struct 's) "A Lisp String")
+
+        (with-alien ((res (* (struct c-struct))
+                          (c-function 5 "Another Lisp String" (addr c-struct) ar)))
+          (format t "Returned from C function.~%")
+          (multiple-value-prog1
+              (values (slot res 'x)
+                      (slot res 's))
+            ;;
+            ;; Deallocate result \i{after} we are done using it.
+            (free-alien res)))))
+
+To execute the above example, it is necessary to compile the C routine as
+follows:
+
+    cc -c test.c
+
+In order to enable incremental loading with some linkers, you may need to say:
+
+    cc -G 0 -c test.c
+
+Once the C code has been compiled, you can start up Lisp and load it in:
+
+    %lisp
+    ;;; Lisp should start up with its normal prompt.
+
+    ;;; Compile the Lisp file.  This step can be done separately.  You don't have
+    ;;; to recompile every time.
+    [ (compile-file "test.lisp")
+
+    ;;; Load the foreign object file to define the necessary symbols.  This must
+    ;;; be done before loading any code that refers to these symbols.  next block
+    ;;; of comments are actually the output of LOAD-FOREIGN.  Different linkers
+    ;;; will give different warnings, but some warning about redefining the code
+    ;;; size is typical.
+    [ (load-foreign "test.o")
+
+    ;;; Running library:load-foreign.csh...
+    ;;; Loading object file...
+    ;;; Parsing symbol table...
+    Warning:  "_gp" moved from #x00C082C0 to #x00C08460.
+
+    Warning:  "end" moved from #x00C00340 to #x00C004E0.
+
+    ;;; o.k. now load the compiled Lisp object file.
+    [ (load "test")
+
+    ;;; Now we can call the routine that sets up the parameters and calls the C
+    ;;; function.
+    [ (test-c-call ]call-cfun)
+
+    ;;; The C routine prints the following information to standard output.
+    i = 5
+    s = Another Lisp string
+    r->x = 20
+    r->s = A Lisp string
+    a[0] = 0.
+    a[1] = 1.
+    a[2] = 2.
+    a[3] = 3.
+    a[4] = 4.
+    a[5] = 5.
+    a[6] = 6.
+    a[7] = 7.
+    a[8] = 8.
+    a[9] = 9.
+    ;;; Lisp prints out the following information.
+    Returned from C function.
+    ;;; Return values from the call to test-c-call ]call-cfun.
+    10
+    "A C string"
+    *
+
+If any of the foreign functions do output, they should not be called from
+within the editor.  Depending on the situation, various strange behavior
+occurs.  Under X, the output goes to the window in which Lisp was started;
+on a terminal, the output will overwrite the editor screen image; in an
+editor slave, standard output is "/dev/null" by default, so any output is
+discarded.
+]#

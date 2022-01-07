@@ -1,5 +1,3 @@
-;;; -*- Package: extensions -*-
-;;;
 ;;; This file contains a default character translation mechanism for X11
 ;;; scan codes, keysyms, button codes, and modifier bits.
 
@@ -21,7 +19,7 @@
 ;;; ignoring modifier keys being pressed prior to pressing a key to be
 ;;; modified.  In the second table, nil simply indicates that there is no
 ;;; special shift translation for the keysym, and that the CLX shifted keysym
-;;; should be looked up as normal (see TRANSLATE-CHARACTER).
+;;; should be looked up as normal (see `translate-character').
 ;;;
 ;;; This mapping is initialized with DEFINE-KEYSYM in Keytrandefs.Lisp
 ;;;
@@ -32,9 +30,9 @@
   "Defines a keysym for the editors's translation.  If shifted-char is
    supplied, it is a character to use when the :shift modifier is on for an
    incoming keysym.  If shifted-char is not supplied, and the :shift
-   modifier is set, then XLIB:KEYCODE->KEYSYM is called with an index of 1
-   instead of 0.  If a :lock modifier is set, it is treated as a caps-lock.
-   See DEFINE-KEYBOARD-MODIFIER."
+   modifier is set, then `xlib:keycode->keysym' is called with an index of
+   1 instead of 0.  If a :lock modifier is set, it is treated as a caps
+   lock.  See `define-keyboard-modifier'."
   (check-type char character)
   (setf (gethash keysym *keysym-translations*) char)
   (when shifted-char
@@ -77,11 +75,11 @@
   (let ((dummy #\?)
 	shiftp lockp)
     (dolist (ele *modifier-translations*)
-      (unless (zerop (logand (car ele) bits))
-	(case (cdr ele)
-	  (:shift (setf shiftp t))
-	  (:lock (setf lockp t))
-	  (t (setf dummy (set-char-bit dummy (cdr ele) t))))))
+      (or (zerop (logand (car ele) bits))
+	  (case (cdr ele)
+	    (:shift (setf shiftp t))
+	    (:lock (setf lockp t))
+	    (t (setf dummy (set-char-bit dummy (cdr ele) t))))))
     (let* ((keysym (xlib:keycode->keysym display scan-code (if shiftp 1 0)))
 	   (temp-char (gethash keysym *keysym-translations*)))
       (cond ((not temp-char)

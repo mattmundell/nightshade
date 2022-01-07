@@ -1,34 +1,18 @@
-;;; -*- Package: VM; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/generic/utils.lisp,v 1.5 1994/10/31 04:38:06 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Utility functions needed by the back end to generate code.
-;;;
-;;; Written by William Lott.
-;;; 
 
 (in-package "VM")
 
 (export '(fixnum static-symbol-p static-symbol-offset offset-static-symbol
-		 static-function-offset))
-
+	  static-function-offset))
 
 
-;;;; Handy routine for making fixnums:
+;;;; Handy routine for making fixnums.
 
 (defun fixnum (num)
   "Make a fixnum out of NUM.  (i.e. shift by two bits if it will fit.)"
   (if (<= #x-20000000 num #x1fffffff)
       (ash num 2)
       (error "~D is too big for a fixnum." num)))
-
 
 
 ;;;; Routines for dealing with static symbols.
@@ -41,7 +25,7 @@
   "Returns the byte offset of the static symbol Symbol."
   (if symbol
       (let ((posn (position symbol static-symbols)))
-	(unless posn (error "~S is not a static symbol." symbol))
+	(or posn (error "~S is not a static symbol." symbol))
 	(+ (* posn (pad-data-block symbol-size))
 	   (pad-data-block (1- symbol-size))
 	   other-pointer-type
@@ -62,8 +46,8 @@
 	(elt static-symbols n))))
 
 (defun static-function-offset (name)
-  "Return the (byte) offset from NIL to the start of the fdefn object
-   for the static function NAME."
+  "Return the (byte) offset from NIL to the start of the fdefn object for
+   the static function NAME."
   (let ((static-syms (length static-symbols))
 	(static-function-index (position name static-functions)))
     (unless static-function-index

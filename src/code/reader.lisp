@@ -3,9 +3,11 @@
 ;;; Lisp reader.
 
 (in-package "EXTENSIONS")
+
 (export '*ignore-extra-close-parentheses*)
 
 (in-package "LISP")
+
 (export '(readtable readtable-case readtablep *read-base* *readtable*
 	  copy-readtable set-syntax-from-char set-macro-character
 	  get-macro-character make-dispatch-macro-character
@@ -13,6 +15,40 @@
 	  *read-default-float-format* read-preserving-whitespace
 	  read-delimited-list parse-integer read-from-string *read-suppress*
 	  reader-error))
+
+
+#[ Read
+
+A program called the "reader" loads the lists that define a program into
+the Lisp system.  Program definitions can be read into the system at any
+time.
+
+There are various interfaces to the reader, including `read',
+`read-from-string' and the file-loading interface described in [Load].
+
+{function:read}
+{function:read-from-string}
+
+Each data type has a read syntax, described below with the data type.
+
+Eight characters are treated specially by the reader.
+
+    parentheses   ( )
+    quote         '
+    backquote     ` ,
+    comments      ; #
+    string quote  "
+
+== reader macros ==
+
+    doc all of sharpm
+         doc in the code, refer to code doc here
+]#
+
+#[ The Reader
+
+{variable:ext:*ignore-extra-close-parentheses*}
+]#
 
 
 ;;;; Random global variables.
@@ -370,9 +406,8 @@
 	((= ichar #O200))
       (setq char (code-char ichar))
       (when (constituentp char std-lisp-readtable)
-	    (set-cat-entry char (get-secondary-attribute char))
-	    (set-cmt-entry char #'read-token)))))
-
+	(set-cat-entry char (get-secondary-attribute char))
+	(set-cmt-entry char #'read-token)))))
 
 
 ;;;; read-buffer implementation.
@@ -447,7 +482,8 @@
 ;;;; READ-PRESERVING-WHITESPACE, READ-DELIMITED-LIST, and READ.
 
 (defvar *ignore-extra-close-parentheses* t
-  "If true, only warn when there is an extra close paren, otherwise error.")
+  "If true, then the reader only warns on detecting an extra closing
+   parenthesis, otherwise it signals an error.")
 
 ;; Alist for #=. Used to keep track of objects with labels assigned that have
 ;; been completly read.  Entry is (integer-tag gensym-tag value).
@@ -492,9 +528,7 @@
 
 (defun read (&optional (stream *standard-input*) (eof-errorp t)
 		       (eof-value ()) (recursivep ()))
-  "Reads in the next object in the stream, which defaults to
-   *standard-input*. For details see the I/O chapter of
-   the manual."
+  "Read in the next value in the $stream. [FIX] add details"
   (prog1
       (read-preserving-whitespace stream eof-errorp eof-value recursivep)
     (let ((whitechar (read-char stream nil eof-object)))
@@ -506,9 +540,8 @@
 (defun read-delimited-list (endchar &optional
 				    (input-stream *standard-input*)
 				    recursive-p)
-  "Reads objects from input-stream until the next character after an
-   object's representation is endchar.  A list of those objects read
-   is returned."
+  "Read values from $input-stream until the next character after an value's
+   representation is $endchar.  Return a list of the values read."
   (declare (ignore recursive-p))
   (do ((char (flush-whitespace input-stream)
 	     (flush-whitespace input-stream))
@@ -522,6 +555,34 @@
 (defun read-quote (stream ignore)
   (declare (ignore ignore))
   (list 'quote (read stream t nil t)))
+
+#[ Comments
+
+The reader skips over text marked by two forms, to provide for comments in
+program source:
+
+   ; A semicolon comments the rest of the line.
+
+and
+
+   #| An octothorp and a vertical bar begins a comment that can span multiple
+      lines.  The comment ends with a vertical bar and an octothorp. |#
+
+== Scripting ==
+
+A third comment form is present solely to suppport Unix scripting: the #!
+reader macro.  The reader skips over the rest of the line following the #!,
+as it does for `;'.  This makes it possible to add a line like
+
+    #!/usr/bin/ni
+
+to a file to turn it into an interpreter script, as described in
+[Scripting].
+
+== Compiler ==
+
+{function:ext:file-comment}
+]#
 
 (defun read-comment (stream ignore)
   (declare (ignore ignore))
@@ -609,12 +670,12 @@
 (defun read-right-paren (stream ignore)
   (declare (ignore ignore))
     (cond (*ignore-extra-close-parentheses*
-	   (warn "Ignoring unmatched close parenthesis~
+	   (warn "Reading over surplus close parenthesis~
 		  ~@[ at file position ~D~]."
 		 (file-position stream))
 	   (values))
 	  (t
-	   (%reader-error stream "Unmatched close parenthesis."))))
+	   (%reader-error stream "Surplus close parenthesis."))))
 
 ;;; INTERNAL-READ-EXTENDED-TOKEN  --  Internal
 ;;;
@@ -1320,7 +1381,7 @@
       (if negative-number (- num) num))))
 
 
-;;;; dispatching macro cruft
+;;;; Dispatch macro.
 
 (defun make-char-dispatch-table ()
   (make-array char-code-limit :initial-element #'dispatch-char-error))
@@ -1332,12 +1393,11 @@
       (%reader-error stream "No dispatch function defined for ~S." sub-char)))
 
 (defun make-dispatch-macro-character (char &optional
-					   (non-terminating-p nil)
+					   non-terminating-p
 					   (rt *readtable*))
-  "Causes char to become a dispatching macro character in readtable
-   (which defaults to the current readtable).  If the non-terminating-p
-   flag is set to T, the char will be non-terminating.  Make-dispatch-
-   macro-character returns T."
+  "Cause char to become a dispatching macro character in readtable (which
+   defaults to the current readtable).  If NON-TERMINATING-P flag is true,
+   the char will be non-terminating.  Return t."
   (set-macro-character char #'read-dispatch-char non-terminating-p rt)
   (let* ((dalist (dispatch-tables rt))
 	 (dtable (cdr (find char dalist :test #'char= :key #'car))))
@@ -1349,13 +1409,12 @@
 
 (defun set-dispatch-macro-character
        (disp-char sub-char function &optional (rt *readtable*))
-  "Causes function to be called whenever the reader reads
-   disp-char followed by sub-char. Set-dispatch-macro-character
-   returns T."
+  "Cause function to be called whenever the reader reads disp-char followed
+   by sub-char. Return t."
   ;;get the dispatch char for macro (error if not there), diddle
   ;;entry for sub-char.
-  (when (digit-char-p sub-char)
-    (error "Sub-Char must not be a decibal digit: ~S" sub-char))
+  (if (digit-char-p sub-char)
+      (error "Sub-Char must not be a decibal digit: ~S" sub-char))
   (let* ((sub-char (char-upcase sub-char))
 	 (dpair (find disp-char (dispatch-tables rt)
 		      :test #'char= :key #'car)))
@@ -1363,7 +1422,7 @@
 	(setf (elt (the simple-vector (cdr dpair))
 		   (char-code sub-char))
 	      (coerce function 'function))
-	(error "~S is not a dispatch char." disp-char))))
+	(error "~S must be defined as a dispatch char first." disp-char))))
 
 (defun get-dispatch-macro-character
        (disp-char sub-char &optional (rt *readtable*))
@@ -1414,9 +1473,8 @@
 (defun read-from-string (string &optional eof-error-p eof-value
 				&key (start 0) end
 				preserve-whitespace)
-  "The characters of string are successively given to the lisp reader
-   and the lisp object built by the reader is returned.  Macro chars
-   will take effect."
+  "Give the characters of $string successively to the lisp reader and
+   return the value built by the reader.  Macro chars take effect."
   (declare (string string))
   (with-array-data ((string string)
 		    (start start)
@@ -1443,7 +1501,7 @@
    the beginning and end of the string).  Skip over whitespace characters
    and then try to parse an integer.  The radix parameter must be between 2
    and 36.  Allow junk in the string if JUNK-ALLOWED it true.  If ERRORP is
-   true return nil instead of invoking an error on error."
+   true return () instead of invoking an error on error." ;; FIX seems backwards
   (with-array-data ((string string)
 		    (start start)
 		    (end (or end (length string))))

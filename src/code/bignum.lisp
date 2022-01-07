@@ -926,9 +926,9 @@
 
 ;;; BIGNUM-ASHIFT-LEFT-UNALIGNED -- Internal.
 ;;;
-;;; BIGNUM-TRUNCATE uses this to store into a bignum buffer by supplying res.
-;;; When res comes in non-nil, then this foregoes allocating a result, and it
-;;; normalizes the buffer instead of the would-be allocated result.
+;;; BIGNUM-TRUNCATE uses this to store into a bignum buffer by supplying
+;;; res.  When res comes in true, then this foregoes allocating a result,
+;;; and it normalizes the buffer instead of the would-be allocated result.
 ;;;
 ;;; We start storing into one digit higher than digits, storing a whole result
 ;;; digit from parts of two contiguous digits from bignum.  When the loop

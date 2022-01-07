@@ -4,32 +4,31 @@
 
 (defmode "Pascal" :major-p t)
 
-(defcommand "Pascal Mode" (p)
+(defcommand "Pascal Mode" ()
   "Put the current buffer into \"Pascal\" mode."
-  "Put the current buffer into \"Pascal\" mode."
-  (declare (ignore p))
   (setf (buffer-major-mode (current-buffer)) "Pascal"))
 
-(defhvar "Indent Function"
-  "Indentation function which is invoked by \"Indent\" command.
-   It must take one argument that is the prefix argument."
+(defevar "Indent Function"
+  "Indentation function invoked by the `Indent' command.  The function
+   takes a :left-inserting mark that may be moved, and indents the line
+   that the mark is on."
   :value #'generic-indent
   :mode "Pascal")
 
-(defhvar "Auto Fill Space Indent"
-  "When non-nil, uses \"Indent New Comment Line\" to break lines instead of
-   \"New Line\"."
+(defevar "Auto Fill Space Indent"
+  "When true, use `Indent New Comment Line' to break lines instead of `New
+   Line'."
   :mode "Pascal" :value t)
 
-(defhvar "Comment Start"
+(defevar "Comment Start"
   "String that indicates the start of a comment."
   :mode "Pascal" :value "(*")
 
-(defhvar "Comment End"
+(defevar "Comment End"
   "String that ends comments.  Nil indicates #\newline termination."
   :mode "Pascal" :value " *)")
 
-(defhvar "Comment Begin"
+(defevar "Comment Begin"
   "String that is inserted to begin a comment."
   :mode "Pascal" :value "(* ")
 

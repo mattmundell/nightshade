@@ -1,25 +1,6 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/macros.lisp,v 1.4.2.3 2000/08/20 14:44:06 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the a bunch of handy macros for the x86.
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski Spring/Summer 1995.
-;;; Enhancements/debugging by Douglas T. Crosher 1996,1997,1998,1999.
-;;;
-(in-package :x86)
+;;; Handy macros for the x86.
 
+(in-package "X86")
 
 ;;; We can load/store into fp registers through the top of
 ;;; stack %st(0) (fr0 here). Loads imply a push to an empty register
@@ -94,7 +75,6 @@
 			   (- other-pointer-type)))
 	 ,reg))
 
-
 (defmacro load-type (target source &optional (offset 0))
   "Loads the type bits of a pointer into target independent of
    byte-ordering issues."
@@ -110,7 +90,7 @@
 	      (make-ea :byte :base ,n-source :disp (+ ,n-offset 3)))))))
 
 
-;;;; Allocation helpers
+;;;; Allocation helpers.
 
 ;;; Two allocation approaches are implemented. A call into C can be
 ;;; used where special care can be taken to disable
@@ -214,7 +194,7 @@
 					  :foreign)))
 	       (t
 		(load-size ebx-tn size)
-		(inst call (make-fixup (extern-alien-name "alloc_to_ebx") 
+		(inst call (make-fixup (extern-alien-name "alloc_to_ebx")
 				       :foreign)))))
 	    (#.esi-offset
 	     (case size
@@ -251,7 +231,7 @@
     ,@forms))
 
 
-;;;; Error Code
+;;;; Error Code.
 
 (eval-when (compile load eval)
   (defun emit-error-break (vop kind code values)
@@ -284,17 +264,16 @@
   (cons 'progn
 	(emit-error-break vop error-trap error-code values)))
 
-
 (defmacro cerror-call (vop label error-code &rest values)
-  "Cause a continuable error.  If the error is continued, execution resumes at
-  LABEL."
+  "Cause a continuable error.  If the error is continued, execution resumes
+   at LABEL."
   `(progn
      ,@(emit-error-break vop cerror-trap error-code values)
      (inst jmp ,label)))
 
 (defmacro generate-error-code (vop error-code &rest values)
   "Generate-Error-Code Error-code Value*
-  Emit code for an error with the specified Error-Code and context Values."
+   Emit code for an error with the specified Error-Code and context Values."
   `(assemble (*elsewhere*)
      (let ((start-lab (gen-label)))
        (emit-label start-lab)
@@ -315,7 +294,6 @@
 	 (emit-label ,error)
 	 (cerror-call ,vop ,continue ,error-code ,@values))
        ,error)))
-
 
 
 ;;;; PSEUDO-ATOMIC.
@@ -360,7 +338,7 @@
 	(emit-label ,label)))))
 
 
-;;;; Indexed references:
+;;;; Indexed references.
 
 (defmacro define-full-reffer (name type offset lowtag scs el-type &optional translate)
   `(progn

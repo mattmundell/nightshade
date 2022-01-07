@@ -1,18 +1,5 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/hppa/assem-rtns.lisp,v 1.5 1994/10/31 04:56:18 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains a handful of random assembly routines.
-;;;
-;;; Written by William Lott.
-;;;
+;;; A handful of random assembly routines.
+
 (in-package "HPPA")
 
 
@@ -55,7 +42,7 @@
   (loadw a4 vals 4)
   (inst addib := (fixnum -1) count default-a5-and-on :nullify t)
   (loadw a5 vals 5)
-  (inst addib := (fixnum -1) count done :nullify t)  
+  (inst addib := (fixnum -1) count done :nullify t)
 
   ;; Copy the remaining args to the top of the stack.
   (inst addi (* 6 word-bytes) vals src)
@@ -86,10 +73,9 @@
   (move cfp-tn ocfp-tn)
   (move old-fp cfp-tn)
   (inst add ocfp-tn nvals csp-tn)
-  
+
   ;; Return.
   (lisp-return lra))
-
 
 
 ;;;; tail-call-variable.
@@ -120,10 +106,9 @@
      (:temp a4 descriptor-reg a4-offset)
      (:temp a5 descriptor-reg a5-offset))
 
-
   ;; Calculate NARGS (as a fixnum)
   (inst sub csp-tn args nargs)
-     
+
   ;; Load the argument regs (must do this now, 'cause the blt might
   ;; trash these locations)
   (loadw a0 args 0)
@@ -138,18 +123,17 @@
   (inst comb :<= count zero-tn done :nullify t)
   (inst addi (* word-bytes register-arg-count) args src)
   (inst addi (* word-bytes register-arg-count) cfp-tn dst)
-	
+
   LOOP
   ;; Copy one arg.
   (inst ldwm 4 src temp)
   (inst addib :> (fixnum -1) count loop)
   (inst stwm temp 4 dst)
-	
+
   DONE
   ;; We are done.  Do the jump.
   (loadw temp lexenv closure-function-slot function-pointer-type)
   (lisp-jump temp))
-
 
 
 ;;;; Non-local exit noise.
@@ -174,15 +158,15 @@
 
   (let ((error (generate-error-code nil invalid-unwind-error)))
     (inst bc := nil block zero-tn error))
-  
+
   (load-symbol-value cur-uwp lisp::*current-unwind-protect-block*)
   (loadw target-uwp block unwind-block-current-uwp-slot)
   (inst bc :<> nil cur-uwp target-uwp do-uwp)
-      
+
   (move block cur-uwp)
 
   DO-EXIT
-      
+
   (loadw cfp-tn cur-uwp unwind-block-current-cont-slot)
   (loadw code-tn cur-uwp unwind-block-current-code-slot)
   (loadw lra cur-uwp unwind-block-entry-pc-slot)
@@ -194,7 +178,6 @@
   (inst b do-exit)
   (store-symbol-value next-uwp lisp::*current-unwind-protect-block*))
 
-
 (define-assembly-routine
     throw
     ((:arg target descriptor-reg a0-offset)
@@ -205,13 +188,13 @@
   (declare (ignore start count)) ; We just need them in the registers.
 
   (load-symbol-value catch lisp::*current-catch-block*)
-  
+
   LOOP
   (let ((error (generate-error-code nil unseen-throw-tag-error target)))
     (inst bc := nil catch zero-tn error))
   (loadw tag catch catch-block-tag-slot)
   (inst comb :<> tag target loop :nullify t)
   (loadw catch catch catch-block-previous-catch-slot)
-  
+
   (inst b *unwind-entry-point*)
   (inst move catch target))

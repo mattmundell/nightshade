@@ -38,7 +38,7 @@
 (defvar *print-length* nil
   "How many elements to print on each level.  Unlimited if null.")
 (defvar *print-circle* nil
-  "Whether to worry about circular list structures. See the manual.")
+  "Whether to worry about circular list structures. FIX See the manual.")
 (defvar *print-case* :upcase
   "What kind of case the printer should use by default")
 (defvar *print-array* t
@@ -47,7 +47,7 @@
   "If true, symbols with no home package are printed with a #: prefix.
   If false, no prefix is printed.")
 (defvar *print-lines* nil
-  "The maximum number of lines to print.  If NIL, unlimited.")
+  "The maximum number of lines to print.  If NIL, print all lines.")
 (defvar *print-right-margin* nil
   ;; FIX ems?
   "The position of the right margin in ems.  If NIL, try to determine this
@@ -138,22 +138,21 @@
 
 (defun prin1 (object &optional stream)
   "Outputs a mostly READable printed representation of OBJECT on the specified
-  stream."
+   stream."
   (let ((*print-escape* T))
     (output-object object (out-synonym-of stream)))
   object)
 
 (defun princ (object &optional stream)
-  "Outputs an asthetic but not READable printed representation of OBJECT on the
-  specified stream."
-  (let ((*print-escape* NIL)
-	(*print-readably* NIL))
+  "Outputs an aesthetic but not `read'able printed representation of
+   $object on the specified stream."
+  (let (*print-escape* *print-readably*)
     (output-object object (out-synonym-of stream)))
   object)
 
 (defun print (object &optional stream)
   "Outputs a terpri, the mostly READable printed represenation of OBJECT, and
-  space to the stream."
+   space to the stream."
   (let ((stream (out-synonym-of stream)))
     (terpri stream)
     (prin1 object stream)
@@ -294,16 +293,16 @@
 ;;; CHECK-FOR-CIRCULARITY -- interface.
 ;;;
 (defun check-for-circularity (object &optional assign)
-  "Check to see if OBJECT is a circular reference, and return something non-NIL
-   if it is.  If ASSIGN is T, then the number to use in the #n= and #n# noise
-   is assigned at this time.  Note: CHECK-FOR-CIRCULARITY must be called
-   *EXACTLY* once with ASSIGN T, or the circularity detection noise will get
-   confused about when to use #n= and when to use #n#.  If this returns
-   non-NIL when ASSIGN is T, then you must call HANDLE-CIRCULARITY on it.
-   If you are not using this inside a WITH-CIRCULARITY-DETECTION, then you
-   have to be prepared to handle a return value of :INITIATE which means it
-   needs to initiate the circularity detection noise.  See the source for
-   info on how to do that."
+  "Check to see if OBJECT is a circular reference, and return something
+   true if it is.  If ASSIGN is T, then the number to use in the #n= and
+   #n# noise is assigned at this time.  Note: CHECK-FOR-CIRCULARITY must be
+   called _EXACTLY_ once with ASSIGN T, or the circularity detection noise
+   will get confused about when to use #n= and when to use #n#.  If this
+   returns true when ASSIGN is T, then you must call HANDLE-CIRCULARITY on
+   it.  If you are not using this inside a WITH-CIRCULARITY-DETECTION, then
+   you have to be prepared to handle a return value of :INITIATE which
+   means it needs to initiate the circularity detection noise.  See the
+   source for info on how to do that."
   (cond ((null *print-circle*)
 	 ;; Don't bother, nobody cares.
 	 nil)
@@ -425,12 +424,12 @@
 ;;; OUTPUT-OBJECT -- interface.
 ;;;
 (defun output-object (object stream)
-  "Output OBJECT to STREAM observing all printer control variables."
+  "Output $object to $stream, observing all printer control variables."
   (labels ((print-it (stream)
 	     (if *print-pretty*
 		 (if *pretty-printer*
 		     (funcall *pretty-printer* object stream)
-		     (let ((*print-pretty* nil))
+		     (let (*print-pretty*)
 		       (output-ugly-object object stream)))
 		 (output-ugly-object object stream)))
 	   (check-it (stream)
@@ -450,7 +449,7 @@
     (cond ((or (not *print-circle*)
 	       (numberp object)
 	       (characterp object)
-	       (and (symbolp object) (symbol-package object) t))
+	       (and (symbolp object) (symbol-package object)))
 	   ;; If it's a number, character, or interned symbol, we do not
 	   ;; want to check for circularity/sharing.
 	   (print-it stream))
@@ -459,8 +458,8 @@
 	       (%instancep object)
 	       (typep object '(array t *)))
 	   ;; If we have already started circularity detection, this object
-	   ;; might be a sharded (FIX shared?) reference.  If we have not, then if it is
-	   ;; a cons, a instance, or an array of element type t it might
+	   ;; might be a shared reference.  If we have not, then if it is a
+	   ;; cons, a instance, or an array of element type t it might
 	   ;; contain a circular reference to itself or multiple shared
 	   ;; references.
 	   (check-it stream))
@@ -471,7 +470,7 @@
 ;;;
 (defun output-ugly-object (object stream)
   "Output OBJECT to STREAM observing all printer control variables except
-   for *PRINT-PRETTY*.  Note: if *PRINT-PRETTY* is non-NIL, then the pretty
+   for *PRINT-PRETTY*.  Note: if *PRINT-PRETTY* is true, then the pretty
    printer will be used for any components of OBJECT, just not for OBJECT
    itself."
   (typecase object
@@ -740,7 +739,7 @@
 			     (logior ,@(mapcar
 					#'(lambda (x)
 					    (or (cdr (assoc x attribute-names))
-						(error "Blast!")))
+						(error "Blast.")))
 					attributes))
 			     bits)))))
 	     (digitp ()
@@ -1105,6 +1104,7 @@
 		     (funcall (or (slot-class-print-function class)
 				  #'default-structure-print)
 			      instance stream *current-level*)))
+		;; FIX pcl
 		((fboundp 'print-object)
 		 (print-object instance stream))
 		(t
@@ -1250,7 +1250,7 @@
 ;;;                of fraction digits to produce if the FDIGITS parameter
 ;;;                is unspecified or NIL.  If the non-fraction digits and the
 ;;;                decimal point alone exceed this width, no fraction digits
-;;;                will be produced unless a non-NIL value of FDIGITS has been
+;;;                will be produced unless a true value of FDIGITS has been
 ;;;                specified.  Field overflow is not considerd an error at this
 ;;;                level.
 ;;;     FDIGITS  - The number of fractional digits to produce. Insignificant

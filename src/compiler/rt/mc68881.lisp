@@ -1,19 +1,6 @@
-;;; -*- Package: RT -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/mc68881.lisp,v 1.12 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; The following code is to support the MC68881 floating point chip on the APC
-;;; card.  Adapted by Rob MacLachlan from the Sparc support, written by Rob
-;;; MacLachlan and William Lott, with some stuff from Dave McDonald's original
-;;; RT miscops.
-;;;
+;;; card.
+
 (in-package "RT")
 
 (eval-when (compile eval load)
@@ -77,7 +64,7 @@
 ;;; See the AFPA coprocessor hardware assist operation (page B34 in volume 1.)
 
 
-;;;; Move functions:
+;;;; Move functions.
 ;;;
 ;;; See With-FP-Temp comment...
 
@@ -106,7 +93,7 @@
     (inst mc68881-store x lip-tn :double temp)))
 
 
-;;;; Move VOPs:
+;;;; Move VOPs.
 
 (define-vop (mc68881-move)
   (:args (x :scs (mc68881-single-reg mc68881-double-reg)
@@ -122,7 +109,6 @@
 (define-move-vop mc68881-move :move
   (mc68881-single-reg) (mc68881-single-reg)
   (mc68881-double-reg) (mc68881-double-reg))
-
 
 (define-vop (move-to-mc68881)
   (:args (x :scs (descriptor-reg)))
@@ -142,7 +128,6 @@
     mc68881-single-reg)
   (frob move-to-mc68881-double :double vm:double-float-value-slot
     mc68881-double-reg))
-
 
 (define-vop (move-from-mc68881)
   (:args (x :scs (mc68881-single-reg mc68881-double-reg) :to :save))
@@ -197,7 +182,7 @@
   (mc68881-single-reg mc68881-double-reg) (descriptor-reg))
 
 
-;;;; Arithmetic VOPs:
+;;;; Arithmetic VOPs.
 
 (define-vop (mc68881-op)
   (:args (x) (y))
@@ -252,7 +237,6 @@
   (frob mc68881-single-float-unop mc68881-single-reg mc68881-single-float)
   (frob mc68881-double-float-unop mc68881-double-reg mc68881-double-float))
 
-
 (macrolet ((frob (op sinst sname dinst dname)
 	     `(progn
 		(define-vop (,sname mc68881-single-float-unop)
@@ -265,7 +249,7 @@
   (frob %negate :neg %negate/single-float :neg %negate/double-float))
 
 
-;;;; Comparison:
+;;;; Comparison.
 
 (define-vop (mc68881-compare)
   (:args (x) (y))
@@ -301,7 +285,7 @@
 	       (ash mc68881-zero-condition
 		    mc68881-fpsr-condition-code-shift-16))
 	 (setq not-p (not not-p))))
-      
+
       (if not-p
 	  (inst bnc :eq target)
 	  (inst bc :eq target))
@@ -328,7 +312,7 @@
   (frob eql mc68881-eql/single-float mc68881-eql/double-float))
 
 
-;;;; Conversion:
+;;;; Conversion.
 
 (macrolet ((frob (name translate to-sc to-type)
 	     `(define-vop (,name)
@@ -355,7 +339,7 @@
 			    temp)
 			   (signed-stack
 			    x))))
-		    (inst cal addr (current-nfp-tn vop) 
+		    (inst cal addr (current-nfp-tn vop)
 			 (* (tn-offset stack-tn) vm:word-bytes))
 		    (note-this-location vop :internal-error)
 		    (inst mc68881-load y addr :integer scratch))))))
@@ -418,7 +402,6 @@
   (frob %unary-truncate mc68881-double-reg mc68881-double-float :intrz)
   (frob %unary-round mc68881-single-reg mc68881-single-float :int)
   (frob %unary-round mc68881-double-reg mc68881-double-float :int))
-
 
 (define-vop (make-mc68881-single-float)
   (:args (bits :scs (signed-reg) :target res
@@ -522,7 +505,7 @@
   (:translate double-float-low-bits))
 
 
-;;;; Float mode hackery:
+;;;; Float mode hackery.
 
 (deftype float-modes () '(unsigned-byte 32))
 (defknown floating-point-modes () float-modes (flushable))

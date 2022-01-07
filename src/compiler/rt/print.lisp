@@ -1,23 +1,6 @@
-;;; -*- Package: RT -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/print.lisp,v 1.3 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/rt/print.lisp,v 1.3 1994/10/31 04:45:41 ram Exp $
-;;;
-;;; This file contains temporary printing utilities and similar noise.
-;;;
-;;; Written by William Lott.
-;;;
+;;; Temporary printing utilities and similar noise.
 
 (in-package "RT")
-
 
 (define-vop (print)
   (:args (object :scs (descriptor-reg)))

@@ -19,11 +19,11 @@
     (copy-list (gethash dev *search-list-table*))))
 
 (defun %set-search-list (name new-value)
-  (unless (listp new-value)
-    (error "New value for search-list ~S not a list -- ~S."
-	   name new-value))
+  (or (listp new-value)
+      (error "New value for search-list ~S not a list -- ~S."
+	     name new-value))
   (let ((dev (pathname-device name)))
-    (unless dev (error "No device in ~S." name))
+    (or dev (error "No device in ~S." name))
     (nstring-downcase dev)
     (setf (gethash dev *search-list-table*)
 	  (mapcar #'(lambda (x)
@@ -38,11 +38,10 @@
   new-value)
 
 (defun resolve-search-list (name first-only-p)
-  "This takes a Sesame search-list name (\"default\") instead of the form
-   taken by SEARCH-LIST (\"default:\").  If first-only-p is non-nil, then
-   only the first complete expansion of name is returned.  If, during the
-   expansion of name, an undefined search list is encountered, an error
-   is signaled."
+  "This takes a Sesame search-list name (\"foo\") instead of the form taken
+   by SEARCH-LIST (\"foo:\").  If first-only-p is true, then only the first
+   complete expansion of name is returned.  If, during the expansion of
+   name, an undefined search list is encountered, an error is signaled."
   (setf name (string-downcase name))
   (setf (gethash name *rsl-circularity-check*) t)
   (unwind-protect
@@ -88,7 +87,7 @@
 ;;; RESOLVE-SEARCH-LIST-AUX takes a device/search-list string (that is,
 ;;; without the colon) and whether it should return the first expansion
 ;;; found.  If dev is not defined, signal an error with the offending
-;;; search list.  If dev is defined, and first-only-p is non-nil, then just
+;;; search list.  If dev is defined, and first-only-p is true, then just
 ;;; resolve the first possible expansion.  Otherwise, we loop over all of
 ;;; the possible expansions resolving each one completely, appending the
 ;;; results in order as they appear in entry.  If entry is just another

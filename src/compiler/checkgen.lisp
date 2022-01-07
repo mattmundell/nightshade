@@ -1,37 +1,150 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/checkgen.lisp,v 1.24.2.5 2000/07/09 14:03:12 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file implements type check generation.  This is a phase that runs
-;;; at the very end of IR1.  If a type check is too complex for the back end to
-;;; directly emit in-line, then we transform the check into an explicit
-;;; conditional using TYPEP.
-;;; 
-;;; Written by Rob MacLachlan
-;;;
+;;; Type check generation.  This is a phase that runs at the very end of
+;;; IR1.  If a type check is too complex for the back end to directly emit
+;;; in-line, then we transform the check into an explicit conditional using
+;;; `typep'.
+
 (in-package "C")
 
-
-;;;; Cost estimation:
+#[ Type Check Generation
 
+    Emit explicit ICR code for any necessary type checks that are too
+    complex to be easily generated on the fly by the back end.
+
+Phase position: 6/23 (front)
+
+Presence: optional
+
+Files: checkgen
+
+Entry functions: `generate-type-checks'
+
+Call sequences:
+
+    generate-type-checks
+      mark-error-continuation
+      do-type-warning
+      probable-type-check-p
+      continuation-check-types
+        values-types-asserted
+        maybe-negate-check
+      convert-type-check
+
+
+    XXX Somehow split this section up into three parts:
+     -- Conceptual: how we know a check is necessary, and who is responsible for
+	doing checks.
+     -- Incremental: intersection of derived and asserted types, checking for
+	non-subtype relationship.
+     -- Check generation phase.
+
+    We need to do a pretty good job of guessing when a type check will ultimately
+    need to be done.  Generic arithmetic, for example: In the absence of
+    declarations, we will use use the safe variant, but if we don't know this, we
+    will generate a check for NUMBER anyway.  We need to look at the fast-safe
+    templates and guess if any of them could apply.
+
+    We compute a function type from the VOP arguments
+    and assertions on those arguments.  This can be used with Valid-Function-Use
+    to see which templates do or might apply to a particular call.  If we guess
+    that a safe implementation will be used, then we mark the continuation so as to
+    force a safe implementation to be chosen.  [This will happen if ICR optimize
+    doesn't run to completion, so the icr optimization after type check generation
+    can discover new type information.  Since we won't redo type check at that
+    point, there could be a call that has applicable unsafe templates, but isn't
+    type checkable.
+
+    XXX A better and more general optimization of structure type checks: in type
+    check conversion, we look at the *original derived* type of the continuation:
+    if the difference between the proven type and the asserted type is a simple
+    type check, then check for the negation of the difference.  e.g. if we want a
+    FOO and we know we've got (OR FOO NULL), then test for (NOT NULL).  This is a
+    very important optimization for linked lists of structures, but can also apply
+    in other situations.
+
+  If after ICR phases, we have a continuation with check-type set in a context
+  where it seems likely a check will be emitted, and the type is too
+  hairy to be easily checked (i.e. no CHECK-xxx VOP), then we do a transformation
+  on the ICR equivalent to:
+    (... (the hair <foo>) ...)
+    =>
+    (... (funcall \#'(lambda (\#:val)
+		      (if (typep \#:val 'hair)
+			  \#:val
+			  (%type-check-error \#:val 'hair)))
+		  <foo>)
+	 ...)
+  This way, we guarantee that VMR conversion never has to emit type checks for
+  hairy types.
+
+      Actually, we need to do a MV-bind and several type checks when there is a MV
+      continuation.  And some values types are just too hairy to check.  We really
+      can't check any assertion for a non-fixed number of values, since there isn't
+      any efficient way to bind arbitrary numbers of values.  (could be done with
+      MV-call of a more-arg function, I guess...)
+
+      Perhaps only use CHECK-xxx VOPs for types equivalent to a ptype?  Exceptions
+      for CONS and SYMBOL?  Anyway, no point in going to trouble to implement and
+      emit rarely used CHECK-xxx vops.
+
+  One potential lose in converting a type check to explicit conditionals rather
+  than to a CHECK-xxx VOP is that VMR code motion optimizations won't be able to
+  do anything.  This shouldn't be much of an issue, though, since type constraint
+  propagation has already done global optimization of type checks.
+
+
+This phase is optional, but should be done if anything is more important than
+compile speed.
+
+Type check is responsible for reconciling the continuation asserted and derived
+types, emitting type checks if appropriate.  If the derived type is a subtype
+of the asserted type, then we don't need to do anything.
+
+If there is no intersection between the asserted and derived types, then there
+is a manifest type error.  We print a warning message, indicating that
+something is almost surely wrong.  This will inhibit any transforms or
+generators that care about their argument types, yet also inhibits further
+error messages, since NIL is a subtype of every type.
+
+If the intersection is not null, then we set the derived type to the
+intersection of the asserted and derived types and set the Type-Check flag in
+the continuation.  We always set the flag when we can't prove that the type
+assertion is satisfied, regardless of whether we will ultimately actually emit
+a type check or not.  This is so other phases such as type constraint
+propagation can use the Type-Check flag to detect an interesting type
+assertion, instead of having to duplicate much of the work in this phase.
+    XXX 7 extremely random values for CONTINUATION-TYPE-CHECK.
+
+Type checks are generated on the fly during VMR conversion.  When VMR
+conversion generates the check, it prints an efficiency note if speed is
+important.  We don't flame now since type constraint propagation may decide
+that the check is unnecessary.
+    XXX Not done now, maybe never.
+
+In local function call, it is the caller that is in effect responsible for
+checking argument types.  This happens in the same way as any other type check,
+since ICR optimize propagates the declared argument types to the type
+assertions for the argument continuations in all the calls.
+
+Since the types of arguments to entry points are unknown at compile time, we
+want to do runtime checks to ensure that the incoming arguments are of the
+correct type.  This happens without any special effort on the part of type
+check, since the XEP is represented as a local call with unknown type
+arguments.  These arguments will be marked as needing to be checked.
+]#
+
+
+;;;; Cost estimation.
 
 ;;; Function-Cost  --  Internal
 ;;;
-;;;    Return some sort of guess about the cost of a call to a function.  If
-;;; the function has some templates, we return the cost of the cheapest one,
-;;; otherwise we return the cost of CALL-NAMED.  Calling this with functions
-;;; that have transforms can result in relatively meaningless results
-;;; (exaggerated costs.)
+;;; Return some sort of guess about the cost of a call to a function.  If
+;;; the function has some templates, we return the cost of the cheapest
+;;; one, otherwise we return the cost of CALL-NAMED.  Calling this with
+;;; functions that have transforms can result in relatively meaningless
+;;; results (exaggerated costs.)
 ;;;
-;;; We randomly special-case NULL, since it does have a source tranform and is
-;;; interesting to us.
+;;; We randomly special-case NULL, since it does have a source tranform and
+;;; is interesting to us.
 ;;;
 (defun function-cost (name)
   (declare (symbol name))
@@ -46,13 +159,12 @@
 		(t call-cost))))
 	call-cost)))
 
-  
 ;;; Type-Test-Cost  --  Internal
 ;;;
-;;;    Return some sort of guess for the cost of doing a test against TYPE.
-;;; The result need not be precise as long as it isn't way out in space.  The
-;;; units are based on the costs specified for various templates in the VM
-;;; definition.
+;;; Return some sort of guess for the cost of doing a test against TYPE.
+;;; The result need not be precise as long as it isn't way out in space.
+;;; The units are based on the costs specified for various templates in the
+;;; VM definition.
 ;;;
 (defun type-test-cost (type)
   (declare (type ctype type))
@@ -66,7 +178,7 @@
 		  nil))))
       (typecase type
 	(union-type
-	 (collect ((res 0 +)) 
+	 (collect ((res 0 +))
 	   (dolist (mem (union-type-types type))
 	     (res (type-test-cost mem)))
 	   (res)))
@@ -90,19 +202,19 @@
 	 (function-cost 'typep)))))
 
 
-;;;; Checking strategy determination:
-
+;;;; Checking strategy determination.
 
 ;;; MAYBE-WEAKEN-CHECK  --  Internal
 ;;;
-;;;    Return the type we should test for when we really want to check for
-;;; Type.   If speed, space or compilation speed is more important than safety,
-;;; then we return a weaker type if it is easier to check.  First we try the
-;;; defined type weakenings, then look for any predicate that is cheaper.
+;;; Return the type we should test for when we really want to check for
+;;; Type.  If speed, space or compilation speed is more important than
+;;; safety, then we return a weaker type if it is easier to check.  First
+;;; we try the defined type weakenings, then look for any predicate that is
+;;; cheaper.
 ;;;
-;;;    If the supertype is equal in cost to the type, we prefer the supertype.
-;;; This produces a closer approximation of the right thing in the presence of
-;;; poor cost info.
+;;; If the supertype is equal in cost to the type, we prefer the supertype.
+;;; This produces a closer approximation of the right thing in the presence
+;;; of poor cost info.
 ;;;
 (defun maybe-weaken-check (type cont)
   (declare (type ctype type) (type continuation cont))
@@ -126,10 +238,9 @@
 	       min-type
 	       *universal-type*)))))
 
-
 ;;; NO-FUNCTION-TYPES  --  Internal
 ;;;
-;;;    Mash any complex function types to FUNCTION.
+;;; Mash any complex function types to FUNCTION.
 ;;;
 (defun no-function-types (types)
   (declare (type list types))
@@ -139,12 +250,12 @@
 		  type))
 	  types))
 
-
 ;;; Values-types-asserted  --  Internal
 ;;;
-;;;    Like values-types, but when an argument is proven to be delivered,
-;;; convert asserted optional and rest arguments to required arguments. This
-;;; makes it clear that these required arguments may all be type checked.
+;;; Like values-types, but when an argument is proven to be delivered,
+;;; convert asserted optional and rest arguments to required arguments.
+;;; This makes it clear that these required arguments may all be type
+;;; checked.
 ;;;
 (defun values-types-asserted (atype ptype)
   (declare (type ctype atype ptype))
@@ -180,27 +291,26 @@
 		   (return-from values-types-asserted (values nil :unknown)))))
 	     (values (types) (length (types))))))))
 
-
 ;;; Switch to disable check complementing, for evaluation.
 ;;;
 (defvar *complement-type-checks* t)
 
 ;;; MAYBE-NEGATE-CHECK  --  Internal
 ;;;
-;;;    Cont is a continuation we are doing a type check on and Types is a list
+;;; Cont is a continuation we are doing a type check on and Types is a list
 ;;; of types that we are checking its values against.  If we have proven
-;;; that Cont generates a fixed number of values, then for each value, we check
-;;; whether it is cheaper to then difference between the proven type and
-;;; the corresponding type in Types.  If so, we opt for a :HAIRY check with
-;;; that test negated.  Otherwise, we try to do a simple test, and if that is
-;;; impossible, we do a hairy test with non-negated types.  If true,
-;;; Force-Hairy forces a hairy type check.
+;;; that Cont generates a fixed number of values, then for each value, we
+;;; check whether it is cheaper to then difference between the proven type
+;;; and the corresponding type in Types.  If so, we opt for a :HAIRY check
+;;; with that test negated.  Otherwise, we try to do a simple test, and if
+;;; that is impossible, we do a hairy test with non-negated types.  If
+;;; true, Force-Hairy forces a hairy type check.
 ;;;
-;;;    When doing a non-negated check, we call MAYBE-WEAKEN-CHECK to weaken the
-;;; test to a convenient supertype (conditional on policy.)  If debug-info is
-;;; not particularly important (debug <= 1) or speed is 3, then we allow
-;;; weakened checks to be simple, resulting in less informative error messages,
-;;; but saving space and possibly time.
+;;; When doing a non-negated check, we call MAYBE-WEAKEN-CHECK to weaken
+;;; the test to a convenient supertype (conditional on policy.)  If
+;;; debug-info is not particularly important (debug <= 1) or speed is 3,
+;;; then we allow weakened checks to be simple, resulting in less
+;;; informative error messages, but saving space and possibly time.
 ;;;
 (defun maybe-negate-check (cont types force-hairy)
   (declare (type continuation cont) (list types))
@@ -238,7 +348,6 @@
 		       (values :hairy res))))
 		(t
 		 (values :hairy res)))))))
-	    
 
 ;;; CONTINUATION-CHECK-TYPES  --  Interface
 ;;;
@@ -259,7 +368,7 @@
 ;;; anyway.  This is because IR2tran can't generate type checks for unknown
 ;;; values continuations but people could still be depending on the check being
 ;;; done.  We only care about EXIT and RETURN (not MV-COMBINATION) since these
-;;; are the only contexts where the ultimate values receiver 
+;;; are the only contexts where the ultimate values receiver    FIX
 ;;;
 ;;; In the :HAIRY case, the second value is a list of triples of the form:
 ;;;    (Not-P Type Original-Type)
@@ -290,7 +399,7 @@
 	       (if (or (exit-p dest)
 		       (and (return-p dest)
 			    (multiple-value-bind
-				  (ignore count)
+				(ignore count)
 				(values-types (return-result-type dest))
 			      (declare (ignore ignore))
 			      (eq count :unknown))))
@@ -306,10 +415,9 @@
 	    (t
 	     (maybe-negate-check cont (list (single-value-type atype)) t))))))
 
-
 ;;; Probable-Type-Check-P  --  Internal
 ;;;
-;;;    Return true if Cont is a continuation whose type the back end is likely
+;;; Return true if Cont is a continuation whose type the back end is likely
 ;;; to want to check.  Since we don't know what template the back end is going
 ;;; to choose to implement the continuation's DEST, we use a heuristic.  We
 ;;; always return T unless:
@@ -358,14 +466,13 @@
 			  (when (or val (not win)) (return t)))))))))
 	  (t t))))
 
-
 ;;; Make-Type-Check-Form  --  Internal
 ;;;
-;;;    Return a form that we can convert to do a hairy type check of the
+;;; Return a form that we can convert to do a hairy type check of the
 ;;; specified Types.  Types is a list of the format returned by
 ;;; Continuation-Check-Types in the :HAIRY case.  In place of the actual
-;;; value(s) we are to check, we use 'Dummy.  This constant reference is later
-;;; replaced with the actual values continuation.
+;;; value(s) we are to check, we use 'Dummy.  This constant reference is
+;;; later replaced with the actual values continuation.
 ;;;
 ;;; Note that we don't attempt to check for required values being unsupplied.
 ;;; Such checking is impossible to efficiently do at the source level because
@@ -392,11 +499,10 @@
 			   ',(type-specifier (third type))))))
 		 (temps) types)
        (values ,@(temps)))))
-  
 
 ;;; Convert-Type-Check  --  Internal
 ;;;
-;;;    Splice in explicit type check code immediately before the node that its
+;;; Splice in explicit type check code immediately before the node that its
 ;;; Cont's Dest.  This code receives the value(s) that were being passed to
 ;;; Cont, checks the type(s) of the value(s), then passes them on to Cont.
 ;;; We:
@@ -408,7 +514,7 @@
 ;;;  -- Make the Dest node start its block so that we can splice in the type
 ;;;     check code.
 ;;;  -- Splice in a new block before the Dest block, giving it all the Dest's
-;;;     predecessors. 
+;;;     predecessors.
 ;;;  -- Convert the check form, using the new block start as Start and a dummy
 ;;;     continuation as Cont.
 ;;;  -- Set the new block's start and end cleanups to the *start* cleanup of
@@ -428,17 +534,17 @@
 (defun convert-type-check (cont types)
   (declare (type continuation cont) (list types))
   (with-ir1-environment (continuation-dest cont)
-    (ensure-block-start cont)    
+    (ensure-block-start cont)
     (let* ((new-start (make-continuation))
 	   (dest (continuation-dest cont))
 	   (prev (node-prev dest)))
       (continuation-starts-block new-start)
       (substitute-continuation-uses new-start cont)
       (setf (continuation-%type-check cont) :deleted)
-      
+
       (when (continuation-use prev)
 	(node-ends-block (continuation-use prev)))
-      
+
       (let* ((prev-block (continuation-block prev))
 	     (new-block (continuation-block new-start))
 	     (dummy (make-continuation)))
@@ -452,7 +558,7 @@
 	  (delete-continuation-use node)
 	  (add-continuation-use node cont))
 	(link-blocks new-block prev-block))
-      
+
       (let* ((node (continuation-use cont))
 	     (args (basic-combination-args node))
 	     (victim (first args)))
@@ -464,16 +570,15 @@
 	(substitute-continuation new-start victim)))
 
     (local-call-analyze *current-component*))
-  
-  (undefined-value))
 
+  (undefined-value))
 
 ;;; DO-TYPE-WARNING  --  Internal
 ;;;
-;;;    Emit a type warning for Node.  If the value of node is being used for a
-;;; variable binding, we figure out which one for source context.  If the value
-;;; is a constant, we print it specially.  We ignore nodes whose type is NIL,
-;;; since they are supposed to never return.
+;;; Emit a type warning for Node.  If the value of node is being used for a
+;;; variable binding, we figure out which one for source context.  If the
+;;; value is a constant, we print it specially.  We ignore nodes whose type
+;;; is NIL, since they are supposed to never return.
 ;;;
 (defun do-type-warning (node)
   (declare (type node node))
@@ -500,15 +605,14 @@
 	    what (type-specifier dtype) atype-spec))))
   (undefined-value))
 
-
 ;;; MARK-ERROR-CONTINUATION  --  Internal
 ;;;
-;;;    Mark Cont as being a continuation with a manifest type error.  We set
-;;; the kind to :ERROR, and clear any FUNCTION-INFO if the continuation is an
-;;; argument to a known call.  The last is done so that the back end doesn't
-;;; have to worry about type errors in arguments to known functions.  This
-;;; clearing is inhibited for things with IR2-CONVERT methods, since we can't
-;;; do a full call to funny functions.
+;;; Mark Cont as being a continuation with a manifest type error.  We set
+;;; the kind to :ERROR, and clear any FUNCTION-INFO if the continuation is
+;;; an argument to a known call.  The last is done so that the back end
+;;; doesn't have to worry about type errors in arguments to known
+;;; functions.  This clearing is inhibited for things with IR2-CONVERT
+;;; methods, since we can't do a full call to funny functions.
 ;;;
 (defun mark-error-continuation (cont)
   (declare (type continuation cont))
@@ -516,42 +620,41 @@
   (let ((dest (continuation-dest cont)))
     (when (and (combination-p dest)
 	       (let ((kind (basic-combination-kind dest)))
-		 (or (eq kind :full) 
+		 (or (eq kind :full)
 		     (and (function-info-p kind)
 			  (not (function-info-ir2-convert kind))))))
       (setf (basic-combination-kind dest) :error)))
   (undefined-value))
 
-
-;;; Generate-Type-Checks  --  Interface
+;;; GENERATE-TYPE-CHECKS  --  Interface
 ;;;
-;;;    Loop over all blocks in Component that have TYPE-CHECK set, looking for
-;;; continuations with TYPE-CHECK T.  We do two mostly unrelated things: detect
-;;; compile-time type errors and determine if and how to do run-time type
-;;; checks.
+;;; Loop over all blocks in Component that have TYPE-CHECK set, looking for
+;;; continuations with TYPE-CHECK T.  We do two mostly unrelated things:
+;;; detect compile-time type errors and determine if and how to do run-time
+;;; type checks.
 ;;;
-;;;    If there is a compile-time type error, then we mark the continuation and
-;;; emit a warning if appropriate.  This part loops over all the uses of the
-;;; continuation, since after we convert the check, the :DELETED kind will
-;;; inhibit warnings about the types of other uses.
+;;; If there is a compile-time type error, then we mark the continuation
+;;; and emit a warning if appropriate.  This part loops over all the uses
+;;; of the continuation, since after we convert the check, the :DELETED
+;;; kind will inhibit warnings about the types of other uses.
 ;;;
-;;;    If a continuation is too complex to be checked by the back end, or is
+;;; If a continuation is too complex to be checked by the back end, or is
 ;;; better checked with explicit code, then convert to an explicit test.
-;;; Assertions that can checked by the back end are passed through.  Assertions
-;;; that can't be tested are flamed about and marked as not needing to be
-;;; checked.
+;;; Assertions that can be checked by the back end are passed through.
+;;; Assertions that can't be tested are flamed about and marked as not
+;;; needing to be checked.
 ;;;
-;;;    If we determine that a type check won't be done, then we set TYPE-CHECK
+;;; If we determine that a type check won't be done, then we set TYPE-CHECK
 ;;; to :NO-CHECK.  In the non-hairy cases, this is just to prevent us from
-;;; wasting time coming to the same conclusion again on a later iteration.  In
-;;; the hairy case, we must indicate to LTN that it must choose a safe
+;;; wasting time coming to the same conclusion again on a later iteration.
+;;; In the hairy case, we must indicate to LTN that it must choose a safe
 ;;; implementation, since IR2 conversion will choke on the check.
 ;;;
-;;;    The generation of the type checks is delayed until all the type
-;;; check decisions have been made because the generation of the type
-;;; checks creates new nodes who's derived types aren't always updated
-;;; which may lead to inappropriate template choices due to the
-;;; modification of argument types.
+;;; The generation of the type checks is delayed until all the type check
+;;; decisions have been made because the generation of the type checks
+;;; creates new nodes who's derived types aren't always updated which may
+;;; lead to inappropriate template choices due to the modification of
+;;; argument types.
 ;;;
 (defun generate-type-checks (component)
   (collect ((conts))
@@ -559,14 +662,14 @@
       (when (block-type-check block)
         (do-nodes (node cont block)
 	  (let ((type-check (continuation-type-check cont)))
-	    (unless (member type-check '(nil :error :deleted))
-	      (let ((atype (continuation-asserted-type cont)))
-		(do-uses (use cont)
-		  (unless (values-types-intersect (node-derived-type use)
-						  atype)
-		    (mark-error-continuation cont)
-		    (unless (policy node (= brevity 3))
-		      (do-type-warning use))))))
+	    (or (member type-check '(nil :error :deleted))
+		(let ((atype (continuation-asserted-type cont)))
+		  (do-uses (use cont)
+		    (unless (values-types-intersect (node-derived-type use)
+						    atype)
+		      (mark-error-continuation cont)
+		      (or (policy node (= brevity 3))
+			  (do-type-warning use))))))
 	    (when (and (eq type-check t)
 		       (not *byte-compiling*))
 	      (if (probable-type-check-p cont)

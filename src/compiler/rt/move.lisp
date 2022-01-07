@@ -1,26 +1,6 @@
-;;; -*- Package: RT; Log: c.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/move.lisp,v 1.6 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/rt/move.lisp,v 1.6 1994/10/31 04:45:41 ram Exp $
-;;;
-;;; This file contains the IBM RT VM definition of operand loading/saving and the
-;;; Move VOP.
-;;;
-;;; Written by Rob MacLachlan.
-;;; MIPS conversion by William Lott.
-;;; IBM RT conversion by William Lott and Bill Chiles.
-;;;
+;;; The IBM RT VM definition of operand loading/saving and the Move VOP.
 
 (in-package "RT")
-
 
 (define-move-function (load-immediate 1) (vop x y)
   ((null immediate)
@@ -81,7 +61,6 @@
    (any-reg) (word-pointer-reg))
   (move y x))
 
-
 
 ;;;; The Move VOP:
 
@@ -128,7 +107,6 @@
   (any-reg word-pointer-reg descriptor-reg)
   (any-reg word-pointer-reg descriptor-reg))
 
-
 
 ;;;; ILLEGAL-MOVE
 
@@ -147,7 +125,6 @@
   (:save-p :compute-only)
   (:generator 666
     (error-call vop object-not-type-error x type)))
-
 
 
 ;;;; Moves and coercions:
@@ -173,7 +150,7 @@
   (any-reg descriptor-reg) (signed-reg unsigned-reg))
 
 ;;; MOVE-TO-WORD-C -- VOP.
-;;; 
+;;;
 ;;; Arg is a non-immediate constant, load it.
 ;;;
 (define-vop (move-to-word-c)
@@ -207,7 +184,6 @@
 ;;;
 (define-move-vop move-to-word/integer :move
   (descriptor-reg) (signed-reg unsigned-reg))
-
 
 ;;; MOVE-FROM-WORD/FIXNUM -- VOP.
 ;;;
@@ -251,11 +227,11 @@
       (inst bcx :eq fixnum)
       (inst not temp)
       (inst bc :eq fixnum)
-      
+
       (with-fixed-allocation (y temp alloc bignum-type 2)
 	(storew x y bignum-digits-offset other-pointer-type))
       (inst b done)
-      
+
       (emit-label fixnum)
       (move y x)
       (inst sl y 2)
@@ -263,7 +239,6 @@
 ;;;
 (define-move-vop move-from-signed :move
   (signed-reg) (descriptor-reg))
-
 
 ;;; MOVE-FROM-UNSIGNED -- VOP.
 ;;;
@@ -312,7 +287,6 @@
 (define-move-vop move-from-unsigned :move
   (unsigned-reg) (descriptor-reg))
 
-
 ;;; Move untagged numbers.
 ;;;
 (define-vop (word-move)
@@ -329,7 +303,6 @@
 ;;;
 (define-move-vop word-move :move
   (signed-reg unsigned-reg) (signed-reg unsigned-reg))
-
 
 ;;; Move untagged number arguments/return-values.
 ;;;
@@ -349,7 +322,6 @@
 ;;;
 (define-move-vop move-word-argument :move-argument
   (descriptor-reg any-reg signed-reg unsigned-reg) (signed-reg unsigned-reg))
-
 
 ;;; Use standard MOVE-ARGUMENT + coercion to move an untagged number to a
 ;;; descriptor passing location.

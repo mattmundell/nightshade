@@ -13,7 +13,7 @@
 #include <sys/mman.h>
 #include <sys/signal.h>
 #include <asm/sigcontext.h>
-#include <string.h> 
+#include <string.h>
  /* #include <dlfcn.h> */
 #include <sys/time.h>
 #include <sys/stat.h>
@@ -35,10 +35,10 @@ typedef int os_vm_prot_t;        /* like hpux */
 #define OS_VM_PROT_WRITE PROT_WRITE  /* like hpux */
 #define OS_VM_PROT_EXECUTE PROT_EXEC /* like hpux */
 
-#ifndef __alpha__     
-#define OS_VM_DEFAULT_PAGESIZE	4096 /* like hpux */ 
+#ifndef __alpha__
+#define OS_VM_DEFAULT_PAGESIZE	4096 /* like hpux */
 #else
-#define OS_VM_DEFAULT_PAGESIZE	8192 /* like hpux */ 
+#define OS_VM_DEFAULT_PAGESIZE	8192 /* like hpux */
 #endif
 
 #if (LINUX_VERSION_CODE >= linuxversion(2,1,0)) || (__GNU_LIBRARY__ >= 6)
@@ -64,8 +64,8 @@ typedef struct sigcontext_struct sigcontext;
 #define USE_SA_SIGINFO 0
 
 /* Alpha uses OSF/1 signals which are the defaults in os.h,
-   so there is no need to define the following for Alpha 
-   Linux 
+   so there is no need to define the following for Alpha
+   Linux
 */
 #ifdef i386
 
@@ -88,12 +88,12 @@ typedef struct sigcontext_struct sigcontext;
 #endif
 #define uc_sigmask 	oldmask
 #define sc_pc		eip
-#define sc_mask		oldmask 
+#define sc_mask		oldmask
 #define sc_sp		esp
 #if (LINUX_VERSION_CODE >= linuxversion(2,1,0)) || (__GNU_LIBRARY__ >= 6)
-#define sigcontext	sigcontext 
+#define sigcontext	sigcontext
 #else
-#define sigcontext	sigcontext_struct 
+#define sigcontext	sigcontext_struct
 #endif
 #define sc_efl		eflags
 

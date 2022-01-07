@@ -36,31 +36,28 @@
     (sc-fp-trigger-sum unsigned-long)
     (sc-fp-trigger-inst unsigned-long)))
 
-
 
 ;;;; Add machine specific features to *features*
 
 (pushnew :alpha *features*)
 
-
 
 ;;;; MACHINE-TYPE and MACHINE-VERSION
 
 (defun machine-type ()
-  "Returns a string describing the type of the local machine."
+  "Return a string describing the type of the local machine."
   "DECstation")
 
 (defun machine-version ()
-  "Returns a string describing the version of the local machine."
+  "Return a string describing the version of the local machine."
   "DECstation")
-
 
 
 ;;; FIXUP-CODE-OBJECT -- Interface
 ;;;
 (defun fixup-code-object (code offset value kind)
-  (unless (zerop (rem offset word-bytes))
-    (error "Unaligned instruction?  offset=#x~X." offset))
+  (or (zerop (rem offset word-bytes))
+      (error "Unaligned instruction?  offset=#x~X." offset))
   (system:without-gcing
    (let ((sap (truly-the system-area-pointer
 			 (%primitive c::code-instructions code))))
@@ -88,7 +85,6 @@
        (:lda
 	(setf (sap-ref-8 sap offset) (ldb (byte 8 0) value))
 	(setf (sap-ref-8 sap (1+ offset)) (ldb (byte 8 8) value)))))))
-
 
 
 ;;;; Internal-error-arguments.
@@ -148,7 +144,6 @@
 
 (defsetf sigcontext-register %set-sigcontext-register)
 
-
 ;;; SIGCONTEXT-FLOAT-REGISTER  --  Interface.
 ;;;
 ;;; Like SIGCONTEXT-REGISTER, but returns the value of a float register.
@@ -174,17 +169,15 @@
 ;;;
 (defsetf sigcontext-float-register %set-sigcontext-float-register)
 
-
 ;;; SIGCONTEXT-FLOATING-POINT-MODES  --  Interface
 ;;;
-;;;    Given a sigcontext pointer, return the floating point modes word in the
+;;; Given a sigcontext pointer, return the floating point modes word in the
 ;;; same format as returned by FLOATING-POINT-MODES.
 ;;;
 (defun sigcontext-floating-point-modes (scp)
   (declare (type (alien (* sigcontext)) scp))
    (with-alien ((scp (* sigcontext) scp))
     (slot scp 'sc-fpcr)))
-
 
 
 ;;; EXTERN-ALIEN-NAME -- interface.
@@ -196,7 +189,6 @@
 (defun extern-alien-name (name)
   (declare (type simple-base-string name))
   name)
-
 
 
 ;;; SANCTIFY-FOR-EXECUTION -- Interface.

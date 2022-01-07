@@ -1,26 +1,6 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/compiler/x86/type-vops.lisp,v 1.2.2.2 2000/05/23 16:38:04 pw Exp $")
-;;;
-;;; **********************************************************************
-;;; 
-;;; This file contains the VM definition of type testing and checking VOPs
-;;; for the x86.
-;;;
-;;; Written by William Lott.
-;;;
-;;; Debugged by Paul F. Werkowski, Spring-95.
-;;; Enhancements/debugging by Douglas T. Crosher 1996,1997,1998.
-;;;
-(in-package :x86)
+;;; The VM definition of type testing and checking VOPs for the x86.
 
+(in-package "X86")
 
 
 ;;;; Test generation utilities.
@@ -29,7 +9,6 @@
 
 (defparameter immediate-types
   (list unbound-marker-type base-char-type))
-
 
 (defparameter function-header-types
   (list funcallable-instance-header-type dylan-function-header-type
@@ -114,7 +93,6 @@
      (t
       (error "Nothing to test?")))))
 
-
 ); eval-when (compile eval)
 
 ;;; Emit the most compact form of the test immediate instruction,
@@ -174,7 +152,6 @@
   (let ((drop-through (gen-label)))
     (%test-lowtag value (if not-p drop-through target) nil lowtag)
     (%test-headers value target not-p function-p headers drop-through t)))
-
 
 (defun %test-headers (value target not-p function-p headers
 			    &optional (drop-through (gen-label)) al-loaded)
@@ -255,7 +232,7 @@
       (emit-label drop-through))))
 
 
-;;;; Type checking and testing:
+;;;; Type checking and testing.
 
 (define-vop (check-type)
   (:args (value :target result :scs (any-reg descriptor-reg)))
@@ -584,8 +561,8 @@
 
 ;;;; Other integer ranges.
 
-;;; A (signed-byte 32) can be represented with either fixnum or a bignum with
-;;; exactly one digit.
+;;; A (signed-byte 32) can be represented with either fixnum or a bignum
+;;; with exactly one digit.
 
 (define-vop (signed-byte-32-p type-predicate)
   (:translate signed-byte-32-p)
@@ -661,7 +638,7 @@
 	(inst or eax-tn eax-tn)
 	(inst jmp :z yep)
 	(inst jmp nope)
-	
+
 	(emit-label single-word)
 	;; Get the single digit.
 	(loadw eax-tn value bignum-digits-offset other-pointer-type)
@@ -704,7 +681,7 @@
       (inst or eax-tn eax-tn)
       (inst jmp :z yep)
       (inst jmp nope)
-	
+
       (emit-label single-word)
       ;; Get the single digit.
       (loadw eax-tn value bignum-digits-offset other-pointer-type)
@@ -719,7 +696,7 @@
 
 
 ;;;; List/symbol types:
-;;; 
+;;;
 ;;; symbolp (or symbol (eq nil))
 ;;; consp (and list (not (eq nil)))
 
@@ -740,7 +717,7 @@
       (test-type value error t symbol-header-type))
     DROP-THRU
     (move result value)))
-  
+
 (define-vop (consp type-predicate)
   (:translate consp)
   (:generator 8

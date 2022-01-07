@@ -251,6 +251,7 @@ static boolean lookup_symbol(char *name, lispobj *result)
     headerptr = static_space;
     count = ((lispobj *) SymbolValue(STATIC_SPACE_FREE_POINTER) -
 	     static_space);
+    printf("Searching static space for %s\n", name);
     if (search_for_symbol(name, &headerptr, &count)) {
         *result = (lispobj)headerptr | type_OtherPointer;
         return TRUE;
@@ -263,6 +264,7 @@ static boolean lookup_symbol(char *name, lispobj *result)
 #else
     count = (lispobj *)SymbolValue(ALLOCATION_POINTER) - current_dynamic_space;
 #endif
+    printf("Searching dynamic space for %s\n", name);
     if (search_for_symbol(name, &headerptr, &count)) {
         *result = (lispobj)headerptr | type_OtherPointer;
         return TRUE;

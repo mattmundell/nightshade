@@ -1,22 +1,6 @@
-;;; -*- Package: ALPHA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/alpha/arith.lisp,v 1.2.2.3 2000/05/23 16:35:49 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Stuff to handle simple cases for generic arithmetic.
-;;;
-;;; Written by William Lott.
-;;; Conversion by Sean Hallgren
-;;;
 
 (in-package "ALPHA")
-
 
 (define-assembly-routine (generic-+
 			  (:cost 10)
@@ -41,14 +25,14 @@
   (inst and y 3 temp)
   (inst bne temp DO-STATIC-FUN)
   (inst addq x y res)
-  
+
   ; Check to see if we need a bignum
   (inst sra res 31 temp)
   (inst beq temp DONE)
   (inst not temp temp)
   (inst beq temp DONE)
   (inst sra res 2 temp3)
-  
+
   ; From move-from-signed
   (inst li 2 temp2)
   (inst sra temp3 31 temp)
@@ -57,7 +41,7 @@
   (inst cmoveq temp 1 temp2)
   (inst sll temp2 type-bits temp2)
   (inst bis temp2 bignum-type temp2)
-  
+
   (pseudo-atomic (:extra (pad-data-block (+ bignum-digits-offset 3)))
     (inst bis alloc-tn other-pointer-type res)
     (storew temp2 res 0 other-pointer-type)
@@ -73,7 +57,6 @@
   (inst move cfp-tn ocfp)
   (inst move csp-tn cfp-tn)
   (inst jmp zero-tn lip))
-
 
 (define-assembly-routine (generic--
 			  (:cost 10)
@@ -98,14 +81,14 @@
   (inst and y 3 temp)
   (inst bne temp DO-STATIC-FUN)
   (inst subq x y res)
-  
+
   ; Check to see if we need a bignum
   (inst sra res 31 temp)
   (inst beq temp DONE)
   (inst not temp temp)
   (inst beq temp DONE)
   (inst sra res 2 temp3)
-  
+
   ; From move-from-signed
   (inst li 2 temp2)
   (inst sra temp3 31 temp)
@@ -114,7 +97,7 @@
   (inst cmoveq temp 1 temp2)
   (inst sll temp2 type-bits temp2)
   (inst bis temp2 bignum-type temp2)
-  
+
   (pseudo-atomic (:extra (pad-data-block (+ bignum-digits-offset 3)))
     (inst bis alloc-tn other-pointer-type res)
     (storew temp2 res 0 other-pointer-type)
@@ -130,7 +113,6 @@
   (inst move cfp-tn ocfp)
   (inst move csp-tn cfp-tn)
   (inst jmp zero-tn lip))
-
 
 (define-assembly-routine (generic-*
 			  (:cost 25)
@@ -231,7 +213,7 @@
 			  (:temp quo-sign signed-reg nl5-offset)
 			  (:temp rem-sign signed-reg nargs-offset)
 			  (:temp temp1 non-descriptor-reg nl4-offset))
-  
+
   (let ((error (generate-error-code nil division-by-zero-error
 				    dividend divisor)))
     (inst beq divisor error))
@@ -286,9 +268,9 @@
 				  (:save-p t))
 				 ((:arg x (descriptor-reg any-reg) a0-offset)
 				  (:arg y (descriptor-reg any-reg) a1-offset)
-				  
+
 				  (:res res descriptor-reg a0-offset)
-				  
+
 				  (:temp temp non-descriptor-reg nl0-offset)
 				  (:temp lip interior-reg lip-offset)
 				  (:temp nargs any-reg nargs-offset)
@@ -297,14 +279,14 @@
 	  (inst bne temp DO-STATIC-FN)
 	  (inst and y 3 temp)
 	  (inst beq temp DO-COMPARE)
-	  
+
 	  DO-STATIC-FN
 	  (inst ldl lip (static-function-offset ',static-fn) null-tn)
 	  (inst li (fixnum 2) nargs)
 	  (inst move cfp-tn ocfp)
 	  (inst move csp-tn cfp-tn)
 	  (inst jmp zero-tn lip)
-	  
+
 	  DO-COMPARE
 	  ,cmp
 	  (inst move null-tn res)
@@ -315,7 +297,6 @@
   (define-cond-assem-rtn generic-< < two-arg-< (inst cmplt x y temp) nil)
   (define-cond-assem-rtn generic-> > two-arg-> (inst cmplt y x temp) nil))
 
-
 (define-assembly-routine (generic-eql
 			  (:cost 10)
 			  (:return-style :full-call)
@@ -324,9 +305,9 @@
 			  (:save-p t))
 			 ((:arg x (descriptor-reg any-reg) a0-offset)
 			  (:arg y (descriptor-reg any-reg) a1-offset)
-			  
+
 			  (:res res descriptor-reg a0-offset)
-			  
+
 			  (:temp temp non-descriptor-reg nl0-offset)
 			  (:temp lip interior-reg lip-offset)
 			  (:temp lra descriptor-reg lra-offset)
@@ -361,9 +342,9 @@
 			  (:save-p t))
 			 ((:arg x (descriptor-reg any-reg) a0-offset)
 			  (:arg y (descriptor-reg any-reg) a1-offset)
-			  
+
 			  (:res res descriptor-reg a0-offset)
-			  
+
 			  (:temp temp non-descriptor-reg nl0-offset)
 			  (:temp lip interior-reg lip-offset)
 			  (:temp lra descriptor-reg lra-offset)
@@ -397,9 +378,9 @@
 			  (:save-p t))
 			 ((:arg x (descriptor-reg any-reg) a0-offset)
 			  (:arg y (descriptor-reg any-reg) a1-offset)
-			  
+
 			  (:res res descriptor-reg a0-offset)
-			  
+
 			  (:temp temp non-descriptor-reg nl0-offset)
 			  (:temp lip interior-reg lip-offset)
 			  (:temp lra descriptor-reg lra-offset)

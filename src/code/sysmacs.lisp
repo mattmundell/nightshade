@@ -9,7 +9,7 @@
 
 ;;; WITH-ARRAY-DATA  --  Interface
 ;;;
-;;;    Checks to see if the array is simple and the start and end are in
+;;; Checks to see if the array is simple and the start and end are in
 ;;; bounds.  If so, it proceeds with those values.  Otherwise, it calls
 ;;; %WITH-ARRAY-DATA.  Note that there is a derive-type method for
 ;;; %WITH-ARRAY-DATA.
@@ -53,7 +53,7 @@
 #+gengc
 (defmacro without-gcing (&rest body)
   "Executes the forms in the body without doing a garbage collection."
-  `(without-interrupts ,@body))
+  `(block-interrupts ,@body))
 
 (defvar *with-screen-hooks* ()
   "A list of conses (before function, after function) to call before and
@@ -61,12 +61,27 @@
    relinquish the screen during `break' or an interrupt handler.")
 
 (defmacro with-screen (&body body)
+  "Execute the entries of *with-screen-hooks* around $body.  For some
+   interrupts, such as SIGTSTP (suspend the Lisp process and return to the
+   Unix shell) it is necessary to leave programs such as the editor and
+   then return to them afterwards, so these programs add the necessary
+   hooks to *with-screen-hooks*."
   `(progn
      (dolist (hook *with-screen-hooks*)
        (funcall (car hook)))
-     ,@body
-     (dolist (hook (reverse *with-screen-hooks*))
-       (funcall (cdr hook)))))
+     (let (err)
+       (unwind-protect
+	   (handler-bind
+	       ((error #'(lambda (condition)
+			   (setq err t)
+			   (dolist (hook (reverse *with-screen-hooks*))
+			     (funcall (cdr hook)))
+			   (signal condition))))
+	     (progn
+	       ,@body))
+	 (or err
+	     (dolist (hook (reverse *with-screen-hooks*))
+	       (funcall (cdr hook))))))))
 
 
 ;;; Eof-Or-Lose is a useful macro that handles EOF.

@@ -1,19 +1,4 @@
-;;; -*- Package: ALPHA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/alloc.lisp,v 1.2 1994/10/31 04:39:51 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Allocation VOPs for the Alpha port.
-;;;
-;;; Written by William Lott.
-;;; Converted by Sean Hallgren.
-;;; 
 
 (in-package "ALPHA")
 
@@ -95,7 +80,7 @@
     (inst and unboxed ndescr unboxed)
     (inst sll boxed (- type-bits word-shift) ndescr)
     (inst bis ndescr code-header-type ndescr)
-    
+
     (pseudo-atomic ()
       (inst bis alloc-tn other-pointer-type result)
       (storew ndescr result 0 other-pointer-type)
@@ -133,7 +118,7 @@
       (storew function result closure-function-slot function-pointer-type))))
 
 ;;; The compiler likes to be able to directly make value cells.
-;;; 
+;;;
 (define-vop (make-value-cell)
   (:args (value :to :save :scs (descriptor-reg any-reg null zero)))
   (:temporary (:scs (non-descriptor-reg)) temp)

@@ -1,21 +1,6 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/assembly/sparc/arith.lisp,v 1.13.2.1 2000/05/23 16:35:50 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Stuff to handle simple cases for generic arithmetic.
-;;;
-;;; Written by William Lott.
-;;;
 
 (in-package "SPARC")
-
 
 
 ;;;; Addition and subtraction.
@@ -63,7 +48,6 @@
   DONE
   (move res temp))
 
-
 (define-assembly-routine (generic--
 			  (:cost 10)
 			  (:return-style :full-call)
@@ -107,10 +91,8 @@
   DONE
   (move res temp))
 
-
 
 ;;;; Multiplication
-
 
 (define-assembly-routine (generic-*
 			  (:cost 50)
@@ -245,7 +227,6 @@
   (frob signed-* "unsigned *" 41 signed-num signed-reg)
   (frob fixnum-* "fixnum *" 30 tagged-num any-reg))
 
-
 
 ;;;; Division.
 
@@ -296,7 +277,6 @@
   (move rem dividend)
   (emit-divide-loop divisor rem quo t))
 
-
 (define-assembly-routine (fixnum-truncate
 			  (:note "fixnum truncate")
 			  (:cost 50)
@@ -312,7 +292,7 @@
 
 			  (:temp quo-sign any-reg nl5-offset)
 			  (:temp rem-sign any-reg nargs-offset))
-  
+
   (let ((error (generate-error-code nil division-by-zero-error
 				    dividend divisor)))
     (inst cmp divisor)
@@ -345,7 +325,6 @@
     (inst neg rem)
     (emit-label label)))
 
-
 (define-assembly-routine (signed-truncate
 			  (:note "(signed-byte 32) truncate")
 			  (:cost 60)
@@ -362,7 +341,7 @@
 
 			  (:temp quo-sign signed-reg nl5-offset)
 			  (:temp rem-sign signed-reg nargs-offset))
-  
+
   (let ((error (generate-error-code nil division-by-zero-error
 				    dividend divisor)))
     (inst cmp divisor)
@@ -408,9 +387,9 @@
 				  (:save-p t))
 				 ((:arg x (descriptor-reg any-reg) a0-offset)
 				  (:arg y (descriptor-reg any-reg) a1-offset)
-				  
+
 				  (:res res descriptor-reg a0-offset)
-				  
+
 				  (:temp nargs any-reg nargs-offset)
 				  (:temp ocfp any-reg ocfp-offset))
 	  (inst andcc zero-tn x 3)
@@ -418,7 +397,7 @@
 	  (inst andcc zero-tn y 3)
 	  (inst b :eq DO-COMPARE)
 	  (inst cmp x y)
-	  
+
 	  DO-STATIC-FN
 	  (inst ld code-tn null-tn (static-function-offset ',static-fn))
 	  (inst li nargs (fixnum 2))
@@ -426,7 +405,7 @@
 	  (inst j code-tn
 		(- (* function-code-offset word-bytes) function-pointer-type))
 	  (inst move cfp-tn csp-tn)
-	  
+
 	  DO-COMPARE
 	  (inst b ,cmp done)
 	  (load-symbol res t)
@@ -438,7 +417,6 @@
   (define-cond-assem-rtn generic-> > two-arg-> :gt)
   (define-cond-assem-rtn generic->= >= two-arg->= :ge))
 
-
 (define-assembly-routine (generic-eql
 			  (:cost 10)
 			  (:return-style :full-call)
@@ -447,7 +425,7 @@
 			  (:save-p t))
 			 ((:arg x (descriptor-reg any-reg) a0-offset)
 			  (:arg y (descriptor-reg any-reg) a1-offset)
-			  
+
 			  (:res res descriptor-reg a0-offset)
 
 			  (:temp lra descriptor-reg lra-offset)

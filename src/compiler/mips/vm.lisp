@@ -1,23 +1,9 @@
-;;; -*- Package: MIPS -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/vm.lisp,v 1.49.2.2 2000/05/23 16:37:43 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the VM definition for the MIPS R2000 and the new
-;;; object format.
-;;;
-;;; Written by Christopher Hoover and William Lott.
-;;;
+;;; The VM definition for the MIPS R2000 and the new object format.
+
 (in-package "MIPS")
 
 
-;;;; Registers
+;;;; Registers.
 
 (eval-when (compile eval)
 
@@ -32,7 +18,7 @@
      (defconstant ,name
        (list ,@(mapcar #'(lambda (name) (symbolicate name "-OFFSET")) regs)))))
 
-)
+); eval-when
 
 (eval-when (compile eval load)
 
@@ -102,10 +88,9 @@
 (define-storage-base constant :non-packed)
 (define-storage-base immediate-constant :non-packed)
 
-;;;
 ;;; Handy macro so we don't have to keep changing all the numbers whenever
 ;;; we insert a new storage class.
-;;; 
+;;;
 (defmacro define-storage-classes (&rest classes)
   (do ((forms (list 'progn)
 	      (let* ((class (car classes))
@@ -262,8 +247,6 @@
                   :alignment 2          ;is this needed?
                   :element-size 2))
 
-
-
 
 ;;;; Random TNs for interesting registers
 
@@ -277,7 +260,7 @@
 		       :sc (sc-or-lose ',sc)
 		       :offset ,offset-sym))))
 
-)
+); eval-when
 
 (defregtn zero any-reg)
 (defregtn lip interior-reg)
@@ -341,21 +324,18 @@
 (defconstant nfp-save-offset 2)
 #+gengc (defconstant code-save-offset 3)
 
-
 ;;; The number of arguments/return values passed in registers.
 ;;;
 (defconstant register-arg-count 6)
 
 ;;; The offsets within the register-arg SC that we pass values in, first
 ;;; value first.
-;;;
 
 ;;; Names to use for the argument registers.
-;;; 
+;;;
 (defconstant register-arg-names '(a0 a1 a2 a3 a4 a5))
 
 ); Eval-When (Compile Load Eval)
-
 
 ;;; A list of TN's describing the register arguments.
 ;;;
@@ -376,8 +356,9 @@
 
 ;;; LOCATION-PRINT-NAME  --  Interface
 ;;;
-;;;    This function is called by debug output routines that want a pretty name
-;;; for a TN's location.  It returns a thing that can be printed with PRINC.
+;;; This function is called by debug output routines that want a pretty
+;;; name for a TN's location.  It returns a thing that can be printed with
+;;; PRINC.
 ;;;
 (def-vm-support-routine location-print-name (tn)
   (declare (type tn tn))

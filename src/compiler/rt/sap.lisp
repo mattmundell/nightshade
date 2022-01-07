@@ -1,26 +1,9 @@
-;;; -*- Package: RT; Log: c.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/sap.lisp,v 1.17 1997/04/26 20:04:59 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/rt/sap.lisp,v 1.17 1997/04/26 20:04:59 dtc Exp $
-;;;
-;;; This file contains the IBM RT VM definition of SAP operations.
-;;;
-;;; Written by William Lott.
-;;;
+;;; The IBM RT VM definition of SAP operations.
 
 (in-package "RT")
 
-
 
-;;;; Moves and coercions:
+;;;; Moves and coercions.
 
 ;;; MOVE-TO-SAP -- VOP.
 ;;;
@@ -34,7 +17,6 @@
 ;;;
 (define-move-vop move-to-sap :move
   (descriptor-reg) (sap-reg))
-
 
 ;;; MOVE-FROM-SAP -- VOP.
 ;;;
@@ -51,7 +33,6 @@
 ;;;
 (define-move-vop move-from-sap :move
   (sap-reg) (descriptor-reg))
-
 
 ;;; SAP-MOVE -- VOP.
 ;;;
@@ -70,7 +51,6 @@
 ;;;
 (define-move-vop sap-move :move
   (sap-reg) (sap-reg))
-
 
 ;;; MOVE-SAP-ARGUMENT -- VOP.
 ;;;
@@ -92,13 +72,11 @@
 (define-move-vop move-sap-argument :move-argument
   (descriptor-reg sap-reg) (sap-reg))
 
-
 ;;; Use standard MOVE-ARGUMENT + coercion to move an untagged sap to a
 ;;; descriptor passing location.
 ;;;
 (define-move-vop move-argument :move-argument
   (sap-reg) (descriptor-reg))
-
 
 
 ;;;; SAP-INT and INT-SAP
@@ -109,7 +87,7 @@
   (:results (int :scs (unsigned-reg)))
   (:result-types unsigned-num)
   (:translate sap-int)
-  (:policy :fast-safe) 
+  (:policy :fast-safe)
  (:generator 1
     (move int sap)))
 
@@ -122,7 +100,6 @@
   (:policy :fast-safe)
   (:generator 1
     (move sap int)))
-
 
 
 ;;;; POINTER+ and POINTER-
@@ -159,7 +136,6 @@
     (move res ptr1)
     (inst s res ptr2)))
 
-
 
 ;;;; mumble-SYSTEM-REF and mumble-SYSTEM-SET
 
@@ -177,7 +153,7 @@
 				  &optional
 				  signed-translate signed-result-sc
 				  signed-result-type)
-  (let ((access-form 
+  (let ((access-form
 	 (ecase size
 	   (:byte
 	    '((inst lc result base offset)
@@ -205,7 +181,7 @@
 	 (:variant nil)
 	 (:generator 5
 	   ,@access-form))
-       
+
        (define-vop (,name)
 	 (:policy :fast-safe)
 	 (:translate ,translate)
@@ -221,14 +197,14 @@
 	   (inst cas base offset object)
 	   (let ((offset 0))
 	     ,@access-form)))
-       
+
        ,@(when signed-translate
 	   `((define-vop (,(symbolicate "SIGNED-" name-c) ,name-c)
 	       (:translate ,signed-translate)
 	       (:results (result :scs (,signed-result-sc)))
 	       (:result-types ,signed-result-type)
 	       (:variant t))
-	     
+
 	     (define-vop (,(symbolicate "SIGNED-" name) ,name)
 	       (:translate ,signed-translate)
 	       (:results (result :scs (,signed-result-sc)))
@@ -252,19 +228,19 @@
 (define-system-ref sap-system-ref :word
   sap-ref-sap sap-reg system-area-pointer)
 
-
 (eval-when (compile eval)
 
 ;;; DEFINE-SYSTEM-SET -- Internal.
 ;;;
-;;; Name is the name of a computed system-ref offset, from which we generate a
-;;; <name>-c VOP for immediate constant offsets.  Shift is the multiples of two
-;;; for which we must adjust the offset to make it an index in terms of bytes
-;;; (the machines address units).  Translate and signed-translate are the Lisp
-;;; function calls for which these VOP's are in-line expansions.
+;;; Name is the name of a computed system-ref offset, from which we
+;;; generate a <name>-c VOP for immediate constant offsets.  Shift is the
+;;; multiples of two for which we must adjust the offset to make it an
+;;; index in terms of bytes (the machines address units).  Translate and
+;;; signed-translate are the Lisp function calls for which these VOP's are
+;;; in-line expansions.
 ;;;
 (defmacro define-system-set (name size translate data-sc data-type)
-  (let ((set-form 
+  (let ((set-form
 	 (ecase size
 	   (:byte '(inst stc data base offset))
 	   (:halfword '(inst sth data base offset))
@@ -285,7 +261,7 @@
 	 (:generator 5
 	   ,set-form
 	   (move result data)))
-       
+
        (define-vop (,name)
 	 (:policy :fast-safe)
 	 (:translate ,translate)
@@ -322,13 +298,12 @@
 (define-system-set signed-32bit-system-set :word %set-signed-sap-ref-32
   signed-reg signed-num)
 
-
 (define-system-set sap-system-set :word %set-sap-ref-sap
   sap-reg system-area-pointer)
 
-#| 
+#|
 
-Maybe we can get away with using define-system-set now that offsets don't 
+Maybe we can get away with using define-system-set now that offsets don't
 need to be shifted.
 
 ;;; Ugly, because there are only 2 free sap-regs.  We stash the data value in
@@ -353,7 +328,7 @@ need to be shifted.
       (sap-reg (move save data))
       (sap-stack
        (loadw save (current-nfp-tn vop) (* (tn-offset data) vm:word-bytes))))
-       
+
     (inst cas base offset object)
     (inst st save base)
     (move result save)))

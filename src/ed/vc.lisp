@@ -1,5 +1,3 @@
-;;; -*- Package: HEMLOCK; Mode: Lisp -*-
-;;;
 ;;; Version control interface.
 ;;;
 ;;; To extend this to other version control systems add maker functions to
@@ -10,32 +8,28 @@
 
 ;;;; Structure.
 
-(defhvar "VC Keep Around After Unlocking"
-  "If non-NIL (the default) keep the working file around after unlocking
+(defevar "VC Keep Around After Unlocking"
+  "If true keep the working file around after unlocking
    it.  When NIL, the working file and buffer are deleted."
   :value t)
 
-(defhvar "VC Commit File Hook"
-  "VC Commit File Hook"
-  :value nil)
+(defevar "VC Commit File Hook"
+  "VC Commit File Hook")
 
-(defhvar "VC Update File Hook"
-  "VC Update File Hook"
-  :value nil)
+(defevar "VC Update File Hook"
+  "VC Update File Hook")
 
-(defhvar "VC Lock File Hook"
-  "VC Lock File Hook"
-  :value nil)
+(defevar "VC Lock File Hook"
+  "VC Lock File Hook")
 
-(defhvar "VC Log Buffer Hook"
-  "Version control log buffer hook."
-  :value nil)
+(defevar "VC Log Buffer Hook"
+  "Version control log buffer hook.")
 
-(defhvar "VC Log Entry Buffer"
+(defevar "VC Log Entry Buffer"
   "Name in which to buffer version control log entries."
   :value "VC Log")
 
-(defhvar "VC Comparison Buffer"
+(defevar "VC Comparison Buffer"
   "Name in which to buffer version control comparisons."
   :value "VC Comparison")
 
@@ -85,12 +79,14 @@
 (defvar *last-vc-command-output-string* nil)
 (defvar *vc-output-stream* (make-string-output-stream))
 
-(defmode "VC-Log" :major-p nil
+(defmode "VC Log" :major-p nil
+  :short-name "VC-Log"
   :precedence 5.0
   :documentation
   "Mode for viewing version control change logs.")
 
-(defmode "VC-Log-Entry" :major-p nil
+(defmode "VC Log Entry" :major-p nil
+  :short-name "VC-Log-Entry"
   :precedence 5.0
   :documentation
   "Mode for entering version control change logs.")
@@ -122,7 +118,8 @@
     (or pathname (editor-error "The buffer has no pathname."))
     pathname))
 
-(defmacro do-command (error-on-error command &rest args)
+#|
+(defmacro do-vc-command (error-on-error command &rest args)
   "Call run-program on Command and Args.  If error-on-error is true then
    throw an editor-error if the program exits with an error code."
   `(progn
@@ -130,7 +127,7 @@
      (setf *last-vc-command-args*
 	   (apply 'concatenate 'simple-string
 		  (mapcar (lambda (arg) (format nil " ~A" (eval arg)))
-			  ,(car args))))
+			  ',args)))
      (get-output-stream-string *vc-output-stream*)
      (let ((process (ext:run-program ',command ,@args
 				     :error *vc-output-stream*)))
@@ -151,6 +148,38 @@
 			(ext:process-core-dumped process)))
 	 (t
 	  (editor-error "~S still alive?" process))))))
+|#
+
+(defun do-vc-command (error-on-error command command-args &rest key-args)
+  "Call run-program on Command and Args.  If error-on-error is true then
+   throw an editor-error if the program exits with an error code."
+  (setf *last-vc-command-name* command)
+  (setf *last-vc-command-args*
+	(apply 'concatenate 'simple-string
+	       (mapcar (lambda (arg) (format () " ~A" arg))
+		       command-args)))
+  (get-output-stream-string *vc-output-stream*)
+  (let ((process (apply #'ext:run-program
+			command command-args
+			:error *vc-output-stream*
+			key-args)))
+    (setf *last-vc-command-output-string*
+	  (get-output-stream-string *vc-output-stream*))
+    (case (ext:process-status process)
+      (:exited
+       (if error-on-error
+	   (or (zerop (ext:process-exit-code process))
+	       (editor-error
+		"~A aborted with an error; ~
+		 use the ``Last VC Command Output'' command for ~
+		 more information" command))))
+      (:signaled
+       (editor-error "~A killed with signal ~A~@[ (core dumped)]."
+		     command
+		     (ext:process-exit-code process)
+		     (ext:process-core-dumped process)))
+      (t
+       (editor-error "~S still alive?" process)))))
 
 (defun buffer-different-from-file (buffer filename)
   (with-open-file (file filename)
@@ -198,14 +227,14 @@
 	 (pathname (current-buffer-pathname))
 	 (vc-info (current-vc-info)))
     (when (buffer-modified buffer)
-      (save-file-command nil))
+      (save-file-command))
     (funcall (vc-info-commit-fun vc-info)
 	     vc-info buffer pathname nil p)
     (when (member buffer *buffer-list*)
       ;; If the buffer still exists ensure it is up to date with the file.
       (visit-file-command nil pathname buffer))))
 
-(defcommand "VC Commit File" (p &optional pathname files)
+(defcommand "VC Commit File" (p pathname files)
   "Commit a prompted file.  With a prefix keep any lock."
   "Commit a prompted file.  If P is true keep any lock.  If Pathname is
    true commit Pathname instead.  If Pathname and Files are true commit the
@@ -245,7 +274,7 @@
     (visit-file-command nil pathname)
     (or (line-offset point lines) (buffer-end point))))
 
-(defcommand "VC Update File" (p &optional pathname files (find t))
+(defcommand "VC Update File" (p pathname files (find t))
   "Attempt to update a prompted file.  With a prefix, lock the file."
   "Attempt to update a prompted file.  If P is true, lock the file."
   (let* ((pathname (or pathname
@@ -261,10 +290,8 @@
 
 ;;;; Last command output.
 
-(defcommand "Last VC Command Output" (p)
+(defcommand "Last VC Command Output" ()
   "Pop-up the full output of the last version control command."
-  "Pop-up the full output of the last version control command."
-  (declare (ignore p))
   (or (and *last-vc-command-name* *last-vc-command-output-string*)
       (editor-error "Yet to execute a VC command."))
   (with-pop-up-display (s :buffer-name "VC Command Output")
@@ -276,20 +303,16 @@
 
 ;;;; Locking commands.
 
-(defcommand "VC Toggle Buffer File Lock" (p)
+(defcommand "VC Toggle Buffer File Lock" ()
   "Toggle the lock on the file in the current buffer."
-  "Toggle the lock on the file in the current buffer."
-  (declare (ignore p))
   (let* ((pathname (current-buffer-pathname))
 	 (buffer (current-buffer))
 	 (vc-info (make-vc-info pathname)))
     (funcall (vc-info-lock-fun vc-info)
 	     vc-info buffer pathname)))
 
-(defcommand "VC Toggle File Lock" (p)
+(defcommand "VC Toggle File Lock" ()
   "Toggle the lock on a prompted file."
-  "Toggle the lock on a prompted file."
-  (declare (ignore p))
   (let* ((pathname (prompt-for-file :prompt "Toggle lock on: "
 				    :default (buffer-default-pathname
 					      (current-buffer))
@@ -306,15 +329,13 @@
     (or buffer
 	(progn
 	  (setf buffer (make-buffer (value vc-log-entry-buffer)
-				    :modes '("Fundamental" "VC-Log")))
+				    :modes '("Fundamental" "VC Log")))
 	  (turn-auto-save-off buffer)
 	  (invoke-hook vc-log-buffer-hook buffer)))
     buffer))
 
-(defcommand "VC Buffer File Log Entry" (p)
+(defcommand "VC Buffer File Log Entry" ()
   "Buffer the version control log for the current file."
-  "Buffer the version control log for the current file."
-  (declare (ignore p))
   (let ((buffer (get-log-buffer))
 	(pathname (current-buffer-pathname)))
     (delete-region (buffer-region buffer))
@@ -323,14 +344,13 @@
       (let ((vc-info (current-vc-info)))
 	(funcall (vc-info-insert-log-fun vc-info)
 		 vc-info
-		 (make-hemlock-output-stream mark)
+		 (make-editor-output-stream mark)
 		 (namestring pathname))))
     (change-to-buffer buffer)
     (buffer-start (current-point))
     (setf (buffer-modified buffer) nil)))
 
-(defcommand "VC File Log Entry" (p &optional file)
-  "Buffer the version control log for a prompted file."
+(defcommand "VC File Log Entry" (p file)
   "Buffer the version control log for a prompted file."
   (declare (ignore p))
   (let ((file (or file
@@ -345,14 +365,13 @@
       (let ((vc-info (make-vc-info file)))
 	(funcall (vc-info-insert-log-fun vc-info)
 		 vc-info
-		 (make-hemlock-output-stream mark)
+		 (make-editor-output-stream mark)
 		 (namestring file))))
     (change-to-buffer buffer)
     (buffer-start (current-point))
     (setf (buffer-modified buffer) nil)))
 
-(defcommand "VC File Log Entry" (p &optional file)
-  "Buffer the version control log for a prompted file."
+(defcommand "VC File Log Entry" (p file)
   "Buffer the version control log for a prompted file."
   (declare (ignore p))
   (let ((file (or file
@@ -367,7 +386,7 @@
       (let ((vc-info (make-vc-info file)))
 	(funcall (vc-info-insert-log-fun vc-info)
 		 vc-info
-		 (make-hemlock-output-stream mark)
+		 (make-editor-output-stream mark)
 		 (namestring file))))
     (change-to-buffer buffer)
     (buffer-start (current-point))
@@ -381,7 +400,7 @@
     (or buffer
 	(progn
 	  (setf buffer (make-buffer (value vc-comparison-buffer)
-				    :modes '("Fundamental" "VC-Log")))
+				    :modes '("Fundamental" "VC Log")))
 	  (turn-auto-save-off buffer)))
     buffer))
 
@@ -406,7 +425,7 @@
 			  :default (vc-info-version vc-info)))))
 	(funcall (vc-info-compare-fun vc-info)
 		 vc-info
-		 (make-hemlock-output-stream mark)
+		 (make-editor-output-stream mark)
 		 (namestring pathname)
 		 tag1 tag2)))
     (change-to-buffer buffer)
@@ -414,8 +433,7 @@
     (setf (buffer-modified buffer) nil)
     (message "Done.")))
 
-(defcommand "VC Compare File" (p &optional file)
-  "Compare a prompted file to the version in the repository."
+(defcommand "VC Compare File" (p file)
   "Compare a prompted file to the version in the repository."
   (declare (ignore p))
   (let ((file (or file
@@ -430,7 +448,7 @@
       (let ((vc-info (make-vc-info file)))
 	(funcall (vc-info-compare-fun vc-info)
 		 vc-info
-		 (make-hemlock-output-stream mark)
+		 (make-editor-output-stream mark)
 		 (namestring file))))
     (change-to-buffer buffer)
     (buffer-start (current-point))
@@ -440,17 +458,15 @@
 
 ;;;; VC Info updating.
 
-(defhvar "VC Info"
-  "VC information for this buffer."
-  :value nil)
+(defevar "VC Info"
+  "VC information for this buffer.")
 
 (defun update-buffer-vc-info (buffer &optional existp)
   (declare (ignore existp))
   (or (editor-bound-p 'vc-info :buffer buffer)
-      (defhvar "VC Info"
+      (defevar "VC Info"
 	"VC information for this buffer."
-	:buffer buffer
-	:value nil))
+	:buffer buffer))
   (setf (variable-value 'vc-info :buffer buffer)
 	(make-vc-info (buffer-pathname buffer)))
   (edi::update-modelines-for-buffer buffer))
@@ -458,10 +474,8 @@
 (add-hook read-file-hook 'update-buffer-vc-info)
 (add-hook write-file-hook 'update-buffer-vc-info)
 
-(defcommand "VC Update All VC Info Variables" (p)
+(defcommand "VC Update All VC Info Variables" ()
   "Update the ``VC Info'' variable for all buffers."
-  "Update the ``VC Info'' variable for all buffers."
-  (declare (ignore p))
   (dolist (buffer *buffer-list*)
     (update-buffer-vc-info buffer))
   (dolist (window *window-list*)
@@ -513,22 +527,22 @@
   "Insert in Stream the log for the file Pathname."
   (declare (ignore vc-info))
   (in-directory pathname
-    (do-command t "cvs" (list "log" (file-namestring pathname))
-		:output stream)))
+    (do-vc-command t "cvs" (list "log" (file-namestring pathname))
+		   :output stream)))
 
 (defun cvs-compare (vc-info stream pathname &optional tag1 tag2)
   "Insert in Stream a comparison of Pathname and the repository version.
    If tag1 and tag2 are given compare those versions of Pathname."
   (declare (ignore vc-info))
   (in-directory pathname
-    (do-command nil "cvs"
-		(if tag1
-		    (list "diff" "-r" tag1 "-r" tag2
-			  (file-namestring pathname))
-		    (list "diff" (file-namestring pathname)))
-		:output stream)))
+    (do-vc-command nil "cvs"
+		   (if tag1
+		       (list "diff" "-r" tag1 "-r" tag2
+			     (file-namestring pathname))
+		       (list "diff" (file-namestring pathname)))
+		   :output stream)))
 
-(defvar *cvs-update-file-recurse* nil
+(defvar *cvs-update-file-recurse* ()
   "If true cvs-update-file will recurse into subdirectories when updating a
    directory.")
 
@@ -537,10 +551,10 @@
    directory (recursively if *cvs-update-file-recurse* is true).  If Files
    is true then update the list in Files instead."
   (declare (ignore vc-info lock always-overwrite-p))
-  (let* ((pn-len (length (unix-namestring pathname)))
+  (let* ((pn-len (length (os-namestring pathname)))
 	 (names (if files
 		    (mapcar (lambda (file)
-			      (subseq (unix-namestring file) pn-len))
+			      (subseq (os-namestring file) pn-len))
 			    files)
 		    (list (file-namestring pathname)))))
     (if files
@@ -551,11 +565,11 @@
 				names)))
 	(message "Updating ~A ..." pathname))
     (in-directory pathname
-      (do-command t "cvs" (if (car names)
-			      (cons "update" names)
-			      (if *cvs-update-file-recurse*
-				  (list "update" ".")
-				  (list "update" "-l" ".")))))
+      (do-vc-command t "cvs" (if (car names)
+				 (cons "update" names)
+				 (if *cvs-update-file-recurse*
+				     (list "update" "-dP" ".")
+				     (list "update" "-dPl" ".")))))
     (invoke-hook vc-update-file-hook buffer pathname)
     (message "Done.")
     (car names)))
@@ -587,7 +601,7 @@
 			      (make-unique-buffer
 			       (format nil "CVS Description of ~S"
 				       (file-namestring pathname))
-			       :modes '("Text" "Fill" "Spell" "VC-Log-Entry")
+			       :modes '("Text" "Fill" "Spell" "VC Log Entry")
 			       :delete-hook
 			       (list #'(lambda (buffer)
 					 (declare (ignore buffer))
@@ -597,10 +611,10 @@
 			(let ((string (prompt-in-buffer descr-buffer)))
 			  (message "Adding ~A ..." (namestring pathname))
 			  (in-directory pathname
-			    (do-command t "cvs"
-					(list "add" "-m"
-					      string
-					      (file-namestring pathname)))))
+			    (do-vc-command t "cvs"
+					   (list "add" "-m"
+						 string
+						 (file-namestring pathname)))))
 			nil)
 		  (editor-error "Add and commit canceled."))
 	      (when (member old-buffer *buffer-list*)
@@ -609,10 +623,10 @@
 	      (delete-buffer-if-possible descr-buffer))
 	    (editor-error "Commit canceled.")))
     ;; Commit the file(s).
-    (let* ((pn-len (length (unix-namestring pathname)))
+    (let* ((pn-len (length (os-namestring pathname)))
 	   (names (if files
 		      (mapcar (lambda (file)
-				(subseq (unix-namestring file) pn-len))
+				(subseq (os-namestring file) pn-len))
 			      files)
 		      (list (file-namestring pathname))))
 	   (log-name (format nil "CVS Log Entry for ~:[~S~;~S ...~]"
@@ -627,13 +641,13 @@
 				       (mapcan (lambda (file) (list file " "))
 					       names)))
 			(format nil "Committing ~A ..." pathname)))
-	   (allow-delete nil))
+	   (allow-delete))
       (unwind-protect
 	  (when (block in-recursive-edit
 		  (setf log-buffer
 			(make-unique-buffer
 			 log-name
-			 :modes '("Text" "Fill" "Spell" "VC-Log-Entry")
+			 :modes '("Text" "Fill" "Spell" "VC Log Entry")
 			 :delete-hook
 			 (list #'(lambda (buffer)
 				   (declare (ignore buffer))
@@ -643,9 +657,9 @@
 		  (let ((string (prompt-in-buffer log-buffer)))
 		    (message message)
 		    (in-directory pathname
-		      (do-command t "cvs"
-				  (append (list "commit" "-m"
-						string names)))))
+		      (do-vc-command t "cvs"
+				     (append (list "commit" "-m" string)
+					     names))))
 		  (invoke-hook vc-commit-file-hook buffer names)
 		  nil)
 	    (editor-error "CVS commit canceled."))
@@ -690,7 +704,7 @@
   "Return the version and date of Pathname, according to Cvs-dir."
   (let* ((file (merge-pathnames "Entries" cvs-dir))
 	 (name (file-namestring pathname)))
-    (with-open-file (stream file :direction :input
+    (with-open-file (stream #| FIX |# (namestring file) :direction :input
 			    :if-does-not-exist :error)
       (loop for line = (read-line stream nil) while line do
 	(let ((strings (split line #\/)))
@@ -714,6 +728,14 @@
       (pop version2-strings))
     nil))
 
+(defun conflict-p (pathname)
+  "Return t if there is a conflict in PATHNAME, else ()."
+  (with-temp-buffer (buffer pathname)
+    (do-buffer-lines (line buffer)
+      (if (and (> (line-length line) 7)
+	       (at* "<<<<<<<" (mark line 0)))
+	  (return-from conflict-p t)))))
+
 (defun maybe-make-cvs-info (pathname connect)
   (let* ((dir (directory-namestring pathname))
 	 (cvs-dir
@@ -721,6 +743,7 @@
 		  (merge-pathnames "CVS" dir)))
 	 (stream (make-string-output-stream)))
     (when (probe-file cvs-dir)
+      ;; FIX for every file this parses entries  (cache with file time check?)
       (multiple-value-bind (rev-version rev-date)
 			   (parse-cvs-entries cvs-dir pathname)
 	(let ((vc-info (%make-vc-info :cvs
@@ -736,32 +759,35 @@
 	  (setf (vc-info-version vc-info) rev-version)
 	  (let ((entry (when connect
 			 (in-directory dir
-			   (do-command nil "cvs"
-				       `("ls" "-e"
-					 ,(file-namestring pathname))
-				       :output stream))
+			   (do-vc-command () "cvs"
+					  `("ls" "-e"
+					    ,(file-namestring pathname))
+					  :output stream))
 			 (get-output-stream-string stream))))
 	    (multiple-value-bind (cvs-version cvs-date)
 				 (parse-cvs-entry entry)
 	      (declare (ignore cvs-date))
 	      (setf (vc-info-status vc-info)
-; FIX
-; /test/1.2/Result of merge+Sat Oct 28 21:46:53 2006//
-		    (if (and (> (length rev-date) 14)
-			     (string= rev-date "Result of merge" :end1 15))
-			:merged
-			(let* ((date (file-write-date pathname))
-			       (rev-date (parse-time rev-date))
-; 			   (cvs-date (parse-time cvs-date))
-; 			   (needs-update (and cvs-date rev-date
-; 					      (> cvs-date rev-date))))
-			       (needs-update (and cvs-version rev-version
-						  (cvs-version-> cvs-version
-								 rev-version))))
-			  (cond
-			   ((and date rev-date (> date rev-date))
-			    (if needs-update :needs-merge :modified))
-			   (needs-update :needs-update))))))
+		    (if (and cvs-version
+			     (fi (directoryp pathname) (conflict-p pathname)))
+			:conflict
+			; FIX
+			; /test/1.2/Result of merge+Sat Oct 28 21:46:53 2006//
+			(if (and (> (length rev-date) 14)
+				 (string= rev-date "Result of merge" :end1 15))
+			    :merged
+			    (let* ((date (file-write-date pathname))
+				   (rev-date (parse-time rev-date))
+				   ;(cvs-date (parse-time cvs-date))
+				   ;(needs-update (and cvs-date rev-date
+				   ;(> cvs-date rev-date))))
+				   (needs-update (and cvs-version rev-version
+						      (cvs-version-> cvs-version
+								     rev-version))))
+			      (cond
+			       ((and date rev-date (> date rev-date))
+				(if needs-update :needs-merge :modified))
+			       (needs-update :needs-update)))))))
 	    vc-info))))))
 
 
@@ -770,7 +796,7 @@
 (defun rcs-insert-log (vc-info stream pathname)
   (declare (ignore vc-info))
   (in-directory pathname
-    (do-command t "rlog" (list (file-namestring pathname)) :output stream)))
+    (do-vc-command t "rlog" (list (file-namestring pathname)) :output stream)))
 
 (defvar *translate-file-names-before-locking* nil)
 
@@ -826,7 +852,7 @@
 	   (backup (if (probe-file file)
 		       (lisp::pick-backup-name file))))
       (when backup (rename-file file backup))
-      (do-command t "co" `(,@(if lock '("-l")) ,file))
+      (do-vc-command t "co" `(,@(if lock '("-l")) ,file))
       (invoke-hook vc-update-file-hook buffer pathname)
       (when backup (delete-file backup)))))
 
@@ -837,10 +863,10 @@
 	(log-buffer nil))
     (let* (
 ; FIX for doing all in one cmd
-;          (pn-len (length (unix-namestring pathname)))
+;          (pn-len (length (os-namestring pathname)))
 ; 	   (files (if files
 ; 		      (mapcar (lambda (file)
-; 				(subseq (unix-namestring file) pn-len))
+; 				(subseq (os-namestring file) pn-len))
 ; 			      files)
 ; 		      (list (file-namestring pathname))))
 	   (names (or files
@@ -880,7 +906,7 @@
 		  (message message)
 		  ;; FIX should do in one cmd
 		  (dolist (file names)
-		    (let ((log-stream (make-hemlock-region-stream
+		    (let ((log-stream (make-editor-region-stream
 				       (buffer-region log-buffer))))
 		      (sub-rcs-commit-file file buffer keep-lock log-stream)))
 		  (invoke-hook vc-commit-file-hook buffer pathname)
@@ -901,10 +927,10 @@
 				    (value
 				     vc-keep-around-after-unlocking)))))
     (in-directory pathname
-      (do-command t "ci" `(,@(if keep-lock '("-l"))
-			     ,@(if keep-working-copy '("-u"))
-			     ,filename)
-		  :input log-stream)
+      (do-vc-command t "ci" `(,@(if keep-lock '("-l"))
+				,@(if keep-working-copy '("-u"))
+				,filename)
+		     :input log-stream)
       (if keep-working-copy
 	  ;; Set the times on the user's file to be equivalent to those of
 	  ;; the RCS file.
@@ -925,23 +951,13 @@
 				 (unix:get-unix-error-msg ino)))))
 	  (delete-buffer-if-possible buffer)))))
 
-(defun pick-temp-file (defaults)
-  (let ((index 0))
-    (loop
-      (let ((name (merge-pathnames (format nil ",vctmp-~D" index)
-				   defaults)))
-	(cond ((probe-file name)
-	       (incf index))
-	      (t
-	       (return name)))))))
-
 (defun rcs-toggle-file-lock (vc-info buffer pathname)
   (case (vc-info-status vc-info)
     (:locked
      (message "Releasing lock on ~A ..." (namestring pathname))
      (let ((file (file-namestring pathname)))
        (in-directory pathname
-	 (do-command t "rcs" `("-u" ,file))
+	 (do-vc-command t "rcs" `("-u" ,file))
 	 (multiple-value-bind (success dev ino mode)
 			      (unix:unix-stat file)
 	   (declare (ignore ino))
@@ -958,13 +974,13 @@
        (message "Buffer is now read only.")))
     (t
      (if buffer
-	 (let ((name (pick-temp-file "/tmp/")))
+	 (let ((name (pick-new-file "/tmp/,vctmp-~D-~D")))
 	   (rcs-lock-file buffer pathname)
 	   (unwind-protect
 	       (progn
 		 (in-directory pathname
-		   (do-command t "co" `("-p" ,(file-namestring pathname))
-			       :output (namestring name)))
+		   (do-vc-command t "co" `("-p" ,(file-namestring pathname))
+				  :output (namestring name)))
 		 (when (buffer-different-from-file buffer name)
 		   (message
 		    "RCS file is different; be sure to merge in your changes."))
@@ -978,7 +994,7 @@
   (message "Locking ~A ..." (namestring pathname))
   (in-directory pathname
     (let ((file (file-namestring pathname)))
-      (do-command t "rcs" `("-l" ,file))
+      (do-vc-command t "rcs" `("-l" ,file))
       (multiple-value-bind (won dev ino mode) (unix:unix-stat file)
 	(declare (ignore ino))
 	(cond (won

@@ -43,9 +43,11 @@ boolean search_for_symbol(char *name, lispobj **start, int *count)
 	if (LowtagOf(symbol->name) == type_OtherPointer) {
             symbol_name = (struct vector *)PTR(symbol->name);
             if (valid_addr((os_vm_address_t)symbol_name) &&
-		TypeOf(symbol_name->header) == type_SimpleString &&
-		strcmp((char *)symbol_name->data, name) == 0)
-                return TRUE;
+		TypeOf(symbol_name->header) == type_SimpleString) {
+		printf(" vs %s\n", (char *)symbol_name->data);
+		if (strcmp((char *)symbol_name->data, name) == 0)
+		    return TRUE;
+	    }
 	}
         (*start) += 2;
     }

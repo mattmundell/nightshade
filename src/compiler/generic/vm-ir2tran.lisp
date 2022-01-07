@@ -1,17 +1,6 @@
-;;; -*- Package: C -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/generic/vm-ir2tran.lisp,v 1.9 1997/01/18 14:31:15 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file
-;;; 
-(in-package :c)
+;;; FIX
+
+(in-package "C")
 
 (export '(slot set-slot make-unbound-marker fixed-alloc var-alloc
 	  %set-function-self large-alloc))
@@ -106,10 +95,8 @@
     (do-inits node block name result lowtag inits args)
     (move-continuation-result node block locs cont)))
 
-
 
 ;;;; Other allocation support.
-
 
 #+gengc
 (defoptimizer (make-array-header ir2-convert) ((type rank) node block)
@@ -168,7 +155,6 @@
 	(emit-move node block entry res)))
   (undefined-value))
 
-
 #+gengc
 (defun ir2-convert-set (node block)
   (declare (type cset node) (type ir2-block block))
@@ -200,14 +186,12 @@
       (move-continuation-result node block locs cont)))
   (undefined-value))
 
-
 #+gengc
 (defoptimizer (%lexical-exit-breakup ir2-convert) ((info) node block)
   (vop value-cell-set node block
        (find-in-environment (continuation-value info) (node-environment node))
        (emit-constant 0)
        nil))
-
 
 #+gengc
 (defoptimizer (%slot-setter ir2-convert) ((value str) node block)
@@ -221,5 +205,5 @@
 	    (continuation-use
 	     (combination-fun node)))))
 	 (needs-remembering value))
-  
+
     (move-continuation-result node block (list val) (node-cont node))))

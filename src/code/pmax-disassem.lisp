@@ -42,8 +42,8 @@
 ;;;; Register Names
 
 (defun register-name (register-number)
-  (unless (<= 0 register-number 31)
-    (error "Illegal register number!"))
+  (or (<= 0 register-number 31)
+      (error "Illegal register number."))
   (svref *register-names* register-number))
 
 

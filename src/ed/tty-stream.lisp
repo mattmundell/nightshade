@@ -5,12 +5,10 @@
 
 (in-package "EDI")
 
-
 
 ;;;; Constants
 
 (defconstant tty-hunk-width-limit 200)
-
 
 
 ;;;; Structures
@@ -31,7 +29,6 @@
 				   (:constructor
 				    make-tty-hunk-output-stream ()))
   (hunk (make-stream-hunk :buffer (make-string tty-hunk-width-limit))))
-
 
 
 ;;;; Tty-hunk-output-stream methods

@@ -1,12 +1,13 @@
 ;;; Makefile mode.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 (defvar make-special-forms (make-hash-table :size 50 :test #'equal)
   "A hashtable of special form names in Makefiles.")
 
 (setf (gethash "ifdef" make-special-forms) t)
 (setf (gethash "ifndef" make-special-forms) t)
+(setf (gethash "else" make-special-forms) t)
 (setf (gethash "endif" make-special-forms) t)
 (setf (gethash "include" make-special-forms) t)
 
@@ -15,20 +16,20 @@
     (let ((chars (line-string line))
 	  (comment-end (value comment-end))
 	  (pos 0))
-      (if *in-string*
-	  (progn
-	    (chi-mark line 0 *string-font* chi-info)
-	    (setq pos (1+ (or (search-for-qmark chars)
-			      (return-from highlight-make-line))))
-	    (chi-mark line pos *original-font* chi-info)
-	    (setq *in-string* nil))
-	  (when *in-comment*
-	    (chi-mark line 0 *comment-font* chi-info)
-	    (setq pos (+ (or (search comment-end chars)
-			     (return-from highlight-make-line))
-			 (length comment-end)))
-	    (chi-mark line pos *original-font* chi-info)
-	    (setq *in-comment* nil)))
+      (case *context*
+	(:string
+	 (chi-mark line 0 *string-font* :string chi-info)
+	 (setq pos (1+ (or (search-for-qmark chars)
+			   (return-from highlight-make-line))))
+	 (chi-mark line pos *original-font* :window-foreground chi-info)
+	 (setq *context* ()))
+	(:comment
+	 (chi-mark line 0 *comment-font* :comment chi-info)
+	 (setq pos (+ (or (search comment-end chars)
+			  (return-from highlight-make-line))
+		      (length comment-end)))
+	 (chi-mark line pos *original-font* :window-foreground chi-info)
+	 (setq *context* ())))
       (let ((comment-start (value comment-start)))
 	(loop
 	  (let ((string (or (search-for-qmark chars pos)
@@ -54,50 +55,64 @@
 		      (return-from nil))
 		  (when (gethash (subseq chars start (mark-charpos end))
 				 make-special-forms)
-		    (chi-mark line start *special-form-font* chi-info)
-		    (chi-mark line (mark-charpos end) *original-font* chi-info)))))
+		    (chi-mark line start *special-form-font*
+			      :special-form chi-info)
+		    (chi-mark line (mark-charpos end) *original-font*
+			      :window-foreground chi-info)))))
 	    ;; Highlight the rest.
 	    (cond ((< string (min colon dollar multic))
-		   (chi-mark line string *string-font* chi-info)
+		   (chi-mark line string *string-font*
+			     :string chi-info)
 		   (setq pos (search-for-qmark chars (1+ string)))
 		   (if pos
-		       (chi-mark line (incf pos) *original-font* chi-info)
+		       (chi-mark line (incf pos) *original-font*
+				 :window-foreground chi-info)
 		       (progn
-			 (setq *in-string* t)
+			 (setq *context* :string)
 			 (return-from highlight-make-line))))
 
 		  ((< colon (min string dollar multic))
 		   (setq pos (1+ colon))
-		   (when (zerop (character-attribute :whitespace (char (line-string line) 0)))
-		     (chi-mark line 0 *preprocessor-font* chi-info)
-		     (chi-mark line pos *original-font* chi-info)))
+		   (when (zerop (character-attribute
+				 :whitespace
+				 (char (line-string line) 0)))
+		     (chi-mark line 0 *preprocessor-font*
+			       :preprocessor chi-info)
+		     (chi-mark line pos *original-font*
+			       :window-foreground chi-info)))
 
 		  ((< dollar (min string colon multic))
-		   (cond ((zerop (character-attribute :whitespace
-						      (char (line-string line) 0)))
+		   (cond ((zerop (character-attribute
+				  :whitespace
+				  (char (line-string line) 0)))
 			  (setq pos (1+ dollar)))
 			 ((and (> (line-length line) (1+ dollar))
 			       (eq (char (line-string line) (1+ dollar)) #\$))
 			  (setq pos (+ dollar 2)))
 			 (t
-			  (chi-mark line dollar *variable-name-font* chi-info)
+			  (chi-mark line dollar *variable-name-font*
+				    *variable-name-font* chi-info)
 			  (let* ((mark (mark line dollar))
 				 (end (find-attribute mark :whitespace)))
 			    (or end (return-from highlight-make-line))
-			    (chi-mark line (mark-charpos end) *original-font* chi-info)
+			    (chi-mark line (mark-charpos end)
+				      *original-font* :window-foreground
+				      chi-info)
 			    (setq pos (mark-charpos end))))))
 
 		  ((< multic (min string colon dollar))
-		   (chi-mark line multic *comment-font* chi-info)
+		   (chi-mark line multic *comment-font* :comment
+			     chi-info)
 		   (or comment-end (return-from highlight-make-line))
 		   (setq pos
 			 (search comment-end chars
 				 :start2 (+ multic (length comment-start))))
 		   (if pos
 		       (chi-mark line (incf pos (length comment-end))
-				 *original-font* chi-info)
+				 *original-font* :window-foreground
+				 chi-info)
 		       (progn
-			 (setq *in-comment* t)
+			 (setq *context* :comment)
 			 (return-from highlight-make-line))))
 
 		  (t
@@ -113,32 +128,31 @@
 (defmode "Make" :major-p t
   :setup-function 'setup-make-mode)
 
-(defcommand "Make Mode" (p)
+(defcommand "Make Mode" ()
   "Put the current buffer into \"Make\" mode."
-  "Put the current buffer into \"Make\" mode."
-  (declare (ignore p))
   (setf (buffer-major-mode (current-buffer)) "Make"))
 
-(defhvar "Indent Function"
-  "Indentation function which is invoked by \"Indent\" command.
-   It must take one argument that is the prefix argument."
+(defevar "Indent Function"
+  "Indentation function invoked by the `Indent' command.  The function
+   takes a :left-inserting mark that may be moved, and indents the line
+   that the mark is on."
   :value #'tab-to-tab-stop
   :mode "Make")
 
-(defhvar "Auto Fill Space Indent"
-  "When non-nil, uses \"Indent New Comment Line\" to break lines instead of
-   \"New Line\"."
+(defevar "Auto Fill Space Indent"
+  "When true, uses `Indent New Comment Line' to break lines instead of `New
+   Line'."
   :mode "Make" :value t)
 
-(defhvar "Comment Start"
+(defevar "Comment Start"
   "String that indicates the start of a comment."
   :mode "Make" :value "#")
 
-(defhvar "Comment End"
+(defevar "Comment End"
   "String that ends comments.  Nil indicates #\newline termination."
-  :mode "Make" :value nil)
+  :mode "Make")
 
-(defhvar "Comment Begin"
+(defevar "Comment Begin"
   "String that is inserted to begin a comment."
   :mode "Make" :value "# ")
 

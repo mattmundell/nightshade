@@ -1,22 +1,6 @@
-;;; -*- Package: MIPS -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/move.lisp,v 1.35 1994/10/31 04:44:16 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the MIPS VM definition of operand loading/saving and
-;;; the Move VOP.
-;;;
-;;; Written by Rob MacLachlan.
-;;; MIPS conversion by William Lott.
-;;;
-(in-package "MIPS")
+;;; The MIPS VM definition of operand loading/saving and the Move VOP.
 
+(in-package "MIPS")
 
 (define-move-function (load-immediate 1) (vop x y)
   ((null zero immediate)
@@ -75,7 +59,7 @@
     (storew x nfp (tn-offset y))))
 
 
-;;;; The Move VOP:
+;;;; The Move VOP.
 ;;;
 (define-vop (move)
   (:args (x :target y
@@ -123,7 +107,6 @@
   (any-reg descriptor-reg null zero)
   (any-reg descriptor-reg))
 
-
 
 ;;;; ILLEGAL-MOVE
 
@@ -141,9 +124,8 @@
   (:generator 666
     (error-call vop object-not-type-error x type)))
 
-
 
-;;;; Moves and coercions:
+;;;; Moves and coercions.
 
 ;;; These MOVE-TO-WORD VOPs move a tagged integer to a raw full-word
 ;;; representation.  Similarly, the MOVE-FROM-WORD VOPs converts a raw integer
@@ -192,7 +174,6 @@
 (define-move-vop move-to-word/integer :move
   (descriptor-reg) (signed-reg unsigned-reg))
 
-
 ;;; Result is a fixnum, so we can just shift.  We need the result type
 ;;; restriction because of the control-stack ambiguity noted above.
 ;;;
@@ -225,20 +206,19 @@
       (inst nor temp zero-tn)
       (inst beq temp done)
       (inst sll y x 2)
-      
+
       (with-fixed-allocation
 	  (y pa-flag temp bignum-type (1+ bignum-digits-offset))
 	(storew x y bignum-digits-offset other-pointer-type))
       (inst b done)
       (inst nop)
-      
+
       (emit-label fixnum)
       (inst sll y x 2)
       (emit-label done))))
 ;;;
 (define-move-vop move-from-signed :move
   (signed-reg) (descriptor-reg))
-
 
 ;;; Check for fixnum, and possibly allocate one or two word bignum result.  Use
 ;;; a worst-case cost to make sure people know they may be number consing.
@@ -255,7 +235,7 @@
     (inst srl temp x 29)
     (inst beq temp done)
     (inst sll y x 2)
-      
+
     #-gengc
     (pseudo-atomic
 	(pa-flag :extra (pad-data-block (+ bignum-digits-offset 2)))
@@ -280,7 +260,6 @@
 (define-move-vop move-from-unsigned :move
   (unsigned-reg) (descriptor-reg))
 
-
 ;;; Move untagged numbers.
 ;;;
 (define-vop (word-move)
@@ -297,7 +276,6 @@
 ;;;
 (define-move-vop word-move :move
   (signed-reg unsigned-reg) (signed-reg unsigned-reg))
-
 
 ;;; Move untagged number arguments/return-values.
 ;;;
@@ -317,7 +295,6 @@
 ;;;
 (define-move-vop move-word-argument :move-argument
   (descriptor-reg any-reg signed-reg unsigned-reg) (signed-reg unsigned-reg))
-
 
 ;;; Use standard MOVE-ARGUMENT + coercion to move an untagged number to a
 ;;; descriptor passing location.

@@ -5,9 +5,10 @@
 (use-package "KERNEL")
 
 (in-package "LISP")
-(export '(format formatter))
+(export '(format formatter e))
 
 (in-package "FORMAT")
+(export '(directive-count))
 
 (defstruct (format-directive
 	    (:print-function %print-format-directive))
@@ -25,6 +26,50 @@
     (write-string (format-directive-string struct) stream
 		  :start (format-directive-start struct)
 		  :end (format-directive-end struct))))
+
+(defun format-directive= (fd1 fd2)
+  "Return true if $fd1 is the same kind of format directive as $fd2.  That
+   is, if the character, colonp and atsignp slots are `equal'."
+  (and (equal (format-directive-character fd1)
+	      (format-directive-character fd2))
+       (equal (format-directive-colonp fd1)
+	      (format-directive-colonp fd2))
+       (equal (format-directive-atsignp fd1)
+	      (format-directive-atsignp fd2))))
+
+;;; Public
+;;;
+(defun directive-count (string &optional type-string)
+  "Return the number of directives in format control string $string.
+
+   If $type-string is true then only count directives that are also present
+   in $type-string."
+  (let ((count 0)
+	(string (etypecase string
+		  (simple-string
+		   string)
+		  (string
+		   (coerce string 'simple-string)))))
+    (if type-string
+	(let* ((type-string (etypecase type-string
+			      (simple-string
+			       type-string)
+			      (string
+			       (coerce type-string 'simple-string))))
+	       (types (delete-if
+		       #'stringp
+		       (tokenize-control-string type-string))))
+	  (dolist (directive (tokenize-control-string string))
+	    (etypecase directive
+	      (string)
+	      (format-directive
+	       (if (member directive types :test #'format::format-directive=)
+		   (incf count))))))
+	(dolist (directive (tokenize-control-string string))
+	  (etypecase directive
+	    (string)
+	    (format-directive (incf count)))))
+    count))
 
 (defvar *format-directive-expanders*
   (make-array char-code-limit :initial-element nil))
@@ -165,13 +210,13 @@
 ;;; *UP-UP-AND-OUT-ALLOWED* -- internal.
 ;;;
 ;;; Used both by the expansion stuff and the interpreter stuff.  When it is
-;;; non-NIL, up-up-and-out (~:^) is allowed.  Otherwise, ~:^ isn't allowed.
+;;; true, up-up-and-out (~:^) is allowed.  Otherwise, ~:^ isn't allowed.
 ;;;
 (defvar *up-up-and-out-allowed* nil)
 
 ;;; *LOGICAL-BLOCK-POPPER* -- internal.
 ;;;
-;;; Used by the interpreter stuff.  When it non-NIL, its a function that will
+;;; Used by the interpreter stuff.  When it true, its a function that will
 ;;; invoke PPRINT-POP in the right lexical environemnt.
 ;;;
 (defvar *logical-block-popper* nil)
@@ -209,84 +254,103 @@
 
 ;;;; FORMAT
 
+;; FIX if dest a list output to multiple streams?
+;; FIX if dest a string that is control-string, output to string?
+;;         eg (format "~D" 10) => "10"
+;;         better to stdout?  (format t "..")
+;;         string could name a file
+;;             maybe to file if a pathname (easy to #p"")
 (defun format (destination control-string &rest format-arguments)
-  "Provides various facilities for formatting output.
-   CONTROL-STRING contains a string to be output, possibly with embedded
-   directives, which are flagged with the escape character \"~\".  Directives
-   generally expand into additional text to be output, usually consuming one
-   or more of the FORMAT-ARGUMENTS in the process.  A few useful directives
-   are:
-      ~A or ~nA     Prints one argument as if by PRINC
-      ~S or ~nS     Prints one argument as if by PRIN1
-      ~D or ~nD     Prints one argument as a decimal integer
-      ~%            Does a TERPRI
-      ~&            Does a FRESH-LINE
+  "Provide various facilities for formatted output.
 
-   where n is the width of the field in which the object is printed.
+   $control-string contains a string to be output, possibly with embedded
+   directives, which are flagged with the escape character \"~\".
+   Directives generally expand into additional text to be output, usually
+   consuming one or more of the $format-arguments in the process.  A few
+   useful directives are:
 
-   DESTINATION controls where the result will go.  If DESTINATION is T, then
-   the output is sent to the standard output stream.  If it is NIL, then the
-   output is returned in a string as the value of the call.  Otherwise,
-   DESTINATION must be a stream to which the output will be sent.
+      ~A or ~nA     Print one argument as if by PRINC
+      ~S or ~nS     Print one argument as if by PRIN1
+      ~D or ~nD     Print one argument as a decimal integer
 
-   Example:   (FORMAT () \"The answer is ~D.\" 10) => \"The answer is 10.\"
+   where n is the width of the field in which the object is printed, and
+
+      ~% or ~n%     Print on new line or n new lines, as by `terpri'
+      ~&            Do a `fresh-line' (ensure positioned at start of a new line).
+
+   $destination controls where the result will go.  If $destination is #t,
+   then the output is sent to the standard output stream.  If it is #f,
+   then the output is returned in a string as the value of the call.
+   Otherwise, $destination must be a stream to which the output will be
+   sent.
+
+   Example:   (format () \"The answer is ~D.\" 10)
+                 => \"The answer is 10.\"
 
    Other directives include:
 
-      ~C            Prints a character  (with : prints #\  as Space)
-      ~T            Prints a tab
+      ~~            Print the ~ character.
+      ~C            Print a character (with : print #\space as Space)
+      ~T            Print a tab
+      ~| or ~n|     Print a page break, or n page breaks
 
-      ~@(...~)      Prints contents of braces (...) as a capitalized string
-      ~:@(...~)     Prints contents of braces (...) in upper case
-      ~P            Prints an s if the argument is plural (> 0), else ""
-      ~:P           Prints an s if the previous argument is plural, else ""
+      ~@(...~)      Print contents of braces (...) as a capitalized string
+      ~:@(...~)     Print contents of braces (...) in upper case
+      ~P            Print an s if the argument is plural (> 0), else ""
+      ~:P           Print an s if the previous argument is plural, else ""
 
-
-      ~/user:xxx/   Calls the function xxx with the output stream, next
+      ~/user:x/     Call the function x with the output stream, next
 		    format argument and FIX possibly other args.
 
+      ~n<...~>       Print content right-aligned in n spaces
+      ~@n<...~>      Print content left-aligned in n spaces
 
-      ~n<...>       Prints content right-aligned in n spaces
-      ~@n<...>      Prints content right-aligned in n spaces
+      Printing of numeric arguments
+
+         ~B            Binary
+         ~D            Decimal
+         ~O            Octal
+         ~X            Hexadecimal
+         ~F            FIX Fixed/Float
+         ~5,2F         right aligned in at least 5 spaces with 2 places
+         ~@5,2F        Same, with a sign
+         ~:D           Decimal with commas, e.g. 30,000
+         ~R            Words ordinal, e.g. one hundred
+         ~:R           Words cardinal, e.g. one hundredth
+         ~@R           Roman numerals.
+         ~@:R          Old roman numerals.
 
       Conditionals
 
-	  ~[...~;...~]  Prints ~; seperated element indexed by first argument
-	  ~#[...~;...~] Prints ~; seperated element indexed by number of arguments
-			    If the final seperator is ~:; prints the element for
+	  ~[...~;...~]  Print ~; separated element indexed by first argument
+	  ~#[...~;...~] Print ~; separated element indexed by number of arguments
+			    If the final seperator is ~:; print the element for
 			    any number of arguments higher than the final index.
-	  ~:[...~;...~] Prints second alternative if argument is true, else first
-	  ~@[...~]      Prints ... if argument is true
+	  ~:[...~;...~] Print second alternative if argument is true, else first
+	  ~@[...~]      Print ... if argument is true
 
       Iteration
 
 	  ~{...}    Iterate over the elements in the first argument, a list.
 	  ~@{...}   Iterate over the argument.
 
-	     In all of the above elements are used up by the directive inside
-	     the braces.
+	     In the above two a list element or argument, respectively, is
+	     \"used up\" by each directive inside the braces.
 
 FIX
+      case sensitive?
+
       ~*            Reference?
          ~@[~* including the header~]
 
       ~@<...~:>     Logical block.
 
 ~@<Warning:  ~3i~:_~A~:>~%
-~,2f
 (:short \"~D/~D/~2,'0D\")			;;  MM/DD/YY
    ~2,'0D turns 9 into 09
 ~36R   1 = 1, 35 = Z, 36 = 10
 
-      Printing of numeric arguments
-         ~B            Binary
-         ~O            Octal
-         ~X            Hexadecimal
-         ~:D           Decimal with commas, e.g. 30,000
-         ~R            Words, e.g. one hundred
-         ~@R           Roman numerals.
-
-  FIX FORMAT has many additional capabilities."
+  FIX `format' has many additional capabilities."
   (etypecase destination
     (null
      (with-output-to-string (stream)
@@ -300,6 +364,11 @@ FIX
     (stream
      (%format destination control-string format-arguments)
      nil)))
+
+;; FIX
+(defun e (string &rest args)
+  "Format to standard output (e for echo), for quick tracing."
+  (apply #'format t string args))
 
 (defun %format (stream string-or-fun orig-args &optional (args orig-args))
   (if (functionp string-or-fun)
@@ -636,8 +705,8 @@ FIX
 ;;;; Simple outputting noise.
 
 (defun format-write-field (stream string mincol colinc minpad padchar padleft)
-  (unless padleft
-    (write-string string stream))
+  (or padleft
+      (write-string string stream))
   (dotimes (i minpad)
     (write-char padchar stream))
   (do ((chars (+ (length string) minpad) (+ chars colinc)))
@@ -697,7 +766,6 @@ FIX
 	(t
 	 `(prin1 ,(expand-next-arg) stream))))
 
-;; FIX same as previous
 (def-format-interpreter #\S (colonp atsignp params)
   (cond (params
 	 (interpret-bind-defaults ((mincol 0) (colinc 1) (minpad 0)

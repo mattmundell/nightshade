@@ -1,22 +1,9 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/char.lisp,v 1.2 1994/10/31 04:42:45 ram Exp $")
-;;;
-;;; **********************************************************************
-;;; 
-;;; This file contains the HPPA VM definition of character operations.
-;;;
-;;; Written by William Lott
-;;;
+;;; The HPPA VM definition of character operations.
+
 (in-package "HPPA")
 
 
-;;;; Moves and coercions:
+;;;; Moves and coercions.
 
 ;;; Move a tagged char to an untagged representation.
 ;;;
@@ -57,7 +44,6 @@
 (define-move-vop base-char-move :move
   (base-char-reg) (base-char-reg))
 
-
 ;;; Move untagged base-char arguments/return-values.
 ;;;
 (define-vop (move-base-char-argument)
@@ -76,16 +62,14 @@
 (define-move-vop move-base-char-argument :move-argument
   (any-reg base-char-reg) (base-char-reg))
 
-
 ;;; Use standard MOVE-ARGUMENT + coercion to move an untagged base-char
 ;;; to a descriptor passing location.
 ;;;
 (define-move-vop move-argument :move-argument
   (base-char-reg) (any-reg descriptor-reg))
 
-
 
-;;;; Other operations:
+;;;; Other operations.
 
 (define-vop (char-code)
   (:translate char-code)
@@ -109,7 +93,7 @@
 
 
 ;;; Comparison of base-chars.
-;;;
+
 (define-vop (base-char-compare)
   (:args (x :scs (base-char-reg))
 	 (y :scs (base-char-reg)))

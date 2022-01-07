@@ -7,6 +7,23 @@
 (in-package "SYSTEM")
 (import 'alien:load-foreign)
 
+
+#[ Loading Unix Object Files
+
+Foreign object files are loaded into the running Lisp process by
+`load-foreign'.  First, it runs the linker on the files and libraries,
+creating an absolute Unix object file.  This object file is then loaded
+into into the currently running Lisp.  The external symbols defining
+routines and variables are made available for future external references
+(e.g.  by `extern-alien'.)  `load-foreign' must be run before any of the
+defined symbols are referenced.
+
+Note that if a Lisp core image is saved (using `save-lisp'), all loaded
+foreign code is lost when the image is restarted.
+
+{function:alien:load-foreign}
+]#
+
 #+sparc (defconstant foreign-segment-start #xe0000000)
 #+sparc (defconstant foreign-segment-size  #x00100000)
 
@@ -170,8 +187,8 @@
       (unix:unix-close fd))))
 
 (defun parse-symbol-table (name)
-  "Parse symbol table file created by load-foreign script.  Modified
-to skip undefined symbols which don't have an address."
+  "Parse symbol table file created by load-foreign script.  Modified to
+   skip undefined symbols which don't have an address."
   (format t ";;; Parsing symbol table...~%")
   (let ((symbol-table (make-hash-table :test #'equal)))
     (with-open-file (file name)
@@ -429,18 +446,24 @@ to skip undefined symbols which don't have an address."
 					     "path:")
 			    #+hpux "library:cmucl.orig")
 			   (env ext:*environment-list*))
-  "Load-foreign loads a list of C object files into a running Lisp.  The
-   files argument should be a single file or a list of files.  The files
-   may be specified as namestrings or as pathnames.  The libraries argument
-   should be a list of library files as would be specified to ld.  They
-   will be searched in the order given.  The default is just \"-lc\", i.e.,
-   the C library.  The base-file argument is used to specify a file to use
-   as the starting place for defined symbols.  The default is the C start
-   up code for Lisp.  The env argument is the Unix environment variable
-   definitions for the invocation of the linker.  The default is the
-   environment passed to Lisp."
-  (let ((output-file (pick-temporary-file-name))
-	(symbol-table-file (pick-temporary-file-name))
+  "Load a list of C object files into a running Lisp.
+
+   $files is a single file or a list of files.  The files may be specified
+   as namestrings or as pathnames.
+
+   $libraries should be a list of library files as would be specified to
+   Unix ld.  They will be searched in the order given.  The fallback is
+   just \"-lc\", i.e., the C library.
+
+   $base-file specifies a file to use as the starting place for defined
+   symbols.  The fallback is the C start up code for Lisp.
+
+   $env should be a list of simple strings in the format of Unix
+   environment variables (i.e., A=B, where A is an environment variable and
+   B is its value).  This specifies the Unix environment variable
+   definitions for the invocation of the linker."
+  (let ((output-file (pick-new-file))
+	(symbol-table-file (pick-new-file))
 	(error-output (make-string-output-stream))
 	(files (if (atom files) (list files) files)))
 
@@ -449,17 +472,17 @@ to skip undefined symbols which don't have an address."
     #+hpux
     (dolist (f files)
       (with-open-file (stream f :element-type '(unsigned-byte 16))
-	(unless (let ((sysid (read-byte stream)))
+	(or (let ((sysid (read-byte stream)))
                   (or (eql sysid cpu-pa-risc1-0)
 		      (and (>= sysid cpu-pa-risc1-1)
 			   (<= sysid cpu-pa-risc-max))))
-	  (error "Object file is wrong format, so can't load-foreign:~
-		  ~%  ~S"
-		 f))
-	(unless (eql (read-byte stream) reloc-magic)
-	  (error "Object file is not relocatable, so can't load-foreign:~
-		  ~%  ~S"
-		 f))))
+	    (error "Object file is wrong format, so can't load-foreign:~
+		    ~%  ~S"
+		   f))
+	(or (eql (read-byte stream) reloc-magic)
+	    (error "Object file is not relocatable, so can't load-foreign:~
+		    ~%  ~S"
+		   f))))
 
     (let ((proc (ext:run-program
 		 "library:load-foreign.csh"
@@ -470,7 +493,7 @@ to skip undefined symbols which don't have an address."
 			output-file
 			symbol-table-file
 			(append (mapcar #'(lambda (name)
-					    (unix-namestring name))
+					    (os-namestring name))
 					files)
 				libraries))
 		 :env env
@@ -488,10 +511,9 @@ to skip undefined symbols which don't have an address."
       (unix:unix-unlink symbol-table-file)
       (let ((old-file *previous-linked-object-file*))
 	(setf *previous-linked-object-file* output-file)
-	(when old-file
-	  (unix:unix-unlink old-file)))))
+	(if old-file
+	    (unix:unix-unlink old-file)))))
   (format t ";;; Done.~%"))
-
 
 (export '(alternate-get-global-address))
 
@@ -529,7 +551,8 @@ to skip undefined symbols which don't have an address."
   #+(or linux irix) "/usr/bin/ld")
 
 (alien:def-alien-routine dlopen system-area-pointer
-  (file c-call:c-string) (mode c-call:int))
+  (file c-call:c-string)
+  (mode c-call:int))
 (alien:def-alien-routine dlsym system-area-pointer
   (lib system-area-pointer)
   (name c-call:c-string))
@@ -575,21 +598,26 @@ to skip undefined symbols which don't have an address."
 			   (libraries '("-lc"))
 			   (base-file nil)
 			   (env ext:*environment-list*))
-  "Load-foreign loads a list of C object files into a running Lisp.  The
-   files argument should be a single file or a list of files.  The files
-   may be specified as namestrings or as pathnames.  The libraries argument
-   should be a list of library files as would be specified to ld.  They
-   will be searched in the order given.  The default is just \"-lc\", i.e.,
-   the C library.  The base-file argument is used to specify a file to use
-   as the starting place for defined symbols.  The default is the C start
-   up code for Lisp.  The env argument is the Unix environment variable
-   definitions for the invocation of the linker.  The default is the
-   environment passed to Lisp."
+  "Load a list of C object files into a running Lisp.
+
+   $files is a single file or a list of files.  The files may be specified
+   as namestrings or as pathnames.
+
+   $libraries should be a list of library files as would be specified to
+   Unix ld.  They will be searched in the order given.  The fallback is
+   just \"-lc\", i.e., the C library.
+
+   $base-file specifies a file to use as the starting place for defined
+   symbols.
+
+   $env should be a list of simple strings in the format of Unix
+   environment variables (i.e., A=B, where A is an environment variable and
+   B is its value).  This specifies the Unix environment variable
+   definitions for the invocation of the linker."
   ;; Note: dlopen remembers the name of an object, when dlopenin
   ;; the same name twice, the old objects is reused.
   (declare (ignore base-file))
-  (let ((output-file (pick-temporary-file-name
-		      (concatenate 'string "/tmp/~D~C" (string (gensym)))))
+  (let ((output-file (pick-new-file))
 	(error-output (make-string-output-stream)))
 
     (format t ";;; Running ~A...~%" *dso-linker*)
@@ -600,11 +628,12 @@ to skip undefined symbols which don't have an address."
 		        #+(or solaris linux) "-G" #+irix "-shared"
 			"-o"
 			output-file
-			(append (mapcar #'(lambda (name)
-					    (unix-namestring name))
-					(if (atom files)
-					    (list files)
-					    files))
+			(append (if files
+				    (mapcar #'(lambda (name)
+						(os-namestring name))
+					    (if (atom files)
+						(list files)
+						files)))
 				libraries))
 		 :env env
 		 :input nil

@@ -1,25 +1,10 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/fndb.lisp,v 1.68.2.10 2000/08/24 14:24:08 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file defines all the standard functions to be known functions.
-;;; Each function has type and side-effect information, and may also have IR1
-;;; optimizers.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; Knowledge of all the standard functions.  Each function has type and
+;;; side-effect information, and may also have IR1 optimizers.
+
 (in-package "C")
 
 (in-package "LISP")
-(import '(
-	  %aset
+(import '(%aset
 	  %bitset
 	  %charset
 	  %primitive
@@ -49,8 +34,7 @@
 	  string>=*
 	  string=*
 	  string/=*
-	  %sp-string-compare
-	  )
+	  %sp-string-compare)
 	"C")
 
 (in-package "KERNEL")
@@ -60,10 +44,10 @@
 (in-package "C")
 
 
-;;;; Information for known functions:
+;;;; Information for known functions.
 
 (defknown coerce (t type-specifier) t
-	  (movable foldable)			  ; Is defined to signal errors. 
+	  (movable foldable)			  ; Is defined to signal errors.
   :derive-type (result-type-specifier-nth-arg 2))
 
 (defknown type-of (t) t (foldable flushable))
@@ -74,7 +58,7 @@
   (flushable))
 
 
-;;;; In the "Predicates" chapter:
+;;;; In the "Predicates" chapter.
 
 (defknown typep (t type-specifier) boolean (foldable flushable))
 (defknown subtypep (type-specifier type-specifier) (values boolean boolean)
@@ -91,7 +75,7 @@
 (defknown (equal equalp) (t t) boolean (foldable flushable recursive))
 
 
-;;;; Classes:
+;;;; Classes.
 
 (deftype name-for-class () 't)
 (defknown class-name (class) name-for-class (flushable))
@@ -103,7 +87,7 @@
   (flushable unsafe))
 
 
-;;;; In the "Control Structure" chapter:
+;;;; In the "Control Structure" chapter.
 
 ;;; Not flushable, since required to signal an error if unbound.
 (defknown (symbol-value symbol-function) (symbol) t ())
@@ -134,12 +118,12 @@
 ;;; We let values-list be foldable, since constant-folding will turn it into
 ;;; VALUES.  VALUES is not foldable, since MV constants are represented by a
 ;;; call to VALUES.
-;;; 
+;;;
 (defknown values (&rest t) * (movable flushable unsafe))
 (defknown values-list (list) * (movable foldable flushable))
 
 
-;;;; In the "Macros" chapter:
+;;;; In the "Macros" chapter.
 
 (defknown macro-function (symbol &optional lexical-environment)
   (or function null)
@@ -152,12 +136,12 @@
   (flushable))
 
 
-;;;; In the "Declarations" chapter:
+;;;; In the "Declarations" chapter.
 
 (defknown proclaim (list) void)
 
 
-;;;; In the "Symbols" chapter:
+;;;; In the "Symbols" chapter.
 
 (defknown get (symbol t &optional t) t (flushable))
 (defknown remprop (symbol t) t)
@@ -172,13 +156,12 @@
 (defknown keywordp (t) boolean (flushable))	  ; If someone uninterns it...
 
 
-;;;; In the "Packages" chapter:
-
+;;;; In the "Packages" chapter.
 
 (deftype packagelike () '(or stringable package))
 (deftype symbols () '(or list symbol))
 
-;;; Should allow a package name, I think, tho CLtL II doesn't say so...
+;;; FIX Should allow a package name, I think, tho CLtL II doesn't say so...
 (defknown gentemp (&optional string packagelike) symbol)
 
 (defknown make-package (stringable &key (:use list) (:nicknames list)
@@ -208,7 +191,7 @@
 (defknown find-all-symbols (stringable) list (flushable))
 
 
-;;;; In the "Numbers" chapter:
+;;;; In the "Numbers" chapter.
 
 (defknown zerop (number) boolean (movable foldable flushable explicit-check))
 (defknown (plusp minusp) (real) boolean
@@ -250,7 +233,6 @@
 #+propagate-fun-type
 (defknown exp (number) irrational
   (movable foldable flushable explicit-check recursive))
-
 
 (defknown expt (number number) number
   (movable foldable flushable explicit-check recursive))
@@ -359,7 +341,7 @@
 (defknown byte (bit-index bit-index) byte-specifier
   (movable foldable flushable))
 (defknown (byte-size byte-position) (byte-specifier) bit-index
-  (movable foldable flushable)) 
+  (movable foldable flushable))
 (defknown ldb (byte-specifier integer) integer (movable foldable flushable))
 (defknown ldb-test (byte-specifier integer) boolean
   (movable foldable flushable))
@@ -400,7 +382,7 @@
   (movable foldable flushable))
 
 
-;;;; In the "Sequences" chapter:
+;;;; In the "Sequences" chapter.
 
 (defknown elt (sequence index) t (foldable flushable))
 
@@ -433,7 +415,7 @@
 ;  :derive-type 'type-spec-arg1  Nope... (map nil ...) returns null, not nil.
   )
 
-;;; Returns predicate result... 
+;;; Returns predicate result...
 (defknown some (callable sequence &rest sequence) t
   (foldable flushable call))
 
@@ -471,7 +453,7 @@
   (flushable call)
   :derive-type (sequence-result-nth-arg 3))
 
-(defknown (remove-if remove-if-not)
+(defknown (remove-if keep-if)
   (callable sequence &key (:from-end t) (:start index) (:end sequence-end)
 	    (:count sequence-end) (:key callable))
   consed-sequence
@@ -592,7 +574,7 @@
   :derive-type (sequence-result-nth-arg 1))
 
 
-;;;; In the "Manipulating List Structure" chapter:
+;;;; In the "Manipulating List Structure" chapter.
 
 (defknown (car cdr caar cadr cdar cddr caaar caadr cadar caddr cdaar cdadr
 	       cddar cdddr caaaar caaadr caadar caaddr cadaar cadadr caddar
@@ -614,8 +596,7 @@
 (defknown make-list (index &key (:initial-element t)) list
   (movable flushable unsafe))
 
-;;;
-;;; All but last must be list...
+;;; All but last must be lists.
 (defknown append (&rest t) t (flushable))
 
 (defknown copy-list (list) list (flushable))
@@ -663,7 +644,7 @@
   list
   (foldable flushable call))
 
-(defknown subsetp 
+(defknown subsetp
 	  (list list &key (:key callable) (:test callable) (:test-not callable))
   boolean
   (foldable flushable call))
@@ -679,9 +660,9 @@
 
 (defknown (memq assq) (t list) list (foldable flushable unsafe))
 (defknown delq (t list) list (flushable unsafe))
-  
+
 
-;;;; In the "Hash Tables" chapter:
+;;;; In the "Hash Tables" chapter.
 
 (defknown make-hash-table
   (&key (:test callable) (:size index)
@@ -708,7 +689,7 @@
 (defknown sxhash (t) non-negative-fixnum (foldable flushable))
 
 
-;;;; In the "Arrays" chapter:
+;;;; In the "Arrays" chapter.
 
 (defknown make-array ((or index list) &key (:element-type type-specifier)
 		      (:initial-element t) (:initial-contents t)
@@ -728,7 +709,7 @@
 (defknown array-dimensions (array) list (foldable flushable))
 (defknown array-in-bounds-p (array &rest index) boolean (foldable flushable))
 (defknown array-row-major-index (array &rest index) array-total-size
-  (foldable flushable)) 
+  (foldable flushable))
 (defknown array-total-size (array) array-total-size (foldable flushable))
 (defknown adjustable-array-p (array) boolean (movable foldable flushable))
 
@@ -763,7 +744,7 @@
 ;  :derive-type 'result-type-arg1) Not even close...
 
 
-;;;; In the "Strings" chapter:
+;;;; In the "Strings" chapter.
 
 (defknown char (string index) character (foldable flushable))
 (defknown schar (simple-string index) character (foldable flushable))
@@ -799,9 +780,9 @@
   (string &key (:start index) (:end sequence-end))
   string ())
 
-(defknown string (stringable) string
+;(defknown string (stringable) string
+(defknown string ((or stringable symbol number)) string
   (flushable explicit-check))
-
 
 ;;; Internal non-keyword versions of string predicates:
 
@@ -816,14 +797,14 @@
   (foldable flushable))
 
 
-;;;; In the "Eval" chapter:
+;;;; In the "Eval" chapter.
 
-(defknown eval (t) *)
+(defknown eval (t &optional pathnamelike index) *)
 (defknown constantp (t &optional lexical-environment) boolean
   (foldable flushable))
 
 
-;;;; In the "Streams" chapter:
+;;;; In the "Streams" chapter.
 
 (defknown make-synonym-stream (symbol) stream (flushable))
 (defknown make-broadcast-stream (&rest stream) stream (flushable))
@@ -840,7 +821,7 @@
 (defknown close (stream &key (:abort t)) t ())
 
 
-;;;; In the "Input/Output" chapter:
+;;;; In the "Input/Output" chapter.
 
 ;;; The I/O functions are currently given effects ANY under the theory that
 ;;; code motion over I/O operations is particularly confusing and not very
@@ -892,7 +873,7 @@
   (values t index))
 (defknown parse-integer
   (string &key (:start index) (:end sequence-end) (:radix (integer 2 36))
-	  (:junk-allowed t)) 
+	  (:junk-allowed t) (:errorp t))
   (values (or integer null ()) index))
 
 (defknown read-byte (stream &optional t t) t (explicit-check))
@@ -910,7 +891,7 @@
 (defknown (prin1 print princ) (t &optional streamlike) t (any explicit-check)
   :derive-type #'result-type-first-arg)
 
-;;; xxx-TO-STRING not foldable because they depend on the dynamic environment. 
+;;; xxx-TO-STRING not foldable because they depend on the dynamic environment.
 (defknown write-to-string
   (t &key (:escape t) (:radix t) (:base (integer 2 36)) (:readably t)
      (:circle t) (:pretty t) (:level (or unsigned-byte null))
@@ -947,11 +928,11 @@
   (explicit-check))
 
 
-;;;; In the "File System Interface" chapter:
+;;;; In the "File System Interface" chapter.
 
-;;; No pathname functions are foldable because they all potentially depend on
-;;; *default-pathname-defaults*, e.g. to provide a default host when parsing a
-;;; namestring.
+;;; No pathname functions are foldable because they all potentially depend
+;;; on *default-pathname-defaults*, e.g. to provide a default host when
+;;; parsing a namestring.
 
 (defknown wild-pathname-p (pathnamelike &optional (member nil :host :device
 							  :directory :name
@@ -1025,10 +1006,13 @@
 		(:external-format (member :default)))
   (or stream null))
 
-(defknown rename-file (pathnamelike filename) (values pathname pathname pathname))
+(defknown rename-file (pathnamelike filename &key (:check-for-links boolean))
+  (values pathname pathname (or pathname null)))
 (defknown delete-file (pathnamelike) t)
-(defknown probe-file (pathnamelike) (or pathname null) (flushable))
-(defknown file-write-date (pathnamelike) (or unsigned-byte null) (flushable))
+(defknown probe-file (pathnamelike &key (:check-for-links boolean))
+  (values (or pathname null) (or symbol null)) (flushable))
+(defknown file-write-date (pathnamelike &key (:check-for-links boolean))
+  (or unsigned-byte null) (flushable))
 (defknown file-author (pathnamelike) (or simple-string null) (flushable))
 
 (defknown file-position (stream &optional
@@ -1043,12 +1027,14 @@
    (:contents (or null (member :source :binary))))
   t)
 
-(defknown directory (pathnamelike &key (:check-for-subdirs t) (:all t)
-				  (:truenamep t) (:follow-links t))
+(defknown directory (&optional pathnamelike
+			  &key (:check-for-subdirs t) (:all t)
+			       (:truenamep t) (:follow-links t) (:backups t)
+			       (:recurse t) (:absolute t))
   list (flushable))
 
 
-;;;; In the "Errors" chapter:
+;;;; In the "Errors" chapter.
 
 (defknown error (t &rest t) nil) ; Never returns...
 (defknown cerror (string t &rest t) null)
@@ -1093,7 +1079,7 @@
 (defknown apropos (stringable &optional packagelike t) (values))
 (defknown apropos-list (stringable &optional packagelike t) list (flushable))
 
-(defknown get-decoded-time ()
+(defknown get-decoded-time (&optional (or null (rational -24 24)))
   (values (integer 0 59) (integer 0 59) (integer 0 23) (integer 1 31)
 	  (integer 1 12) unsigned-byte (integer 0 6) boolean (rational -24 24))
   (flushable))
@@ -1108,7 +1094,7 @@
 
 (defknown encode-universal-time
   ((integer 0 59) (integer 0 59) (integer 0 23) (integer 1 31)
-   (integer 1 12) unsigned-byte &optional (or null (rational -24 24)))
+   (integer 1 12) unsigned-byte &optional (or null (rational -24 24)) t)
   unsigned-byte
   (flushable))
 
@@ -1118,7 +1104,7 @@
 (defknown sleep ((or (rational 0) (float 0.0))) null)
 
 (defknown (lisp-implementation-type
-	   lisp-implementation-version machine-type machine-version
+	   version build-time machine-type machine-version
 	   machine-instance software-type software-version short-site-name
 	   long-site-name)
   () simple-string (flushable))
@@ -1131,7 +1117,7 @@
 (defknown complement (function) function (movable flushable))
 
 
-;;;; Magical compiler frobs:
+;;;; Magical compiler frobs.
 
 ;;; Can't fold in general because of SATISFIES.  There is a special optimizer
 ;;; anyway.
@@ -1155,7 +1141,7 @@
 (defknown (%catch-breakup %unwind-protect-breakup) () void)
 (defknown %lexical-exit-breakup (t) void)
 (defknown %continue-unwind (t t t) nil)
-(defknown %throw (t &rest t) nil); This is MV-called.
+(defknown %throw (t &rest t) nil) ; This is MV-called.
 (defknown %nlx-entry (t) *)
 (defknown %%primitive (t t &rest t) *)
 (defknown %pop-values (t) void)
@@ -1185,7 +1171,7 @@
 (defknown %slot-setter (t t) t (unsafe))
 
 
-;;;; Setf inverses:
+;;;; Setf inverses.
 
 (defknown %aset (array &rest t) t (unsafe))
 (defknown %set-row-major-aref (array index t) t (unsafe))
@@ -1208,9 +1194,9 @@
 (defknown %set-fill-pointer (vector index) (unsafe))
 
 
-;;;; Internal type predicates:
+;;;; Internal type predicates.
 ;;;
-;;;    Simple typep uses that don't have any standard predicate are translated
+;;; Simple typep uses that don't have any standard predicate are translated
 ;;; into non-standard unary predicates.
 
 (defknown (fixnump bignump ratiop short-float-p single-float-p double-float-p
@@ -1219,7 +1205,7 @@
   (t) boolean (movable foldable flushable))
 
 
-;;;; Miscellaneous "sub-primitives":
+;;;; Miscellaneous "sub-primitives".
 
 (defknown %sp-string-compare
   (simple-string index index simple-string index index)

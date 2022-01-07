@@ -1,19 +1,6 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/ir1tran.lisp,v 1.109.2.10 2000/10/06 15:12:17 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains code which does the translation from Lisp code to the
-;;; first intermediate representation (IR1).
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; The translation from Lisp code to the first intermediate representation
+;;; (IR1).
+
 (in-package "C")
 
 (export '(*compile-time-define-macros* *converting-for-interpreter*
@@ -30,9 +17,255 @@
 
 (in-package "C")
 
+#[ ICR conversion
+
+    Convert the source into ICR, doing macroexpansion and simple
+    source-to-source transformation.  All names are resolved at this time,
+    so we don't have to worry about name conflicts later on.
+
+Phase position: 1/23 (front)
+
+Presence: mandatory
+
+Files: ir1tran, srctran, typetran
+
+Entry functions: `ir1-top-level', `ir1-convert', ...
+
+Call sequences:
+
+    ir1-top-level
+    ir1-convert
+
+        FIX still in [Compiler Interface]
+
+[Implicit Continuation Representation]
+
+  describes  continuation, node
+
+== Canonical Forms ==
+
+Would be useful to have a Freeze-Type proclamation.  Its primary use would to
+be say that the indicated type won't acquire any new subtypes in the future.
+This allows better open-coding of structure type predicates, since the possible
+types that would satisfy the predicate will be constant at compile time, and
+thus can be compiled as a skip-chain of EQ tests.
+
+Of course, this is only a big win when the subtypes are few: the most important
+case is when there are none.  If the closure of the subtypes is much larger
+than the average number of supertypes of an inferior, then it is better to grab
+the list of superiors out of the object's type, and test for membership in that
+list.
+
+Should type-specific numeric equality be done by EQL rather than =?  i.e.
+should = on two fixnums become EQL and then convert to EQL/FIXNUM?
+Currently we transform EQL into =, which is complicated, since we have to prove
+the operands are the class of numeric type before we do it.  Also, when EQL
+sees one operand is a FIXNUM, it transforms to EQ, but the generator for EQ
+isn't expecting numbers, so it doesn't use an immediate compare.
+
+
+Array hackery:
+
+
+Array type tests are transformed to %array-typep, separation of the
+implementation-dependent array-type handling.  This way we can transform
+STRINGP to:
+     (or (simple-string-p x)
+	 (and (complex-array-p x)
+	      (= (array-rank x) 1)
+	      (simple-string-p (%array-data x))))
+
+In addition to the similar bit-vector-p, we also handle vectorp and any type
+tests on which the a dimension isn't wild.
+  Note that we will want to expand into frobs compatible with those that
+  array references expand into so that the same optimizations will work on both.
+
+These changes combine to convert hairy type checks into hairy typep's, and then
+convert hairyp typeps into simple typeps.
+
+
+Do we really need non-VOP templates?  It seems that we could get the desired
+effect through implementation-dependent ICR transforms.  The main risk would be
+of obscuring the type semantics of the code.  We could fairly easily retain all
+the type information present at the time the tranform is run, but if we
+discover new type information, then it won't be propagated unless the VM also
+supplies type inference methods for its internal frobs (precluding the use of
+%PRIMITIVE, since primitives don't have derive-type methods.)
+
+I guess one possibility would be to have the call still considered "known" even
+though it has been transformed.  But this doesn't work, since we start doing
+LET optimizations that trash the arglist once the call has been transformed
+(and indeed we want to.)
+
+Actually, I guess the overhead for providing type inference methods for the
+internal frobs isn't that great, since we can usually borrow the inference
+method for a Lisp function.  For example, in our AREF case:
+    (aref x y)
+    =>
+    (let ((\#:len (array-dimension x 0)))
+      (%unchecked-aref x (%check-in-bounds y \#:len)))
+
+Now in this case, if we made %UNCHECKED-AREF have the same derive-type method
+as AREF, then if we discovered something new about X's element type, we could
+derive a new type for the entire expression.
+
+Actually, it seems that baring this detail at the ICR level is beneficial,
+since it admits the possibly of optimizing away the bounds check using type
+information.  If we discover X's dimensions, then \#:LEN becomes a constant that
+can be substituted.  Then %CHECK-IN-BOUNDS can notice that the bound is
+constant and check it against the type for Y.  If Y is known to be in range,
+then we can optimize away the bounds check.
+
+Actually in this particular case, the best thing to do would be if we
+discovered the bound is constant, then replace the bounds check with an
+implicit type check.  This way all the type check optimization mechanisms would
+be brought into the act.
+
+So we actually want to do the bounds-check expansion as soon as possible,
+rather than later than possible: it should be a source-transform, enabled by
+the fast-safe policy.
+
+With multi-dimensional arrays we probably want to explicitly do the index
+computation: this way portions of the index computation can become loop
+invariants.  In a scan in row-major order, the inner loop wouldn't have to do
+any multiplication: it would only do an addition.  We would use normal
+fixnum arithmetic, counting on * to cleverly handle multiplication by a
+constant, and appropriate inline expansion.
+
+Note that in a source transform, we can't make any assumptions the type of the
+array.  If it turns out to be a complex array without declared dimensions, then
+the calls to ARRAY-DIMENSION will have to turn into a VOP that can be affected.
+But if it is simple, then the VOP is unaffected, and if we know the bounds, it
+is constant.  Similarly, we would have %ARRAY-DATA and %ARRAY-DISPLACEMENT
+operations.  %ARRAY-DISPLACEMENT would optimize to 0 if we discover the array
+is simple.  [This is somewhat inefficient when the array isn't eventually
+discovered to be simple, since finding the data and finding the displacement
+duplicate each other.  We could make %ARRAY-DATA return both as MVs, and then
+optimize to (VALUES (%SIMPLE-ARRAY-DATA x) 0), but this would require
+optimization of trivial VALUES uses.]
+
+Also need (THE (ARRAY * * * ...) x) to assert correct rank.
+
+A bunch of functions have source transforms that convert them into the
+canonical form that later parts of the compiler want to see.  It is not legal
+to rely on the canonical form since source transforms can be inhibited by a
+Notinline declaration.  This shouldn't be a problem, since everyone should keep
+their hands off of Notinline calls.
+
+Some transformations:
+
+Endp  =>  (NULL (THE LIST ...))
+(NOT xxx) or (NULL xxx) => (IF xxx NIL T)
+
+(typep x '<simple type>) => (<simple predicate> x)
+(typep x '<complex type>) => ...composition of simpler operations...
+TYPEP of AND, OR and NOT types turned into conditionals over multiple TYPEP
+calls.  This makes hairy TYPEP calls more digestible to type constraint
+propagation, and also means that the TYPEP code generators don't have to deal
+with these cases.  [\#\#\# In the case of union types we may want to do something
+to preserve information for type constraint propagation (FIX type checking?).]
+
+
+    (apply \#'foo a b c)
+=>
+    (multiple-value-call \#'foo (values a) (values b) (values-list c))
+
+This way only MV-CALL needs to know how to do calls with unknown numbers of
+arguments.  It should be nearly as efficient as a special-case VMR-Convert
+method could be.
+
+
+Make-String => Make-Array
+N-arg predicates associated into two-arg versions.
+Associate N-arg arithmetic ops.
+Expand CxxxR and FIRST...nTH
+Zerop, Plusp, Minusp, 1+, 1-, Min, Max, Rem, Mod
+(Values x), (Identity x) => (Prog1 x)
+
+All specialized aref functions => (aref (the xxx) ...)
+
+Convert (ldb (byte ...) ...) into internal frob that takes size and position as
+separate args.  Other byte functions also...
+
+Change for-value primitive predicates into (if <pred> t nil).  This isn't
+particularly useful during ICR phases, but makes life easy for VMR conversion.
+
+This last can't be a source transformation, since a source transform can't tell
+where the form appears.  Instead, ICR conversion special-cases calls to known
+functions with the Predicate attribute by doing the conversion when the
+destination of the result isn't an IF.  It isn't critical that this never be
+done for predicates that we ultimately discover to deliver their value to an
+IF, since IF optimizations will flush unnecessary IFs in a predicate.
+
+
+== Inline functions ==
+
+    XXX Inline expansion is especially powerful in the presence of good lisp-level
+    optimization ("partial evaluation").  Many "optimizations" usually done in Lisp
+    compilers by special-case source-to-source transforms can be had simply by
+    making the source of the general case function available for inline expansion.
+    This is especially helpful in Common Lisp, which has many commonly used
+    functions with simple special cases but bad general cases (list and sequence
+    functions, for example.)
+
+    Inline expansion of recursive functions is allowed, and is not as silly as it
+    sounds.  When expanded in a specific context, much of the overhead of the
+    recursive calls may be eliminated (especially if there are many keyword
+    arguments, etc.)
+
+        Also have MAYBE-INLINE
+
+We only record a function's inline expansion in the global environment when the
+function is in the null lexical environment, since it the expansion must be
+represented as source.
+
+We do inline expansion of functions locally defined by FLET or LABELS even when
+the environment is not null.  Since the appearances of the local function must
+be nested within the desired environment, it is possible to expand local
+functions inline even when they use the environment.  We just stash the source
+form and environments in the Functional for the local function.  When we
+convert a call to it, we just reconvert the source in the saved environment.
+
+An interesting alternative to the inline/full-call dichotomy is "semi-inline"
+coding.  Whenever we have an inline expansion for a function, we can expand it
+only once per block compilation, and then use local call to call this copied
+version.  This should get most of the speed advantage of real inline coding
+with much less code bloat.  This is especially attractive for simple system
+functions such as Read-Char.
+
+The main place where true inline expansion would still be worth doing is where
+large amounts of the function could be optimized away by constant folding or
+other optimizations that depend on the exact arguments to the call.
+
+
+== Compilation policy ==
+
+We want more sophisticated control of compilation safety than is offered in CL,
+so that we can emit only those type checks that are likely to discover
+something (i.e. external interfaces.)
+
+== Notes ==
+
+Generalized back-end notion provides dynamic retargeting?  (for byte code)
+
+The current node type annotations seem to be somewhat unsatisfactory, since we
+lose information when we do a THE on a continuation that already has uses, or
+when we convert a let where the actual result continuation has other uses.
+
+But the case with THE isn't really all that bad, since the test of whether
+there are any uses happens before conversion of the argument, thus THE loses
+information only when there are uses outside of the declared form.  The LET
+case may not be a big deal either.
+
+Note also that losing user assertions isn't really all that bad, since it won't
+damage system integrity.  At worst, it will cause a bug to go undetected.  More
+likely, it will just cause the error to be signaled in a different place (and
+possibly in a less informative way).  Of course, there is an efficiency hit for
+losing type information, but if it only happens in strange cases, then this
+isn't a big deal.
+]#
 
 (proclaim '(special *compiler-error-bailout*))
-
 
 ;;; The lexical environment we are currently converting in.  See the LEXENV
 ;;; structure.
@@ -41,10 +274,10 @@
 (proclaim '(type lexenv *lexical-environment*))
 
 ;;; That variable is used to control the context-sensitive declarations
-;;; mechanism (see WITH-COMPILATION-UNIT).  Each entry is a function which is
-;;; called with the function name and parent form name.  If it returns non-nil,
-;;; then that is a list of DECLARE forms which should be inserted at the head
-;;; of the body.
+;;; mechanism (see WITH-COMPILATION-UNIT).  Each entry is a function which
+;;; is called with the function name and parent form name.  If it returns
+;;; true, then that is a list of DECLARE forms which should be inserted at
+;;; the head of the body.
 ;;;
 (defvar *context-declarations* ())
 (declaim (list *context-declarations*))
@@ -114,19 +347,19 @@
 (defvar *compile-time-define-macros* t)
 
 (defvar *derive-function-types* t
-  "If true, argument and result type information derived from compilation of
-  DEFUNs is used when compiling calls to that function.  If false, only
-  information from FTYPE proclamations will be used.")
+  "If true, argument and result type information derived from compilation
+   of `defun's is used when compiling calls to that function.  If false,
+   only information from FTYPE proclamations will be used.")
 
 
-;;;; Namespace management utilities:
+;;;; Namespace management utilities.
 
 (declaim (start-block find-free-function find-lexically-apparent-function))
 
 ;;; Find-Free-Really-Function  --  Internal
 ;;;
-;;;    Return a Global-Var structure usable for referencing the global function
-;;; Name.
+;;; Return a Global-Var structure usable for referencing the global
+;;; function Name.
 ;;;
 (defun find-free-really-function (name)
   (unless (info function kind name)
@@ -146,7 +379,7 @@
 
 ;;; Find-Structure-Slot-Accessor  --  Internal
 ;;;
-;;;    Return a Slot-Accessor structure usable for referencing the slot
+;;; Return a Slot-Accessor structure usable for referencing the slot
 ;;; accessor Name.  Class is the structure class.
 ;;;
 (defun find-structure-slot-accessor (class name)
@@ -169,14 +402,13 @@
      :for class
      :slot slot)))
 
-
 ;;; Find-Free-Function  --  Internal
 ;;;
-;;;    If Name is already entered in *free-functions*, then return the value.
+;;; If Name is already entered in *free-functions*, then return the value.
 ;;; Otherwise, make a new Global-Var using information from the global
 ;;; environment and enter it in *free-functions*.  If Name names a macro or
-;;; special form, then we error out using the supplied context which indicates
-;;; what we were trying to do that demanded a function.
+;;; special form, then we error out using the supplied context which
+;;; indicates what we were trying to do that demanded a function.
 ;;;
 (defun find-free-function (name context)
   (declare (string context))
@@ -213,11 +445,10 @@
 			      (find-structure-slot-accessor info name)
 			      (find-free-really-function name))))))))))))
 
-
 ;;; Find-Lexically-Apparent-Function  --  Internal
 ;;;
-;;;    Return the Leaf structure for the lexically apparent function definition
-;;; of Name.
+;;; Return the Leaf structure for the lexically apparent function
+;;; definition of Name.
 ;;;
 (defun find-lexically-apparent-function (name context)
   (declare (string context) (values leaf))
@@ -234,11 +465,11 @@
 
 ;;; Find-Free-Variable  --  Internal
 ;;;
-;;;    Return the Leaf node for a global variable reference to Name.  If Name
+;;; Return the Leaf node for a global variable reference to Name.  If Name
 ;;; is already entered in *free-variables*, then we just return the
-;;; corresponding value.  Otherwise, we make a new leaf using information from
-;;; the global environment and enter it in *free-variables*.  If the variable
-;;; is unknown, then we emit a warning.
+;;; corresponding value.  Otherwise, we make a new leaf using information
+;;; from the global environment and enter it in *free-variables*.  If the
+;;; variable is unknown, then we emit a warning.
 ;;;
 (defun find-free-variable (name)
   (declare (values (or leaf cons heap-alien-info)))
@@ -260,7 +491,7 @@
 		       `(MACRO . (the ,type ,expansion))))
 		    (t
 		     (multiple-value-bind
-			   (val valp)
+			 (val valp)
 			 (info variable constant-value name)
 		       (if (and (eq kind :constant) valp)
 			   (make-constant :value val  :name name
@@ -269,14 +500,13 @@
 			   (make-global-var :kind kind :name name :type type
 					    :where-from where-from)))))))))
 
-
 
 ;;; MAYBE-EMIT-MAKE-LOAD-FORMS  --  internal
 ;;;
-;;; Grovel over CONSTANT checking for any sub-parts that need to be processed
-;;; with MAKE-LOAD-FORM.  We have to be careful, because CONSTANT might be
-;;; circular.  We also check that the constant (and any subparts) are dumpable
-;;; at all.
+;;; Grovel over CONSTANT checking for any sub-parts that need to be
+;;; processed with MAKE-LOAD-FORM.  We have to be careful, because CONSTANT
+;;; might be circular.  We also check that the constant (and any subparts)
+;;; are dumpable at all.
 ;;;
 (defconstant list-to-hash-table-threshold 32)
 ;;;
@@ -337,12 +567,12 @@
   (undefined-value))
 
 
-;;;; Some flow-graph hacking utilities:
+;;;; Some flow-graph hacking utilities.
 
 (eval-when (compile eval)
 ;;; IR1-Error-Bailout  --  Internal
 ;;;
-;;;    Bind *compiler-error-bailout* to a function that throws out of the body
+;;; Bind *compiler-error-bailout* to a function that throws out of the body
 ;;; and converts a proxy form instead.
 ;;;
 (defmacro ir1-error-bailout
@@ -362,10 +592,9 @@
 
 ); eval-when (compile eval)
 
-
 ;;; Prev-Link  --  Internal
 ;;;
-;;;    This function sets up the back link between the node and the
+;;; This function sets up the back link between the node and the
 ;;; continuation which continues at it.
 ;;;
 (declaim (inline prev-link))
@@ -375,20 +604,19 @@
   (setf (continuation-next cont) node)
   (setf (node-prev node) cont))
 
-
 ;;; Use-Continuation  --  Internal
 ;;;
-;;;    This function is used to set the continuation for a node, and thus
-;;; determine what recieves the value and what is evaluated next.  If the
-;;; continuation has no block, then we make it be in the block that the node is
-;;; in.  If the continuation heads its block, we end our block and link it to
-;;; that block.  If the continuation is not currently used, then we set the
-;;; derived-type for the continuation to that of the node, so that a little
-;;; type propagation gets done.
+;;; This function is used to set the continuation for a node, and thus
+;;; determine what receives the value and what is evaluated next.  If the
+;;; continuation has no block, then we make it be in the block that the
+;;; node is in.  If the continuation heads its block, we end our block and
+;;; link it to that block.  If the continuation is not currently used, then
+;;; we set the derived-type for the continuation to that of the node, so
+;;; that a little type propagation gets done.  FIX where is this done below?
 ;;;
-;;;    We also deal with a bit of THE's semantics here: we weaken the assertion
-;;; on Cont to be no stronger than the assertion on Cont in our scope.  See the
-;;; THE IR1-CONVERT method.
+;;; We also deal with a bit of THE's semantics here: we weaken the
+;;; assertion on Cont to be no stronger than the assertion on Cont in our
+;;; scope.  See the THE IR1-CONVERT method.
 ;;;
 (declaim (inline use-continuation))
 (defun use-continuation (node cont)
@@ -427,30 +655,30 @@
 	  (reoptimize-continuation cont))))))
 
 
-;;;; Exported functions:
+;;;; Exported functions.
 
 ;;; IR1-Top-Level  --  Interface
 ;;;
-;;;    This function takes a form and the top-level form number for that form,
+;;; This function takes a form and the top-level form number for that form,
 ;;; and returns a lambda representing the translation of that form in the
-;;; current global environment.  The lambda is top-level lambda that can be
-;;; called to cause evaluation of the forms.  This lambda is in the initial
-;;; component.  If For-Value is T, then the value of the form is returned from
-;;; the function, otherwise NIL is returned.
+;;; current global environment.  The lambda is the top-level lambda that
+;;; can be called to cause evaluation of the forms.  This lambda is in the
+;;; initial component.  If For-Value is T, then the value of the form is
+;;; returned from the function, otherwise NIL is returned.
 ;;;
-;;;    This function may have arbitrary effects on the global environment due
-;;; to processing of Proclaims and Eval-Whens.  All syntax error checking is
-;;; done, with erroneous forms being replaced by a proxy which signals an error
-;;; if it is evaluated.  Warnings about possibly inconsistent or illegal
-;;; changes to the global environment will also be given.
+;;; This function may have arbitrary effects on the global environment due
+;;; to processing of Proclaims and Eval-Whens.  All syntax error checking
+;;; is done, with erroneous forms being replaced by a proxy which signals
+;;; an error if it is evaluated.  Warnings about possibly inconsistent or
+;;; illegal changes to the global environment will also be given.
 ;;;
-;;;    We make the initial component and convert the form in a progn (and an
-;;; optional NIL tacked on the end.)  We then return the lambda.  We bind all
-;;; of our state variables here, rather than relying on the global value (if
-;;; any) so that IR1 conversion will be reentrant.  This is necessary for
-;;; eval-when processing, etc.
+;;; We make the initial component and convert the form in a progn (and an
+;;; optional NIL tacked on the end.)  We then return the lambda.  We bind
+;;; all of our state variables here, rather than relying on the global
+;;; value (if any) so that IR1 conversion will be reentrant.  This is
+;;; necessary for eval-when processing, etc.
 ;;;
-;;;    The hashtables used to hold global namespace info must be reallocated
+;;; The hashtables used to hold global namespace info must be reallocated
 ;;; elsewhere.  Note also that *lexical-environment* is not bound, so that
 ;;; local macro definitions can be introduced by enclosing code.
 ;;;
@@ -469,7 +697,6 @@
       (setf (functional-kind res) :top-level)
       res)))
 
-
 ;;; *CURRENT-FORM-NUMBER* is used in FIND-SOURCE-PATHS to compute the form
 ;;; number to associate with a source path.  This should be bound to 0 around
 ;;; the processing of each truly top-level form.
@@ -479,11 +706,12 @@
 
 ;;; Find-Source-Paths  --  Interface
 ;;;
-;;;    This function is called on freshly read forms to record the initial
-;;; location of each form (and subform.)  Form is the form to find the paths
-;;; in, and TLF-Num is the top-level form number of the truly top-level form.
+;;; This function is called on freshly read forms to record the initial
+;;; location of each form (and subform.)  Form is the form to find the
+;;; paths in, and TLF-Num is the top-level form number of the truly
+;;; top-level form.
 ;;;
-;;;    This gets a bit interesting when the source code is circular.  This can
+;;; This gets a bit interesting when the source code is circular.  This can
 ;;; (reasonably?) happen in the case of circular list constants.
 ;;;
 (defun find-source-paths (form tlf-num)
@@ -518,19 +746,18 @@
 
 ;;;; IR1-CONVERT, macroexpansion and special-form dispatching.
 
-
 (declaim (start-block ir1-convert ir1-convert-progn-body
 		      ir1-convert-combination-args reference-leaf
 		      reference-constant))
 
 ;;; IR1-Convert  --  Interface
 ;;;
-;;;    Translate Form into IR1.  The code is inserted as the Next of the
-;;; continuation Start.  Cont is the continuation which receives the value of
-;;; the Form to be translated.  The translators call this function recursively
-;;; to translate their subnodes.
+;;; Translate Form into IR1.  The code is inserted as the Next of the
+;;; continuation Start.  Cont is the continuation which receives the value
+;;; of the Form to be translated.  The translators call this function
+;;; recursively to translate their subnodes.
 ;;;
-;;;    As a special hack to make life easier in the compiler, a Leaf
+;;; As a special hack to make life easier in the compiler, a Leaf
 ;;; IR1-converts into a reference to that leaf structure.  This allows the
 ;;; creation using backquote of forms that contain leaf references, without
 ;;; having to introduce dummy names into the namespace.
@@ -569,7 +796,6 @@
 	      (ir1-convert-combination start cont form
 				       (ir1-convert-lambda fun)))))))))
 
-
 ;;; Reference-Constant  --  Internal
 ;;;
 ;;; Generate a reference to a manifest constant, creating a new leaf if
@@ -591,10 +817,9 @@
       (use-continuation res cont)))
   (undefined-value))
 
-
 ;;; MAYBE-REANALYZE-FUNCTION  --  Internal
 ;;;
-;;;    Add Fun to the COMPONENT-REANALYZE-FUNCTIONS.  Fun is returned.
+;;; Add Fun to the COMPONENT-REANALYZE-FUNCTIONS.  Fun is returned.
 ;;;
 (defun maybe-reanalyze-function (fun)
   (declare (type functional fun))
@@ -602,12 +827,11 @@
     (pushnew fun (component-reanalyze-functions *current-component*)))
   fun)
 
-
 ;;; Reference-Leaf  --  Internal
 ;;;
-;;;    Generate a Ref node for a Leaf, frobbing the Leaf structure as needed.
-;;; If the leaf is a defined function which has already been converted, and is
-;;; not :NOTINLINE, then reference the functional instead.
+;;; Generate a Ref node for a Leaf, frobbing the Leaf structure as needed.
+;;; If the leaf is a defined function which has already been converted, and
+;;; is not :NOTINLINE, then reference the functional instead.
 ;;;
 (defun reference-leaf (start cont leaf)
   (declare (type continuation start cont) (type leaf leaf))
@@ -626,13 +850,12 @@
     (prev-link res start)
     (use-continuation res cont)))
 
-
 ;;; IR1-Convert-Variable  --  Internal
 ;;;
-;;;    Convert a reference to a symbolic constant or variable.  If the symbol
+;;; Convert a reference to a symbolic constant or variable.  If the symbol
 ;;; is entered in the LEXENV-VARIABLES we use that definition, otherwise we
-;;; find the current global definition.  This is also where we pick off symbol
-;;; macro and Alien variable references.
+;;; find the current global definition.  This is also where we pick off
+;;; symbol macro and Alien variable references.
 ;;;
 (defun ir1-convert-variable (start cont name)
   (declare (type continuation start cont) (symbol name))
@@ -649,10 +872,9 @@
        (ir1-convert start cont `(%heap-alien ',var)))))
   (undefined-value))
 
-
 ;;; IR1-Convert-Global-Functoid  --  Internal
 ;;;
-;;;    Convert anything that looks like a special-form, global function or
+;;; Convert anything that looks like a special-form, global function or
 ;;; macro call.
 ;;;
 (defun ir1-convert-global-functoid (start cont form)
@@ -671,10 +893,9 @@
      (t
       (ir1-convert-global-functoid-no-cmacro start cont form fun)))))
 
-
 ;;; IR1-Convert-Global-Functoid-No-Cmacro  --  Internal
 ;;;
-;;;     Handle the case of where the call was not a compiler macro, or was a
+;;; Handle the case of where the call was not a compiler macro, or was a
 ;;; compiler macro and passed.
 ;;;
 (defun ir1-convert-global-functoid-no-cmacro (start cont form fun)
@@ -685,13 +906,12 @@
 		  (careful-expand-macro (info function macro-function fun)
 					form)))
     ((nil :function)
-     (ir1-convert-srctran start cont (find-free-function fun "Eh?")
+     (ir1-convert-srctran start cont (find-free-function fun "Eh?") ; FIX Eh?
 			  form))))
-
 
 ;;; Careful-Expand-Macro  --  Internal
 ;;;
-;;;    Trap errors during the macroexpansion.
+;;; Trap errors during the macroexpansion.
 ;;;
 (defun careful-expand-macro (fun form)
   (handler-case (invoke-macroexpand-hook fun form *lexical-environment*)
@@ -700,11 +920,11 @@
 			   condition))))
 
 
-;;;; Conversion utilities:
+;;;; Conversion utilities.
 
 ;;; IR1-Convert-Progn-Body  --  Internal
 ;;;
-;;;    Convert a bunch of forms, discarding all the values except the last.
+;;; Convert a bunch of forms, discarding all the values except the last.
 ;;; If there aren't any forms, then translate a NIL.
 ;;;
 (defun ir1-convert-progn-body (start cont body)
@@ -723,11 +943,11 @@
 	      (setq this-start this-cont  forms (cdr forms))))))))
 
 
-;;;; Converting combinations:
+;;;; Converting combinations.
 
 ;;; IR1-Convert-Combination  --  Internal
 ;;;
-;;;    Convert a function call where the function (Fun) is a Leaf.  We return
+;;; Convert a function call where the function (Fun) is a Leaf.  We return
 ;;; the Combination node so that we can poke at it if we want to.
 ;;;
 (defun ir1-convert-combination (start cont form fun)
@@ -737,13 +957,13 @@
     (reference-leaf start fun-cont fun)
     (ir1-convert-combination-args fun-cont cont (cdr form))))
 
-
 ;;; IR1-Convert-Combination-Args  --  Internal
 ;;;
-;;;    Convert the arguments to a call and make the Combination node.  Fun-Cont
-;;; is the continuation which yields the function to call.  Form is the source
-;;; for the call.  Args is the list of arguments for the call, which defaults
-;;; to the cdr of source.  We return the Combination node.
+;;; Convert the arguments to a call and make the Combination node.
+;;; Fun-Cont is the continuation which yields the function to call.  Form
+;;; is the source for the call.  Args is the list of arguments for the
+;;; call, which defaults to the cdr of source.  We return the Combination
+;;; node.
 ;;;
 (defun ir1-convert-combination-args (fun-cont cont args)
   (declare (type continuation fun-cont cont) (list args))
@@ -763,13 +983,12 @@
 	(setf (combination-args node) (arg-conts))))
     node))
 
-
 ;;; IR1-CONVERT-SRCTRAN  --  Internal
 ;;;
-;;;    Convert a call to a global function.  If not :NOTINLINE, then we do
+;;; Convert a call to a global function.  If not :NOTINLINE, then we do
 ;;; source transforms and try out any inline expansion.  If there is no
 ;;; expansion, but is :INLINE, then give an efficiency note (unless a known
-;;; function which will quite possibly be open-coded.)   Next, we go to
+;;; function which will quite possibly be open-coded.)  Next, we go to
 ;;; ok-combination conversion.
 ;;;
 (defun ir1-convert-srctran (start cont var form)
@@ -793,14 +1012,13 @@
 	 (t
 	  (ir1-convert-maybe-predicate start cont form var))))))))
 
-
 ;;; IR1-CONVERT-MAYBE-PREDICATE  --  Internal
 ;;;
-;;;    If the function has the Predicate attribute, and the CONT's DEST isn't
-;;; an IF, then we convert (IF <form> T NIL), ensuring that a predicate always
-;;; appears in a conditional context.
+;;; If the function has the Predicate attribute, and the CONT's DEST isn't
+;;; an IF, then we convert (IF <form> T NIL), ensuring that a predicate
+;;; always appears in a conditional context.
 ;;;
-;;;    If the function isn't a predicate, then we call
+;;; If the function isn't a predicate, then we call
 ;;; IR1-CONVERT-COMBINATION-CHECKING-TYPE.
 ;;;
 (defun ir1-convert-maybe-predicate (start cont form var)
@@ -812,10 +1030,9 @@
 	(ir1-convert start cont `(if ,form t nil))
 	(ir1-convert-combination-checking-type start cont form var))))
 
-
 ;;; IR1-CONVERT-COMBINATION-CHECKING-TYPE  --  Internal
 ;;;
-;;;    Actually really convert a global function call that we are allowed to
+;;; Actually really convert a global function call that we are allowed to
 ;;; early-bind.
 ;;;
 ;;; If we know the function type of the function, then we check the call for
@@ -842,13 +1059,12 @@
 
   (undefined-value))
 
-
 ;;; IR1-CONVERT-LOCAL-COMBINATION  --  Internal
 ;;;
-;;;    Convert a call to a local function.  If the function has already been
+;;; Convert a call to a local function.  If the function has already been
 ;;; let converted, then throw FUN to LOCAL-CALL-LOSSAGE.  This should only
-;;; happen when we are converting inline expansions for local functions during
-;;; optimization.
+;;; happen when we are converting inline expansions for local functions
+;;; during optimization.
 ;;;
 (defun ir1-convert-local-combination (start cont form fun)
   (if (functional-kind fun)
@@ -857,16 +1073,16 @@
 			       (maybe-reanalyze-function fun))))
 
 
-;;;; PROCESS-DECLARATIONS:
+;;;; PROCESS-DECLARATIONS.
 
 (declaim (start-block process-declarations make-new-inlinep))
 
 ;;; Find-In-Bindings  --  Internal
 ;;;
-;;;    Given a list of Lambda-Var structures and a variable name, return the
-;;; structure for that name, or NIL if it isn't found.  We return the *last*
-;;; variable with that name, since let* bindings may be duplicated, and
-;;; declarations always apply to the last.
+;;; Given a list of Lambda-Var structures and a variable name, return the
+;;; structure for that name, or NIL if it isn't found.  We return the
+;;; *last* variable with that name, since let* bindings may be duplicated,
+;;; and declarations always apply to the last.
 ;;;
 (defun find-in-bindings (vars name)
   (declare (list vars) (symbol name) (values (or lambda-var list)))
@@ -885,13 +1101,12 @@
 	     (setf found (cdr var)))))
     found))
 
-
 ;;; Process-Type-Declaration  --  Internal
 ;;;
-;;;    Called by Process-Declarations to deal with a variable type declaration.
-;;; If a lambda-var being bound, we intersect the type with the vars type,
-;;; otherwise we add a type-restriction on the var.  If a symbol macro, we just
-;;; wrap a THE around the expansion.
+;;; Called by Process-Declarations to deal with a variable type
+;;; declaration.  If a lambda-var being bound, we intersect the type with
+;;; the vars type, otherwise we add a type-restriction on the var.  If a
+;;; symbol macro, we just wrap a THE around the expansion.
 ;;;
 (defun process-type-declaration (decl res vars)
   (declare (list decl vars) (type lexenv res))
@@ -934,13 +1149,12 @@
 		       :variables (new-vars))
 	  res))))
 
-
 ;;; Process-Ftype-Declaration  --  Internal
 ;;;
-;;;    Somewhat similar to Process-Type-Declaration, but handles declarations
-;;; for function variables.  In addition to allowing declarations for functions
-;;; being bound, we must also deal with declarations that constrain the type of
-;;; lexically apparent functions.
+;;; Somewhat similar to Process-Type-Declaration, but handles declarations
+;;; for function variables.  In addition to allowing declarations for
+;;; functions being bound, we must also deal with declarations that
+;;; constrain the type of lexically apparent functions.
 ;;;
 (defun process-ftype-declaration (spec res names fvars)
   (declare (list spec names fvars) (type lexenv res))
@@ -962,12 +1176,11 @@
 	  (make-lexenv :default res  :type-restrictions (res))
 	  res))))
 
-
 ;;; PROCESS-SPECIAL-DECLARATION  --  Internal
 ;;;
-;;;    Process a special declaration, returning a new LEXENV.  A non-bound
-;;; special declaration is instantiated by throwing a special variable into the
-;;; variables.
+;;; Process a special declaration, returning a new LEXENV.  A non-bound
+;;; special declaration is instantiated by throwing a special variable into
+;;; the variables.
 ;;;
 (defun process-special-declaration (spec res vars)
   (declare (list spec vars) (type lexenv res))
@@ -992,10 +1205,10 @@
 	(make-lexenv :default res  :variables (new-venv))
 	res)))
 
-
 ;;; MAKE-NEW-INLINEP  --  Internal
 ;;;
-;;;    Return a DEFINED-FUNCTION which copies a global-var but for its inlinep.
+;;; Return a DEFINED-FUNCTION which copies a global-var but for its
+;;; inlinep.
 ;;;
 (defun make-new-inlinep (var inlinep)
   (declare (type global-var var) (type inlinep inlinep))
@@ -1011,16 +1224,14 @@
 	    (defined-function-functional var)))
     res))
 
-
 (defconstant inlinep-translations
   '((inline . :inline)
     (notinline . :notinline)
     (maybe-inline . :maybe-inline)))
 
-
 ;;; PROCESS-INLINE-DECLARATION  --  Internal
 ;;;
-;;;    Parse an inline/notinline declaration.  If a local function we are
+;;; Parse an inline/notinline declaration.  If a local function we are
 ;;; defining, set its INLINEP.  If a global function, add a new FENV entry.
 ;;;
 (defun process-inline-declaration (spec res fvars)
@@ -1047,10 +1258,9 @@
 	(make-lexenv :default res  :functions new-fenv)
 	res)))
 
-
 ;;; FIND-IN-BINDINGS-OR-FBINDINGS  --  Internal
 ;;;
-;;;    Like FIND-IN-BINDINGS, but looks for #'foo in the fvars.
+;;; Like FIND-IN-BINDINGS, but looks for #'foo in the fvars.
 ;;;
 (defun find-in-bindings-or-fbindings (name vars fvars)
   (declare (list vars fvars))
@@ -1062,10 +1272,9 @@
 	(find fn-name fvars :key #'leaf-name :test #'equal))
       (find-in-bindings vars name)))
 
-
 ;;; PROCESS-IGNORE-DECLARATION  --  Internal
 ;;;
-;;;    Process an ignore/ignorable declaration, checking for variious losing
+;;; Process an ignore/ignorable declaration, checking for variious losing
 ;;; conditions.
 ;;;
 (defun process-ignore-declaration (spec vars fvars)
@@ -1090,15 +1299,13 @@
 	(setf (lambda-var-ignorep var) t)))))
   (undefined-value))
 
-
 (defvar *suppress-values-declaration* nil
   "If true, processing of the VALUES declaration is inhibited.")
 
-
 ;;; PROCESS-1-DECLARATION  --  Internal
 ;;;
-;;;    Process a single declaration spec, agumenting the specified LEXENV
-;;; Res and returning it as a result.  Vars and Fvars are as described in
+;;; Process a single declaration spec, agumenting the specified LEXENV Res
+;;; and returning it as a result.  Vars and Fvars are as described in
 ;;; PROCESS-DECLARATIONS.
 ;;;
 (defun process-1-declaration (spec res vars fvars cont)
@@ -1167,15 +1374,14 @@
 	      (compiler-warning "Unrecognized declaration: ~S." spec)
 	      res))))))
 
-
 ;;; Process-Declarations  --  Interface
 ;;;
-;;;    Use a list of Declare forms to annotate the lists of Lambda-Var and
+;;; Use a list of Declare forms to annotate the lists of Lambda-Var and
 ;;; Functional structures which are being bound.  In addition to filling in
 ;;; slots in the leaf structures, we return a new LEXENV which reflects
-;;; pervasive special and function type declarations, (not)inline declarations
-;;; and optimize declarations.  Cont is the continuation affected by VALUES
-;;; declarations.
+;;; pervasive special and function type declarations, (not)inline
+;;; declarations and optimize declarations.  Cont is the continuation
+;;; affected by VALUES declarations.
 ;;;
 ;;; This is also called in main.lisp when PROCESS-FORM handles a use of
 ;;; LOCALLY.
@@ -1194,9 +1400,9 @@
 
 ;;; Specvar-For-Binding  --  Internal
 ;;;
-;;;    Return the Specvar for Name to use when we see a local SPECIAL
-;;; declaration.  If there is a global variable of that name, then check that
-;;; it isn't a constant and return it.  Otherwise, create an anonymous
+;;; Return the Specvar for Name to use when we see a local SPECIAL
+;;; declaration.  If there is a global variable of that name, then check
+;;; that it isn't a constant and return it.  Otherwise, create an anonymous
 ;;; GLOBAL-VAR.
 ;;;
 (defun specvar-for-binding (name)
@@ -1213,18 +1419,18 @@
 	 (make-global-var :kind :special  :name name  :where-from :declared))))
 
 
-;;;; Lambda hackery:
+;;;; Lambda hackery.
 
 (declaim (start-block ir1-convert-lambda ir1-convert-lambda-body
 		      ir1-convert-aux-bindings varify-lambda-arg))
 
 ;;; Varify-Lambda-Arg  --  Internal
 ;;;
-;;;    Verify that a thing is a legal name for a variable and return a Var
+;;; Verify that a thing is a legal name for a variable and return a Var
 ;;; structure for it, filling in info if it is globally special.  If it is
-;;; losing, we punt with a Compiler-Error.  Names-So-Far is an alist of names
-;;; which have previously been bound.  If the name is in this list, then we
-;;; error out.
+;;; losing, we punt with a Compiler-Error.  Names-So-Far is an alist of
+;;; names which have previously been bound.  If the name is in this list,
+;;; then we error out.
 ;;;
 (defun varify-lambda-arg (name names-so-far)
   (declare (list names-so-far) (values lambda-var)
@@ -1244,12 +1450,11 @@
 			   :specvar specvar))
 	(make-lambda-var :name name))))
 
-
 ;;; Make-Keyword  --  Internal
 ;;;
-;;;    Make the keyword for a keyword arg, checking that the keyword isn't
-;;; already used by one of the Vars.  We also check that the keyword isn't the
-;;; magical :allow-other-keys.
+;;; Make the keyword for a keyword arg, checking that the keyword isn't
+;;; already used by one of the Vars.  We also check that the keyword isn't
+;;; the magical :allow-other-keys.
 ;;;
 (defun make-keyword (symbol vars keywordify)
   (declare (symbol symbol) (list vars) (values symbol))
@@ -1266,16 +1471,15 @@
 	  (compiler-error "Multiple uses of keyword ~S in lambda-list." key))))
     key))
 
-
 ;;; Find-Lambda-Vars  --  Internal
 ;;;
-;;;    Parse a lambda-list into a list of Var structures, stripping off any aux
-;;; bindings.  Each arg name is checked for legality, and duplicate names are
-;;; checked for.  If an arg is globally special, the var is marked as :special
-;;; instead of :lexical.  Keyword, optional and rest args are annotated with an
-;;; arg-info structure which contains the extra information.  If we hit
-;;; something losing, we bug out with Compiler-Error.  These values are
-;;; returned:
+;;; Parse a lambda-list into a list of Var structures, stripping off any
+;;; aux bindings.  Each arg name is checked for legality, and duplicate
+;;; names are checked for.  If an arg is globally special, the var is
+;;; marked as :special instead of :lexical.  Keyword, optional and rest
+;;; args are annotated with an arg-info structure which contains the extra
+;;; information.  If we hit something losing, we bug out with
+;;; Compiler-Error.  These values are returned:
 ;;;  1] A list of the var structures for each top-level argument.
 ;;;  2] A flag indicating whether &key was specified.
 ;;;  3] A flag indicating whether other keyword args are allowed.
@@ -1394,18 +1598,17 @@
 
 	(values (vars) keyp allowp (aux-vars) (aux-vals))))))
 
-
 ;;; IR1-Convert-Aux-Bindings  --  Internal
 ;;;
-;;;    Similar to IR1-Convert-Progn-Body except that we sequentially bind each
-;;; Aux-Var to the corresponding Aux-Val before converting the body.  If there
-;;; are no bindings, just convert the body, otherwise do one binding and
-;;; recurse on the rest.
+;;; Similar to IR1-Convert-Progn-Body except that we sequentially bind each
+;;; Aux-Var to the corresponding Aux-Val before converting the body.  If
+;;; there are no bindings, just convert the body, otherwise do one binding
+;;; and recurse on the rest.
 ;;;
-;;;    If Interface is true, then we convert bindings with the interface
-;;; policy.  For real &aux bindings, and implicit aux bindings introduced by
-;;; keyword bindings, this is always true.  It is only false when LET* directly
-;;; calls this function.
+;;; If Interface is true, then we convert bindings with the interface
+;;; policy.  For real &aux bindings, and implicit aux bindings introduced
+;;; by keyword bindings, this is always true.  It is only false when LET*
+;;; directly calls this function.
 ;;;
 (defun ir1-convert-aux-bindings (start cont body aux-vars aux-vals interface)
   (declare (type continuation start cont) (list body aux-vars aux-vals))
@@ -1425,18 +1628,18 @@
 					(list (first aux-vals))))))
   (undefined-value))
 
-
 ;;; IR1-Convert-Special-Bindings  --  Internal
 ;;;
-;;;    Similar to IR1-Convert-Progn-Body except that code to bind the Specvar
-;;; for each Svar to the value of the variable is wrapped around the body.  If
-;;; there are no special bindings, we just convert the body, otherwise we do
-;;; one special binding and recurse on the rest.
+;;; Similar to IR1-Convert-Progn-Body except that code to bind the Specvar
+;;; for each Svar to the value of the variable is wrapped around the body.
+;;; If there are no special bindings, we just convert the body, otherwise
+;;; we do one special binding and recurse on the rest.
 ;;;
-;;;    We make a cleanup and introduce it into the lexical environment.  If
-;;; there are multiple special bindings, the cleanup for the blocks will end up
-;;; being the innermost one.  We force Cont to start a block outside of this
-;;; cleanup, causing cleanup code to be emitted when the scope is exited.
+;;; We make a cleanup and introduce it into the lexical environment.  If
+;;; there are multiple special bindings, the cleanup for the blocks will
+;;; end up being the innermost one.  We force Cont to start a block outside
+;;; of this cleanup, causing cleanup code to be emitted when the scope is
+;;; exited.
 ;;;
 (defun ir1-convert-special-bindings (start cont body aux-vars aux-vals
 					   interface svars)
@@ -1460,27 +1663,27 @@
 				      interface (rest svars))))))
   (undefined-value))
 
-
 ;;; IR1-Convert-Lambda-Body  --  Internal
 ;;;
-;;;    Create a lambda node out of some code, returning the result.  The
-;;; bindings are specified by the list of var structures Vars.  We deal with
-;;; adding the names to the Lexenv-Variables for the conversion.  The result is
-;;; added to the New-Functions in the *Current-Component* and linked to the
-;;; component head and tail.
+;;; Create a lambda node out of some code, returning the result.  The
+;;; bindings are specified by the list of var structures Vars.  We deal
+;;; with adding the names to the Lexenv-Variables for the conversion.  The
+;;; result is added to the New-Functions in the *Current-Component* and
+;;; linked to the component head and tail.
 ;;;
-;;; We detect special bindings here, replacing the original Var in the lambda
-;;; list with a temporary variable.  We then pass a list of the special vars to
-;;; IR1-Convert-Special-Bindings, which actually emits the special binding
-;;; code.
+;;; We detect special bindings here, replacing the original Var in the
+;;; lambda list with a temporary variable.  We then pass a list of the
+;;; special vars to IR1-Convert-Special-Bindings, which actually emits the
+;;; special binding code.
 ;;;
-;;; We ignore any Arg-Info in the Vars, trusting that someone else is dealing
-;;; with &nonsense.
+;;; We ignore any Arg-Info in the Vars, trusting that someone else is
+;;; dealing with &nonsense.
 ;;;
 ;;; Aux-Vars is a list of Var structures for variables that are to be
-;;; sequentially bound.  Each Aux-Val is a form that is to be evaluated to get
-;;; the initial value for the corresponding Aux-Var.  Interface is a flag as T
-;;; when there are real aux values (see let* and ir1-convert-aux-bindings.)
+;;; sequentially bound.  Each Aux-Val is a form that is to be evaluated to
+;;; get the initial value for the corresponding Aux-Var.  Interface is a
+;;; flag as T when there are real aux values (see let* and
+;;; ir1-convert-aux-bindings.)
 ;;;
 (defun ir1-convert-lambda-body (body vars &optional aux-vars aux-vals
 				     interface result)
@@ -1534,20 +1737,19 @@
     (push lambda (component-new-functions *current-component*))
     lambda))
 
-
 ;;; Convert-Optional-Entry  --  Internal
 ;;;
-;;;    Create the actual entry-point function for an optional entry point.  The
-;;; lambda binds copies of each of the Vars, then calls Fun with the argument
-;;; Vals and the Defaults.  Presumably the Vals refer to the Vars by name.  The
-;;; Vals are passed in in reverse order.
+;;; Create the actual entry-point function for an optional entry point.
+;;; The lambda binds copies of each of the Vars, then calls Fun with the
+;;; argument Vals and the Defaults.  Presumably the Vals refer to the Vars
+;;; by name.  The Vals are passed in in reverse order.
 ;;;
-;;;    If any of the copies of the vars are referenced more than once, then we
-;;; mark the corresponding var as Ever-Used to inhibit "defined but not read"
-;;; warnings for arguments that are only used by default forms.
+;;; If any of the copies of the vars are referenced more than once, then we
+;;; mark the corresponding var as Ever-Used to inhibit "defined but not
+;;; read" warnings for arguments that are only used by default forms.
 ;;;
-;;;    We bind *lexical-environment* to change the policy over to the interface
-;;; policy.
+;;; We bind *lexical-environment* to change the policy over to the
+;;; interface policy.
 ;;;
 (defun convert-optional-entry (fun vars vals defaults)
   (declare (type clambda fun) (list vars vals defaults))
@@ -1571,15 +1773,14 @@
 	  fvars arg-vars)
     fun))
 
-
 ;;; Generate-Optional-Default-Entry  --  Internal
 ;;;
-;;;    This function deals with supplied-p vars in optional arguments.  If the
-;;; there is no supplied-p arg, then we just call IR1-Convert-Hairy-Args on the
-;;; remaining arguments, and generate a optional entry that calls the result.
-;;; If there is a supplied-p var, then we add it into the default vars and
-;;; throw a T into the entry values.  The resulting entry point function is
-;;; returned.
+;;; This function deals with supplied-p vars in optional arguments.  If the
+;;; there is no supplied-p arg, then we just call IR1-Convert-Hairy-Args on
+;;; the remaining arguments, and generate a optional entry that calls the
+;;; result.  If there is a supplied-p var, then we add it into the default
+;;; vars and throw a T into the entry values.  The resulting entry point
+;;; function is returned.
 ;;;
 (defun generate-optional-default-entry (res default-vars default-vals
 					    entry-vars entry-vals
@@ -1614,35 +1815,34 @@
 				(list (arg-info-default info) nil)
 				(list (arg-info-default info))))))
 
-
 ;;; Convert-More-Entry  --  Internal
 ;;;
-;;;    Create the More-Entry function for the Optional-Dispatch Res.
-;;; Entry-Vars and Entry-Vals describe the fixed arguments.  Rest is the var
-;;; for any Rest arg.  Keys is a list of the keyword arg vars.
+;;; Create the More-Entry function for the Optional-Dispatch Res.
+;;; Entry-Vars and Entry-Vals describe the fixed arguments.  Rest is the
+;;; var for any Rest arg.  Keys is a list of the keyword arg vars.
 ;;;
-;;;    The most interesting thing that we do is parse keywords.  We create a
-;;; bunch of temporary variables to hold the result of the parse, and then loop
-;;; over the supplied arguments, setting the appropriate temps for the supplied
-;;; keyword.  Note that it is significant that we iterate over the keywords in
-;;; reverse order --- this implements the CL requirement that (when a keyword
-;;; appears more than once) the first value is used.
+;;; The most interesting thing that we do is parse keywords.  We create a
+;;; bunch of temporary variables to hold the result of the parse, and then
+;;; loop over the supplied arguments, setting the appropriate temps for the
+;;; supplied keyword.  Note that it is significant that we iterate over the
+;;; keywords in reverse order --- this implements the CL requirement that
+;;; (when a keyword appears more than once) the first value is used.
 ;;;
-;;;    If there is no supplied-p var, then we initialize the temp to the
+;;; If there is no supplied-p var, then we initialize the temp to the
 ;;; default and just pass the temp into the main entry.  Since non-constant
-;;; keyword args are forcibly given a supplied-p var, we know that the default
-;;; is constant, and thus safe to evaluate out of order.
+;;; keyword args are forcibly given a supplied-p var, we know that the
+;;; default is constant, and thus safe to evaluate out of order.
 ;;;
-;;;    If there is a supplied-p var, then we create temps for both the value
+;;; If there is a supplied-p var, then we create temps for both the value
 ;;; and the supplied-p, and pass them into the main entry, letting it worry
 ;;; about defaulting.
 ;;;
-;;;    We deal with :allow-other-keys by delaying unknown keyword errors until
+;;; We deal with :allow-other-keys by delaying unknown keyword errors until
 ;;; we have scanned all the keywords.
 ;;;
-;;;    When converting the function, we bind *lexical-environment* to change
-;;; the compilation policy over to the interface policy, so that keyword args
-;;; will be checked even when type checking isn't on in general.
+;;; When converting the function, we bind *lexical-environment* to change
+;;; the compilation policy over to the interface policy, so that keyword
+;;; args will be checked even when type checking isn't on in general.
 ;;;
 (defun convert-more-entry (res entry-vars entry-vals rest morep keys)
   (declare (type optional-dispatch res) (list entry-vars entry-vals keys))
@@ -1742,25 +1942,24 @@
 
   (undefined-value))
 
-
 ;;; IR1-Convert-More  --  Internal
 ;;;
-;;;    Called by IR1-Convert-Hairy-Args when we run into a rest or keyword arg.
-;;; The arguments are similar to that function, but we split off any rest arg
-;;; and pass it in separately.  Rest is the rest arg var, or NIL if there is no
-;;; rest arg.  Keys is a list of the keyword argument vars.
+;;; Called by IR1-Convert-Hairy-Args when we run into a rest or keyword
+;;; arg.  The arguments are similar to that function, but we split off any
+;;; rest arg and pass it in separately.  Rest is the rest arg var, or NIL
+;;; if there is no rest arg.  Keys is a list of the keyword argument vars.
 ;;;
-;;;    When there are keyword arguments, we introduce temporary gensym
-;;; variables to hold the values while keyword defaulting is in progress to get
-;;; the required sequential binding semantics.
+;;; When there are keyword arguments, we introduce temporary gensym
+;;; variables to hold the values while keyword defaulting is in progress to
+;;; get the required sequential binding semantics.
 ;;;
-;;;    This gets interesting mainly when there are keyword arguments with
+;;; This gets interesting mainly when there are keyword arguments with
 ;;; supplied-p vars or non-constant defaults.  In either case, pass in a
-;;; supplied-p var.  If the default is non-constant, we introduce an IF in the
-;;; main entry that tests the supplied-p var and decides whether to evaluate
-;;; the default or not.  In this case, the real incoming value is NIL, so we
-;;; must union NULL with the declared type when computing the type for the main
-;;; entry's argument.
+;;; supplied-p var.  If the default is non-constant, we introduce an IF in
+;;; the main entry that tests the supplied-p var and decides whether to
+;;; evaluate the default or not.  In this case, the real incoming value is
+;;; NIL, so we must union NULL with the declared type when computing the
+;;; type for the main entry's argument.
 ;;;
 (defun ir1-convert-more (res default-vars default-vals entry-vars entry-vals
 			     rest more-context more-count keys supplied-p-p
@@ -1834,39 +2033,39 @@
 	    (optional-dispatch-entry-points res))
       last-entry)))
 
-
 ;;; IR1-Convert-Hairy-Args  --  Internal
 ;;;
-;;;    This function generates the entry point functions for the
+;;; This function generates the entry point functions for the
 ;;; optional-dispatch Res.  We accomplish this by recursion on the list of
 ;;; arguments, analyzing the arglist on the way down and generating entry
 ;;; points on the way up.
 ;;;
-;;;    Default-Vars is a reversed list of all the argument vars processed so
-;;; far, including supplied-p vars.  Default-Vals is a list of the names of the
-;;; Default-Vars.
+;;; Default-Vars is a reversed list of all the argument vars processed so
+;;; far, including supplied-p vars.  Default-Vals is a list of the names of
+;;; the Default-Vars.
 ;;;
-;;;    Entry-Vars is a reversed list of processed argument vars, excluding
-;;; supplied-p vars.  Entry-Vals is a list things that can be evaluated to get
-;;; the values for all the vars from the Entry-Vars.  It has the var name for
-;;; each required or optional arg, and has T for each supplied-p arg.
+;;; Entry-Vars is a reversed list of processed argument vars, excluding
+;;; supplied-p vars.  Entry-Vals is a list things that can be evaluated to
+;;; get the values for all the vars from the Entry-Vars.  It has the var
+;;; name for each required or optional arg, and has T for each supplied-p
+;;; arg.
 ;;;
-;;;    Vars is a list of the Lambda-Var structures for arguments that haven't
+;;; Vars is a list of the Lambda-Var structures for arguments that haven't
 ;;; been processed yet.  Supplied-p-p is true if a supplied-p argument has
-;;; already been processed; only in this case are the Default-XXX and Entry-XXX
-;;; different.
+;;; already been processed; only in this case are the Default-XXX and
+;;; Entry-XXX different.
 ;;;
-;;;    The result at each point is a lambda which should be called by the above
-;;; level to default the remaining arguments and evaluate the body.  We cause
-;;; the body to be evaluated by converting it and returning it as the result
-;;; when the recursion bottoms out.
+;;; The result at each point is a lambda which should be called by the
+;;; above level to default the remaining arguments and evaluate the body.
+;;; We cause the body to be evaluated by converting it and returning it as
+;;; the result when the recursion bottoms out.
 ;;;
-;;;    Each level in the recursion also adds its entry point function to the
-;;; result Optional-Dispatch.  For most arguments, the defaulting function and
-;;; the entry point function will be the same, but when supplied-p args are
-;;; present they may be different.
+;;; Each level in the recursion also adds its entry point function to the
+;;; result Optional-Dispatch.  For most arguments, the defaulting function
+;;; and the entry point function will be the same, but when supplied-p args
+;;; are present they may be different.
 ;;;
-;;;     When we run into a rest or keyword arg, we punt out to
+;;; When we run into a rest or keyword arg, we punt out to
 ;;; IR1-Convert-More, which finishes for us in this case.
 ;;;
 (defun ir1-convert-hairy-args (res default-vars default-vals
@@ -1931,13 +2130,12 @@
 				nil nil nil vars supplied-p-p body aux-vars
 				aux-vals cont)))))))
 
-
 ;;; IR1-Convert-Hairy-Lambda  --  Internal
 ;;;
-;;;     This function deals with the case where we have to make an
-;;; Optional-Dispatch to represent a lambda.  We cons up the result and call
-;;; IR1-Convert-Hairy-Args to do the work.  When it is done, we figure out the
-;;; min-args and max-args.
+;;; This function deals with the case where we have to make an
+;;; Optional-Dispatch to represent a lambda.  We cons up the result and
+;;; call IR1-Convert-Hairy-Args to do the work.  When it is done, we figure
+;;; out the min-args and max-args.
 ;;;
 (defun ir1-convert-hairy-lambda (body vars keyp allowp aux-vars aux-vals cont)
   (declare (list body vars aux-vars aux-vals) (type continuation cont))
@@ -1962,24 +2160,23 @@
 
     res))
 
-
 ;;; IR1-Convert-Lambda  --  Internal
 ;;;
-;;;    Convert a Lambda into a Lambda or Optional-Dispatch leaf.  Name and
+;;; Convert a Lambda into a Lambda or Optional-Dispatch leaf.  Name and
 ;;; Parent-Form are context that is used to drive the context sensitive
-;;; declaration mechanism.  If we find an entry in *context-declarations* that
-;;; matches this context (by returning a non-null value) then we add it into
-;;; the local declarations.
+;;; declaration mechanism.  If we find an entry in *context-declarations*
+;;; that matches this context (by returning a non-null value) then we add
+;;; it into the local declarations.
 ;;;
 (defun ir1-convert-lambda (form &optional name parent-form)
-  (unless (consp form)
-    (compiler-error "Found a ~S when expecting a lambda expression:~%  ~S"
-		    (type-of form) form))
-  (unless (eq (car form) 'lambda)
-    (compiler-error "Expecting a lambda, but form begins with ~S:~%  ~S"
-		    (car form) form))
-  (unless (and (consp (cdr form)) (listp (cadr form)))
-    (compiler-error "Lambda-list absent or not a list:~%  ~S" form))
+  (or (consp form)
+      (compiler-error "Found a ~S when expecting a lambda expression:~%  ~S"
+		      (type-of form) form))
+  (or (eq (car form) 'lambda)
+      (compiler-error "Expecting a lambda, but form begins with ~S:~%  ~S"
+		      (car form) form))
+  (or (and (consp (cdr form)) (listp (cadr form)))
+      (compiler-error "Lambda-list absent or not a list:~%  ~S" form))
 
   (multiple-value-bind (vars keyp allow-other-keys aux-vars aux-vals)
 		       (find-lambda-vars (cadr form))
@@ -2008,19 +2205,22 @@
 	res))))
 
 (declaim (end-block))
+
 
-;;;; Control special forms:
+;;;; Control special forms.
 
 (def-ir1-translator progn ((&rest forms) start cont)
-  "Progn Form*
-  Evaluates each Form in order, returing the values of the last form.  With no
-  forms, returns NIL."
+  "progn form*
+
+   Evaluates each Form in order, returning the values of the last form.  With no
+   forms, returns NIL."
   (ir1-convert-progn-body start cont forms))
 
 (def-ir1-translator if ((test then &optional else) start cont)
   "If Predicate Then [Else]
-  If Predicate evaluates to non-null, evaluate Then and returns its values,
-  otherwise evaluate Else and return its values.  Else defaults to NIL."
+
+   If Predicate evaluates to non-null, evaluate Then and return its values,
+   otherwise evaluate Else and return its values.  Else defaults to NIL."
   (let* ((pred (make-continuation))
 	 (then-cont (make-continuation))
 	 (then-block (continuation-starts-block then-cont))
@@ -2045,25 +2245,25 @@
       (ir1-convert else-cont cont else))))
 
 
-;;;; Block and Tagbody:
+;;;; Block and Tagbody.
 ;;;
-;;;    We make an Entry node to mark the start and a :Entry cleanup to
-;;; mark its extent.  When doing Go or Return-From, we emit an Exit node.
-;;;
+;;; We make an Entry node to mark the start and a :Entry cleanup to mark
+;;; its extent.  When doing Go or Return-From, we emit an Exit node.
 
 ;;; Block IR1 convert  --  Internal
 ;;;
-;;;    Make a :entry cleanup and emit an Entry node, then convert the body in
-;;; the modified environment.  We make Cont start a block now, since if it was
-;;; done later, the block would be in the wrong environment.
+;;; Make a :entry cleanup and emit an Entry node, then convert the body in
+;;; the modified environment.  We make Cont start a block now, since if it
+;;; was done later, the block would be in the wrong environment.
 ;;;
 (def-ir1-translator block ((name &rest forms) start cont)
   "Block Name Form*
-  Evaluate the Forms as a PROGN.  Within the lexical scope of the body,
-  (RETURN-FROM Name Value-Form) can be used to exit the form, returning the
-  result of Value-Form."
+
+   Evaluate the Forms as a PROGN.  Within the lexical scope of the body,
+   (RETURN-FROM Name Value-Form) can be used to exit the form, returning the
+   result of Value-Form."
   (unless (symbolp name)
-    (compiler-error "Block name is not a symbol: ~S." name))
+    (compiler-error "Block name must be a symbol: ~S." name))
   (continuation-starts-block cont)
   (let* ((dummy (make-continuation))
 	 (entry (make-entry))
@@ -2086,9 +2286,9 @@
 (def-ir1-translator return-from ((name &optional value)
 				 start cont)
   "Return-From Block-Name Value-Form
-  Evaluate the Value-Form, returning its values from the lexically enclosing
-  BLOCK Block-Name.  This is constrained to be used only within the dynamic
-  extent of the BLOCK."
+   Evaluate the Value-Form, returning its values from the lexically enclosing
+   BLOCK Block-Name.  This is constrained to be used only within the dynamic
+   extent of the BLOCK."
   (continuation-starts-block cont)
   (let* ((found (or (lexenv-find name blocks)
 		    (compiler-error "Return for unknown block: ~S." name)))
@@ -2101,15 +2301,14 @@
     (prev-link exit value-cont)
     (use-continuation exit (cont-ref-cont (second found)))))
 
-
 ;;; Parse-Tagbody  --  Internal
 ;;;
-;;;    Return a list of the segments of a tagbody.  Each segment looks like
+;;; Return a list of the segments of a tagbody.  Each segment looks like
 ;;; (<tag> <form>* (go <next tag>)).  That is, we break up the tagbody into
-;;; segments of non-tag statements, and explicitly represent the drop-through
-;;; with a GO.  The first segment has a dummy NIL tag, since it represents code
-;;; before the first tag.  The last segment (which may also be the first
-;;; segment) ends in NIL rather than a GO.
+;;; segments of non-tag statements, and explicitly represent the
+;;; drop-through with a GO.  The first segment has a dummy NIL tag, since
+;;; it represents code before the first tag.  The last segment (which may
+;;; also be the first segment) ends in NIL rather than a GO.
 ;;;
 (defun parse-tagbody (body)
   (declare (list body))
@@ -2129,21 +2328,20 @@
 	  (setq current (nthcdr tag-pos current)))))
     (segments)))
 
-
 ;;; Tagbody IR1 convert  --  Internal
 ;;;
-;;;    Set up the cleanup, emitting the entry node.  Then make a block for each
-;;; tag, building up the tag list for LEXENV-TAGS as we go.  Finally, convert
-;;; each segment with the precomputed Start and Cont values.
+;;; Set up the cleanup, emitting the entry node.  Then make a block for
+;;; each tag, building up the tag list for LEXENV-TAGS as we go.  Finally,
+;;; convert each segment with the precomputed Start and Cont values.
 ;;;
 (def-ir1-translator tagbody ((&rest statements) start cont)
   "Tagbody {Tag | Statement}*
-  Define tags for used with GO.  The Statements are evaluated in order
-  (skipping Tags) and NIL is returned.  If a statement contains a GO to a
-  defined Tag within the lexical scope of the form, then control is transferred
-  to the next statement following that tag.  A Tag must an integer or a
-  symbol.  A statement must be a list.  Other objects are illegal within the
-  body."
+   Define tags for used with GO.  The Statements are evaluated in order
+   (skipping Tags) and NIL is returned.  If a statement contains a GO to a
+   defined Tag within the lexical scope of the form, then control is transferred
+   to the next statement following that tag.  A Tag must an integer or a
+   symbol.  A statement must be a list.  Other objects are illegal within the
+   body."
   (continuation-starts-block cont)
   (let* ((dummy (make-continuation))
 	 (entry (make-entry))
@@ -2173,15 +2371,15 @@
 		  (ir1-convert-progn-body start cont (rest segment)))
 	      segments (starts) (conts))))))
 
-
 ;;; Go IR1 convert  --  Internal
 ;;;
-;;;    Emit an Exit node without any value.
+;;; Emit an Exit node without any value.
 ;;;
 (def-ir1-translator go ((tag) start cont)
-  "Go Tag
-  Transfer control to the named Tag in the lexically enclosing TAGBODY.  This
-  is constrained to be used only within the dynamic extent of the TAGBODY."
+  "go tag
+
+   Transfer control to the named Tag in the lexically enclosing TAGBODY.  This
+   is constrained to be used only within the dynamic extent of the TAGBODY."
   (continuation-starts-block cont)
   (let* ((found (or (lexenv-find tag tags :test #'eql)
 		    (compiler-error "Go to nonexistent tag: ~S." tag)))
@@ -2192,7 +2390,7 @@
     (use-continuation exit (cont-ref-cont (second found)))))
 
 
-;;;; Translators for compiler-magic special forms:
+;;;; Translators for compiler-magic special forms.
 
 (def-ir1-translator compiler-let ((bindings &rest body) start cont)
   (collect ((vars)
@@ -2212,19 +2410,18 @@
     (progv (vars) (values)
       (ir1-convert-progn-body start cont body))))
 
-
-;;; This flag is used by Eval-When to keep track of when code has already been
-;;; evaluated so that it can avoid multiple evaluation of nested Eval-When
-;;; (Compile)s.
+;;; This flag is used by Eval-When to keep track of when code has already
+;;; been evaluated so that it can avoid multiple evaluation of nested
+;;; Eval-When (Compile)s.
 ;;;
 (proclaim '(special lisp::*already-evaled-this*))
 
 ;;; DO-EVAL-WHEN-STUFF  --  Interface
 ;;;
-;;;    Do stuff to do an EVAL-WHEN.  This is split off from the IR1 convert
+;;; Do stuff to do an EVAL-WHEN.  This is split off from the IR1 convert
 ;;; method so that it can be shared by the special-case top-level form
-;;; processing code.  We play with the dynamic environment and eval stuff, then
-;;; call Fun with a list of forms to be processed at load time.
+;;; processing code.  We play with the dynamic environment and eval stuff,
+;;; then call Fun with a list of forms to be processed at load time.
 ;;;
 ;;; Note: the EVAL situation is always ignored: this is conceptually a
 ;;; compile-only implementation.
@@ -2236,9 +2433,10 @@
 ;;; *already-evaled-this* is true then we *do not* eval since some enclosing
 ;;; eval-when already did.
 ;;;
-;;;    We know we are eval'ing for load since we wouldn't get called otherwise.
-;;; If LOAD is a situation we call Fun on body. If we aren't evaluating for
-;;; load, then we call Fun on NIL for the result of the EVAL-WHEN.
+;;; We know we are eval'ing for load since we wouldn't get called
+;;; otherwise.  If LOAD is a situation we call Fun on body. If we aren't
+;;; evaluating for load, then we call Fun on NIL for the result of the
+;;; EVAL-WHEN.
 ;;;
 (defun do-eval-when-stuff (situations body fun)
   (when (or (not (listp situations))
@@ -2258,7 +2456,6 @@
 	(funcall fun body)
 	(funcall fun '(nil)))))
 
-
 (def-ir1-translator eval-when ((situations &rest body) start cont)
   "EVAL-WHEN (Situation*) Form*
   Evaluate the Forms in the specified Situations, any of COMPILE, LOAD, EVAL.
@@ -2267,10 +2464,9 @@
 		      #'(lambda (forms)
 			  (ir1-convert-progn-body start cont forms))))
 
-
 ;;; DO-MACROLET-STUFF  --  Interface
 ;;;
-;;;    Like DO-EVAL-WHEN-STUFF, only do a macrolet.  Fun is not passed any
+;;; Like DO-EVAL-WHEN-STUFF, only do a macrolet.  Fun is not passed any
 ;;; arguments.
 ;;;
 (defun do-macrolet-stuff (definitions fun)
@@ -2301,7 +2497,6 @@
 
   (undefined-value))
 
-
 (def-ir1-translator macrolet ((definitions &rest body) start cont)
   "MACROLET ({(Name Lambda-List Form*)}*) Body-Form*
   Evaluate the Body-Forms in an environment with the specified local macros
@@ -2312,14 +2507,12 @@
 		     #'(lambda ()
 			 (ir1-convert-progn-body start cont body))))
 
-
 ;;; Not really a special form, but...
 ;;;
 (def-ir1-translator declare ((&rest stuff) start cont)
   (declare (ignore stuff))
   start cont; Ignore hack
-  (compiler-error "Misplaced declaration."))
-
+  (compiler-error "Misplaced declaration.")) ; FIX add bit more info
 
 ;;; COMPILER-OPTION-BIND
 ;;;
@@ -2343,15 +2536,14 @@
     (ir1-convert-progn-body start cont body)))
 
 
-;;;; %Primitive:
+;;;; %Primitive.
 ;;;
-;;;    Uses of %primitive are either expanded into Lisp code or turned into a
+;;; Uses of %primitive are either expanded into Lisp code or turned into a
 ;;; funny function.
-;;;
 
 ;;; Eval-Info-Args  --  Internal
 ;;;
-;;;    Carefully evaluate a list of forms, returning a list of the results.
+;;; Carefully evaluate a list of forms, returning a list of the results.
 ;;;
 (defun eval-info-args (args)
   (declare (list args))
@@ -2366,19 +2558,20 @@
 
 ;;; IR1-Convert-%Primitive  --  Internal
 ;;;
-;;;    If there is a primitive translator, then we expand the call.  Otherwise,
-;;; we convert to the %%Primitive funny function.  The first argument is the
-;;; template, the second is a list of the results of any codegen-info args, and
-;;; the remaining arguments are the runtime arguments.
+;;; If there is a primitive translator, then we expand the call.
+;;; Otherwise, we convert to the %%Primitive funny function.  The first
+;;; argument is the template, the second is a list of the results of any
+;;; codegen-info args, and the remaining arguments are the runtime
+;;; arguments.
 ;;;
-;;;    We do a bunch of error checking now so that we don't bomb out with a
+;;; We do a bunch of error checking now so that we don't bomb out with a
 ;;; fatal error during IR2 conversion.
 ;;;
 (def-ir1-translator system:%primitive ((&whole form name &rest args)
 				       start cont)
 
-  (unless (symbolp name)
-    (compiler-error "%Primitive name is not a symbol: ~S." name))
+  (or (symbolp name)
+      (compiler-error "%Primitive name must be a symbol: ~S." name))
 
   (let* ((name (intern (symbol-name name)
 		       (or (find-package "OLD-C")
@@ -2411,25 +2604,24 @@
 	     "%Primitive used with an unknown values template."))
 
 	  (ir1-convert start cont
-		      `(%%primitive ',template
-				    ',(eval-info-args
-				       (subseq args required min))
-				    ,@(subseq args 0 required)
-				    ,@(subseq args min)))))))
+		       `(%%primitive ',template
+				     ',(eval-info-args
+					(subseq args required min))
+				     ,@(subseq args 0 required)
+				     ,@(subseq args min)))))))
 
 
-;;;; Quote and Function:
+;;;; Quote and Function.
 
 (def-ir1-translator quote ((thing) start cont)
   "QUOTE Value
-  Return Value without evaluating it."
+   Return Value without evaluating it."
   (reference-constant start cont thing))
-
 
 (def-ir1-translator function ((thing) start cont)
   "FUNCTION Name
-  Return the lexically apparent definition of the function Name.  Name may also
-  be a lambda."
+   Return the lexically apparent definition of the function Name.  Name may also
+   be a lambda."
   (if (consp thing)
       (case (car thing)
 	((lambda)
@@ -2450,12 +2642,11 @@
 	(reference-leaf start cont var))))
 
 
-;;;; Funcall:
+;;;; Funcall.
 ;;;
 ;;; FUNCALL is implemented on %FUNCALL, which can only call functions (not
-;;; symbols).  It is directly used in some places where the call should always
-;;; be open-coded even if FUNCALL is :NOTINLINE.
-;;;
+;;; symbols).  It is directly used in some places where the call should
+;;; always be open-coded even if FUNCALL is :NOTINLINE.
 
 (deftransform funcall ((function &rest args) * * :when :both)
   (collect ((arg-names))
@@ -2491,12 +2682,12 @@
   (give-up "Might be a symbol, so must call FDEFINITION at runtime."))
 
 
-;;;; Symbol macros:
+;;;; Symbol macros.
 
 (def-ir1-translator symbol-macrolet ((specs &body (body decls)) start cont)
   "SYMBOL-MACROLET ({(Name Expansion)}*) Decl* Form*
-  Define the Names as symbol macros with the given Expansions.  Within the
-  body, references to a Name will effectively be replaced with the Expansion."
+   Define the Names as symbol macros with the given Expansions.  Within the
+   body, references to a Name will effectively be replaced with the Expansion."
   (collect ((res))
     (dolist (spec specs)
       (unless (= (length spec) 2)
@@ -2514,19 +2705,18 @@
       (ir1-convert-progn-body start cont body))))
 
 
-;;;; Proclaim:
+;;;; Proclaim.
 ;;;
-;;;    Proclaim changes the global environment, so we must special-case it if
+;;; Proclaim changes the global environment, so we must special-case it if
 ;;; we are to keep the information in the *FREE-xxx* variables up to date.
-;;; When there is a var structure we disown it by replacing it with an updated
-;;; copy.  Uses of the variable which were translated before the PROCLAIM will
-;;; get the old version, while subsequent references will get the updated
-;;; information.
-
+;;; When there is a var structure we disown it by replacing it with an
+;;; updated copy.  Uses of the variable which were translated before the
+;;; PROCLAIM will get the old version, while subsequent references will get
+;;; the updated information.
 
 ;;; Get-Old-Vars  --  Internal
 ;;;
-;;;    Look up some symbols in *free-variables*, returning the var structures
+;;; Look up some symbols in *free-variables*, returning the var structures
 ;;; for any which exist.  If any of the names aren't symbols, we complain.
 ;;;
 (defun get-old-vars (names)
@@ -2538,16 +2728,15 @@
       (let ((old (gethash name *free-variables*)))
 	(when old (vars old))))))
 
-
 ;;; Process-Type-Proclamation  --  Internal
 ;;;
-;;;    Replace each old var entry with one having the new type.  If the new
+;;; Replace each old var entry with one having the new type.  If the new
 ;;; type doesn't intersect with the old type, give a warning.
 ;;;
-;;;    We also check that the old type of each variable intersects with the new
-;;; one, giving a warning if not.  This isn't as serious as conflicting local
-;;; declarations, since we assume a redefinition semantics rather than an
-;;; intersection semantics.
+;;; We also check that the old type of each variable intersects with the
+;;; new one, giving a warning if not.  This isn't as serious as conflicting
+;;; local declarations, since we assume a redefinition semantics rather
+;;; than an intersection semantics.
 ;;;
 (defun process-type-proclamation (spec names)
   (declare (list names))
@@ -2570,8 +2759,6 @@
 		(constant
 		 (make-constant :name name :type type :where-from :declared
 				:value (constant-value var)))))))))
-
-
 
 ;;; Process-1-Ftype-Proclamation  --  Internal
 ;;;
@@ -2606,7 +2793,6 @@
 				     :where "this declaration")))))))
   (undefined-value))
 
-
 ;;; Process-Ftype-Proclamation  --  Internal
 ;;;
 (defun process-ftype-proclamation (spec names)
@@ -2618,12 +2804,12 @@
     (dolist (name names)
       (process-1-ftype-proclamation name type))))
 
-
 ;;; PROCESS-INLINE-PROCLAMATION  --  Internal
 ;;;
-;;;    Similar in effect to FTYPE, but change the :INLINEP.  Copying the
-;;; global-var ensures that when we substitute a functional for a global var
-;;; (i.e. for DEFUN) that we won't clobber any uses declared :NOTINLINE.
+;;; Similar in effect to FTYPE, but change the :INLINEP.  Copying the
+;;; global-var ensures that when we substitute a functional for a global
+;;; var (i.e. for DEFUN) that we won't clobber any uses declared
+;;; :NOTINLINE.
 ;;;
 (defun process-inline-proclamation (kind funs)
   (dolist (name funs)
@@ -2635,7 +2821,6 @@
 	 (setf (gethash name *free-functions*)
 	       (make-new-inlinep var
 				 (cdr (assoc kind inlinep-translations)))))))))
-
 
 (def-ir1-translator proclaim ((what) start cont :kind :function)
   (if (constantp what)
@@ -2702,10 +2887,9 @@
 	      (ir1-convert start cont `(%proclaim ,what)))))
       (ir1-convert start cont `(%proclaim ,what))))
 
-
 ;;; %Compiler-Defstruct IR1 Convert  --  Internal
 ;;;
-;;;    This is a frob that DEFMACRO expands into to establish the compiler
+;;; This is a frob that DEFMACRO expands into to establish the compiler
 ;;; semantics.  The other code in the expansion and %%COMPILER-DEFSTRUCT do
 ;;; most of the work, we just clear all of the functions out of
 ;;; *FREE-FUNCTIONS* to keep things in synch.  %%COMPILER-DEFSTRUCT is also
@@ -2726,7 +2910,7 @@
 
 ;;; %COMPILER-ONLY-DEFSTRUCT  IR1 Convert  --  Internal
 ;;;
-;;;    Don't actually compile anything, instead call the function now.  Use
+;;; Don't actually compile anything, instead call the function now.  Use
 ;;; EVAL so this can be compiled...
 ;;;
 (def-ir1-translator kernel:%compiler-only-defstruct
@@ -2735,14 +2919,14 @@
   (reference-constant start cont nil))
 
 
-;;;; Let and Let*:
+;;;; Let and Let*.
 ;;;
-;;;    Let and Let* can't be implemented as macros due to the fact that
-;;; any pervasive declarations also affect the evaluation of the arguments.
+;;; Let and Let* can't be implemented as macros due to the fact that any
+;;; pervasive declarations also affect the evaluation of the arguments.
 
 ;;; Extract-Let-Variables  --  Internal
 ;;;
-;;;    Given a list of binding specifiers in the style of Let, return:
+;;; Given a list of binding specifiers in the style of Let, return:
 ;;;  1] The list of var structures for the variables bound.
 ;;;  2] The initial value form for each variable.
 ;;;
@@ -2778,13 +2962,27 @@
 
     (values (vars) (vals) (names))))
 
+#|
+FIX would it be possible to mv let to a macro in code:?
+
+(let ((a 1) (b 2))
+  body)
+
+((lambda (a b) body) 1 2)
+
+(defmacro let ((&rest bindings) &body body)
+  (multiple-value-bind (vars values)
+		       (extract-let-variables bindings 'let)
+    `((lambda (,@vars) ,body) ,@values)))
+|#
 
 (def-ir1-translator let ((bindings &body (body decls))
 			 start cont)
-  "LET ({(Var [Value]) | Var}*) Declaration* Form*
-  During evaluation of the Forms, Bind the Vars to the result of evaluating the
-  Value forms.  The variables are bound in parallel after all of the Values are
-  evaluated."
+  "let ({(Var [Value]) | Var}*) Declaration* Form*
+
+   During evaluation of the Forms, Bind the Vars to the result of evaluating the
+   Value forms.  The variables are bound in parallel after all of the Values are
+   evaluated."
   (multiple-value-bind (vars values)
 		       (extract-let-variables bindings 'let)
     (let* ((*lexical-environment* (process-declarations decls vars nil cont))
@@ -2796,34 +2994,34 @@
 (def-ir1-translator locally ((&body (body decls))
                             start cont)
   "LOCALLY Declaration* Form*
+
    Sequentially evaluates a body of Form's in a lexical environment
    where the given Declaration's have effect."
   (let* ((*lexical-environment* (process-declarations decls nil nil cont)))
     (ir1-convert-progn-body start cont body)))
 
-
-
 (def-ir1-translator let* ((bindings &body (body decls))
 			  start cont)
   "LET* ({(Var [Value]) | Var}*) Declaration* Form*
-  Similar to LET, but the variables are bound sequentially, allowing each Value
-  form to reference any of the previous Vars."
+
+   Similar to LET, but the variables are bound sequentially, allowing each
+   Value form to reference any of the previous Vars."
   (multiple-value-bind (vars values)
 		       (extract-let-variables bindings 'let*)
     (let ((*lexical-environment* (process-declarations decls vars nil cont)))
       (ir1-convert-aux-bindings start cont body vars values nil))))
 
 
-;;;; Flet and Labels:
+;;;; Flet and Labels.
 
 ;;; Extract-Flet-Variables  --  Internal
 ;;;
-;;;    Given a list of local function specifications in the style of Flet,
+;;; Given a list of local function specifications in the style of Flet,
 ;;; return lists of the function names and of the lambdas which are their
 ;;; definitions.
 ;;;
-;;; The function names are checked for legality.  Context is the name of the
-;;; form, for error reporting.
+;;; The function names are checked for legality.  Context is the name of
+;;; the form, for error reporting.
 ;;;
 (defun extract-flet-variables (definitions context)
   (declare (list definitions) (symbol context) (values list list))
@@ -2844,13 +3042,13 @@
 		     . ,body))))))
     (values (names) (defs))))
 
-
 (def-ir1-translator flet ((definitions &body (body decls))
 			  start cont)
   "FLET ({(Name Lambda-List Declaration* Form*)}*) Declaration* Body-Form*
-  Evaluate the Body-Forms with some local function definitions.   The bindings
-  do not enclose the definitions; any use of Name in the Forms will refer to
-  the lexically apparent function definition in the enclosing environment."
+
+   Evaluate the Body-Forms with some local function definitions.   The bindings
+   do not enclose the definitions; any use of Name in the Forms will refer to
+   the lexically apparent function definition in the enclosing environment."
   (multiple-value-bind (names defs)
 		       (extract-flet-variables definitions 'flet)
     (let* ((fvars (mapcar #'(lambda (n d)
@@ -2861,18 +3059,19 @@
 			 :functions (pairlis names fvars))))
       (ir1-convert-progn-body start cont body))))
 
-
 ;;; For Labels, we have to create dummy function vars and add them to the
-;;; function namespace while converting the functions.  We then modify all the
-;;; references to these leaves so that they point to the real functional
-;;; leaves.  We also backpatch the FENV so that if the lexical environment is
-;;; used for inline expansion we will get the right functions.
+;;; function namespace while converting the functions.  We then modify all
+;;; the references to these leaves so that they point to the real
+;;; functional leaves.  We also backpatch the FENV so that if the lexical
+;;; environment is used for inline expansion we will get the right
+;;; functions.
 ;;;
 (def-ir1-translator labels ((definitions &body (body decls)) start cont)
   "LABELS ({(Name Lambda-List Declaration* Form*)}*) Declaration* Body-Form*
-  Evaluate the Body-Forms with some local function definitions.  The bindings
-  enclose the new definitions, so the defined functions can call themselves or
-  each other."
+
+   Evaluate the Body-Forms with some local function definitions.  The bindings
+   enclose the new definitions, so the defined functions can call themselves or
+   each other."
   (multiple-value-bind (names defs)
 		       (extract-flet-variables definitions 'labels)
     (let* ((new-fenv (loop for name in names
@@ -2899,12 +3098,12 @@
 
 ;;; DO-THE-STUFF  --  Internal
 ;;;
-;;;    Do stuff to recognize a THE or VALUES declaration.  Cont is the
-;;; continuation that the assertion applies to, Type is the type specifier and
-;;; Lexenv is the current lexical environment.  Name is the name of the
+;;; Do stuff to recognize a THE or VALUES declaration.  Cont is the
+;;; continuation that the assertion applies to, Type is the type specifier
+;;; and Lexenv is the current lexical environment.  Name is the name of the
 ;;; declaration we are doing, for use in error messages.
 ;;;
-;;;    This is somewhat involved, since a type assertion may only be made on a
+;;; This is somewhat involved, since a type assertion may only be made on a
 ;;; continuation, not on a node.  We can't just set the continuation asserted
 ;;; type and let it go at that, since there may be parallel THE's for the same
 ;;; continuation, i.e.:
@@ -2947,17 +3146,18 @@
     (make-lexenv :type-restrictions `((,cont . ,new))
 		 :default lexenv)))
 
-
+;; FIX a?
+;;
 ;;; THE IR1 Convert  --  Internal
 ;;;
-;;; A THE declaration for a single value type is internally converted
-;;; into (values &optional type &rest t) as this is the commonly
-;;; expected behavior.
+;;; A THE declaration for a single value type is internally converted into
+;;; (values &optional type &rest t) as this is the commonly expected
+;;; behavior.
 ;;;
 (def-ir1-translator the ((type value) start cont)
   "THE Type Form
-  Assert that Form evaluates to the specified type (which may be a VALUES
-  type.)"
+   Assert that Form evaluates to the specified type (which may be a VALUES
+   type.)"
   (let ((ctype (values-specifier-type type)))
     (unless (values-type-p ctype)
       (setf ctype (make-values-type :optional (list ctype)
@@ -2966,18 +3166,20 @@
 	   (do-the-stuff ctype cont *lexical-environment* 'the)))
       (ir1-convert start cont value))))
 
-
+;; FIX assume-the, assume-a?
+;;
 ;;; Truly-The IR1 convert  --  Internal
 ;;;
-;;;    Since the Continuation-Derived-Type is computed as the union of its
-;;; uses's types, setting it won't work.  Instead we must intersect the type
-;;; with the uses's Derived-Type.
+;;; Since the Continuation-Derived-Type is computed as the union of its
+;;; uses's types, setting it won't work.  Instead we must intersect the
+;;; type with the uses's Derived-Type.
 ;;;
 (def-ir1-translator truly-the ((type value) start cont)
   "Truly-The Type Value
-  Like the THE special form, except that it believes whatever you tell it.  It
-  will never generate a type check, but will cause a warning if the compiler
-  can prove the assertion is wrong."
+
+   Like the THE special form, except that it believes whatever you tell it.  It
+   will never generate a type check, but will cause a warning if the compiler
+   can prove the assertion is wrong."
   (declare (inline member))
   (let ((type (values-specifier-type type))
 	(old (find-uses cont)))
@@ -2989,15 +3191,16 @@
 
 ;;;; Setq
 ;;;
-;;;    If there is a definition in LEXENV-VARIABLES, just set that, otherwise
-;;; look at the global information.  If the name is for a constant, then error
-;;; out.
+;;; If there is a definition in LEXENV-VARIABLES, just set that, otherwise
+;;; look at the global information.  If the name is for a constant, then
+;;; error out.
 
 (def-ir1-translator setq ((&whole source &rest things) start cont)
-  "SETQ {Var Value}*
-  Set the variables to the values.  If more than one pair is supplied, the
-  assignments are done sequentially.  If Var names a symbol macro, SETF the
-  expansion."
+  "setq {Var Value}*
+
+   Set the variables to the values.  If more than one pair is supplied, the
+   assignments are done sequentially.  If Var names a symbol macro, SETF the
+   expansion."
   (let ((len (length things)))
     (when (oddp len)
       (compiler-error "Odd number of args to SETQ: ~S." source))
@@ -3027,11 +3230,10 @@
 	       (ir1-convert-progn-body start cont (sets)))
 	    (sets `(setq ,(first thing) ,(second thing))))))))
 
-
 ;;; Set-Variable  --  Internal
 ;;;
-;;;    Kind of like Reference-Leaf, but we generate a Set node.  This
-;;; should only need to be called in Setq.
+;;; Kind of like Reference-Leaf, but we generate a Set node.  This should
+;;; only need to be called in Setq.
 ;;;
 (defun set-variable (start cont var value)
   (declare (type continuation start cont) (type basic-var var))
@@ -3048,20 +3250,19 @@
       (use-continuation res cont))))
 
 
-;;;; Catch, Throw and Unwind-Protect:
-;;;
+;;;; Catch, Throw and Unwind-Protect.
 
 ;;; Throw  --  Public
 ;;;
-;;;    Although throw could be a macro, it seems this would cause unnecessary
-;;; confusion.  We turn THROW into a multiple-value-call of a magical function,
-;;; since as as far as IR1 is concerned, it has no interesting properties other
-;;; than receiving multiple-values.
+;;; Although throw could be a macro, it seems this would cause unnecessary
+;;; confusion.  We turn THROW into a multiple-value-call of a magical
+;;; function, since as far as IR1 is concerned, it has no interesting
+;;; properties other than receiving multiple-values.
 ;;;
 (def-ir1-translator throw ((tag result) start cont)
   "Throw Tag Form
-  Do a non-local exit, return the values of Form from the CATCH whose tag
-  evaluates to the same thing as Tag."
+   Do a non-local exit, return the values of Form from the CATCH whose tag
+   evaluates to the same thing as Tag."
   (ir1-convert start cont
 	       `(multiple-value-call #'%throw ,tag ,result)))
 
@@ -3116,19 +3317,19 @@
 
 ;;; Catch  --  Public
 ;;;
-;;;    Catch could be a macro, but it's somewhat tasteless to expand into
+;;; Catch could be a macro, but it's somewhat tasteless to expand into
 ;;; implementation-dependent special forms.
 ;;;
-;;;    We represent the possibility of the control transfer by making an
+;;; We represent the possibility of the control transfer by making an
 ;;; "escape function" that does a lexical exit, and instantiate the cleanup
 ;;; using %within-cleanup.
 ;;;
 (def-ir1-translator catch ((tag &body body) start cont)
   "Catch Tag Form*
-  Evaluates Tag and instantiates it as a catcher while the body forms are
-  evaluated in an implicit PROGN.  If a THROW is done to Tag within the dynamic
-  scope of the body, then control will be transferred to the end of the body
-  and the thrown values will be returned."
+   Evaluates Tag and instantiates it as a catcher while the body forms are
+   evaluated in an implicit PROGN.  If a THROW is done to Tag within the dynamic
+   scope of the body, then control will be transferred to the end of the body
+   and the thrown values will be returned."
   (ir1-convert
    start cont
    (let ((exit-block (gensym)))
@@ -3138,20 +3339,19 @@
 	    (%catch (%escape-function ,exit-block) ,tag)
 	  ,@body)))))
 
-
 ;;; Unwind-Protect  --  Public
 ;;;
-;;;    Unwind-Protect is similar to Catch, but more hairy.  We make the cleanup
-;;; forms into a local function so that they can be referenced both in the case
-;;; where we are unwound and in any local exits.  We use %Cleanup-Function on
-;;; this to indicate that reference by %Unwind-Protect isn't "real", and thus
-;;; doesn't cause creation of an XEP.
+;;; Unwind-Protect is similar to Catch, but more hairy.  We make the
+;;; cleanup forms into a local function so that they can be referenced both
+;;; in the case where we are unwound and in any local exits.  We use
+;;; %Cleanup-Function on this to indicate that reference by %Unwind-Protect
+;;; isn't "real", and thus doesn't cause creation of an XEP.
 ;;;
 (def-ir1-translator unwind-protect ((protected &body cleanup) start cont)
   "Unwind-Protect Protected Cleanup*
-  Evaluate the form Protected, returning its values.  The cleanup forms are
-  evaluated whenever the dynamic scope of the Protected form is exited (either
-  due to normal completion or a non-local exit such as THROW)."
+   Evaluate the form Protected, returning its values.  The cleanup forms are
+   evaluated whenever the dynamic scope of the Protected form is exited (either
+   due to normal completion or a non-local exit such as THROW)."
   (ir1-convert
    start cont
    (let ((cleanup-fun (gensym))
@@ -3179,14 +3379,14 @@
 ;;; If there are arguments, multiple-value-call turns into an MV-Combination.
 ;;;
 ;;; If there are no arguments, then we convert to a normal combination,
-;;; ensuring that a MV-Combination always has at least one argument.  This can
-;;; be regarded as an optimization, but it is more important for simplifying
-;;; compilation of MV-Combinations.
+;;; ensuring that a MV-Combination always has at least one argument.  This
+;;; can be regarded as an optimization, but it is more important for
+;;; simplifying compilation of MV-Combinations.
 ;;;
 (def-ir1-translator multiple-value-call ((fun &rest args) start cont)
   "MULTIPLE-VALUE-CALL Function Values-Form*
-  Call Function, passing all the values of each Values-Form as arguments,
-  values from the first Values-Form making up the first argument, etc."
+   Call Function, passing all the values of each Values-Form as arguments,
+   values from the first Values-Form making up the first argument, etc."
   (let* ((fun-cont (make-continuation))
 	 (node (if args
 		   (make-mv-combination fun-cont)
@@ -3211,7 +3411,6 @@
 	(prev-link node this-start)
 	(use-continuation node cont)
 	(setf (basic-combination-args node) (arg-conts))))))
-
 
 ;;; IR1 convert Multiple-Value-Prog1  --  Internal
 ;;;
@@ -3240,8 +3439,8 @@
 ;;;
 (def-ir1-translator multiple-value-prog1 ((result &rest forms) start cont)
   "MULTIPLE-VALUE-PROG1 Values-Form Form*
-  Evaluate Values-Form and then the Forms, but return all the values of
-  Values-Form."
+   Evaluate Values-Form and then the Forms, but return all the values of
+   Values-Form."
   (continuation-starts-block cont)
   (let* ((dummy-result (make-continuation))
 	 (dummy-start (make-continuation))
@@ -3261,22 +3460,20 @@
       (delete-continuation dummy-result)
       (remove-from-dfo end-block))))
 
-
 
-;;;; Interface to defining macros:
+;;;; Interface to defining macros.
 ;;;
-;;;    DEFMACRO, DEFUN and DEFCONSTANT expand into calls to %DEFxxx functions
-;;; so that we get a chance to see what is going on.  We define IR1 translators
-;;; for these functions which look at the definition and then generate a call
-;;; to the %%DEFxxx function.
-;;;
-
+;;; DEFMACRO, DEFUN and DEFCONSTANT expand into calls to %DEFxxx functions
+;;; so that we get a chance to see what is going on.  We define IR1
+;;; translators for these functions which look at the definition and then
+;;; generate a call to the %%DEFxxx function.
 
 ;;; REVERT-SOURCE-PATH  --  Internal
 ;;;
-;;;    Return a new source path with any stuff intervening between the current
-;;; path and the first form beginning with Name stripped off.  This is used to
-;;; hide the guts of DEFmumble macros to prevent annoying error messages.
+;;; Return a new source path with any stuff intervening between the current
+;;; path and the first form beginning with Name stripped off.  This is used
+;;; to hide the guts of DEFmumble macros to prevent annoying error
+;;; messages.
 ;;;
 (defun revert-source-path (name)
   (do ((path *current-path* (cdr path)))
@@ -3285,7 +3482,6 @@
       (when (or (eq first name)
 		(eq first 'original-source-start))
 	(return path)))))
-
 
 ;;; Warn about incompatible or illegal definitions and add the macro to the
 ;;; compiler environment.
@@ -3332,7 +3528,6 @@
     (when *compile-print*
       (compiler-mumble "Converted ~S.~%" name))))
 
-
 (def-ir1-translator %define-compiler-macro ((name def lambda-list doc)
 					    start cont
 					    :kind :function)
@@ -3358,7 +3553,6 @@
 
     (when *compile-print*
       (compiler-mumble "Converted ~S.~%" name))))
-
 
 ;;; Update the global environment to correspond to the new definition.
 ;;;
@@ -3394,15 +3588,14 @@
   (ir1-convert start cont `(%%defconstant ,name ,value ,doc)))
 
 
-;;;; Defining global functions:
-
+;;;; Defining global functions.
 
 ;;; IR1-CONVERT-INLINE-LAMBDA  --  Interface
 ;;;
-;;;    Convert Fun as a lambda in the null environment, but use the current
-;;; compilation policy.  Note that Fun may be a LAMBDA-WITH-ENVIRONMENT, so we
-;;; may have to augment the environment to reflect the state at the definition
-;;; site.
+;;; Convert Fun as a lambda in the null environment, but use the current
+;;; compilation policy.  Note that Fun may be a LAMBDA-WITH-ENVIRONMENT, so
+;;; we may have to augment the environment to reflect the state at the
+;;; definition site.
 ;;;
 (defun ir1-convert-inline-lambda (fun &optional name parent-form)
   (destructuring-bind (declarations macros symbol-macros &rest body)
@@ -3426,13 +3619,12 @@
 	    (lexenv-interface-cookie *lexical-environment*))))
       (ir1-convert-lambda `(lambda ,@body) name parent-form))))
 
-
 ;;; INLINE-SYNTACTIC-CLOSURE-LAMBDA  --  Internal
 ;;;
-;;;    Return a lambda that has been "closed" with respect to Env, returning a
-;;; LAMBDA-WITH-ENVIRONMENT if there are interesting macros or declarations.
-;;; If there is something too complex (like a lexical variable) in the
-;;; environment, then we return NIL.
+;;; Return a lambda that has been "closed" with respect to Env, returning a
+;;; LAMBDA-WITH-ENVIRONMENT if there are interesting macros or
+;;; declarations.  If there is something too complex (like a lexical
+;;; variable) in the environment, then we return NIL.
 ;;;
 (defun inline-syntactic-closure-lambda
        (lambda &optional (env *lexical-environment*))
@@ -3478,12 +3670,11 @@
 	   `(lambda-with-environment ,decls ,macros ,symmacs
 				     . ,(rest lambda))))))
 
-
 ;;; GET-DEFINED-FUNCTION  --  Internal
 ;;;
-;;;    Get a DEFINED-FUNCTION object for a function we are about to define.  If
-;;; the function has been forward referenced, then substitute for the previous
-;;; references.
+;;; Get a DEFINED-FUNCTION object for a function we are about to define.
+;;; If the function has been forward referenced, then substitute for the
+;;; previous references.
 ;;;
 (defun get-defined-function (name)
   (let* ((name (define-function-name name))
@@ -3507,15 +3698,14 @@
 	   (get-defined-function name))
 	  (t found))))
 
-
 ;;; ASSERT-NEW-DEFINITION  --  Internal
 ;;;
-;;;    Check a new global function definition for consistency with previous
-;;; declaration or definition, and assert argument/result types if appropriate.
-;;; This assertion is suppressed by the EXPLICIT-CHECK attribute, which is
-;;; specified on functions that check their argument types as a consequence of
-;;; type dispatching.  This avoids redundant checks such as NUMBERP on the args
-;;; to +, etc.
+;;; Check a new global function definition for consistency with previous
+;;; declaration or definition, and assert argument/result types if
+;;; appropriate.  This assertion is suppressed by the EXPLICIT-CHECK
+;;; attribute, which is specified on functions that check their argument
+;;; types as a consequence of type dispatching.  This avoids redundant
+;;; checks such as NUMBERP on the args to +, etc.
 ;;;
 (defun assert-new-definition (var fun)
   (let ((type (leaf-type var))
@@ -3536,10 +3726,9 @@
 		"previous declaration"
 		"previous definition"))))
 
-
 ;;; IR1-CONVERT-LAMBDA-FOR-DEFUN  --  Interface
 ;;;
-;;;    Convert a lambda doing all the basic stuff we would do if we were
+;;; Convert a lambda doing all the basic stuff we would do if we were
 ;;; converting a DEFUN.  This is used both by the %DEFUN translator and for
 ;;; global inline expansion.
 ;;;
@@ -3573,7 +3762,6 @@
 	;; to this function from following top-level forms.
 	(when expansion (setf (defined-function-functional var) fun)))
       fun)))
-
 
 ;;; %DEFUN IR1 convert  --  Internal
 ;;;

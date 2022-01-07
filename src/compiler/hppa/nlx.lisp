@@ -1,24 +1,11 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/hppa/nlx.lisp,v 1.3.2.1 1998/06/23 11:23:30 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the definitions of VOPs used for non-local exit
-;;; (throw, lexical exit, etc.)
-;;;
-;;; Written by William Lott
-;;;
+;;; The definitions of VOPs used for non-local exit (throw, lexical exit,
+;;; etc.)
+
 (in-package "HPPA")
 
 ;;; MAKE-NLX-SP-TN  --  Interface
 ;;;
-;;;    Make an environment-live stack TN for saving the SP for NLX entry.
+;;; Make an environment-live stack TN for saving the SP for NLX entry.
 ;;;
 (def-vm-support-routine make-nlx-sp-tn (env)
   (environment-live-tn
@@ -27,8 +14,8 @@
 
 ;;; Make-NLX-Entry-Argument-Start-Location  --  Interface
 ;;;
-;;;    Make a TN for the argument count passing location for a
-;;; non-local entry.
+;;; Make a TN for the argument count passing location for a non-local
+;;; entry.
 ;;;
 (def-vm-support-routine make-nlx-entry-argument-start-location ()
   (make-wired-tn *fixnum-primitive-type* immediate-arg-scn ocfp-offset))
@@ -36,17 +23,16 @@
 
 ;;; Save and restore dynamic environment.
 ;;;
-;;;    These VOPs are used in the reentered function to restore the appropriate
-;;; dynamic environment.  Currently we only save the Current-Catch and binding
-;;; stack pointer.  We don't need to save/restore the current unwind-protect,
-;;; since unwind-protects are implicitly processed during unwinding.  If there
-;;; were any additional stacks, then this would be the place to restore the top
-;;; pointers.
-
+;;; These VOPs are used in the reentered function to restore the
+;;; appropriate dynamic environment.  Currently we only save the
+;;; Current-Catch and binding stack pointer.  We don't need to save/restore
+;;; the current unwind-protect, since unwind-protects are implicitly
+;;; processed during unwinding.  If there were any additional stacks, then
+;;; this would be the place to restore the top pointers.
 
 ;;; Make-Dynamic-State-TNs  --  Interface
 ;;;
-;;;    Return a list of TNs that can be used to snapshot the dynamic state for
+;;; Return a list of TNs that can be used to snapshot the dynamic state for
 ;;; use with the Save/Restore-Dynamic-Environment VOPs.
 ;;;
 (def-vm-support-routine make-dynamic-state-tns ()
@@ -91,7 +77,7 @@
     (move bsp-tn res)))
 
 
-;;;; Unwind block hackery:
+;;;; Unwind block hackery.
 
 ;;; Compute the address of the catch block from its TN, then store into the
 ;;; block the current Fp, Env, Unwind-Protect, and the entry PC.
@@ -135,7 +121,6 @@
     (storew temp block catch-block-previous-catch-slot)
     (store-symbol-value block lisp::*current-catch-block*)))
 
-
 ;;; Just set the current unwind-protect to TN's address.  This instantiates an
 ;;; unwind block as an unwind-protect.
 ;;;
@@ -145,7 +130,6 @@
   (:generator 7
     (inst addi (* (tn-offset tn) word-bytes) cfp-tn new-uwp)
     (store-symbol-value new-uwp lisp::*current-unwind-protect-block*)))
-
 
 (define-vop (unlink-catch-block)
   (:temporary (:scs (any-reg)) block)
@@ -166,8 +150,7 @@
     (store-symbol-value block lisp::*current-unwind-protect-block*)))
 
 
-;;;; NLX entry VOPs:
-
+;;;; NLX entry VOPs.
 
 (define-vop (nlx-entry)
   (:args (sp) ; Note: we can't list an sc-restriction, 'cause any load vops
@@ -203,10 +186,10 @@
 		   (control-stack
 		    (loadw move-temp start i)
 		    (store-stack-tn tn move-temp)))))
-	     
+
 	     (let ((defaulting-done (gen-label)))
 	       (emit-label defaulting-done)
-	       
+
 	       (assemble (*elsewhere*)
 		 (do ((defs (defaults) (cdr defs)))
 		     ((null defs))
@@ -221,7 +204,6 @@
 			 (control-stack
 			  (store-stack-tn tn null-tn)))))))))))
     (load-stack-tn csp-tn sp)))
-
 
 (define-vop (nlx-entry-multiple)
   (:args (top :target dst) (start :target src) (count :target num))
@@ -263,7 +245,6 @@
 
     DONE
     (inst move dst csp-tn)))
-
 
 ;;; This VOP is just to force the TNs used in the cleanup onto the stack.
 ;;;

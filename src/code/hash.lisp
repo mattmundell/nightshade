@@ -1,6 +1,6 @@
 ;;; Hashing and hash table functions.
 
-(in-package :common-lisp)
+(in-package :lisp)
 
 (export '(hash-table hash-table-p make-hash-table
 	  gethash remhash maphash clrhash
@@ -11,7 +11,7 @@
 (in-package :ext)
 (export '(define-hash-table-test))
 
-(in-package :common-lisp)
+(in-package :lisp)
 
 
 ;;;; The hash-table structures.

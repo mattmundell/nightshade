@@ -5,25 +5,26 @@ All parts of CMUCL 18c that were explicitly marked as copyrighted have been
 removed.  This includes PCL, the CLX interface, the MIT version of the loop
 macro and some of the contrib directory.
 
-Everyone who committed towards CMUCL 18c after the CMU public domain
-release has confirmed that the additions they made are public domain.  They
-are Douglas Crosher (dtc), Robert MacLachlan (ram) and Paul Werkowski (pw).
+Everyone who committed to the CMUCL 18c repository after the CMU public
+domain release has confirmed that the additions they made are public
+domain.  They are Douglas Crosher (dtc), Robert MacLachlan (ram) and Paul
+Werkowski (pw).
 
-External contributions made towards CMUCL 18c after the CMU public domain
-release were recorded in the logs.  The public domain status of these
-additions falls into three categories:
+Contributions committed on behalf of the contributor after the CMU public
+domain release were recorded in the CVS logs.  The status of these
+additions is:
 
-	- Confirmed public domain by contributor
-		  Peter Van Eynde, Fred Gilham, Eric Marsden, Timothy Miller,
-		  Raymond Toy.
+    - confirmed public domain by contributor
+          Marco Antoniotti, Julian Dolby, Peter Van Eynde, Fred Gilham,
+          Eric Marsden, Mike McDonald, Timothy Miller, Tim Moore, Ken Olum,
+          Raymond Toy.
 
-	- Reverted
-		  Pierre Mai, Pierpaolo Bernardi.
+    - reverted
+          Pierpaolo Bernardi, Casper Dik, Pierre Mai, Juergen Weiss.
 
-	- Status pending
-		  Marco Antoniotti, Casper Dik, Julian Dolby, Mike McDonald,
-		  Tim Moore, Ken Olum.
+    - pending contact with the author
+          Casper Dik, Marcus Krummenacker, Simon.
 
 Every new addition to the CMUCL 18c base is public domain.  A few of these
-additions come from outside the Nightshade project, the sources of these
-are detailed in the file etc/AUTHORS.
+new additions come from outside the Nightshade project; their sources are
+detailed in the file src/etc/AUTHORS.

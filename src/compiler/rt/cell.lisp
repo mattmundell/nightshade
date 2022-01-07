@@ -1,26 +1,7 @@
-;;; -*- Package: RT; Log: c.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/cell.lisp,v 1.8 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/compiler/rt/cell.lisp,v 1.8 1994/10/31 04:45:41 ram Exp $
-;;;
-;;; This file contains the VM definition of various primitive memory access
-;;; VOPs for the IBM RT.
-;;;
-;;; Written by Rob MacLachlan
-;;;
-;;; Converted by Bill Chiles.
-;;;
+;;; The VM definition of various primitive memory access VOPs for the IBM
+;;; RT.
 
 (in-package "RT")
-
 
 
 ;;;; Data object definition macros.
@@ -76,9 +57,8 @@
       `(progn
 	 ,@(forms)))))
 
-
 
-;;;; Symbol hacking VOPs:
+;;;; Symbol hacking VOPs.
 
 ;;; CHECKED-CELL-REF -- VOP.
 ;;;
@@ -118,7 +98,6 @@
     (let ((err-lab (generate-error-code vop undefined-symbol-error obj-temp)))
       (test-type value temp err-lab t vm:function-pointer-type))))
 
-
 ;;; BOUNDP-FROB -- VOP.
 ;;;
 ;;; Like CHECKED-CELL-REF, only we are a predicate to see if the cell is bound.
@@ -141,7 +120,6 @@
 	;; bound), then go to target.
 	(inst bc :eq target)
 	(inst bnc :eq target))))
-
 
 ;;; SYMBOL isn't a primitive type, so we can't use it for the arg restriction
 ;;; on the symbol case of fboundp.  Instead, we transform to a funny function.
@@ -198,7 +176,6 @@
       (storew temp symbol vm:symbol-raw-function-addr-slot vm:other-pointer-type)
       (move result function))))
 
-
 (defknown fmakunbound/symbol (symbol) symbol (unsafe))
 ;;;
 (deftransform fmakunbound ((symbol) (symbol))
@@ -217,7 +194,6 @@
     (inst cai temp (make-fixup "undefined_tramp" :foreign))
     (storew temp symbol vm:symbol-raw-function-addr-slot vm:other-pointer-type)
     (move result symbol)))
-
 
 ;;; Binding and Unbinding.
 
@@ -283,7 +259,6 @@
 
       (emit-label done))))
 
-
 
 ;;;; Closure indexing.
 
@@ -296,7 +271,7 @@
   (:translate %set-funcallable-instance-info))
 
 
-;;;; Structure hackery:
+;;;; Structure hackery.
 
 (define-vop (structure-length)
   (:policy :fast-safe)
@@ -322,17 +297,16 @@
   (:arg-types structure (:constant index) *))
 
 (define-vop (structure-index-ref word-index-ref)
-  (:policy :fast-safe) 
+  (:policy :fast-safe)
   (:translate structure-ref)
   (:variant structure-slots-offset structure-pointer-type)
   (:arg-types structure positive-fixnum))
 
 (define-vop (structure-index-set word-index-set)
-  (:policy :fast-safe) 
+  (:policy :fast-safe)
   (:translate structure-set)
   (:variant structure-slots-offset structure-pointer-type)
   (:arg-types structure positive-fixnum *))
-
 
 
 ;;;; Extra random indexers.
@@ -346,5 +320,3 @@
   (:translate code-header-set)
   (:policy :fast-safe)
   (:variant 0 other-pointer-type))
-
-

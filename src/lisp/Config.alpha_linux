@@ -1,6 +1,6 @@
 P1=/projects/cmucl/src/cvs-latest/src/lisp
 CPPFLAGS = -I. -I/usr/include -I$(P1) -I-
-CC = gcc 
+CC = gcc
 LD = ld
 CPP = cpp
 CFLAGS = -g -Wstrict-prototypes -O2 -fno-strength-reduce -Dlinux -Dalpha

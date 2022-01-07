@@ -1,21 +1,5 @@
-;;; -*- Mode: LISP; Syntax: Common-Lisp; Base: 10; Package: x86 -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
- "$Header: /home/CVS-cmucl/src/assembly/x86/support.lisp,v 1.1.2.1 1998/06/23 11:21:18 pw Exp $")
-;;;
-;;; **********************************************************************
-;;; 
-;;; This file contains the machine specific support routines needed by
-;;; the file assembler.
-;;;
-;;; Written by William Lott.
-;;;
+;;; Machine specific support routines needed by the file assembler.
+
 (in-package :x86)
 
 (def-vm-support-routine generate-call-sequence (name style vop)
@@ -32,7 +16,7 @@
 	(move esp-tn ebx-tn))
       '((:save-p :compute-only))))
     (:none
-     (values 
+     (values
       `((inst jmp (make-fixup ',name :assembly-routine)))
       nil))))
 

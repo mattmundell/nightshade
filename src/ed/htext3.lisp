@@ -2,11 +2,32 @@
 
 (in-package "EDI")
 
-(export '(insert-character insert-string insert-region ninsert-region))
+(export '(insert-character insert-string insert-region ninsert-region
+	  write-region))
+
+#[ Altering Text
+
+A note on marks and text alteration: :temporary marks are invalid
+after any change has been made to the text the mark points to; it is an
+error to use a temporary mark after such a change has been made.  If
+text is deleted which has permanent marks pointing into it then they
+are left pointing to the position where the text was.
+
+{function:ed:insert-character}
+{function:ed:insert-string}
+{function:ed:insert-region}
+{function:ed:ninsert-region}
+{function:ed:delete-characters}
+{function:ed:delete-region}
+{function:ed:delete-and-save-region}
+{function:ed:filter-region}
+]#
 
 
+;; FIX streams provide write-char
 (defun insert-character (mark character)
-  "Inserts the Character at the specified Mark."
+  "Insert $character at $mark.  Signal an error if $character fails
+   `string-char-p'."
   (declare (type base-char character))
   (let* ((line (mark-line mark))
 	 (buffer (line-%buffer line)))
@@ -46,8 +67,10 @@
 
 
 (defun insert-string (mark string &optional (start 0) (end (length string)))
-  "Inserts the String at the Mark.  Do not use Start and End unless you
-  know what you're doing!"
+  "Insert $string at $mark.  If $string is empty and $mark is in some
+   buffer, then leave the buffer-modified flag of mark's buffer as it is.
+
+   The use of $start and $end may need some care."
   (let* ((line (mark-line mark))
 	 (buffer (line-%buffer line))
 	 (string (coerce string 'simple-string)))
@@ -87,7 +110,8 @@
   "Our first guess at how we should number an inserted region's lines.")
 
 (defun insert-region (mark region)
-  "Inserts the given Region at the Mark."
+  "Insert $region at $mark.  If $region is empty and $mark is in some
+   buffer, then leave the buffer-modified flag of mark's buffer as it is."
   (let* ((start (region-start region))
 	 (end (region-end region))
 	 (first-line (mark-line start))
@@ -149,10 +173,17 @@
 		  (maybe-move-some-marks (this-charpos line new-line) charpos
 		    (+ last-charpos (- this-charpos charpos)))))
 	    (setf (line-next previous) new-line  previous new-line))))))))
+
 
 (defun ninsert-region (mark region)
-  "Inserts the given Region at the Mark, possibly destroying the Region.
-  Region may not be a part of any buffer's region."
+  "Insert $region at $mark, releasing $region.
+
+   Caution may be required in the use of this function, as if there are any
+   other references to $region serious errors may result.  In particular,
+   errors are likely if the region is linked into any existing buffer.
+
+   If $region is empty, and $mark is in some buffer, then leave the
+   buffer-modified flag of $mark's buffer as it is."
   (let* ((start (region-start region))
 	 (end (region-end region))
 	 (first-line (mark-line start))

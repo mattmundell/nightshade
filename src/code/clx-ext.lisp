@@ -7,7 +7,7 @@
 	  default-clx-event-handler
 	  flush-display-events carefully-add-font-paths
 
-	  serve-key-press serve-key-release serve-button-press
+	  serve-key-press serve-key-release serve-keymap-notify serve-button-press
 	  serve-button-release serve-motion-notify serve-enter-notify
 	  serve-leave-notify serve-focus-in serve-focus-out
 	  serve-exposure serve-graphics-exposure serve-no-exposure
@@ -25,12 +25,16 @@
 (defun open-clx-display (&optional (string (cdr (assoc :display
 						       *environment-list*
 						       :test #'eq))))
-  "Parses a display specification including display and screen numbers.
-   This returns nil when there is no DISPLAY environment variable.  If string
-   is non-nil, and any fields are missing in the specification, this signals an
-   error.  If you specify a screen, then this sets XLIB:DISPLAY-DEFAULT-SCREEN
-   to that screen since CLX initializes this form to the first of
-   XLIB:SCREEN-ROOTS.  This returns the display and screen objects."
+  "Parse display specification $string, including display and screen
+   numbers.  Return the display and screen objects if there is a DISPLAY
+   environment variable, else return ().
+
+   If $string is a string and any fields are missing in the specification,
+   then signal an error.
+
+   If the specification includes a screen, then sets
+   `xlib:display-default-screen' to that screen, since CLX initializes this
+   form to the first of `xlib:screen-roots'."
   (when string
     (let* ((string (coerce string 'simple-string))
 	   (length (length string))
@@ -47,7 +51,7 @@
 	(cond ((null colon)
 	       (error "Missing display number in DISPLAY environment variable."))
 	      (t
-	       (unless (zerop colon) (setf host-name (subseq string 0 colon)))
+	       (or (zerop colon) (setf host-name (subseq string 0 colon)))
 	       (let* ((start (1+ colon))
 		      (first-dot (position #\. string
 					   :test #'char= :start start)))
@@ -70,12 +74,12 @@
 				       (parse-integer string :start start
 						      :end second-dot)))))))))))
       (if (equal host-name "unix")
-        (multiple-value-setq (auth-name auth-data)
-          (xlib::get-best-authorization (machine-instance) display-num :tcp)))
+	  (multiple-value-setq (auth-name auth-data)
+	    (xlib::get-best-authorization (machine-instance) display-num :tcp)))
       (let ((display (xlib:open-display host-name
-                                      :display display-num
-                                      :authorization-name auth-name
-                                      :authorization-data auth-data)))
+					:display display-num
+					:authorization-name auth-name
+					:authorization-data auth-data)))
 	(when screen-num
 	  (let* ((screens (xlib:display-roots display))
 		 (num-screens (length screens)))
@@ -124,8 +128,8 @@
    structure when events are handled via SYSTEM:SERVE-EVENT.")
 
 (defmacro with-clx-event-handling ((display handler) &rest body)
-  "Evaluates body in a context where events are handled for the display
-   by calling handler on the display.  This destroys any previously established
+  "Evaluate $body in a context where events are handled for the display by
+   calling $handler on the display.  Flush any previously established
    handler for display."
   `(unwind-protect
        (progn
@@ -141,32 +145,34 @@
 ;;; *clx-fds-to-displays*, so the user's handler can be called on the display.
 ;;;
 (defun enable-clx-event-handling (display handler)
-  "After calling this, when SYSTEM:SERVE-EVENT notices input on display's
-   connection to the X11 server, handler is called on the display.  Handler
-   is invoked in a dynamic context with an error handler bound that will
-   flush all events from the display and return.  By returning, it declines
-   to handle the error, but it will have cleared all events; thus, entering
-   the debugger will not result in infinite errors due to streams that wait
-   via SYSTEM:SERVE-EVENT for input.  Calling this repeatedly on the same
-   display establishes handler as a new handler, replacing any previous one
-   for display."
+  "Cause `system:serve-event' to notice input on $display's connection to
+   the X11 server and call $handler on the display.
+
+   $handler is invoked in a dynamic context with an error handler bound
+   that will flush all events from the display and return.  By returning,
+   it declines to handle the error and will have cleared all events; thus,
+   allowing circumventing any recursive errors in the inspector due to
+   streams that wait via `system:serve-event' for input.
+
+   Calling this repeatedly on the same display establishes handler as a new
+   handler, replacing any previous one for display."
   (check-type display xlib:display)
   (let ((change-handler (assoc display *display-event-handlers*)))
     (if change-handler
 	(setf (cdr change-handler) handler)
-	(let ((fd (fd-stream-fd (xlib::display-input-stream display))))
+	(let ((fd (xlib::display-fd display)))
 	  (system:add-fd-handler fd :input #'call-display-event-handler)
 	  (setf (gethash fd *clx-fds-to-displays*) display)
 	  (push (cons display handler) *display-event-handlers*)))))
 
-;;; CALL-DISPLAY-EVENT-HANDLER maps the file descriptor to its display and maps
-;;; the display to its handler.  If we can't find the display, we remove the
-;;; file descriptor using SYSTEM:INVALIDATE-DESCRIPTOR and try to remove the
-;;; display from *display-event-handlers*.  This is necessary to try to keep
-;;; SYSTEM:SERVE-EVENT from repeatedly trying to handle the same event over and
-;;; over.  This is possible since many CMU Common Lisp streams loop over
-;;; SYSTEM:SERVE-EVENT, so when the debugger is entered, infinite errors are
-;;; possible.
+;;; CALL-DISPLAY-EVENT-HANDLER maps the file descriptor to its display and
+;;; maps the display to its handler.  If we can't find the display, we
+;;; remove the file descriptor using SYSTEM:INVALIDATE-DESCRIPTOR and try
+;;; to remove the display from *display-event-handlers*.  This is necessary
+;;; to try to keep SYSTEM:SERVE-EVENT from repeatedly trying to handle the
+;;; same event over and over.  This is possible since many Nightshade
+;;; streams loop over SYSTEM:SERVE-EVENT, so when the debugger is entered,
+;;; infinite errors are possible.
 ;;;
 (defun call-display-event-handler (file-descriptor)
   (let ((display (gethash file-descriptor *clx-fds-to-displays*)))
@@ -175,9 +181,7 @@
       (setf *display-event-handlers*
 	    (delete file-descriptor *display-event-handlers*
 		    :key #'(lambda (d/h)
-			     (fd-stream-fd
-			      (xlib::display-input-stream
-			       (car d/h))))))
+			     (xlib::display-fd (car d/h)))))
       (error "File descriptor ~S not associated with any CLX display.~%~
                 It has been removed from system:serve-event's knowledge."
 	     file-descriptor))
@@ -191,10 +195,10 @@
 	(funcall handler display)))))
 
 (defun disable-clx-event-handling (display)
-  "Undoes the effect of EXT:ENABLE-CLX-EVENT-HANDLING."
+  "Reverse the effect of `ext:enable-clx-event-handling'."
   (setf *display-event-handlers*
 	(delete display *display-event-handlers* :key #'car))
-  (let ((fd (fd-stream-fd (xlib::display-input-stream display))))
+  (let ((fd (xlib:display-fd display)))
     (remhash fd *clx-fds-to-displays*)
     (system:invalidate-descriptor fd)))
 
@@ -203,33 +207,80 @@
 
 ;;; This is bound by OBJECT-SET-EVENT-HANDLER, so DISPATCH-EVENT can clear
 ;;; events on the display before signalling any errors.  This is necessary
-;;; since reading on certain CMU Common Lisp streams involves SERVER, and
-;;; getting an error while trying to handle an event causes repeated attempts
-;;; to handle the same event.
+;;; since reading on certain streams involves SERVER, and getting an error
+;;; while trying to handle an event causes repeated attempts to handle the
+;;; same event.
 ;;;
 (defvar *process-clx-event-display* nil)
 
-(defvar *object-set-event-handler-print* nil)
+(defvar *object-set-event-handler-print* ())
 
 (proclaim '(declaration values))
 
+;; FIX from here "detail" was "kind" (changed to match struct slot name)
+
 (defun object-set-event-handler (display)
-  "This display event handler uses object sets to map event windows cross
-   event types to handlers.  It uses XLIB:EVENT-CASE to bind all the slots
-   of each event, calling the handlers on all these values in addition to
-   the event key and send-event-p.  Describe EXT:SERVE-MUMBLE, where mumble
-   is an event keyword name for the exact order of arguments.
+#| FIX from the manual
+  This function is a suitable argument to `ext:enable-clx-event-handling'.
+
+   The actual event handlers defined for particular events within a given
+   object set must take an argument for every slot in the appropriate
+   event.  In addition to the event slots, `ext:object-set-event-handler'
+   passes the following arguments:
+
+      -	The object, as established by `system:add-xwindow-object', on which
+	the event occurred.
+
+      -	event-key, as in `xlib:event-case'.
+
+      -	send-event-p, as in `xlib:event-case'.
+
+   Describing any `ext:serve-$event-key-name' function, where
+   \var{event-key-name} is an event-key symbol-name (for example,
+   \code{ext:serve-key-press}), indicates exactly what all the arguments
+   are in their correct order.
+
+   \begin{ignore}
+   \code{ext:object-set-event-handler} ignores \kwd{no-exposure}
+   events on pixmaps, issuing a warning if one occurs.  It is only
+   prepared to dispatch events for windows.
+   \end{ignore}
+
+   When creating an object set for use with \code{ext:object-set-event-handler},
+   specify \code{ext:default-clx-event-handler} as the default handler for events in
+   that object set.  If no default handler is specified, and the system invokes
+   the default default handler, it will cause an error since this function takes
+   arguments suitable for handling port messages.
+|#
+  "Use object sets to map event windows cross event types to handlers.  Use
+   `xlib:event-case' to bind all the slots of each event, calling the
+   handlers on all these values in addition to the event key and
+   send-event-p.
+
+   Describe `ext:serve-mumble', where mumble is an event keyword name for
+   the exact order of arguments.
+
    :mapping-notify and :keymap-notify events are ignored since they do not
-   occur on any particular window.  After calling a handler, each branch
-   returns t to discard the event.  While the handler is executing, all
-   errors go through a handler that flushes all the display's events and
-   returns.  This prevents infinite errors since the debug and terminal
-   streams loop over SYSTEM:SERVE-EVENT.  This function returns t if there
-   were some event to handle, nil otherwise.  It returns immediately if
-   there is no event to handle."
+   occur on any particular window.
+
+   In each branch, after calling a handler, return t to discard the event.
+   While the handler is executing, all errors go through a handler that
+   flushes all the display's events and returns.  This prevents recursive
+   errors since the debug and terminal streams loop over
+   `system:serve-event'.  Return t if there were some event to handle, else
+   ().  Return immediately if the check for an event to handle fails."
   (macrolet ((dispatch (event-key &rest args)
 	       `(multiple-value-bind (object object-set)
 				     (lisp::map-xwindow event-window)
+#|
+		  (warn "dispatch event-window ~A" event-window)
+		  (warn "dispatch event-key ~A" ,event-key)
+		  (maphash (lambda (k v)
+			     (warn "k ~A~%v ~A" k v)
+			     (warn "(equalp k event-window): ~A"
+				   (equalp k event-window)))
+			   *xwindow-table*)
+|#
 		  (unless object
 		    (cond ((not (typep event-window 'xlib:window))
 			   (xlib:discard-current-event display)
@@ -255,10 +306,19 @@
 		  (setf result t))))
     (let ((*process-clx-event-display* display)
 	  (result nil))
+#|
+      ;; FIX
+      (warn "peeking")
+      (xlib:event-case (display :timeout 0)
+	(t (event-window event-key)
+	   (format t "event-key: ~A  (event-window ~A)~%" event-key event-window)
+	   ()))
+      (warn "peeked")
+|#
       (xlib:event-case (display :timeout 0)
 	((:KEY-PRESS :KEY-RELEASE :BUTTON-PRESS :BUTTON-RELEASE)
-	     (event-key event-window root child same-screen-p
-	      x y root-x root-y state time code send-event-p)
+	 (event-key event-window root child same-screen-p
+		    x y root-x root-y state time code send-event-p)
 	 (dispatch event-key event-window root child same-screen-p
 		   x y root-x root-y state time code send-event-p))
 	(:MOTION-NOTIFY (event-window root child same-screen-p
@@ -266,13 +326,13 @@
 	 (dispatch :motion-notify event-window root child same-screen-p
 		   x y root-x root-y state time hint-p send-event-p))
 	(:ENTER-NOTIFY (event-window root child same-screen-p
-			x y root-x root-y state time mode kind send-event-p)
+			x y root-x root-y state time mode detail send-event-p)
 	 (dispatch :enter-notify event-window root child same-screen-p
-		   x y root-x root-y state time mode kind send-event-p))
+		   x y root-x root-y state time mode detail send-event-p))
 	(:LEAVE-NOTIFY (event-window root child same-screen-p
-			x y root-x root-y state time mode kind send-event-p)
+			x y root-x root-y state time mode detail send-event-p)
 	 (dispatch :leave-notify event-window root child same-screen-p
-		   x y root-x root-y state time mode kind send-event-p))
+		   x y root-x root-y state time mode detail send-event-p))
 	(:EXPOSURE (event-window x y width height count send-event-p)
 	 (dispatch :exposure event-window x y width height count send-event-p))
 	(:GRAPHICS-EXPOSURE (event-window x y width height count major minor
@@ -281,15 +341,19 @@
 		   count major minor send-event-p))
 	(:NO-EXPOSURE (event-window major minor send-event-p)
 	 (dispatch :no-exposure event-window major minor send-event-p))
-	(:FOCUS-IN (event-window mode kind send-event-p)
-	 (dispatch :focus-in event-window mode kind send-event-p))
-	(:FOCUS-OUT (event-window mode kind send-event-p)
-	 (dispatch :focus-out event-window mode kind send-event-p))
+	(:FOCUS-IN (event-window mode detail send-event-p)
+	 (dispatch :focus-in event-window mode detail send-event-p))
+	(:FOCUS-OUT (event-window mode detail send-event-p)
+	 (dispatch :focus-out event-window mode detail send-event-p))
 	(:KEYMAP-NOTIFY ()
 	 (warn "Ignoring keymap notify event.")
 	 (when *object-set-event-handler-print*
 	   (print :keymap-notify) (force-output))
 	 (setf result t))
+#|
+	(:KEYMAP-NOTIFY (event-window key-vector send-event-p)
+	 (dispatch :keymap-notify event-window key-vector send-event-p))
+|#
 	(:VISIBILITY-NOTIFY (event-window state send-event-p)
 	 (dispatch :visibility-notify event-window state send-event-p))
 	(:CREATE-NOTIFY (event-window window x y width height border-width
@@ -349,6 +413,7 @@
 	 (setf result t))
 	(:CLIENT-MESSAGE (event-window format data send-event-p)
 	 (dispatch :client-message event-window format data send-event-p)))
+      ;(format t "returning result ~A~%" result)
       result)))
 
 (defun default-clx-event-handler (object event-key event-window &rest ignore)
@@ -358,8 +423,8 @@
 	 event-key object (lisp::map-xwindow event-window)))
 
 (defun flush-display-events (display)
-  "Dumps all the events in display's event queue including the current one
-   in case this is called from within XLIB:EVENT-CASE, etc."
+  "Flush all the events in $display's event queue, including the current
+   event, in case called from within an event handler."
   (xlib:discard-current-event display)
   (xlib:event-case (display :discard-p t :timeout 0)
     (t () nil)))
@@ -408,14 +473,14 @@
 (defun serve-enter-notify (object-set fun)
   "Associate a method in the object-set with :enter-notify events.  The method
    is called on the object the event occurred, event key, event window, root,
-   child, same-screen-p, x, y, root-x, root-y, state, time, mode, kind,
+   child, same-screen-p, x, y, root-x, root-y, state, time, mode, detail,
    and send-event-p."
   (setf (gethash :enter-notify (lisp::object-set-table object-set)) fun))
 
 (defun serve-leave-notify (object-set fun)
   "Associate a method in the object-set with :leave-notify events.  The method
    is called on the object the event occurred, event key, event window, root,
-   child, same-screen-p, x, y, root-x, root-y, state, time, mode, kind,
+   child, same-screen-p, x, y, root-x, root-y, state, time, mode, detail,
    and send-event-p."
   (setf (gethash :leave-notify (lisp::object-set-table object-set)) fun))
 
@@ -425,14 +490,20 @@
 (defun serve-focus-in (object-set fun)
   "Associate a method in the object-set with :focus-in events.  The method
    is called on the object the event occurred, event key, event window, mode,
-   kind, and send-event-p."
+   detail, and send-event-p."
   (setf (gethash :focus-in (lisp::object-set-table object-set)) fun))
 
 (defun serve-focus-out (object-set fun)
   "Associate a method in the object-set with :focus-out events.  The method
    is called on the object the event occurred, event key, event window, mode,
-   kind, and send-event-p."
+   detail, and send-event-p."
   (setf (gethash :focus-out (lisp::object-set-table object-set)) fun))
+
+(defun serve-keymap-notify (object-set fun)
+  "Associate a method in the object-set with :keymap events.  The method is
+   called on the object the event occurred, event key, event window, key
+   vector and send-event-p."
+  (setf (gethash :keymap-notify (lisp::object-set-table object-set)) fun))
 
 
 ;;;; Exposure service.

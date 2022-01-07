@@ -1,25 +1,11 @@
-;;; -*- Package: ALPHA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/nlx.lisp,v 1.2.2.1 1998/06/23 11:23:17 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the definitions of VOPs used for non-local exit
-;;; (throw, lexical exit, etc.)
-;;;
-;;; Written by Rob MacLachlan
-;;; Conversion by Sean Hallgren
-;;;
+;;; The definitions of VOPs used for non-local exit (throw, lexical exit,
+;;; etc.)
+
 (in-package "ALPHA")
 
 ;;; MAKE-NLX-SP-TN  --  Interface
 ;;;
-;;;    Make an environment-live stack TN for saving the SP for NLX entry.
+;;; Make an environment-live stack TN for saving the SP for NLX entry.
 ;;;
 (def-vm-support-routine make-nlx-sp-tn (env)
   (environment-live-tn
@@ -28,8 +14,8 @@
 
 ;;; Make-NLX-Entry-Argument-Start-Location  --  Interface
 ;;;
-;;;    Make a TN for the argument count passing location for a
-;;; non-local entry.
+;;; Make a TN for the argument count passing location for a non-local
+;;; entry.
 ;;;
 (def-vm-support-routine make-nlx-entry-argument-start-location ()
   (make-wired-tn *fixnum-primitive-type* immediate-arg-scn ocfp-offset))
@@ -37,17 +23,16 @@
 
 ;;; Save and restore dynamic environment.
 ;;;
-;;;    These VOPs are used in the reentered function to restore the appropriate
-;;; dynamic environment.  Currently we only save the Current-Catch and binding
-;;; stack pointer.  We don't need to save/restore the current unwind-protect,
-;;; since unwind-protects are implicitly processed during unwinding.  If there
-;;; were any additional stacks, then this would be the place to restore the top
-;;; pointers.
-
+;;; These VOPs are used in the reentered function to restore the
+;;; appropriate dynamic environment.  Currently we only save the
+;;; Current-Catch and binding stack pointer.  We don't need to save/restore
+;;; the current unwind-protect, since unwind-protects are implicitly
+;;; processed during unwinding.  If there were any additional stacks, then
+;;; this would be the place to restore the top pointers.
 
 ;;; Make-Dynamic-State-TNs  --  Interface
 ;;;
-;;;    Return a list of TNs that can be used to snapshot the dynamic state for
+;;; Return a list of TNs that can be used to snapshot the dynamic state for
 ;;; use with the Save/Restore-Dynamic-Environment VOPs.
 ;;;
 (def-vm-support-routine make-dynamic-state-tns ()
@@ -96,9 +81,8 @@
   (:generator 1
     (move bsp-tn res)))
 
-
 
-;;;; Unwind block hackery:
+;;;; Unwind block hackery.
 
 ;;; Compute the address of the catch block from its TN, then store into the
 ;;; block the current Fp, Env, Unwind-Protect, and the entry PC.
@@ -117,7 +101,6 @@
     (storew code-tn block vm:unwind-block-current-code-slot)
     (inst compute-lra-from-code temp code-tn entry-label ndescr)
     (storew temp block vm:catch-block-entry-pc-slot)))
-
 
 ;;; Like Make-Unwind-Block, except that we also store in the specified tag, and
 ;;; link the block into the Current-Catch list.
@@ -146,7 +129,6 @@
 
     (move result block)))
 
-
 ;;; Just set the current unwind-protect to TN's address.  This instantiates an
 ;;; unwind block as an unwind-protect.
 ;;;
@@ -156,7 +138,6 @@
   (:generator 7
     (inst lda new-uwp (* (tn-offset tn) vm:word-bytes) cfp-tn)
     (store-symbol-value new-uwp lisp::*current-unwind-protect-block*)))
-
 
 (define-vop (unlink-catch-block)
   (:temporary (:scs (any-reg)) block)
@@ -177,8 +158,7 @@
     (store-symbol-value block lisp::*current-unwind-protect-block*)))
 
 
-;;;; NLX entry VOPs:
-
+;;;; NLX entry VOPs.
 
 (define-vop (nlx-entry)
   (:args (sp) ; Note: we can't list an sc-restriction, 'cause any load vops
@@ -209,7 +189,7 @@
 	       (let ((default-lab (gen-label))
 		     (tn (tn-ref-tn tn-ref)))
 		 (defaults (cons default-lab tn))
-		 
+
 		 (inst move count temp)
 		 (inst lda count (fixnum -1) count)
 		 (inst beq temp default-lab)
@@ -219,11 +199,11 @@
 			  (control-stack
 			   (loadw move-temp start i)
 			   (store-stack-tn tn move-temp)))))
-	     
+
 	     (let ((defaulting-done (gen-label)))
-	       
+
 	       (emit-label defaulting-done)
-	       
+
 	       (assemble (*elsewhere*)
 		 (dolist (def (defaults))
 		   (emit-label (car def))
@@ -235,7 +215,6 @@
 			       (store-stack-tn tn null-tn)))))
 		 (inst br zero-tn defaulting-done))))))
     (load-stack-tn csp-tn sp)))
-
 
 (define-vop (nlx-entry-multiple)
   (:args (top :target dst) (start :target src) (count :target num))
@@ -280,7 +259,6 @@
 
       (emit-label done)
       (inst move dst csp-tn))))
-
 
 ;;; This VOP is just to force the TNs used in the cleanup onto the stack.
 ;;;

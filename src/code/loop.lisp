@@ -181,7 +181,7 @@
 ;;;; LOOP itself.
 
 (defmacro loop (&rest stuff)
-  "General iteration facility."
+  "General iteration facility." ; FIX
   (if (some #'atom stuff)
       (parse-loop stuff)
       (let ((repeat (gensym "REPEAT-"))

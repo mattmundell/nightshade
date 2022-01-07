@@ -55,10 +55,11 @@
 	    #'find-not-character-once-forward-method
 	    #'find-not-character-once-backward-method))
   old)
+
 
 ;;;; Character set searching.
 ;;;
-;;;    These functions implement the :test, :test-not, :any and :not-any
+;;; These functions implement the :test, :test-not, :any and :not-any
 ;;; search-kinds.
 
 ;;; The Character-Set abstraction is used to hide somewhat the fact that
@@ -71,8 +72,8 @@
 
 ;;; Create-Character-Set  --  Internal
 ;;;
-;;;    Create-Character-Set returns a character-set which will search
-;;; for no character.
+;;; Create-Character-Set returns a character-set which will search for no
+;;; character.
 ;;;
 (defun create-character-set ()
   (let ((set (or (pop *free-character-sets*)
@@ -84,7 +85,7 @@
 
 ;;; Add-Character-To-Set  --  Internal
 ;;;
-;;;    Modify the character-set Set to succeed for Character.
+;;; Modify the character-set Set to succeed for Character.
 ;;;
 (proclaim '(inline add-character-to-set))
 (defun add-character-to-set (character set)
@@ -94,7 +95,7 @@
 
 ;;; Release-Character-Set  --  Internal
 ;;;
-;;;    Release the storage for the character set Set.
+;;; Release the storage for the character set Set.
 ;;;
 (defun release-character-set (set)
   (push set *free-character-sets*))
@@ -102,16 +103,16 @@
 (eval-when (compile eval)
 ;;; Forward-Set-Search-Macro  --  Internal
 ;;;
-;;;    Do a search for some character in Set in String starting at Start
-;;; and ending at End.
+;;; Do a search for some character in Set in String starting at Start and
+;;; ending at End.
 ;;;
 (defmacro forward-set-search-macro (string start last set)
   `(%sp-find-character-with-attribute ,string ,start ,last ,set 1))
 
 ;;; Backward-Set-Search-Macro  --  Internal
 ;;;
-;;;    Like forward-set-search-macro, only :from-end, and start is
-;;; implicitly 0.
+;;; Like forward-set-search-macro, only :from-end, and start is implicitly
+;;; 0.
 ;;;
 (defmacro backward-set-search-macro (string last set)
   `(%sp-reverse-find-character-with-attribute ,string 0 (1+ ,last) ,set 1))
@@ -199,7 +200,7 @@
   (new-search-pattern :character :forward #\a)
   "Cached search pattern for find-character.")
 
-(defun find-character (mark character &key (backward nil))
+(defun find-character (mark character &key backward)
   "Pattern search for Character from Mark."
   (find-pattern mark
 		(setq *find-character-pattern*

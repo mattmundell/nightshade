@@ -1,23 +1,6 @@
-;;; -*- Package: RT; Log: c.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/rt/macros.lisp,v 1.11 1994/10/31 04:45:41 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains various useful macros for generating code for the IBM
-;;; RT.
-;;;
-;;; Written by William Lott, Christopher Hoover, and Rob Maclachlin, and Bill
-;;; Chiles.
-;;;
+;;; Various useful macros for generating code for the IBM RT.
 
 (in-package "RT")
-
 
 
 ;;; Instruction-like macros.
@@ -88,13 +71,11 @@
    the specified low-tag."
   `(inst lc ,target ,source (- word-bytes 1 ,low-tag)))
 
-
 
 ;;;; Call and Return.
-
+;;;
 ;;; Macros to handle the fact that we cannot use the machine native call and
 ;;; return instructions due to low-tag bits on pointers.
-;;;
 
 ;;; LISP-JUMP -- Interface.
 ;;;
@@ -161,7 +142,6 @@
 	   `(((unsigned-stack signed-stack base-char-stack sap-stack)
 	      (storew ,n-reg (current-nfp-tn ,vop) (tn-offset ,n-stack))))))))
 
-
 ;;; MAYBE-LOAD-STACK-TN  --  Interface.
 ;;;
 (defmacro maybe-load-stack-tn (reg reg-or-stack)
@@ -176,9 +156,8 @@
 	  ((control-stack)
 	   (loadw ,n-reg cfp-tn (tn-offset ,n-stack))))))))
 
-
 
-;;;; Storage allocation:
+;;;; Storage allocation.
 
 ;;; WITH-FIXED-ALLOCATION -- Internal Interface.
 ;;;
@@ -204,7 +183,6 @@
        ,@body)
      (load-symbol-value ,header-tn *internal-gc-trigger*)
      (inst tlt ,header-tn ,alloc-tn)))
-
 
 
 ;;;; Type testing noise.
@@ -411,9 +389,8 @@
 					 function-p)))))
 	 (emit-label ,drop-through)))))
 
-
 
-;;;; Error Code
+;;;; Error Code.
 
 (defvar *adjustable-vectors* nil)
 
@@ -455,7 +432,6 @@
   (cons 'progn
 	(emit-error-break vop error-trap error-code values)))
 
-
 ;;; CERROR-CALL -- Internal Interface.
 ;;;
 ;;; Output the error break stuff followed by a branch to the continuable code.
@@ -493,7 +469,6 @@
 	   (cerror-call ,vop ,continue ,error-code ,@values)
 	   ,error)))))
 
-
 
 ;;;; PSEUDO-ATOMIC.
 
@@ -514,14 +489,16 @@
        (inst bc :eq ,label)
        (inst break pending-interrupt-trap)
        (emit-label ,label))))
+
 
-;;;; Float stuff:
+;;;; Float stuff.
 ;;;
-;;;    Since moving between memory and a FP register reqires *two* temporaries,
-;;; we need a special temporary to form the magic address we store to do a
-;;; floating point operation.  We get this temp by always spilling NL0 on the
-;;; number stack.  This appears rather grody, but actually the 68881 is so slow
-;;; compared to the ROMP that this overhead is not very great.
+;;; Since moving between memory and a FP register reqires *two*
+;;; temporaries, we need a special temporary to form the magic address we
+;;; store to do a floating point operation.  We get this temp by always
+;;; spilling NL0 on the number stack.  This appears rather grody, but
+;;; actually the 68881 is so slow compared to the ROMP that this overhead
+;;; is not very great.
 ;;;
 ;;; Note: The RT interrupt handler preserves 64 bytes beyond the current stack
 ;;; pointer, so we don't need to dink the stack pointer.  We can just use the

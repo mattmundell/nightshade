@@ -1,22 +1,9 @@
-;;; -*- Package: VM; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/mips/sap.lisp,v 1.30.2.2 2000/05/23 16:37:41 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the MIPS VM definition of SAP operations.
-;;;
-;;; Written by William Lott.
-;;;
+;;; The MIPS VM definition of SAP operations.
+
 (in-package "MIPS")
 
 
-;;;; Moves and coercions:
+;;;; Moves and coercions.
 
 ;;; Move a tagged SAP to an untagged representation.
 ;;;
@@ -30,7 +17,6 @@
 ;;;
 (define-move-vop move-to-sap :move
   (descriptor-reg) (sap-reg))
-
 
 ;;; Move an untagged SAP to a tagged representation.
 ;;;
@@ -49,7 +35,6 @@
 (define-move-vop move-from-sap :move
   (sap-reg) (descriptor-reg))
 
-
 ;;; Move untagged sap values.
 ;;;
 (define-vop (sap-move)
@@ -65,7 +50,6 @@
 ;;;
 (define-move-vop sap-move :move
   (sap-reg) (sap-reg))
-
 
 ;;; Move untagged sap arguments/return-values.
 ;;;
@@ -85,13 +69,11 @@
 (define-move-vop move-sap-argument :move-argument
   (descriptor-reg sap-reg) (sap-reg))
 
-
 ;;; Use standard MOVE-ARGUMENT + coercion to move an untagged sap to a
 ;;; descriptor passing location.
 ;;;
 (define-move-vop move-argument :move-argument
   (sap-reg) (descriptor-reg))
-
 
 
 ;;;; SAP-INT and INT-SAP
@@ -115,7 +97,6 @@
   (:policy :fast-safe)
   (:generator 1
     (move sap int)))
-
 
 
 ;;;; POINTER+ and POINTER-
@@ -145,7 +126,6 @@
   (:result-types signed-num)
   (:generator 1
     (inst subu res ptr1 ptr2)))
-
 
 
 ;;;; mumble-SYSTEM-REF and mumble-SYSTEM-SET
@@ -340,4 +320,3 @@
   (:generator 2
     (inst addu sap vector
 	  (- (* vector-data-offset word-bytes) other-pointer-type))))
-

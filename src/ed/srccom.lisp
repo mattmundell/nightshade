@@ -2,46 +2,64 @@
 
 (in-package "ED")
 
+;; FIX add stream comparison
 
-(defhvar "Source Compare Ignore Extra Newlines"
-  "If T, Source Compare and Source Merge will treat all groups of newlines
-  as if they were a single newline."
+
+#[ Source Comparison
+
+These commands can be used to compare the text in two buffers, and to
+generate a new version that combines features of both versions.
+
+{evariable:Source Compare Destination}
+{command:Compare Buffers}
+{command:Buffer Changes}
+{command:Merge Buffers}
+
+There are various variables that control exactly how the comparison is
+done.
+
+{evariable:Source Compare Ignore Case}
+{evariable:Source Compare Ignore Indentation}
+{evariable:Source Compare Ignore Extra Newlines}
+{evariable:Source Compare Number of Lines}
+]#
+
+(defevar "Source Compare Ignore Extra Newlines"
+  "If true, `Compare Buffers' and `Merge Buffers' treat all groups of
+   newlines as if they were a single newline."
   :value t)
 
-(defhvar "Source Compare Ignore Case"
-  "If T, Source Compare and Source Merge will treat all letters as if they
-  were of the same case."
-  :value nil)
+(defevar "Source Compare Ignore Case"
+  "If true, `Compare Buffers' and `Merge Buffers' treat all letters as if
+   they are of the same case.")
 
-(defhvar "Source Compare Ignore Indentation"
-  "This determines whether comparisons ignore initial whitespace on a line or
-   use the whole line."
-  :value nil)
+(defevar "Source Compare Ignore Indentation"
+  "If true `Compare Buffers' and `Merge Buffers' ignore initial whitespace
+   when comparing lines.")
 
-(defhvar "Source Compare Number of Lines"
-  "This variable controls the number of lines Source Compare and Source Merge
-  will compare when resyncronizing after a difference has been encountered.
-  The default is 3."
+(defevar "Source Compare Number of Lines"
+  "The number of lines Source Compare and Source Merge compare when
+   resyncronizing after a difference has been encountered."
   :value 3)
 
-(defhvar "Source Compare Destination"
+(defevar "Source Compare Destination"
   "The buffer name offered when comparison commands prompt for a results
    buffer.  Set to the new destination after each prompt."
   :value "Comparison")
 
-(defhvar "Source Compare Style"
+(defevar "Source Compare Style"
   "Formating style for text comparison output. () for a verbose style,
    :terse for a terser one."
   :value ())
 
-
-(defcommand "Buffer Changes" (p)
-  "Generate a comparison of the current buffer with its file on disk."
-  "Generate a comparison of the current buffer with its file on disk."
-  (declare (ignore p))
+(defcommand "Buffer Changes" ()
+  "Compare the contents of the current buffer with the disk version of the
+   associated file, displaying the result in the current window.  Read the
+   file into the buffer `Buffer Changes File', and generate the comparison
+   in the buffer `Buffer Changes Result'."
   (let ((buffer (current-buffer)))
-    (unless (buffer-pathname buffer)
-      (editor-error "No pathname associated with buffer."))
+    (or (buffer-pathname buffer)
+	(editor-error "No pathname associated with buffer."))
     (let ((other-buffer (or (getstring "Buffer Changes File" *buffer-names*)
 			    (make-buffer "Buffer Changes File")))
 	  (result-buffer (or (getstring "Buffer Changes Result" *buffer-names*)
@@ -51,69 +69,138 @@
       (compare-buffers-command nil buffer other-buffer result-buffer)
       (delete-buffer other-buffer))))
 
-;;; "Compare Buffers" creates two temporary buffers when there is a prefix.
-;;; These get deleted when we're done.  Buffer-a and Buffer-b are used for
+(defcommand "Compare Buffers" (p buffer-a buffer-b dest-buffer
+				 pathname-a pathname-b)
+  "Perform a source comparison on two prompted buffers, directing the
+   output to a prompted buffer.  With a prefix only compare the regions in
+   the buffer.  Select the output buffer during the comparison so that
+   progress is visible."
+  (compare-buffers p buffer-a buffer-b dest-buffer
+		   pathname-a pathname-b))
+
+;;; `compare-buffers' creates two temporary buffers when there is a prefix.
+;;; These get deleted afterwards.  $buffer-a and $buffer-b are used for
 ;;; names in banners in either case.
 ;;;
-(defcommand "Compare Buffers" (p &optional buffer-a buffer-b dest-buffer
-				 pathname-a pathname-b)
-  "Performs a source comparison on two specified buffers.  If the prefix
-   argument is supplied, only compare the regions in the buffer."
-  "Performs a source comparison on two specified buffers, Buffer-A and
-   Buffer-B, putting the result of the comparison into the Dest-Buffer.  If
-   P is true, only compare the regions in the buffer.  If Pathname-* is
-   true use the value as the name of a file being compared."
+(defun compare-buffers (p buffer-a buffer-b dest-buffer
+			  &optional pathname-a pathname-b)
+  "Perform a source comparison on two prompted buffers, directing the
+   output to a prompted buffer.  With a prefix only compare the regions in
+   the buffer.  Select the output buffer during the comparison so that
+   progress is visible."
   (srccom-choose-comparison-functions)
-  (multiple-value-bind (buffer-a buffer-b dest-point
-		        delete-buffer-a delete-buffer-b)
-		       (get-srccom-buffers "Compare buffer: "
-					   buffer-a buffer-b
-					   dest-buffer p)
-    (with-output-to-mark (log dest-point)
-      (case (value source-compare-style)
-	(:terse (format log "+++ ~A~%--- ~A.~%"
-		      (or pathname-a (buffer-name buffer-a))
-		      (or pathname-b (buffer-name buffer-b))))
-	(t (format log "Comparison of ~A and ~A.~%~%"
-		   (or pathname-a (buffer-name buffer-a))
-		   (or pathname-b (buffer-name buffer-b)))))
-      (with-mark ((mark-a (buffer-start-mark (or delete-buffer-a buffer-a)))
-		  (mark-b (buffer-start-mark (or delete-buffer-b buffer-b))))
-	(let ((heading-a
-	       (case (value source-compare-style)
-		 (:terse (format nil
-			       "+++++++++++++++~%"))
-		 (t (if pathname-a
-			(format nil "**** File ~A:~%" pathname-a)
-			(format nil "**** Buffer ~A:~%" (buffer-name buffer-a))))))
-	      (heading-b
-	       (case (value source-compare-style)
-		 (:terse (format nil
-			       "---------------~%"))
-		 (t (if pathname-b
-			(format nil "**** File ~A:~%" pathname-b)
-			(format nil "**** Buffer ~A:~%" (buffer-name buffer-b))))))
-	      (terse (value source-compare-style)))
-	  (loop
-	    (multiple-value-bind (diff-a diff-b)
-				 (srccom-find-difference mark-a mark-b)
-	      (when (null diff-a) (return nil))
-	      (write-string heading-a log)
-	      (insert-region dest-point diff-a)
-	      (write-string heading-b log)
-	      (insert-region dest-point diff-b)
-	      (or terse (format log "***************~%~%"))
-	      (move-mark mark-a (region-end diff-a))
-	      (move-mark mark-b (region-end diff-b))
-	      (or (line-offset mark-a 1) (return))
-	      (or (line-offset mark-b 1) (return))))
-	  (or terse (format log "Done.~%")))))
-    (if delete-buffer-a (delete-buffer delete-buffer-a))
-    (if delete-buffer-b (delete-buffer delete-buffer-b))))
+  (let ((equal t))
+    (multiple-value-bind (buffer-a buffer-b dest-point
+				   delete-buffer-a delete-buffer-b)
+			 (get-srccom-buffers "Compare buffer: "
+					     buffer-a buffer-b
+					     dest-buffer p)
+      (with-output-to-mark (log dest-point)
+	(case (value source-compare-style)
+	  (:terse (format log "+++ ~A~%--- ~A.~%"
+			  (or pathname-a (buffer-name buffer-a))
+			  (or pathname-b (buffer-name buffer-b))))
+	  (t (format log "Comparison of ~A and ~A.~%~%"
+		     (or pathname-a (buffer-name buffer-a))
+		     (or pathname-b (buffer-name buffer-b)))))
+	(with-mark ((mark-a (buffer-start-mark (or delete-buffer-a buffer-a)))
+		    (mark-b (buffer-start-mark (or delete-buffer-b buffer-b))))
+	  (let ((heading-a
+		 (case (value source-compare-style)
+		   (:terse (format nil
+				   "+++++++++++++++~%"))
+		   (t (if pathname-a
+			  (format nil "**** File ~A:~%" pathname-a)
+			  (format nil "**** Buffer ~A:~%" (buffer-name buffer-a))))))
+		(heading-b
+		 (case (value source-compare-style)
+		   (:terse (format nil
+				   "---------------~%"))
+		   (t (if pathname-b
+			  (format nil "**** File ~A:~%" pathname-b)
+			  (format nil "**** Buffer ~A:~%" (buffer-name buffer-b))))))
+		(terse (value source-compare-style)))
+	    (loop
+	      (multiple-value-bind (diff-a diff-b)
+				   (srccom-find-difference mark-a mark-b)
+		(or diff-a (return nil))
+		(setq equal ())
+		(write-string heading-a log)
+		(insert-region dest-point diff-a)
+		(write-string heading-b log)
+		(insert-region dest-point diff-b)
+		(or terse (format log "***************~%~%"))
+		(move-mark mark-a (region-end diff-a))
+		(move-mark mark-b (region-end diff-b))
+		(or (line-offset mark-a 1) (return))
+		(or (line-offset mark-b 1) (return))))
+	    (or terse (format log "Done.~%")))))
+      (if delete-buffer-a (delete-buffer delete-buffer-a))
+      (if delete-buffer-b (delete-buffer delete-buffer-b)))
+    equal))
 
+(defun compare-sub-entities (one two file check-for-links log
+				 buffer-one buffer-two log-buffer equal)
+  (let ((two-file (merge-pathnames file two)))
+    (if (directoryp file :check-for-links check-for-links)
+	(fi (directoryp two-file :check-for-links check-for-links)
+	    (progn
+	      (format log "~A is a directory and ~A is a file.~%~%"
+		      file two-file)
+	      (setq equal ())))
+	(if (file-kind two-file :check-for-links check-for-links)
+	    (if (directoryp two-file :check-for-links check-for-links)
+		(progn
+		  (format log "~A is a file and ~A is a directory.~%~%"
+			  file two-file)
+		  (setq equal ()))
+		(block file-compare
+		  (when check-for-links
+		    (if (symlinkp two-file)
+			(if (symlinkp file)
+			    (if (equal (symlink-dest file)
+				       (symlink-dest two-file))
+				(return-from file-compare)
+				(progn
+				  (format log "~A points to ~A, while ~A points to ~A.~%~%"
+					  file two-file
+					  (symlink-dest file)
+					  (symlink-dest two-file))
+				  (setq equal ())
+				  (return-from file-compare)))
+			    (progn
+			      (format log "~A is a file and ~A is a symlink.~%~%"
+				      file two-file)
+			      (setq equal ())
+			      (return-from file-compare)))
+			(if (symlinkp file)
+			    (progn
+			      (format log "~A is a symlink and ~A is a file.~%~%"
+				      file two-file)
+			      (setq equal ())
+			      (return-from file-compare)))))
+		  ;; FIX skip offer to revert to CKP
+		  (read-buffer-file file buffer-one)
+		  (read-buffer-file two-file buffer-two)
+		  (or (let ((current-dir (current-directory)))
+			(unwind-protect
+			    (compare-buffers nil
+					     buffer-one
+					     buffer-two
+					     log-buffer
+					     file
+					     two-file)
+			  ;; Ensure that the current directory stays the same.
+			  (setf (current-directory) current-dir)))
+		      (setq equal ()))))
+	    (progn
+	      (format log "~A is only present in ~A.~%"
+		      (file-namestring file) one)
+	      (setq equal ()))))
+    equal))
 
-(defcommand "Compare Files" (p &optional file1 file2)
-  "Compare two prompted files."
+(defcommand "Compare Files" (p file1 file2 output-buffer
+			       &key silent check-for-links)
   "Compare two prompted files."
   (declare (ignore p))
   (let* ((one (namestring
@@ -122,87 +209,130 @@
 		    :prompt "First file: "
 		    :help "Name of first of files to compare."
 		    :default (buffer-pathname (current-buffer))
-		    :must-exist nil))))
+		    :must-exist t))))
 	 (two (namestring
 	       (or file2
 		   (prompt-for-file
 		    :prompt "Second file: "
 		    :help "Name of second of files to compare."
 		    :default (buffer-pathname (current-buffer))
-		    :must-exist nil))))
+		    :must-exist t))))
 	 (buffer-one (make-unique-buffer (namestring one)))
 	 (buffer-two (make-unique-buffer (namestring two))))
     (unwind-protect
-	(if (directoryp one)
-	    (let ((two-checked)
-		  (log-buffer (prompt-for-buffer
-			       :prompt "Putting results in buffer: "
-			       :must-exist nil
-			       :default-string
-			       (value source-compare-destination))))
+	(if (directoryp one :check-for-links check-for-links)
+	    (let ((equal t)
+		  (one-entities 0)
+		  (two-entities 0)
+		  (log-buffer (or output-buffer
+				  (prompt-for-buffer
+				   :prompt "Putting results in buffer: "
+				   :must-exist nil
+				   :default-string
+				   (value source-compare-destination)))))
 	      (declare (ignore two-checked))
-	      (setq log-buffer (make-buffer log-buffer))
+	      (setq log-buffer (or output-buffer (make-buffer log-buffer)))
 	      (setf (value source-compare-destination)
 		    (buffer-name log-buffer))
 	      (change-to-buffer log-buffer)
 	      (with-output-to-mark (log (buffer-point log-buffer))
-		(or (directoryp two)
-		    ;; FIX log instead
-		    (editor-error "~A is a directory and ~A is a file."
-				  one two))
-		(hlet ((source-compare-style :terse))
-		  ;; FIX recurse
-		  ;; FIX should this use streams? so can be split into lib fun
-		  (do-files (file one)
-		    (if (directoryp file)
-			(format log "FIX ~A is a directory.~%~%"
-				file)
-			(let ((two-file (merge-pathnames (file-namestring file)
-							 two)))
-			  (if (probe-file two-file)
+		(elet ((source-compare-style :terse))
+		  (fi (directoryp two :check-for-links check-for-links)
+		      (progn
+			(format log "~A is a directory and ~A is a file.~%~%"
+				one two)
+			(setq equal ()))
+		      ;; FIX should this use streams? so can be split into lib fun
+		      (let ((two (ensure-trailing-slash
+				  (merge-pathnames two (current-directory)))))
+			;; Count the number of entities in two.
+			(in-directory two
+			  (do-files (file ""
+					  :recurse t
+					  :follow-links (fi check-for-links))
+			    (incf two-entities)))
+			;; Recurse into one, comparing with two and
+			;; counting entities.
+			(in-directory (ensure-trailing-slash one)
+			  (do-files (file ""
+					  :recurse t
+					  :follow-links (fi check-for-links))
+			    (incf one-entities)
+ 			    (setq equal
+ 				  (compare-sub-entities one two file
+							check-for-links
+ 							log buffer-one buffer-two
+ 							log-buffer equal)))
+			  (or (= one-entities two-entities)
 			      (progn
-				(if (directoryp two-file)
-				    (format log "FIX ~A is a directory.~%~%"
-					    two-file))
-				;; FIX skip offer to revert to CKP
-				(read-buffer-file file buffer-one)
-				(read-buffer-file two-file buffer-two)
-				(compare-buffers-command nil
-							 buffer-one
-							 buffer-two
-							 log-buffer
-							 file
-							 two-file)
-				;; FIX (pushnew two-file two-checked)
-				)
-			      (format log "~A only present in ~A.~%"
-				      (file-namestring file) one)))))
-		  ;; FIX print for rest of two
-		  )
-		(message "Directory comparison done.")))
+				(format log "~A contains more entities than ~A.~%"
+					two one)
+				(setq equal ())))))))
+		(or silent (message "Directory comparison done."))
+		equal))
 	    (progn
-	      (if (directoryp two)
+	      ;; FIX update as above
+	      (if (directoryp two :check-for-links check-for-links)
 		  ;; FIX log instead
 		  (editor-error "~A is a file and ~A is a directory."
 				one two))
 	      (read-buffer-file one buffer-one)
 	      (read-buffer-file two buffer-two)
-	      (compare-buffers-command nil buffer-one buffer-two)
-	      (message "File comparison done.")))
+	      (prog1 (compare-buffers nil buffer-one buffer-two
+				      output-buffer)
+		(or silent (message "File comparison done.")))))
       (delete-buffer buffer-one)
       (delete-buffer buffer-two))))
 
+(defun merge-files (pathname-a pathname-b)
+  "Merge PATHNAME-B into PATHNAME-A."
+  (let ((dir (current-directory)))
+    (unwind-protect
+	(with-temp-buffer (buffer)
+	  (with-temp-buffer (buffer-a pathname-a)
+	    (with-temp-buffer (buffer-b pathname-b)
+	      (merge-buffers-command () buffer-a buffer-b buffer))
+	    (delete-region (buffer-region buffer-a))
+	    (insert-region (buffer-point buffer-a) (buffer-region buffer))
+	    (write-buffer-file buffer-a pathname-a)))
+      ;; Ensure the current directory stays the same, as the merge commands
+      ;; change the current buffer.
+      (setf (current-directory) dir))))
+
+;; FIX flag/version that only compares as far as needed  mayb stream-based lib version
+;; FIX     name  consist w eq equal eql = mark=  file-equal(p) file= entity= ent=
+(defun compare-files (pathname-a pathname-b &key check-for-links)
+  "Return true if $pathname-b is equivalent to $pathname-a."
+  (with-temp-buffer (buffer)
+    (or (probe-file pathname-a) (error "File A must exist."))
+    (or (probe-file pathname-b) (error "File B must exist."))
+    (and (equal (file-size pathname-a) (file-size pathname-b))
+	 (compare-files-command () pathname-a pathname-b buffer
+				:silent t :check-for-links check-for-links))))
 
 ;;; "Merge Buffers" creates two temporary buffers when there is a prefix.
 ;;; These get deleted when we're done.  Buffer-a and Buffer-b are used for
 ;;; names in banners in either case.
 ;;;
-(defcommand "Merge Buffers" (p &optional buffer-a buffer-b dest-buffer)
-  "Performs a source merge on two specified buffers.  If the prefix
-   argument is supplied, only compare the regions in the buffer."
-  "Performs a source merge on two specified buffers, Buffer-A and Buffer-B,
-   putting the resulting text into the Dest-Buffer.  If the prefix argument
-   is supplied, only compare the regions in the buffer."
+(defcommand "Merge Buffers" (p buffer-a buffer-b dest-buffer)
+  "Combine two prompted buffers into a prompted output buffer.  Copy text
+   that is identical in the two comparison buffers to the output buffer.
+   On encountering conflicting text, display the conflicting sections in
+   the output buffer and prompt for a key-event indicating what action to
+   take.  Accept the following responses:
+
+     1
+	 Use the first version of the text.
+
+     2
+	 Use the second version.
+
+     b
+	Insert the string \"<<<<<<<\" followed by both versions.  This is
+	indented as a placemarker in order to resolve the conflict later.
+
+     C-r
+	Do a recursive edit and ask again when the edit is exited."
   (srccom-choose-comparison-functions)
   (multiple-value-bind (buffer-a buffer-b dest-point
 		        delete-buffer-a delete-buffer-b)
@@ -232,7 +362,7 @@
 	      (format stream "~%**** Buffer ~A (2):~%" (buffer-name buffer-b))
 	      (insert-region dest-point diff-b)
 	      (command-case
-		  (:prompt "Merge Buffers: "
+		  (:prompt "Resolve conflict: "
 		   :help "Type one of these characters to say how to merge:")
 		(#\1 "Use the text from buffer 1."
 		     (delete-region (region temp-b dest-point))
@@ -248,11 +378,16 @@
 		      (region temp-b
 			      (line-start temp-a
 					  (line-next (mark-line temp-b))))))
-		(#\b "Insert both versions with **** MERGE LOSSAGE **** around them."
+		; FIX use cvs style <<<<<<<<<<< marking
+		(#\b "Insert both versions with special marking around them."
+		     ;; FIX
+		     ;(format temp-a "~%<<<<<<< ~A" (buffer-name buffer-a))
 		     (insert-string temp-a "
-		     **** MERGE LOSSAGE ****")
+<<<<<<<")
+		     (insert-string temp-b "
+=======")
 		     (insert-string dest-point "
-		     **** END OF MERGE LOSSAGE ****"))
+>>>>>>>")) ; FIX terpri?
 		(#\a "Align window at start of difference display."
 		     (line-start
 		      (move-mark
@@ -269,28 +404,28 @@
 	      (move-mark mark-a (region-end diff-a))
 	      (move-mark mark-b (region-end diff-b))
 	      (move-mark temp-a mark-a)
-	      (unless (line-offset mark-a 1) (return))
-	      (unless (line-offset mark-b 1) (return))))))
+	      (or (line-offset mark-a 1) (return))
+	      (or (line-offset mark-b 1) (return))))))
       (message "Done."))
     (when delete-buffer-a
       (delete-buffer delete-buffer-a)
       (delete-buffer delete-buffer-b))))
 
 (defun get-srccom-buffers (first-prompt buffer-a buffer-b dest-buffer p)
-  (unless buffer-a
-    (setf buffer-a (prompt-for-buffer :prompt first-prompt
-				      :must-exist t
-				      :default (current-buffer))))
-  (unless buffer-b
-    (setf buffer-b (prompt-for-buffer :prompt "With buffer: "
-				      :must-exist t
-				      :default (other-buffer))))
-  (unless dest-buffer
-    (setf dest-buffer
-	  (prompt-for-buffer :prompt "Putting results in buffer: "
-			     :must-exist nil
-			     :default-string
-			     (value source-compare-destination))))
+  (or buffer-a
+      (setf buffer-a (prompt-for-buffer :prompt first-prompt
+					:must-exist t
+					:default (current-buffer))))
+  (or buffer-b
+      (setf buffer-b (prompt-for-buffer :prompt "With buffer: "
+					:must-exist t
+					:default (other-buffer))))
+  (or dest-buffer
+      (setf dest-buffer
+	    (prompt-for-buffer :prompt "Putting results in buffer: "
+			       :must-exist nil
+			       :default-string
+			       (value source-compare-destination))))
   (if (stringp dest-buffer)
       (setf dest-buffer (make-buffer dest-buffer))
       (buffer-end (buffer-point dest-buffer)))
@@ -492,7 +627,7 @@
 ;;; SRCCOM-LINE-NEXT-IGNORING-EXTRA-NEWLINES -- Internal.
 ;;;
 ;;; This is the value of *srccom-line-next* when "Source Compare Ignore Extra
-;;; Newlines" is non-nil.
+;;; Newlines" is true.
 ;;;
 (defun srccom-line-next-ignoring-extra-newlines (line)
   (if (null line) nil

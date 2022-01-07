@@ -1,23 +1,9 @@
-;;; -*- Package: VM; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/alpha/sap.lisp,v 1.3.2.1 1998/06/23 11:23:18 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the Alpha VM definition of SAP operations.
-;;;
-;;; Written by William Lott.
-;;; Alpha conversion by Sean Hallgren.
-;;;
+;;; The Alpha VM definition of SAP operations.
+
 (in-package "ALPHA")
 
 
-;;;; Moves and coercions:
+;;;; Moves and coercions.
 
 ;;; Move a tagged SAP to an untagged representation.
 ;;;
@@ -32,7 +18,6 @@
 ;;;
 (define-move-vop move-to-sap :move
   (descriptor-reg) (sap-reg))
-
 
 ;;; Move an untagged SAP to a tagged representation.
 ;;;
@@ -50,7 +35,6 @@
 (define-move-vop move-from-sap :move
   (sap-reg) (descriptor-reg))
 
-
 ;;; Move untagged sap values.
 ;;;
 (define-vop (sap-move)
@@ -66,7 +50,6 @@
 ;;;
 (define-move-vop sap-move :move
   (sap-reg) (sap-reg))
-
 
 ;;; Move untagged sap arguments/return-values.
 ;;;
@@ -86,13 +69,11 @@
 (define-move-vop move-sap-argument :move-argument
   (descriptor-reg sap-reg) (sap-reg))
 
-
 ;;; Use standard MOVE-ARGUMENT + coercion to move an untagged sap to a
 ;;; descriptor passing location.
 ;;;
 (define-move-vop move-argument :move-argument
   (sap-reg) (descriptor-reg))
-
 
 
 ;;;; SAP-INT and INT-SAP
@@ -116,7 +97,6 @@
   (:policy :fast-safe)
   (:generator 1
     (move int sap)))
-
 
 
 ;;;; POINTER+ and POINTER-

@@ -16,5 +16,5 @@ ASSEM_SRC = x86-assem.S linux-stubs.S
 ARCH_SRC = x86-arch.c
 OS_SRC = Linux-os.c os-common.c
 OS_LINK_FLAGS = -Xlinker --export-dynamic
-OS_LIBS = -ldl
+OS_LIBS = -ldl -lutil -lX11
 GC_SRC = gencgc.c

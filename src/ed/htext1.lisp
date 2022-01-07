@@ -1,16 +1,28 @@
 ;;; Text-Manipulation functions for lines and marks.
 
+;; FIX rename etext1.lisp or better
+
 (in-package "EDI")
 
-(export '(line-length line-buffer line-string line-character mark mark-kind
+(export '(line-length line-buffer line-string line-character
+	  mark mark-kind mark-buffer
 	  copy-mark delete-mark move-to-position region make-empty-region
 	  start-line-p end-line-p empty-line-p blank-line-p blank-before-p
-	  blank-after-p same-line-p mark< mark<= mark> mark>= mark= mark/=
+	  blank-after-p same-line-p mark< mark<= mark> mark>= mark=
 	  line< line<= line> line>= first-line-p last-line-p buffer-signature
 	  lines-related))
 
+#[ Altering and Searching Text
+
+[ Altering Text                 ]
+[ Text Predicates               ]
+[ Kill Ring                     ]
+[ Active Regions                ]
+[ Searching and Replacing (ext) ]
+]#
+
 
-;;;; Representation of Text:
+;;;; Representation of Text.
 
 ;;; Line cache mechanism.
 ;;;
@@ -31,10 +43,9 @@
 ;;;	Left-Open-Pos: index of first free character in the gap
 ;;;	Right-Open-Pos: index of first used character after the gap
 ;;;
-;;; Note:
-;;;    Any modificiation of the line cache must be protected by
-;;; Without-Interrupts.  This is done automatically by modifying-buffer; other
-;;; users beware.
+;;; Note: Any modificiation of the line cache must be protected by
+;;; Block-Interrupts.  This is done automatically by modifying-buffer;
+;;; other users beware.
 
 (defvar line-cache-length 200
   "Length of Open-Chars.")
@@ -42,7 +53,7 @@
 (defvar open-line ()
   "Line open for hacking on.")
 
-(defvar open-chars  (make-string line-cache-length)
+(defvar open-chars (make-string line-cache-length)
   "Vector of characters for hacking on.")
 
 (defvar left-open-pos 0
@@ -64,9 +75,9 @@
 
 (defun close-line ()
   "Stuffs the characters in the currently open line back into the line they
-  came from, and sets open-line to Nil."
+   came from, and sets open-line to Nil."
   (when open-line
-    (without-interrupts
+    (block-interrupts
       (let* ((length (+ left-open-pos (- line-cache-length right-open-pos)))
 	     (string (make-string length)))
 	(%sp-byte-blt open-chars 0 string 0 left-open-pos)
@@ -119,7 +130,7 @@
 	   (%sp-byte-blt chars left-open-pos open-chars right-open-pos
 			 line-cache-length)))))
 
-;;;; Some macros for Text hacking:
+;;;; Some macros for Text hacking.
 
 (defmacro modifying-line (line mark)
   "Checks to see if the Line is already opened at the Mark, and calls Open-Line
@@ -138,19 +149,18 @@
   "Increments the ``now'' tick."
   `(incf now-tick))
 
-
 ;;; Yeah, the following is kind of obscure, but at least it doesn't
-;;; call Bufferp twice.  The without-interrupts is just to prevent
+;;; call Bufferp twice.  The block-interrupts is just to prevent
 ;;; people from being screwed by interrupting when the buffer structure
 ;;; is in an inconsistent state.
 ;;;
 (defvar *changed-buffers* nil)
 (defmacro modifying-buffer (buffer &body forms)
-  "Does groovy stuff for modifying buffers."
+  "Does groovy stuff for modifying buffers." ; FIX
   `(progn
      (when (bufferp ,buffer)
-       (unless (buffer-writable ,buffer)
-	 (editor-error "Buffer ~S is read only." (buffer-name ,buffer)))
+       (or (buffer-writable ,buffer)
+	   (editor-error "Buffer ~S is read only." (buffer-name ,buffer)))
        (when (< (buffer-modified-tick ,buffer)
 		(buffer-unmodified-tick ,buffer))
 	 ;; Check if file has changed on disk.
@@ -173,7 +183,7 @@
 	 ;; Run hooks.
 	 (invoke-hook ed::buffer-modified-hook ,buffer t))
        (setf (buffer-modified-tick ,buffer) (tick)))
-     (prog1 (without-interrupts ,@forms)
+     (prog1 (block-interrupts ,@forms)
        (when (bufferp ,buffer)
 	 (push ,buffer *changed-buffers*)))))
 ;	 (invoke-hook ed::after-change-hook ,buffer)))))
@@ -213,11 +223,11 @@
 
 ;;; MOVE-SOME-MARKS  --  Internal
 ;;;
-;;;    Move all the marks from the line Old to New, performing some
-;;; function on their charpos'es.  Charpos is bound to the charpos of
-;;; the mark, and the result of the evaluation of the last form in
-;;; the body should be the new charpos for the mark.  If New is
-;;; not supplied then the marks are left on the old line.
+;;; Move all the marks from the line Old to New, performing some function
+;;; on their charpos'es.  Charpos is bound to the charpos of the mark, and
+;;; the result of the evaluation of the last form in the body should be the
+;;; new charpos for the mark.  If New is not supplied then the marks are
+;;; left on the old line.
 ;;;
 (defmacro move-some-marks ((charpos old &optional new) &body body)
   (let ((last (gensym)) (mark (gensym)) (marks (gensym)))
@@ -240,9 +250,9 @@
 
 ;;; Maybe-Move-Some-Marks  --  Internal
 ;;;
-;;;    Like Move-Some-Marks, but only moves the mark if the
-;;; charpos is greater than the bound, OR the charpos equals the bound
-;;; and the marks %kind is :left-inserting.
+;;; Like Move-Some-Marks, but only moves the mark if the charpos is greater
+;;; than the bound, OR the charpos equals the bound and the marks %kind is
+;;; :left-inserting.
 ;;;
 (defmacro maybe-move-some-marks ((charpos old &optional new) bound &body body)
   (let ((mark (gensym)) (marks (gensym)) (prev (gensym)))
@@ -275,7 +285,7 @@
 
 ;;; Maybe-Move-Some-Marks*  --  Internal
 ;;;
-;;;    Like Maybe-Move-Some-Marks, but ignores the mark %kind.
+;;; Like Maybe-Move-Some-Marks, but ignores the mark %kind.
 ;;;
 (defmacro maybe-move-some-marks* ((charpos old &optional new) bound &body body)
   (let ((mark (gensym)) (marks (gensym)) (prev (gensym)))
@@ -304,20 +314,26 @@
 ;;;; Lines.
 
 (defun line-length (line)
-  "Returns the number of characters on the line."
+  "Return the number of characters in $line.  Newlines characters are left
+   off lines when the lines are created."
   (if (linep line)
       (line-length* line)
-      (error "~S is not a line!" line)))
+      (error "~S must be a line." line)))
 
 (defun line-buffer (line)
-  "Returns the buffer with which the Line is associated.  If the line is
-  not in any buffer then Nil is returned."
+  "Return the buffer which contains $line if there is one, else ()."
   (let ((buffer (line-%buffer line)))
     (if (bufferp buffer) buffer)))
 
 (defun line-string (line)
-  "Returns the characters in the line as a string.  The resulting string
-  must not be destructively modified.  This may be set with Setf."
+  "Return as a simple string the characters in $line.
+
+   This is `setf'able to set the line-string to any string.  If the string
+   contains a newline characters the setf form throws an error.
+
+   It is an error to destructively modify the result of line-string or to
+   destructively modify any string after the line-string of some line has
+   been set to that string."
   (if (eq line open-line)
       (close-line))
   (line-chars line))
@@ -336,8 +352,11 @@
       (setf (line-chars line) string))))
 
 (defun line-character (line index)
-  "Return the Index'th character in Line.  If the index is the length of the
-  line then #\newline is returned."
+  "Return the character at position $index within $line.
+
+   Throw an error if index is greater than the length of $line or less than
+   zero.  If index is equal to the length of the line, return a #\newline
+   character."
   (if (eq line open-line)
       (if (< index left-open-pos)
 	  (schar open-chars index)
@@ -353,18 +372,37 @@
 
 ;;;; Marks.
 
+#[ Mark Functions
+
+{function:ed:markp}
+{function:ed:mark-line}
+{function:ed:mark-charpos}
+{function:ed:mark-kind}
+{function:ed:previous-character}
+{function:ed:next-character}
+]#
+
+#[ Making Marks
+
+{function:ed:mark}
+{function:ed:copy-mark}
+{function:ed:delete-mark}
+{function:ed:with-mark}
+{function:ed:mark-buffer}
+]#
+
 (defun mark (line charpos &optional (kind :temporary))
-  "Returns a mark to the Charpos'th character of the Line.  Kind is the
-  kind of mark to make, one of :temporary (the default), :left-inserting
-  or :right-inserting."
+  "Return a mark that points to the $charpos'th character of $line.  $kind
+   is the kind of mark to create, one of :temporary, :left-inserting, or
+   :right-inserting."
   (let ((mark (internal-make-mark line charpos kind)))
     (if (not (eq kind :temporary))
 	(push mark (line-marks line)))
     mark))
 
 (defun mark-kind (mark)
-  "Returns the kind of the given Mark, :Temporary, :Left-Inserting, or
-  :Right-Inserting.  This may be set with Setf."
+  "Return the kind of $mark, :temporary, :left-inserting, or
+   :right-inserting.  This may be set with Setf."
   (mark-%kind mark))
 
 (defun %set-mark-kind (mark kind)
@@ -379,18 +417,20 @@
 	  (t
 	   (error "~S is an invalid mark type." kind)))))
 
-(defun copy-mark (mark &optional (kind (mark-%kind mark)))
-  "Returns a new mark pointing to the same position as Mark.  The kind
-   of mark created may be specified by Kind, which defaults to the
-   kind of the copied mark."
+(defun mark-buffer (mark)
+  "Return the buffer which contains $mark if there is one, else ()."
+  (line-buffer (mark-line mark)))
+
+(defun copy-mark (mark &optional (kind (mark-kind mark)))
+  "Return a new mark of $kind pointing to the same position as $mark.  Any
+   permanent mark should be deleted after use."
   (let ((mark (internal-make-mark (mark-line mark) (mark-charpos mark) kind)))
     (if (not (eq kind :temporary))
 	(push mark (line-marks (mark-line mark))))
     mark))
 
 (defun delete-mark (mark)
-  "Deletes the Mark.  This should be done to any mark that may not be
-  temporary which is no longer needed."
+  "Deletes $mark.  Any permanent mark should be deleted after use."
   (if (not (eq (mark-%kind mark) :temporary))
       (let ((line (mark-line mark)))
 	(when line
@@ -399,36 +439,81 @@
   (setf (mark-line mark) nil))
 
 (defun move-to-position (mark charpos &optional (line (mark-line mark)))
-  "Changes the Mark to point to the given character position on the Line,
-  which defaults to the line the mark is currently on."
+  "Change $mark to point to character position $charpos on $line."
   (change-line mark line)
   (setf (mark-charpos mark) charpos)
   mark)
+
+;; FIX reconsider marks as streams
+
+(defun mark-stream-read-char (mark eof-error eof-value)
+  "Return the character at $mark.  If $mark is at the end of file, return
+   $eof-value or signal an end-of-file error if $eof-error is true."
+  (or (next-character mark)
+      (if eof-error
+	  (error 'end-of-file :stream mark) ;; FIX good error to use?
+	  eof-value)))
+
+(defun mark-stream-handle-misc (mark operation &optional arg1 arg2)
+  "Handle stream $operation for $mark."
+  (declare (ignore arg1 arg2))
+  (case operation
+    (:listen
+     (or (next-character mark) :eof))
+    (:unread
+     (mark-before mark))
+#|
+    (:close)
+    (:clear-input)
+|#
+    (:force-output
+     (redisplay-windows-from-mark mark))
+    (:finish-output
+     (redisplay-windows-from-mark mark))
+    (:element-type 'base-char)
+    ;(:interactive-p)
+    (:line-length
+     (let* ((buffer (mark-buffer mark)))
+       (when buffer
+	 (do ((w (buffer-windows buffer) (cdr w))
+	      (min most-positive-fixnum (min (window-width (car w)) min)))
+	     ((null w)
+	      (if (/= min most-positive-fixnum) min))))))
+    (:charpos
+     (mark-column mark))
+    (:file-length
+     (count-characters (buffer-region (mark-buffer mark))))
+    (:file-position
+     (count-characters (region (buffer-start-mark (mark-buffer mark))
+			       mark)))))
 
 
 ;;;; Regions.
 
 (defun region (start end)
-  "Returns a region constructed from the marks Start and End."
+  "Return a region constructed from the marks $start and $end.  Throw an
+   error if the marks are in separate buffers or if $start comes after
+   $end."
   (let ((l1 (mark-line start))
 	(l2 (mark-line end)))
-    (unless (eq (line-%buffer l1) (line-%buffer l2))
-      (error "Can't make a region with lines of different buffers."))
-    (unless (if (eq l1 l2)
-		(<= (mark-charpos start) (mark-charpos end))
-		(< (line-number l1) (line-number l2)))
-      (error "Start ~S is after end ~S." start end)))
+    (or (eq (line-%buffer l1) (line-%buffer l2))
+	(error "Marks must be in the same buffer."))
+    (or (if (eq l1 l2)
+	    (<= (mark-charpos start) (mark-charpos end))
+	    (< (line-number l1) (line-number l2)))
+	(error "Start ~S is after end ~S." start end)))
   (internal-make-region start end))
 
-;;; The *Disembodied-Buffer-Counter* exists to give that are not in any buffer
-;;; unique buffer slots.
+;;; The *Disembodied-Buffer-Counter* exists to give lines in regions that are not
+;;; in any buffer unique buffer slots.
 
 (defvar *Disembodied-Buffer-Counter* 0
-  "``Buffer'' given to lines in regions not in any buffer.")
+  "The \"Buffer\" given to lines in regions that are not in any buffer.")
 
 (defun make-empty-region ()
-  "Returns a region with start and end marks pointing to the start of one empty
-  line.  The start mark is right-inserting and the end mark is left-inserting."
+  "Return a region with start and end marks pointing to the start of one
+   empty line.  The start mark is right-inserting and the end mark is
+   left-inserting."
   (let* ((line (make-line :chars ""  :number 0
 			  :%buffer (incf *disembodied-buffer-counter*)))
 	 (start (mark line 0 :right-inserting))
@@ -489,38 +574,65 @@
 ;;; BUFFER-MODIFIED-TICK
 ;;;
 (defun buffer-signature (buffer)
-  "Returns an arbitrary number which reflects the buffers current
-  \"signature.\" The value returned by buffer-signature is guaranteed
-  to be eql to the value returned by a previous call of buffer-signature
-  iff the buffer has not been modified between the calls."
-  (unless (bufferp buffer)
-    (error "~S is not a buffer." buffer))
+  "Return an arbitrary number which reflects the buffers current
+   \"signature\".  Return a value that is guaranteed to be `eql' to the
+   value returned by a previous call if the buffer has remained the same
+   between the calls."
+  (or (bufferp buffer) (error "~S is not a buffer." buffer))
   (buffer-modified-tick buffer))
 
 
-;;;; Predicates:
+;;;; Predicates.
+
+#[ Text Predicates
+
+Some of these functions use character attributes, which are discussed in
+[Character Attributes].
+
+{function:ed:start-line-p}
+{function:ed:end-line-p}
+{function:ed:empty-line-p}
+{function:ed:blank-line-p}
+{function:ed:blank-before-p}
+{function:ed:blank-after-p}
+{function:ed:same-line-p}
+
+{function:ed:lines-related}
+{function:ed:first-line-p}
+{function:ed:last-line-p}
+
+== Mark Ordering Predicates ==
+
+{function:ed:mark<}
+{function:ed:mark<=}
+{function:ed:mark=}
+{function:ed:mark>=}
+{function:ed:mark>}
+
+== Line Ordering Predicates ==
+
+{function:ed:line<}
+{function:ed:line<=}
+{function:ed:line>=}
+{function:ed:line>}
+]#
 
 (defun start-line-p (mark)
-  "Returns T if the Mark points before the first character in a line, Nil
-  otherwise."
+  "Return t if $mark points before the first character in a line, else ()."
   (= (mark-charpos mark) 0))
 
 (defun end-line-p (mark)
-  "Returns T if the Mark points after the last character in a line, Nil
-  otherwise."
+  "Return t if $mark points after the last character in a line, else ()."
   (= (mark-charpos mark) (line-length (mark-line mark))))
 
 (defun empty-line-p (mark)
-  "Returns T if the line pointed to by Mark contains no characters, Nil
-   otherwise."
+  "Return t if the line pointed to by $mark is empty, else ()."
   (let ((line (mark-line mark)))
     (if (eq line open-line)
 	(and (= left-open-pos 0) (= right-open-pos line-cache-length))
 	(= (length (line-chars line)) 0))))
 
 ;;; blank-between-positions  --  Internal
-;;;
-;;;    Check if a line is blank between two positions.  Used by blank-XXX-p.
 ;;;
 (eval-when (compile eval)
 (defmacro check-range (chars start end)
@@ -530,6 +642,8 @@
        (return nil)))))
 ;;;
 (defun blank-between-positions (line start end)
+  "Check if $line is blank between positions $start and $end.  Used by
+   `blank-XXX-p'."
   (if (eq line open-line)
       (let ((gap (- right-open-pos left-open-pos)))
 	(cond ((>= start left-open-pos)
@@ -543,105 +657,119 @@
 	(check-range chars start end))))
 
 (defun blank-line-p (line)
-  "True if line contains only characters with a :whitespace attribute of 1."
+  "Return true if $line contains only characters with a :whitespace
+   attribute of 1."
   (blank-between-positions line 0 (line-length line)))
 
 (defun blank-before-p (mark)
-  "True is all of the characters before Mark on the line it is on have a
-  :whitespace attribute of 1."
+  "Return true if all the characters before $mark and on the same line have
+   a :whitespace attribute of 1."
   (blank-between-positions (mark-line mark) 0 (mark-charpos mark)))
 
 (defun blank-after-p (mark)
-  "True if all characters on the part part of the line after Mark have
-  a :whitespace attribute of 1."
+  "Return true if all the characters after $mark and on the same line have
+   a :whitespace attribute of 1."
   (let ((line (mark-line mark)))
     (blank-between-positions line (mark-charpos mark)
 			     (line-length line))))
 
 (defun same-line-p (mark1 mark2)
-  "Returns T if Mark1 and Mark2 point to the same line, Nil otherwise."
+  "Return true if $mark1 and $mark2 point to the same line, else ().  That
+   is,
+
+         (same-line-p a b) <==> (eq (mark-line a) (mark-line b))"
   (eq (mark-line mark1) (mark-line mark2)))
 
 (defun mark< (mark1 mark2)
-  "Returns T if Mark1 points to a character before Mark2, Nil otherwise."
-  (if (not (eq (line-%buffer (mark-line mark1))
-	       (line-%buffer (mark-line mark2))))
-      (error "Marks in different buffers have no relation."))
+  "Return t if $mark1 points to a character before $mark2, else ().  If the
+   marks are in seperate pieces of text (e.g. in seperate buffers) then
+   throw an error."
+  (or (eq (line-%buffer (mark-line mark1))
+	  (line-%buffer (mark-line mark2)))
+      (error "Marks must be in a contiguous piece of text."))
   (or (< (line-number (mark-line mark1)) (line-number (mark-line mark2)))
       (and (= (line-number (mark-line mark1)) (line-number (mark-line mark2)))
 	   (< (mark-charpos mark1) (mark-charpos mark2)))))
 
 (defun mark<= (mark1 mark2)
-  "Returns T if Mark1 points to a character at or before Mark2, Nil otherwise."
-  (if (not (eq (line-%buffer (mark-line mark1))
-	       (line-%buffer (mark-line mark2))))
-      (error "Marks in different buffers have no relation."))
+  "Return t if $mark1 points to a character at or before $mark2, else ().
+   If the marks are in seperate pieces of text (e.g. in seperate buffers)
+   then throw an error."
+  (or (eq (line-%buffer (mark-line mark1))
+	  (line-%buffer (mark-line mark2)))
+      (error "Marks must be in a contiguous piece of text."))
   (or (< (line-number (mark-line mark1)) (line-number (mark-line mark2)))
       (and (= (line-number (mark-line mark1)) (line-number (mark-line mark2)))
 	   (<= (mark-charpos mark1) (mark-charpos mark2)))))
 
 (defun mark> (mark1 mark2)
-  "Returns T if Mark1 points to a character after Mark2, Nil otherwise."
-  (if (not (eq (line-%buffer (mark-line mark1))
-	       (line-%buffer (mark-line mark2))))
-      (error "Marks in different buffers have no relation."))
+  "Return t if $mark1 points to a character before $mark2, else ().  If the
+   marks are in seperate pieces of text (e.g. in seperate buffers) then
+   throw an error."
+  (or (eq (line-%buffer (mark-line mark1))
+	  (line-%buffer (mark-line mark2)))
+      (error "Marks must be in a contiguous piece of text."))
   (or (> (line-number (mark-line mark1)) (line-number (mark-line mark2)))
       (and (= (line-number (mark-line mark1)) (line-number (mark-line mark2)))
 	   (> (mark-charpos mark1) (mark-charpos mark2)))))
 
 (defun mark>= (mark1 mark2)
-  "Returns T if Mark1 points to a character at or after Mark2, Nil otherwise."
-  (if (not (eq (line-%buffer (mark-line mark1))
-	       (line-%buffer (mark-line mark2))))
-      (error "Marks in different buffers have no relation."))
+  "Return t if $mark1 points to a character at or after $mark2, else ().
+   If the marks are in seperate pieces of text (e.g. in seperate buffers)
+   then throw an error."
+  (or (eq (line-%buffer (mark-line mark1))
+	       (line-%buffer (mark-line mark2)))
+      (error "Marks must be in a contiguous piece of text."))
   (or (> (line-number (mark-line mark1)) (line-number (mark-line mark2)))
       (and (= (line-number (mark-line mark1)) (line-number (mark-line mark2)))
 	   (>= (mark-charpos mark1) (mark-charpos mark2)))))
 
 (defun mark= (mark1 mark2)
-  "Returns T if both marks point to the same position, Nil otherwise."
+  "Return t if $mark1 and $mark2 point to the same position, else ()."
   (and (eq (mark-line mark1) (mark-line mark2))
        (= (mark-charpos mark1) (mark-charpos mark2))))
 
-(defun mark/= (mark1 mark2)
-  "Returns T if both marks point to different positions, Nil otherwise."
-  (not (and (eq (mark-line mark1) (mark-line mark2))
-	    (= (mark-charpos mark1) (mark-charpos mark2)))))
-
 (defun line< (line1 line2)
-  "Returns T if Line1 comes before Line2, NIL otherwise."
+  "Return t if $line1 comes before $line2, else ().  Throw an error if the
+   lines are in seperate pieces of text (e.g. in seperate buffers)."
   (or (eq (line-%buffer line1) (line-%buffer line2))
-      (error "Lines in different buffers have no relation."))
+      (error "Lines must be in a contiguous piece of text."))
   (< (line-number line1) (line-number line2)))
 
 (defun line<= (line1 line2)
-  "Returns T if Line1 comes before or is the same as Line2, NIL otherwise."
+  "Return t if $line1 comes before or is the same as $line2, else ().
+   Throw an error if the lines are in seperate pieces of text (e.g. in
+   seperate buffers)."
   (or (eq (line-%buffer line1) (line-%buffer line2))
-      (error "Lines in different buffers have no relation."))
+      (error "Lines must be in a contiguous piece of text."))
   (<= (line-number line1) (line-number line2)))
 
 (defun line>= (line1 line2)
-  "Returns T if Line1 comes after or is the same as Line2, NIL otherwise."
+  "Return t if $line1 comes after or is the same as $line2, else ().  Throw
+   an error if the lines are in seperate pieces of text (e.g. in seperate
+   buffers)."
   (or (eq (line-%buffer line1) (line-%buffer line2))
-      (error "Lines in different buffers have no relation."))
+      (error "Lines must be in a contiguous piece of text."))
   (>= (line-number line1) (line-number line2)))
 
 (defun line> (line1 line2)
-  "Returns T if Line1 comes after Line2, NIL otherwise."
+  "Return t if $line1 comes after $line2, else ().  Throw an error if the
+   lines are in seperate pieces of text (e.g. in seperate buffers)."
   (or (eq (line-%buffer line1) (line-%buffer line2))
-      (error "Lines in different buffers have no relation."))
+      (error "Lines must be in a contiguous piece of text."))
   (> (line-number line1) (line-number line2)))
 
 (defun lines-related (line1 line2)
-  "Returns T if an order relation exists between Line1 and Line2."
+  "Return true if $line1 and $line2 are in the same piece of text, else
+   ()."
   (eq (line-%buffer line1) (line-%buffer line2)))
 
 (defun first-line-p (mark)
-  "Returns T if the line pointed to by mark has no previous line,
-  Nil otherwise."
+  "Return t if the line pointed to by $mark is the first line in the text,
+   else ()."
   (null (line-previous (mark-line mark))))
 
 (defun last-line-p (mark)
-  "Returns T if the line pointed to by mark has no next line,
-  Nil otherwise."
+  "Return t if the line pointed to by $mark is the last line in the text,
+   else ()."
   (null (line-next (mark-line mark))))

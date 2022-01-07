@@ -113,9 +113,35 @@ arch_remove_breakpoint(void *pc, unsigned long orig_inst)
 
 
 #ifdef __linux__
+#if 0
+//-- FIX from linux-source-2.6.18/include/asm-i386/unistd.h
+#define __syscall_return(type, res) \
+do { \
+	if ((unsigned long)(res) >= (unsigned long)(-(128 + 1))) { \
+		errno = -(res); \
+		res = -1; \
+	} \
+	return (type) (res); \
+} while (0)
+#define _syscall1(type,name,type1,arg1) \
+type name(type1 arg1) \
+{ \
+long __res; \
+__asm__ volatile ("push %%ebx ; movl %2,%%ebx ; int $0x80 ; pop %%ebx" \
+	: "=a" (__res) \
+	: "0" (__NR_##name),"ri" ((long)(arg1)) : "memory"); \
+__syscall_return(type,__res); \
+}
+//--
+// _syscall1 is part of Linux, seems to be included only when __KERNEL__.
 _syscall1(int,sigreturn,struct sigcontext *,context)
 #endif
-
+#if 0
+int sigreturn(struct sigcontext * context) {
+    return syscall (1, context);
+}
+#endif
+#endif
 
 /* When single stepping single_stepping holds the original instruction
    pc location. */

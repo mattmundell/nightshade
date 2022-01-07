@@ -24,6 +24,7 @@
 ;;;
 ;;; Seed - A 32bit number, not zero.
 ;;;
+;;; FIX
 ;;; Apparently uses the generator Line 25 of Table 1 in
 ;;; [KNUTH 1981, The Art of Computer Programming, Vol. 2 (2nd Ed.), pp102]
 ;;;
@@ -151,9 +152,10 @@
 
 ;;; %RANDOM-SINGLE-FLOAT, %RANDOM-DOUBLE-FLOAT  --  Interface
 ;;;
-;;;    Handle the single or double float case of RANDOM.  We generate a float
-;;; between 0.0 and 1.0 by clobbering the significand of 1.0 with random bits,
-;;; then subtracting 1.0.  This hides the fact that we have a hidden bit.
+;;; Handle the single or double float case of RANDOM.  We generate a float
+;;; between 0.0 and 1.0 by clobbering the significand of 1.0 with random
+;;; bits, then subtracting 1.0.  This hides the fact that we have a hidden
+;;; bit.
 ;;;
 (declaim (inline %random-single-float %random-double-float))
 (declaim (ftype (function ((single-float (0f0)) random-state)

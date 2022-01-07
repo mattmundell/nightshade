@@ -1,16 +1,5 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/compiler/dyncount.lisp,v 1.10 1994/10/31 04:27:28 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains support for collecting dynamic vop statistics.
-;;; 
+;;; Support for collecting dynamic VOP statistics.
+
 (in-package "C")
 
 (export '(*collect-dynamic-statistics*
@@ -18,11 +7,10 @@
 	  dyncount-info-p count-me))
 
 (defvar *collect-dynamic-statistics* nil
-  "When T, emit extra code to collect dynamic statistics about vop usages.")
+  "When T, emit extra code to collect dynamic statistics about VOP usages.")
 
 (defvar *dynamic-counts-tn* nil
   "Holds the TN for the counts vector.")
-
 
 (defstruct (dyncount-info
 	    (:print-function %print-dyncount-info)
