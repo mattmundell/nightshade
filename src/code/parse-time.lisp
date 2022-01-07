@@ -69,24 +69,28 @@
 	    ("december" . 12) ("dec" . 12))
 	  *month-strings*)
 
+;; FIX eg IST can be indian/israel std time or irish summer time...
 (hashlist '(("brst" . -2) ("brdt" . -2)
 	    ("art" . -3) ("brt" . -3) ("clst" . -3)
 	    ("ast" . -4)
-	    ("gmt" . 0) ("ut" . 0) ("utc" . 0)
+	    ("gmt" . 0) ("ut" . 0) ("utc" . 0) ("wet" . 0)
 	    ("lcl" . 0)  ;; Possibly for local, from an old mail.
 	    ("bst" . 1) ("cet" . 1) ("met" . 1)
 	    ("cest" . 2) ("eet" . 2) ("ist" . 2) ("sast" . 2)
 	    ("edt" . 4)
+	    ("ist" . 5)  ; +0530
 	    ("cdt" . 5) ("est" . 5) ("yekt" . 5)
 	    ("cst" . 6) ("mdt" . 6) ("yekst" . 6)
 	    ("ict" . 7) ("mst" . 7) ("pdt" . 7)
 	    ("myt" . 8) ("pst" . 8) ("hkt" . 8)
-	    ("jst" . 9) ("kst" . 9)
+	    ("jst" . 9) ("kst" . 9) ("wst" . 9)
 	    ("nzdt" . 13))
 	  *zone-strings*)
 
 (hashlist '(("yesterday" . yesterday)  ("today" . today)
-	    ("tomorrow" . tomorrow)   ("now" . now))
+	    ("tomorrow" . tomorrow)   ("now" . now)
+	    ("daylight" . daylight-word)
+	    ("time" . time-word))
 	  *special-strings*)
 
 ;;; Time/date format patterns are specified as lists of symbols repre-
@@ -123,14 +127,14 @@
 
     ;; Time/date combined formats.
     ((weekday) month (date-divider) day (date-divider) year
-	   hour (time-divider) (minute) (time-divider) (secondp)
-	   (am-pm) (date-divider) (zone))
+          hour (time-divider) (minute) (time-divider) (secondp)
+          (am-pm) (date-divider) (zone))
     ((weekday) day (date-divider) month (date-divider) year
-	 hour (time-divider) (minute) (time-divider) (secondp)
-	 (am-pm) (date-divider) (zone))
+	  hour (time-divider) (minute) (time-divider) (secondp)
+	  (am-pm) (date-divider) (zone))
     ((weekday) month (date-divider) day
-	   hour (time-divider) (minute) (time-divider) (secondp)
-	   (am-pm) (date-divider) (zone))
+	  hour (time-divider) (minute) (time-divider) (secondp)
+	  (am-pm) (date-divider) (zone))
     (year (date-divider) month (date-divider) day
 	  hour (time-divider) (minute) (time-divider) (secondp)
 	  (am-pm) (date-divider) (zone))
@@ -141,18 +145,29 @@
 	  hour (time-divider) (minute) (time-divider) (secondp)
 	  (am-pm) (date-divider) (zone))
 
-    ;; FIX from mail messages
+    ;; From emails.
     ;; FIX check that these produce the correct times
+    ; Wed, 25 Jul 2001 22:50:43 GMT Daylight Time
     ; Mon, 11 Dec 2006 18:44:08 +0100 (CET)
     ; Mon, 06 Sep 1999 08:04:30 "GMT"
+    ; Sat, 10 Feb 2007 00:32:15 +0530 (IST)
     ((weekday) day (date-divider) month (date-divider) year
          hour (time-divider) (minute) (time-divider) (secondp)
-	 (am-pm) (date-divider) (timezone-prefix) (zone)
-         (open-bracket) (zone) (close-bracket))
+	 (am-pm) (date-divider) (timezone-prefix) (izone) ; was (zone)
+         (open-bracket) (zone) (close-bracket)
+         (daylight-word) (time-word)) ;; FIX nasty
     ; Fri, 16 Jul 1999 15:20:35 GMT+0200
     ((weekday) day (date-divider) month (date-divider) year
 	 hour (time-divider) (minute) (time-divider) (secondp)
-	 (am-pm) (date-divider) (zone) (timezone-prefix) (izone))
+	 (am-pm) (date-divider) (zone) (timezone-prefix) (izone)
+         (daylight-word) (time-word)) ;; FIX nasty
+    ; Tue Nov 22 09:43:30 2005 -0000
+    ((weekday) month (date-divider) day (date-divider)
+         hour (time-divider) (minute) (time-divider) (secondp)
+	 (am-pm) (date-divider) year (date-divider)
+         (timezone-prefix) (izone) ; was (zone)
+         (open-bracket) (zone) (close-bracket)
+         (daylight-word) (time-word)) ;; FIX nasty
 
     (hour (time-divider) (minute) (time-divider) (secondp) (am-pm)
 	  (date-divider) (zone) (weekday) month (date-divider)
@@ -329,6 +344,12 @@
 ;;; add a some patterns to the patterns list using whatever combinations
 ;;; of special and pre-existing symbols desired.
 
+(defun time-word (parsed-values)
+  (declare (ignore parsed-values)))
+
+(defun daylight-word (parsed-values)
+  (declare (ignore parsed-values)))
+
 (defun yesterday (parsed-values)
   (set-current-value parsed-values :date t :zone t)
   (setf (decoded-time-day parsed-values)
@@ -395,10 +416,10 @@
   (and (simple-string-p string) (gethash string *special-strings*)))
 
 (defun secondp (number)
-  (and (integerp number) (<= 0 number 59)))
+  (and (integerp number) (<= 0 number 60)))
 
 (defun minute (number)
-  (and (integerp number) (<= 0 number 59)))
+  (and (integerp number) (<= 0 number 60)))
 
 (defun hour (number)
   (and (integerp number) (<= 0 number 24)))
@@ -656,15 +677,15 @@
   (dolist (form-part string-form t)
     (let ((form-type (car form-part))
 	  (form-value (cdr form-part)))
+      ;; FIX if mod must inc next highest by multiple
       (case form-type
-	(secondp (setf (decoded-time-second parsed-values) form-value))
-	(minute (setf (decoded-time-minute parsed-values) form-value))
+	(secondp (setf (decoded-time-second parsed-values) (mod form-value 60)))
+	(minute (setf (decoded-time-minute parsed-values) (mod form-value 60)))
 	(hour (setf (decoded-time-hour parsed-values) (mod form-value 24)))
 	(day (setf (decoded-time-day parsed-values) form-value))
 	(month (setf (decoded-time-month parsed-values) form-value))
 	(year (setf (decoded-time-year parsed-values) form-value))
 	(zone (setf (decoded-time-zone parsed-values) form-value))
-	(izone (deal-with-izone form-value parsed-values))
 	(izone (deal-with-izone form-value parsed-values))
 	(weekday (deal-with-dow form-value parsed-values))
 	(am-pm (deal-with-am-pm form-value parsed-values))

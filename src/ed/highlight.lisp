@@ -202,19 +202,19 @@
 
 ;;;; Context (syntax).
 
-(defvar original-font 0
+(defvar *original-font* 0
   "Index of the font to use for normal text.")
-(defvar comment-font 1
+(defvar *comment-font* 1
   "Index of the font to use for comments.")
-(defvar string-font 2
+(defvar *string-font* 2
   "Index of the font to use for strings.")
-(defvar variable-name-font 3
+(defvar *variable-name-font* 3
   "Index of the font to use for variable names.")
 (defvar *function-name-font* 4
   "Index of the font to use for variable names.")
 (defvar *preprocessor-font* 5
   "Index of the font to use for preprocessor directives.")
-(defvar special-form-font 6
+(defvar *special-form-font* 6
   "Index of the font to use for special forms.")
 (defvar *error-font* 7
   "Index of the font to use for errors.")

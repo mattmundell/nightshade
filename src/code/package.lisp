@@ -917,6 +917,7 @@
 (defmacro in-package (package &rest noise)
   (cond ((or noise
 	     (not (or (stringp package) (symbolp package))))
+	 ;; FIX
 	 (warn "Old-style IN-PACKAGE.")
 	 `(old-in-package ,package ,@noise))
 	(t
@@ -1376,8 +1377,8 @@
 ;;;
 (defun use-package (packages-to-use &optional (package *package*))
   "Add all the Package-To-Use to the use list for Package so that
-  the external symbols of the used packages are accessible as internal
-  symbols in Package."
+   the external symbols of the used packages are accessible as internal
+   symbols in Package."
   (let ((packages (package-listify packages-to-use))
 	(package (package-or-lose package)))
     ;;

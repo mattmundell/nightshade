@@ -106,6 +106,11 @@
 	      (min most-positive-fixnum (min (window-width (car w)) min)))
 	     ((null w)
 	      (if (/= min most-positive-fixnum) min))))))
+    (:file-position
+     (let ((mark (hemlock-output-stream-mark stream)))
+       (count-characters (region (buffer-start-mark
+				  (line-buffer (mark-line mark)))
+				 mark))))
     ((:finish-output :force-output)
      (redisplay-windows-from-mark (hemlock-output-stream-mark stream)))
     (:close (setf (hemlock-output-stream-mark stream) nil))

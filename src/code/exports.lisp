@@ -126,6 +126,12 @@
 (if (find-package "DB")
     (rename-package "DB" "DB" 'nil)
     (make-package "DB" :nicknames '() :use nil))
+(if (find-package "BUILD")
+    (rename-package "BUILD" "BUILD" 'nil)
+    (make-package "BUILD" :nicknames '() :use nil))
+(if (find-package "BASE64")
+    (rename-package "BASE64" "BASE64" 'nil)
+    (make-package "BASE64" :nicknames '() :use nil))
 
 (use-package '("SYSTEM" "ALIEN-INTERNALS" "ALIEN" "LISP") "C-CALL")
 (use-package '("KERNEL" "EXTENSIONS" "LISP") "INSPECT")
@@ -162,6 +168,8 @@
 (use-package '("LISP" "EXTENSIONS" "INTERNET") "MH")
 (use-package '("LISP" "EXTENSIONS") "DOC")
 (use-package '("LISP" "EXTENSIONS") "DB")
+(use-package '("LISP" "EXTENSIONS") "BUILD")
+(use-package '("CL") "BASE64")
 
 (defpackage "C-CALL"
             (:export "C-STRING" "CHAR" "DOUBLE" "FLOAT" "INT" "LONG" "SHORT"
@@ -819,7 +827,7 @@
 (defpackage "CONDITIONS")
 (intern "DISASSEMBLE" "LISP")
 (defpackage "DISASSEM"
-	    (:import-from "LISP" "DISASSEMBLE")
+  (:import-from "LISP" "DISASSEMBLE")
   (:export "*NOTE-COLUMN*" "*OPCODE-COLUMN-WIDTH*" "ADD-COMMENT-HOOK"
 	   "ADD-HOOK" "ADD-NOTE-HOOK" "ARG-VALUE" "CREATE-DSTATE"
 	   "DISASSEM-STATE" "DISASSEMBLE" "DISASSEMBLE-CODE-COMPONENT"
@@ -1768,10 +1776,11 @@
   (:export "FILL-FROM-NETRC"
 	   "INET-ACCOUNT" "INET-STREAM" "INET-COMMAND" "INET-QUIT"
 	   "MAKE-INET-ACCOUNT"
-	   "MAKE-INET-STREAM"
-	   "POP-DELE" "POP-INIT" "POP-QUIT" "POP-RETR" "POP-STAT"
-	   "TELNET-INIT" "TELNET-QUIT"
-	   "FTP-INIT" "FTP-COMMAND" "FTP-TRANSLATE-COMMAND")
+	   "MAKE-INET-STREAM" "INET-STREAM-RESPONSE"
+	   "POP-DELE" "POP-INIT" "POP-RETR" "POP-STAT"
+	   "TELNET-INIT"
+	   "FTP-INIT" "FTP-COMMAND" "FTP-TRANSLATE-COMMAND"
+	   "SMTP-INIT" "SMTP-MAIL")
   (:documentation "Interface for internet clients."))
 
 (defpackage "MH"
@@ -1790,3 +1799,11 @@
 	   "ADDRESS-LINE-1" "ADDRESS-TOWN" "ADDRESS-CODE" "ADDRESS-COUNTRY"
 	   "ADD-RECORD" "WRITE-RECORD" "FIND-RECORD")
   (:documentation "Interface to entity database (people, organisations, etc)."))
+
+(defpackage "BUILD"
+  (:export "BUILD" "BUILD-TARGET" "DEFTARGET" "TARGETS" "WITH-BUILD")
+  (:documentation "Build System."))
+
+(defpackage "BASE64"
+  (:export "BASE64-ENCODE" "BASE64-DECODE")
+  (:documentation "The Base64 transfer encoding algorithm."))

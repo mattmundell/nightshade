@@ -100,8 +100,7 @@
 	(n-start-buf (gensym))
 	(n-save (gensym)))
     `(progn
-       (unless *active-file-group*
-	 (editor-error "There is no active file group."))
+       (or *active-file-group* (select-group-command ()))
 
        (let ((,n-start-buf (current-buffer))
 	     (,n-buf nil))
@@ -217,8 +216,8 @@
     (let ((replacement (prompt-for-string :prompt "With: "
 					  :help "Replacement string")))
       (do-active-group
-       (unless (query-replace-function
-		nil target replacement "Group Query Replace on previous file")
-	 (return nil)))
+       (or (query-replace-function
+	    () target replacement "Group Query Replace on previous file")
+	   (return nil)))
       (message "Replacement done in all files in group ~S."
 	       *active-file-group-name*))))

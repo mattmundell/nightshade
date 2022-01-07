@@ -3,7 +3,8 @@
 
 (in-package "EDI")
 
-(export '(invoke-hook value setv hlet string-to-variable add-hook remove-hook
+(export '(invoke-hook value setv hlet string-to-variable
+	  add-hook remove-hook
 	  defcommand with-mark use-buffer editor-error
 	  editor-error-format-string editor-error-format-arguments
 	  do-lines do-processes
@@ -545,12 +546,13 @@
 (defvar *free-hemlock-output-streams* ()
   "This variable contains a list of free editor output streams.")
 
+;; FIX rename to-mark?
 (defmacro with-output-to-mark ((var mark &optional (buffered ':line))
 			       &body gorms)
   "With-Output-To-Mark (Var Mark [Buffered]) {Declaration}* {Form}*
-  During the evaluation of Forms, Var is bound to a stream which inserts
-  output at the permanent mark Mark.  Buffered is the same as for
-  Make-Hemlock-Output-Stream."
+   During the evaluation of Forms, Var is bound to a stream which inserts
+   output at the permanent mark Mark.  Buffered is the same as for
+   Make-Hemlock-Output-Stream."
   (parse-forms (decls forms gorms)
     `(let ((,var (pop *free-hemlock-output-streams*)))
        ,@decls
@@ -558,13 +560,14 @@
 	   (modify-hemlock-output-stream ,var ,mark ,buffered)
 	   (setq ,var (make-hemlock-output-stream ,mark ,buffered)))
        (unwind-protect
-	 (progn ,@forms)
+	   (progn ,@forms)
 	 (setf (hemlock-output-stream-mark ,var) nil)
 	 (push ,var *free-hemlock-output-streams*)))))
 
 (defvar *free-hemlock-region-streams* ()
   "This variable contains a list of free editor input streams.")
 
+;; FIX rename from-region?
 (defmacro with-input-from-region ((var region) &body gorms)
   "With-Input-From-Region (Var Region) {Declaration}* {Form}*
   During the evaluation of Forms, Var is bound to a stream which

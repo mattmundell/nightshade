@@ -114,9 +114,9 @@
   (ignore-numarg sub-char numarg)
   (let ((token (read stream t nil t)))
     (unless *read-suppress*
-      (unless *read-eval*
-	(%reader-error stream
-		      "Attempt to read #. while *READ-EVAL* is bound to NIL."))
+      (or *read-eval*
+	  (%reader-error stream
+			 "Attempt to read #. while *READ-EVAL* is bound to NIL."))
       (eval token))))
 
 

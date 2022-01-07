@@ -9,14 +9,9 @@
   "Name of trash folder, with leading +."
   :value "+trash")
 
-(defvar *new-mail-buffer* nil)
+(defvar *new-mail-buffer* ())
 
 (defvar *mh-utility-bit-bucket* (make-broadcast-stream))
-
-(defvar *signal-mh-errors* t
-  "This is the default value for whether MH signals errors.  It is useful
-   to bind this to nil when using PICK-MESSAGES with the \"Incorporate New
-   Mail Hook\".")
 
 (defattribute "Digit"
   "This is just a (mod 2) attribute for base 10 digit characters.")
@@ -65,8 +60,8 @@
        (loop
 	 (let* ((,line-var (mark-line ,mark-var))
 		(,id (line-message-id ,line-var)))
-	   (unless (blank-line-p ,line-var)
-	     ,@forms)
+	   (or (blank-line-p ,line-var)
+	       ,@forms)
 	   (if (or (not (eq ,line-var (mark-line ,mark-var)))
 		   (string/= ,id (line-message-id ,line-var)))
 	       (line-start ,mark-var)
@@ -190,62 +185,56 @@
 (defun pick-message-headers (hinfo)
   (let ((folder (headers-info-folder hinfo))
 	(msgs (headers-info-msg-strings hinfo)))
-    (multiple-value-bind (pick user-pick)
-			 (prompt-for-pick-expression)
-      (let* ((hbuffer (headers-info-buffer hinfo))
-	     (new-mail-buf-p (eq hbuffer *new-mail-buffer*))
-	     (region (cond (pick
-			    (message-headers-to-region
-			     folder (pick-messages folder msgs pick)))
-			   (new-mail-buf-p
-			    (maybe-get-new-mail-msg-hdrs folder))
-			   (t (message-headers-to-region folder
-							 (list "all"))))))
-	(with-writable-buffer (hbuffer)
-	  (revamp-headers-buffer hbuffer hinfo)
-	  (when region (insert-message-headers hbuffer hinfo region)))
-	(setf (buffer-modified hbuffer) nil)
-	(buffer-start (buffer-point hbuffer))
-	(setf (buffer-name hbuffer)
-	      (cond (pick (format nil "Headers ~A ~A ~A" folder msgs user-pick))
-		    (new-mail-buf-p (format nil "Unseen Headers ~A" folder))
-		    (t (format nil "Headers ~A (all)" folder))))))))
+    (let* ((pick (prompt-for-pick-expression))
+	   (hbuffer (headers-info-buffer hinfo))
+	   (new-mail-buf-p (eq hbuffer *new-mail-buffer*))
+	   (region (cond (pick
+			  (message-headers-to-region
+			   folder (mh:pick-messages folder msgs pick)))
+			 (new-mail-buf-p
+			  (maybe-get-new-mail-msg-hdrs folder))
+			 (t (message-headers-to-region folder
+						       (list "all"))))))
+      (with-writable-buffer (hbuffer)
+	(revamp-headers-buffer hbuffer hinfo)
+	(when region (insert-message-headers hbuffer hinfo region)))
+      (setf (buffer-modified hbuffer) ())
+      (buffer-start (buffer-point hbuffer))
+      (setf (buffer-name hbuffer)
+	    (cond (pick (format () "Headers ~A ~A ~A" folder msgs pick))
+		  (new-mail-buf-p (format () "Unseen Headers ~A" folder))
+		  (t (format () "Headers ~A (all)" folder)))))))
 
-;;; NEW-MESSAGE-HEADERS picks over msgs if pickp is non-nil, or it just scans
-;;; msgs.  It is important to pick and get the message headers region before
-;;; making the buffer and info structures since PICK-MESSAGES and
-;;; MESSAGE-HEADERS-TO-REGION will call EDITOR-ERROR if they fail.  The buffer
-;;; name is chosen based on folder, msgs, and an optional pick expression.
+;;; NEW-MESSAGE-HEADERS picks over msgs if pickp is non-nil, or it just
+;;; scans msgs.  It is important to pick and get the message headers region
+;;; before making the buffer and info structures since
+;;; MESSAGE-HEADERS-TO-REGION will call EDITOR-ERROR if they fail.  The
+;;; buffer name is chosen based on folder, msgs, and an optional pick
+;;; expression.
 ;;;
 (defun new-message-headers (folder msgs &optional pickp)
-  (multiple-value-bind (pick-exp user-pick)
-		       (if pickp (prompt-for-pick-expression))
-    (let* ((pick (if pick-exp (pick-messages folder msgs pick-exp)))
-	   (region (message-headers-to-region folder (or pick msgs)))
-	   (hbuffer (maybe-make-mh-buffer (format nil "Headers ~A ~A~:[~; ~S~]"
-						  folder msgs pick user-pick)
-					  :headers))
-	   (hinfo (make-headers-info :buffer hbuffer :folder folder)))
-      (insert-message-headers hbuffer hinfo region)
-      (defhvar "Headers Information"
-	"This holds the information about the current headers buffer."
-	:value hinfo :buffer hbuffer)
-      (setf (buffer-modified hbuffer) nil)
-      (setf (buffer-writable hbuffer) nil)
-      (buffer-start (buffer-point hbuffer))
-      (setf (buffer-pathname hbuffer) (mh:folder-pathname folder))
-      (change-to-buffer hbuffer))))
-
-(defhvar "MH Scan Line Form"
-  "This is a pathname of a file containing an MH format expression for
-   headers lines."
-  :value (pathname "library:mh-scan"))
+  (let* ((pick-exp (if pickp (prompt-for-pick-expression)))
+	 (pick (if pick-exp (mh:pick-messages folder msgs pick-exp)))
+	 (region (message-headers-to-region folder (or pick msgs)))
+	 (hbuffer (maybe-make-mh-buffer (format () "Headers ~A ~A~:[~; ~S~]"
+						folder msgs pick pick-exp)
+					:headers))
+	 (hinfo (make-headers-info :buffer hbuffer :folder folder)))
+    (insert-message-headers hbuffer hinfo region)
+    (defhvar "Headers Information"
+      "This holds the information about the current headers buffer."
+      :value hinfo :buffer hbuffer)
+    (setf (buffer-modified hbuffer) nil)
+    (setf (buffer-writable hbuffer) nil)
+    (buffer-start (buffer-point hbuffer))
+    (setf (buffer-pathname hbuffer) (mh:folder-pathname folder))
+    (change-to-buffer hbuffer)))
 
 ;; FIX probably better way to do this
 (defhvar "Message Headers Fill Column"
   "The width of the text in a Message Headers Buffer.  If nil then \"Fill
    Column\" will be used instead."
-  :value nil)
+  :value ())
 
 ;;; MESSAGE-HEADERS-TO-REGION uses the MH interface to output headers into
 ;;; buffer for folder and msgs.
@@ -280,6 +269,7 @@
 	     (num (parse-integer line-str :junk-allowed t)))
 	(declare (simple-string line-str))
 	(or num
+	    ;; FIX
 	    (editor-error "MH scan lines must contain the message id as the ~
 			   first thing on the line for the editor interface."))
 	(setf (line-message-id line) (number-string num))
@@ -293,42 +283,6 @@
 	  (note-deleted-message-at-mark hmark)
 	  (setf (line-message-deleted line) nil)))))
 
-;;; PICK-MESSAGES  --  Internal Interface.
-;;;
-;;; This takes a folder (with a + in front of the name), messages to pick
-;;; over, and an MH pick expression (in the form returned by
-;;; PROMPT-FOR-PICK-EXPRESSION).  Sequence is an MH sequence to set to exactly
-;;; those messages chosen by the pick when zerop is non-nil; when zerop is nil,
-;;; pick adds the messages to the sequence along with whatever messages were
-;;; already in the sequence.  This returns a list of message specifications.
-;;;
-(defun pick-messages (folder msgs expression &optional sequence (zerop t))
-  (let* ((temp (with-output-to-string (*standard-output*)
-		 ;; If someone bound *signal-mh-errors* to nil around this
-		 ;; function, MH pick outputs bogus messages (for example,
-		 ;; "0"), and MH would return without calling EDITOR-ERROR.
-		 (or (mh "pick" `(,folder
-				  ,@msgs
-				  ,@(if sequence `("-sequence" ,sequence))
-				  ,@(if zerop '("-zero"))
-				  "-list"	; -list must follow -sequence.
-				  ,@expression))
-		     (return-from pick-messages nil))))
-	 (len (length temp))
-	 (start 0)
-	 (result nil))
-    (declare (simple-string temp))
-    (loop
-      (let ((end (position #\newline temp :start start :test #'char=)))
-	(cond ((not end)
-	       (return (nreverse (cons (subseq temp start) result))))
-	      ((= start end)
-	       (return (nreverse result)))
-	      (t
-	       (push (subseq temp start end) result)
-	       (when (>= (setf start (1+ end)) len)
-		 (return (nreverse result)))))))))
-
 (defcommand "Delete Headers Buffer and Message Buffers" (p &optional buffer)
   "Prompts for a headers buffer to delete along with its associated message
    buffers.  Any associated draft buffers are left alone, but their associated
@@ -341,8 +295,8 @@
 		     (prompt-for-buffer :default default
 					:default-string
 					(if default (buffer-name default))))))
-    (unless (editor-bound-p 'headers-information :buffer buffer)
-      (editor-error "Not a headers buffer -- ~A" (buffer-name buffer)))
+    (or (editor-bound-p 'headers-information :buffer buffer)
+	(editor-error "Not a headers buffer -- ~A" (buffer-name buffer)))
     (let* ((hinfo (variable-value 'headers-information :buffer buffer))
 	   ;; Copy list since buffer cleanup hook is destructive.
 	   (other-bufs (copy-list (headers-info-other-msg-bufs hinfo)))
@@ -365,7 +319,7 @@
 
 (defun delete-messages (folder messages &optional (verbose t))
   "Move the trash from FOLDER to the trash folder or if FOLDER is the trash
-   folder release the trash messages."
+   folder clear out the trash folder."
   (if (string= folder (value trash-folder))
       (progn
 	(if verbose (message "Deleting messages ..."))
@@ -500,7 +454,7 @@
       (setf (variable-value 'message-headers-short :buffer mbuffer) nil)
       (let ((line (mark-line point)))
 	;; FIX handle multi-line fields
-	(loop for keep = nil do
+	(loop for keep = () do
 	  (if (mark= (mark line 0) end) (return))
 	  (let* ((chars (line-string line))
 		 (len (length chars)))
@@ -526,13 +480,16 @@
 		    (let ((end (copy-mark start)))
 		      ;; FIX (find-character end #\")
 		      (find-pattern end
-				    (new-search-pattern :character :forward #\"))
+				    (new-search-pattern :character
+							:forward #\"))
 		      (setq mime-boundary
 			    (region-to-string (region start end))))))
 		;; Other fields.
 		(dolist (field
 			 '("Subject:" "To:" "From:"
-			   "Cc:" "Reply-To:" "Date:"))
+			   "Cc:" "Reply-To:" "Date:"
+			   "Resent-To:" "Resent-From:"
+			   "Resent-Cc:" "Resent-Date:"))
 		  (let ((field-len (length field)))
 		    (when (and (>= len (length field))
 			       (string= chars field
@@ -540,7 +497,19 @@
 		      (setq keep t)
 		      (return)))))
 	    (if keep
-		(setq line (line-next line))
+		(progn
+		  (setq line (line-next line))
+; FIX loop over rest lines in multi-line field
+; 		  (loop for chars = (line-string line)
+; 		    for len = (length chars)
+; 		    while (and line
+; 			       (plusp len)
+; 			       (member (char chars 0)
+; 				       '(#\space #\newline)))
+; 		    do
+; 		    (delete-region (region (mark line 0)
+; 					   (mark-after (mark line len)))))
+		  )
 		(let ((region (region (mark line 0)
 				      (mark-after (mark line len)))))
 		  (delete-region region)))))))
@@ -560,7 +529,6 @@
       (when (find-attribute mark :word-delimiter)
 	(values type (string-downcase (region-to-string
 				       (region start mark))))))))
-
 
 ;; FIX name
 (defun prepare-message (mbuffer folder message-id)
@@ -678,11 +646,11 @@
     (cond
      ((not minfo)
       (let ((hinfo (value headers-information)))
-	(unless hinfo (editor-error "Not in a message or headers buffer."))
+	(or hinfo (editor-error "Not in a message or headers buffer."))
 	(show-message-offset-hdrs-buf hinfo offset undeleted)))
      ((message-info-keep minfo)
       (let ((hbuf (value headers-buffer)))
-	(unless hbuf (editor-error "Not associated with a headers buffer."))
+	(or hbuf (editor-error "Not associated with a headers buffer."))
 	(let ((hinfo (variable-value 'headers-information :buffer hbuf))
 	      (point (buffer-point hbuf)))
 	  (move-mark point (message-info-headers-mark minfo))
@@ -691,16 +659,16 @@
       (show-message-offset-msg-buf minfo offset undeleted)))))
 
 (defun show-message-offset-hdrs-buf (hinfo offset undeleted)
-  (unless hinfo (editor-error "Not in a message or headers buffer."))
-  (unless (show-message-offset-mark (buffer-point (headers-info-buffer hinfo))
-				    offset undeleted)
-    (editor-error "No ~:[previous~;next~] ~:[~;undeleted ~]message."
-		  (plusp offset) undeleted))
+  (or hinfo (editor-error "Not in a message or headers buffer."))
+  (or (show-message-offset-mark (buffer-point (headers-info-buffer hinfo))
+				offset undeleted)
+      (editor-error "No ~:[previous~;next~] ~:[~;undeleted ~]message."
+		    (plusp offset) undeleted))
   (show-headers-message hinfo))
 
 (defun show-message-offset-msg-buf (minfo offset undeleted)
   (let ((msg-mark (message-info-headers-mark minfo)))
-    (unless msg-mark (editor-error "Not associated with a headers buffer."))
+    (or msg-mark (editor-error "Not associated with a headers buffer."))
     (unless (show-message-offset-mark msg-mark offset undeleted)
       (let ((hbuf (value headers-buffer))
 	    (mbuf (current-buffer)))
@@ -721,10 +689,12 @@
 	      (get-storable-msg-buf-name folder next-msg))
 	(setf (message-info-msgs minfo) next-msg)
 	(let ((path (merge-pathnames next-msg (mh:folder-pathname folder))))
-	  (read-mh-file path mbuffer)
+	  (read-message folder next-msg mbuffer
+			(if (string= (mh:strip-folder-name folder)
+				     (mh:draft-folder))
+			    t
+			    (value message-headers)))
 	  (setf (buffer-pathname mbuffer) path))
-	(or (string= (mh:strip-folder-name folder) (mh:draft-folder))
-	    (prepare-message mbuffer folder next-msg))
 	(let ((unseen-seq (mh:profile-component "unseen-sequence")))
 	  (when unseen-seq
 	    (mh:mark-message folder next-msg unseen-seq :delete))))))
@@ -740,8 +710,7 @@
 	(let ((n 2))
 	  (loop
 	    (setf name (format nil "Message ~A ~A copy ~D" folder msg n))
-	    (unless (getstring name *buffer-names*)
-	      (return name))
+	    (or (getstring name *buffer-names*) (return name))
 	    (incf n))))))
 
 (defun show-message-offset-mark (msg-mark offset undeleted)
@@ -749,16 +718,15 @@
     (let ((winp
 	   (cond (undeleted
 		  (loop
-		    (unless (and (line-offset temp offset 0)
-				 (not (blank-line-p (mark-line temp))))
-		      (return nil))
-		    (unless (line-message-deleted (mark-line temp))
-		      (return t))))
+		    (or (and (line-offset temp offset 0)
+			     (fi (blank-line-p (mark-line temp))))  ;; FIX
+			(return nil))
+		    (or (line-message-deleted (mark-line temp))
+			(return t))))
 		 ((and (line-offset temp offset 0)
 		       (not (blank-line-p (mark-line temp)))))
 		 (t nil))))
       (if winp (move-mark msg-mark temp)))))
-
 
 (defcommand "Show Message" (p)
   "Shows the current message.
@@ -781,6 +749,29 @@
   "Shows the current message in the next window.  Prompts for a folder and
    message(s), displaying this in the current window.  When invoked in a
    headers buffer, shows the message on the current line."
+  "Show a message."
+  (declare (ignore p))
+  (let ((hinfo (value headers-information)))
+    (if (<= (length *window-list*) 2)
+	(split-window-command nil)
+	(setf (current-window) (next-window (current-window))))
+    (if hinfo
+	(progn
+	  ;; FIX orig just called show-h-m here
+	  (if (string= (mh:strip-folder-name (headers-info-folder hinfo))
+		       (mh:draft-folder))
+	      ;(show-draft-message hinfo) FIX
+	      (show-headers-message hinfo)
+	      (show-headers-message hinfo)))
+	(progn
+	  (let ((folder (prompt-for-folder)))
+	    (show-prompted-message folder (prompt-for-message :folder folder)))))))
+
+(defcommand "Show Message Nicely" (p)
+  "Shows the current message in the next window shrinking the headers
+   windows.  Prompts for a folder and message(s), displaying this in the
+   current window.  When invoked in a headers buffer, shows the message on
+   the current line."
   "Show a message."
   (declare (ignore p))
   (let ((hinfo (value headers-information)))
@@ -843,19 +834,19 @@
 		  associated headers buffer."
 		 :value (headers-info-buffer hinfo) :buffer mbuffer)
 	       (defhvar "Message Headers"
-		 "A region holding all the headers for the current message."
-		 :value nil :buffer mbuffer)
-	       (defhvar "Message Headers Short"
-		 "A region holding the headers for the current message in
-		  short format."
-		 :value nil :buffer mbuffer)))
+		 "List of message headers."
+		 :value (value message-headers) :buffer mbuffer)
+	       (defhvar "Message Headers Alternate"
+		 "List of message headers for message header toggling."
+		 :value t :buffer mbuffer)))
       (let ((path (merge-pathnames cur-msg (mh:folder-pathname folder))))
-	(read-mh-file path mbuffer)
+	(read-message folder cur-msg mbuffer
+		      (if (string= (mh:strip-folder-name
+				    (headers-info-folder hinfo))
+				   (mh:draft-folder))
+			  t
+			  (value message-headers)))
 	(setf (buffer-pathname mbuffer) path))
-      (or (string= (mh:strip-folder-name (headers-info-folder hinfo))
-		   (mh:draft-folder))
-	  (with-writable-buffer (mbuffer)
-	    (prepare-message mbuffer folder cur-msg)))
       (setf (buffer-writable mbuffer) writable)
       (let ((unseen-seq (mh:profile-component "unseen-sequence")))
 	(when unseen-seq (mh:mark-message folder cur-msg unseen-seq :delete)))
@@ -867,8 +858,8 @@
 ;;; no funny names such as "last".
 ;;;
 (defun show-prompted-message (folder msgs)
-  (let* ((msgs (pick-messages folder msgs nil))
-	 (mbuffer (maybe-make-mh-buffer (format nil "Message ~A ~A" folder msgs)
+  (let* ((msgs (mh:pick-messages folder msgs ()))
+	 (mbuffer (maybe-make-mh-buffer (format () "Message ~A ~A" folder msgs)
 					:message)))
     (defhvar "Message Information"
       "This holds the information about the current headers buffer."
@@ -982,27 +973,102 @@
   "Toggle message headers display between all and some."
   "Toggle message headers display between all and some."
   (declare (ignore p))
-  (let* ((mheaders (value message-headers))
-	 (mheaders-short (value message-headers-short))
-	 (buffer (current-buffer)))
-    (or mheaders mheaders-short
+  (let ((buffer (current-buffer))
+	(minfo (value message-information)))
+    (or minfo
 	(editor-error "The current buffer must be a message buffer."))
     (with-writable-buffer (buffer)
       (let* ((mark (copy-mark (buffer-start-mark buffer)))
 	     (end (copy-mark mark)))
 	(when (find-pattern end *two-nl-pattern*)
 	  (mark-after end)
-	  (if (value message-headers-short)
-	      (progn
-		(setv message-headers
-		      (delete-and-save-region (region mark end)))
-		(insert-region mark (value message-headers-short))
-		(setv message-headers-short nil))
-	      (progn
-		(setv message-headers-short
-		      (delete-and-save-region (region mark end)))
-		(insert-region mark (value message-headers))
-		(setv message-headers nil))))))))
+	  (mark-after end)
+	  (delete-region (region mark end))
+	  (with-output-to-mark (stream mark)
+	    (mh:write-headers (message-info-folder minfo)
+			      (message-info-msgs minfo)
+			      stream
+			      (lisp::swap (value message-headers) ; FIX lisp::
+					  (value message-headers-alternate)))))))))
+
+(defcommand "View MIME Part" (p)
+  "View any MIME part described under point."
+  "View any MIME part described under point."
+  (declare (ignore p))
+  (let ((minfo (value message-information)))
+    (or minfo
+	(editor-error "The current buffer must be a message buffer."))
+    (let ((mark (copy-mark (current-point))))
+      (line-start mark)
+      (if (eq (next-character mark) #\#)
+	  (let ((part (mh:get-part
+		       (message-info-folder minfo)
+		       (message-info-msgs minfo)
+		       (count-characters
+			(region (buffer-start-mark (current-buffer))
+				mark)))))
+	    (if part (msg "part")))))))
+
+(defcommand "Save MIME Part" (p)
+  "Save any MIME part described under point."
+  "Save any MIME part described under point."
+  (declare (ignore p))
+  (let ((minfo (value message-information)))
+    (or minfo
+	(editor-error "The current buffer must be a message buffer."))
+    (let ((mark (copy-mark (current-point))))
+      (line-start mark)
+      (if (eq (next-character mark) #\#)
+	  (let ((part (mh:get-part
+		       (message-info-folder minfo)
+		       (message-info-msgs minfo)
+		       (count-characters
+			(region (buffer-start-mark (current-buffer))
+				mark)))))
+	    (if part
+		(with-open-file
+		    (stream
+		     (loop
+		       for file =
+		       (prompt-for-file
+			:must-exist ()
+			:default (directory-namestring
+				  (buffer-default-pathname (current-buffer)))
+			:prompt "Save MIME part to file: "
+			:help "Name of file in which to save MIME part")
+		       do
+		       (if (probe-file file)
+			   (if (prompt-for-y-or-n
+				:prompt "File exists, overwrite? "
+				:default ())
+			       (return file))
+			   (return file)))
+		     :direction :output
+		     :if-does-not-exist :create)
+		  (write-string part stream))))))))
+
+(defcommand "Next MIME Part" (p)
+  "Move to the next MIME part in the current buffer."
+  "Move to the next MIME part in the current buffer."
+  (or p (setq p 1))
+  (let* ((mark (copy-mark (current-point)))
+	 (buffer (current-buffer))
+	 (end (if (plusp p)
+		  (buffer-end-mark buffer)
+		  (buffer-start-mark buffer))))
+    (line-offset mark p 0)
+    (loop
+      (if (mark= mark end) (return))
+      (when (and (next-character mark)
+		 (char= (next-character mark) #\#))
+	(move-mark (current-point) mark)
+	(return))
+      (line-offset mark p))))
+
+(defcommand "Previous MIME Part" (p)
+  "Move to the previous MIME part in the current buffer."
+  "Move to the previous MIME part in the current buffer."
+  (next-mime-part-command (- (or p 1))))
 
 
 ;;;; Draft Mode.
@@ -1027,18 +1093,23 @@
   (format str "#<Draft Info ~A>" (draft-info-message obj)))
 
 
-(defhvar "Reply to Message Prefix Action"
-  "This is one of :cc-all, :no-cc-all, or nil.  When an argument is supplied to
-   \"Reply to Message\", this value determines how arguments passed to the
-   MH utility."
-  :value nil)
+(defhvar "Reply to Message CC"
+  "This is one of :all, :others and ().  This value determines which
+   addresses the Reply to Message commands add to the CC field."
+  :value :others)
+
+(defhvar "Reply to Message Prefix CC"
+  "This is one of :all, :others and ().  This value determines which
+   addresses the Reply to Message commands add to the CC field when they
+   are called with prefix arguments."
+  :value ())
 
 (defcommand "Reply to Message" (p)
-  "Sets up a draft in reply to the current message.
-   Prompts for a folder and message to reply to.  When in a headers buffer,
-   replies to the message on the current line.  When in a message buffer,
-   replies to that message.  With an argument, regard \"Reply to Message Prefix
-   Action\" for carbon copy arguments to the MH utility."
+  "Sets up a draft in reply to the current message.  Prompts for a folder
+   and message to reply to.  When in a headers buffer, replies to the
+   message on the current line.  When in a message buffer, replies to that
+   message.  Regard \"Reply to Message CC\" for carbon copy
+   behaviour; with a prefix regard \"Reply to Message Prefix CC\"."
   "Prompts for a folder and message to reply to.  When in a headers buffer,
    replies to the message on the current line.  When in a message buffer,
    replies to that message."
@@ -1070,12 +1141,8 @@
 ;;;
 (defun setup-reply-draft (folder msg &optional hinfo hmark argument)
   (let* ((dbuffer (sub-setup-message-draft
-		   "repl" :end-of-buffer
-		   `(,folder ,msg
-			     ,@(if argument
-				   (case (value reply-to-message-prefix-action)
-				     (:no-cc-all '("-nocc" "all"))
-				     (:cc-all '("-cc" "all")))))))
+		   :repl :end-of-buffer
+		   `(,folder ,msg ,argument)))
 	 (dinfo (variable-value 'draft-information :buffer dbuffer))
 	 (h-buf (if hinfo (headers-info-buffer hinfo))))
     (setf (draft-info-replied-to-folder dinfo) folder)
@@ -1102,8 +1169,7 @@
 	  headers buffer."
 	  :value h-buf :buffer msg-buf)
 	(push msg-buf (headers-info-other-msg-bufs hinfo)))
-      (read-mh-file (merge-pathnames msg (mh:folder-pathname folder))
-		    msg-buf)
+      (read-message folder msg msg-buf)
       (setf (buffer-writable msg-buf) nil)
       (defhvar "Message Buffer"
 	"This is bound in draft buffers to their associated message buffer."
@@ -1145,7 +1211,7 @@
 ;;; parameterized and renamed.
 ;;;
 (defun setup-forward-draft (folder msg &optional hinfo hmark)
-  (let* ((dbuffer (sub-setup-message-draft "forw" :to-field
+  (let* ((dbuffer (sub-setup-message-draft :forw :to-field
 					   (list folder msg)))
 	 (dinfo (variable-value 'draft-information :buffer dbuffer))
 	 (h-buf (if hinfo (headers-info-buffer hinfo))))
@@ -1175,7 +1241,7 @@
 	  (t (setup-message-draft)))))
 
 (defun setup-message-draft ()
-  (get-draft-buffer-window (sub-setup-message-draft "comp" :to-field)))
+  (get-draft-buffer-window (sub-setup-message-draft :comp :to-field)))
 
 ;;; SETUP-HEADERS-MESSAGE-DRAFT sets up a draft buffer associated with a
 ;;; headers buffer and a message buffer.  The headers current message is
@@ -1185,8 +1251,8 @@
 (defun setup-headers-message-draft (hinfo)
   (multiple-value-bind (cur-msg cur-mark)
 		       (headers-current-message hinfo)
-    (unless cur-msg (message "Draft not associated with any message."))
-    (let* ((dbuffer (sub-setup-message-draft "comp" :to-field))
+    (or cur-msg (message "Draft not associated with any message."))
+    (let* ((dbuffer (sub-setup-message-draft :comp :to-field))
 	   (dinfo (variable-value 'draft-information :buffer dbuffer))
 	   (h-buf (headers-info-buffer hinfo)))
       (when cur-msg
@@ -1212,8 +1278,7 @@
 	     headers buffer."
 	    :value h-buf :buffer msg-buf)
 	  (push msg-buf (headers-info-other-msg-bufs hinfo))
-	  (read-mh-file (merge-pathnames cur-msg (mh:folder-pathname folder))
-			msg-buf)
+	  (read-message folder cur-msg msg-buf)
 	  (setf (buffer-writable msg-buf) nil)
 	  (defhvar "Message Buffer"
 	    "This is bound in draft buffers to their associated message buffer."
@@ -1235,17 +1300,13 @@
 	 (dbuffer
 	  (ecase type
 	    (:reply
-	     (sub-setup-message-draft
-	      "repl" :end-of-buffer
-	      `(,folder ,cur-msg
-			,@(if argument
-			      (case (value reply-to-message-prefix-action)
-				(:no-cc-all '("-nocc" "all"))
-				(:cc-all '("-cc" "all")))))))
+	     (sub-setup-message-draft :repl
+				      :end-of-buffer
+				      `(,folder ,cur-msg ,argument)))
 	    (:compose
-	     (sub-setup-message-draft "comp" :to-field))
+	     (sub-setup-message-draft :comp :to-field))
 	    (:forward
-	     (sub-setup-message-draft "forw" :to-field
+	     (sub-setup-message-draft :forw :to-field
 				      (list folder cur-msg)))))
 	 (dinfo (variable-value 'draft-information :buffer dbuffer)))
     (when (message-info-draft-buf minfo)
@@ -1275,14 +1336,39 @@
 (defvar *draft-to-pattern*
   (new-search-pattern :string-insensitive :forward "To:"))
 
+;; FIX works only when interpreted
+;      when compiled:
+; 	Function with declared result type NIL returned:
+; 	   MH:DRAFT-NEW
+;      when byte-compiled:
+; 	Type-error in KERNEL::OBJECT-NOT-FUNCTION-ERROR-HANDLER:
+; 	   95822313 is not of type FUNCTION
+;
+(eval-when (eval load)
+
 (defun sub-setup-message-draft (utility point-action &optional args)
-  (mh utility `(,@args "-nowhatnowproc"))
+  #|
+  (mh:draft-new)  ;; works like this
+  (if (eq utility :comp)
+      (progn
+	(ed::msg "comp")
+	(mh:draft-new)  ;; still error like this
+	(ed::msg "post comp")
+	t)...)
+  |#
+  (ecase utility
+    (:comp (mh:draft-new))
+    (:forw (mh:draft-forward (car args) (cadr args)))
+    (:repl (mh:draft-reply (car args) (cadr args)
+			    (if (caddr args)
+				(value reply-to-message-prefix-cc)
+				(value reply-to-message-cc)))))
   (let* ((folder (mh:draft-folder))
 	 (draft-msg (mh:current-message folder))
 	 (msg-pn (merge-pathnames draft-msg (mh:draft-folder-pathname)))
-	 (dbuffer (maybe-make-mh-buffer (format nil "Draft ~A" draft-msg)
+	 (dbuffer (maybe-make-mh-buffer (format () "Draft ~A" draft-msg)
 					:draft)))
-    (read-mh-file msg-pn dbuffer)
+    (read-message (mh:draft-folder) draft-msg dbuffer)
     (setf (buffer-pathname dbuffer) msg-pn)
     (defhvar "Draft Information"
       "This holds the information about the current draft buffer."
@@ -1298,13 +1384,93 @@
 	(:end-of-buffer (buffer-end point))))
     dbuffer))
 
-(defun read-mh-file (pathname buffer)
-  (or (probe-file pathname)
-      (editor-error "No such message -- ~A" (namestring pathname)))
-  (read-file pathname (buffer-point buffer))
-  (setf (buffer-write-date buffer) (file-write-date pathname))
+) ; eval-when load
+
+(defparser `((:mime-field     :mime-space :mime-type
+			      (or :mime-subtype) :mime-space (or :mime-comment)
+			      (any :mime-param))
+	     (:mime-space     (group (any (or #\space #\tab))
+				     (or (group #\newline (or #\tab #\space))
+					 (any (or #\space #\tab)))))
+	     (:mime-type      (group (many (or :alphanumeric #\. #\- #\_)))
+			      (or :mime-comment))
+	     (:mime-subtype   #\/ :mime-space (or :mime-comment)
+			      :mime-type)
+	     (:mime-param     #\; :mime-space (or :mime-comment)
+			      (group (many :alphanumeric)) #\=
+			      :mime-space
+			      (or :mime-quoted
+				  (group (many :alphanumeric)))
+			      :mime-space (or :mime-comment))
+	     (:mime-quoted    #\" (group (many (or "\\\\" "\\\"" :mime-qchar))) #\") ;; FIX flush \'s
+	     (:mime-qchar     (cond (fi (member ch '(#\" #\newline)))))
+	     (:mime-comment   #\( (group (any (or :mime-comment
+						  (many :mime-cchar))))
+			      #\))
+	     (:mime-cchar     (cond (fi (member ch '(#\( #\)))))))
+;  :bufferp t
+)
+#|
+;(parse 'buffer-parse-mime-field)multipart/mixed; boundary="=-=-="
+;(parse 'buffer-parse-mime-field)multipart/mixed; boundary=aaaa
+(setq n (parse 'buffer-parse-mime-field))multipart/mixed; boundary="=-=-="
+(parse 'buffer-parse-mime-field)multipart/related;
+	type="multipart/alternative";
+	boundary="----=_NextPart_000_0007_01C763F1.7CF6B680"
+|#
+
+(defun ct-parser (*stream*)
+  (let* ((*streams* `((,*stream* 0))))
+    (when *stream*
+      (let ((node (parse-mime-field)))
+	(when node
+	  (setq node (node-next (node-content node)))
+	  (values (region-to-string (node-content (node-content node)))
+		  (progn
+		    (setq node (node-next node))
+		    (if (eq (type-of node) 'mime-subtype-node)
+			(region-to-string
+			 (node-content
+			  (node-content
+			   (node-next
+			    (node-next
+			     (node-next (node-content node)))))))))
+		  (collect ((params))
+		    (loop
+		      for param = (node-next (node-next (node-next node)))
+		      then (node-next param)
+		      while (eq (type-of param) 'mime-param-node)
+		      do
+		      (let* ((name-node (node-next
+					 (node-next
+					  (node-next
+					   (node-content param)))))
+			     (value-node (node-next
+					  (node-next
+					   (node-next name-node)))))
+			(params (cons (region-to-string
+				       (node-content name-node))
+				      (etypecase value-node
+					(region-node
+					 (region-to-string
+					  (node-content value-node)))
+					(mime-quoted-node
+					 (region-to-string
+					  (node-content
+					   (node-next
+					    (node-content value-node))))))))))
+		    (params))))))))
+
+(defun read-message (folder message buffer &optional (headers t))
+  (with-output-to-mark (stream (buffer-point buffer))
+    (or (mh:write-message folder message stream headers #'ct-parser)
+	(editor-error "Failed to read message ~A in folder ~A."
+		      message (mh:strip-folder-name folder))))
+  (setf (buffer-write-date buffer)
+	(file-write-date (merge-pathnames message
+					  (mh:folder-pathname folder))))
   (buffer-start (buffer-point buffer))
-  (setf (buffer-modified buffer) nil))
+  (setf (buffer-modified buffer) ()))
 
 
 (defvar *draft-buffer-window-fun* 'change-to-buffer
@@ -1342,11 +1508,11 @@
 
 (defcommand "Reply to Message with Message" (p)
   "Sets up a draft in reply to the current message, quoting the message.
-   With an argument, regard \"Reply to Message Prefix Action\" for carbon
-   copy arguments to the MH utility."
+   Regard \"Reply to Message CC\" for carbon copy behaviour; with a prefix
+   regard \"Reply to Message Prefix CC\"."
   "Sets up a draft in reply to the current message, quoting the message.
-   With an argument, regard \"Reply to Message Prefix Action\" for carbon
-   copy arguments to the MH utility."
+   Regard \"Reply to Message CC\" for carbon copy behaviour; with a prefix
+   regard \"Reply to Message Prefix CC\"."
   (reply-to-message-command p)
   (end-of-buffer-command nil)
   ;; FIX maybe if region in message body then insert region
@@ -1396,6 +1562,10 @@
 	    (move-mark mark2 mark1)))
 	(delete-region (region mark2 (buffer-end-mark (current-buffer))))))))
 
+(defhvar "SMTP Account"
+  "SMTP Account, created with make-smtp-account."
+  :value (internet:make-inet-account "localhost"))
+
 (defhvar "Deliver Message Confirm"
   "When set, \"Deliver Message\" will ask for confirmation before sending the
    draft."
@@ -1416,7 +1586,7 @@
 	  (t
 	   (let ((folder (mh:coerce-folder-name (mh:draft-folder)))
 		 (msg-info (value message-information))
-		 (msg nil))
+		 (msg))
 	     (if (and msg-info
 		      (string= (message-info-folder msg-info) folder))
 		 (let ((msgs (message-info-msgs msg-info)))
@@ -1434,47 +1604,51 @@
 			       (breakup-message-spec msgs)))))
 		 (setq msg (prompt-for-message :folder folder)))
 	     ;; FIX Other case annotates message to which draft replies.
-	     (mh "send" `("-draftfolder" ,folder "-draftmessage" ,@msg))
-;	     (msg "would send")
-	     )))))
+	     (multiple-value-bind (success error)
+				  (mh:deliver-messages (value smtp-account) msg folder)
+	       (or success (editor-error "Delivery failed: ~A" error))))))))
+
 
 (defun deliver-draft-buffer-message (dinfo)
-  (when (draft-info-delivered dinfo)
-    (editor-error "This draft has already been delivered."))
-  (when (or (not (value deliver-message-confirm))
-	    (prompt-for-y-or-n :prompt "Deliver message? " :default t))
+  (if (draft-info-delivered dinfo)
+      (editor-error "This draft has already been delivered."))
+  (when (if (value deliver-message-confirm)
+	    (prompt-for-y-or-n :prompt "Deliver message? " :default t)
+	    t)
     (let ((dbuffer (current-buffer)))
       (setf (buffer-writable dbuffer) t)
       (insert-attachments dbuffer)
-      (when (buffer-modified dbuffer)
-	(write-buffer-file dbuffer (buffer-pathname dbuffer)))
+      (if (buffer-modified dbuffer)
+	  (write-buffer-file dbuffer (buffer-pathname dbuffer)))
       (message "Delivering draft ...")
-;      (editor-error "would send")
-      (mh "send" `("-draftfolder" ,(draft-info-folder dinfo)
-		   "-draftmessage" ,(draft-info-message dinfo)))
+      (multiple-value-bind (success error)
+			   (mh:deliver-messages (value smtp-account)
+						(list (draft-info-message dinfo))
+						(draft-info-folder dinfo))
+	(or success (editor-error "Delivery failed: ~A" error)))
       (setf (draft-info-delivered dinfo) t)
       (let ((replied-folder (draft-info-replied-to-folder dinfo))
 	    (replied-msg (draft-info-replied-to-msg dinfo)))
 	(when replied-folder
 	  (message "Annotating message being replied to ...")
-	  (mh "anno" `(,replied-folder ,replied-msg "-component" "replied"))
+	  (mh:annotate-message replied-folder replied-msg "replied")
 	  (do-headers-buffers (hbuf replied-folder)
 	    (with-headers-mark (hmark hbuf replied-msg)
 	      (mark-to-note-replied-msg hmark)
 	      (with-writable-buffer (hbuf)
 		(setf (next-character hmark) #\A))))
 	  (dolist (b *buffer-list*)
-	    (when (and (editor-bound-p 'message-information :buffer b)
-		       (buffer-modeline-field-p b :replied-to-message))
-	      (dolist (w (buffer-windows b))
-		(update-modeline-field b w :replied-to-message))))))
+	    (and (editor-bound-p 'message-information :buffer b)
+		 (buffer-modeline-field-p b :replied-to-message)
+		 (dolist (w (buffer-windows b))
+		   (update-modeline-field b w :replied-to-message))))))
       (maybe-delete-extra-draft-window dbuffer (current-window))
       (let ((mbuf (value message-buffer)))
-	(when (and mbuf
-		   (not (editor-bound-p 'netnews-message-info :buffer mbuf)))
-	  (let ((minfo (variable-value 'message-information :buffer mbuf)))
-	    (when (and minfo (not (message-info-keep minfo)))
-	      (delete-buffer-if-possible mbuf)))))
+	(and mbuf
+	     (or (editor-bound-p 'netnews-message-info :buffer mbuf)
+		 (let ((minfo (variable-value 'message-information :buffer mbuf)))
+		   (if minfo (or (message-info-keep minfo)
+				 (delete-buffer-if-possible mbuf)))))))
       (delete-buffer-if-possible dbuffer))))
 
 (defun make-boundary (buffer mark)
@@ -1560,10 +1734,10 @@
 	  (loop while (find-character mark #\#) do
 	    ;; FIX if message text then insert boundary before text (only
 	    ;;     after first part)
-	    (when (and found (mark> mark end))
-	      ;; Text between parts.
-	      (with-output-to-mark (out end)
-		(format out "--~A~%~%" boundary)))
+	    (and found (mark> mark end)
+		 ;; Text between parts.
+		 (with-output-to-mark (out end)
+		   (format out "--~A~%~%" boundary)))
 	    (when (zerop (mark-charpos mark))
 	      (move-mark end mark)
 	      (mark-after end)
@@ -1678,32 +1852,35 @@
   (message "Message remailed."))
 
 
-;;; REMAIL-MESSAGE claims a draft folder message with "dist".  This is then
-;;; sucked into a buffer and modified by inserting the supplied addresses.
-;;; "send" is used to deliver the draft, but it requires certain evironment
-;;; variables to make it do the right thing.  "mhdist" says the draft is only
-;;; remailing information, and "mhaltmsg" is the message to send.  "mhannotate"
-;;; must be set due to a bug in MH's "send"; it will not notice the "mhdist"
-;;; flag unless there is some message to be annotated.  This command does not
-;;; provide for annotation of the remailed message.
+;;; REMAIL-MESSAGE claims a draft folder message with mh:draft-message.
+;;; This is then sucked into a buffer and modified by inserting the
+;;; supplied addresses.  "send" is used to deliver the draft, but it
+;;; requires certain environment variables to make it do the right thing.
+;;; "mhdist" says the draft is only remailing information, and "mhaltmsg"
+;;; is the message to send.  "mhannotate" must be set due to a bug in MH's
+;;; "send"; it will not notice the "mhdist" flag unless there is some
+;;; message to be annotated.  This command does not provide for annotation
+;;; of the remailed message.
 ;;;
 (defun remail-message (folder msg resend-to resend-cc)
-  (mh "dist" `(,folder ,msg "-nowhatnowproc"))
+  (mh:draft-resend)
   (let* ((draft-folder (mh:draft-folder))
 	 (draft-msg (mh:current-message draft-folder)))
     (setup-remail-draft-message draft-msg resend-to resend-cc)
-    (mh "send" `("-draftfolder" ,draft-folder "-draftmessage" ,draft-msg)
-	:environment
-	`((:|mhdist| . "1")
-	  (:|mhannotate| . "1")
-	  (:|mhaltmsg| . ,(namestring
-			   (merge-pathnames msg (mh:folder-pathname folder))))))))
+    (mh:resend-message (value smtp-account) msg folder draft-msg draft-folder))
+;     (mh "send" `("-draftfolder" ,draft-folder "-draftmessage" ,draft-msg)
+; 	:environment
+; 	`((:|mhdist| . "1")
+; 	  (:|mhannotate| . "1")
+; 	  (:|mhaltmsg| . ,(namestring
+; 			   (merge-pathnames msg (mh:folder-pathname folder)))))))
+  )
 
-;;; SETUP-REMAIL-DRAFT-MESSAGE takes a draft folder and message that have been
-;;; created with the MH "dist" utility.  A buffer is created with this
-;;; message's pathname, searching for "resent-to:" and "resent-cc:", filling in
-;;; the supplied argument values.  After writing out the results, the buffer
-;;; is deleted.
+;;; SETUP-REMAIL-DRAFT-MESSAGE takes a draft folder and message that have
+;;; been created with mh:draft-message.  A buffer is created with this
+;;; message's pathname, searching for "resent-to:" and "resent-cc:",
+;;; filling in the supplied argument values.  After writing out the
+;;; results, the buffer is deleted.
 ;;;
 (defvar *draft-resent-to-pattern*
   (new-search-pattern :string-insensitive :forward "resent-to:"))
@@ -1712,10 +1889,10 @@
 
 (defun setup-remail-draft-message (msg resend-to resend-cc)
   (let* ((msg-pn (merge-pathnames msg (mh:draft-folder-pathname)))
-	 (dbuffer (maybe-make-mh-buffer (format nil "Draft ~A" msg)
+	 (dbuffer (maybe-make-mh-buffer (format () "Draft ~A" msg)
 					:draft))
 	 (point (buffer-point dbuffer)))
-    (read-mh-file msg-pn dbuffer)
+    (read-message (mh:draft-folder) msg dbuffer)
     (when (find-pattern point *draft-resent-to-pattern*)
       (line-end point)
       (insert-string point resend-to))
@@ -1724,6 +1901,8 @@
       (line-end point)
       (insert-string point resend-cc))
     (write-file (buffer-region dbuffer) msg-pn :keep-backup nil)
+    ;; Touch the draft directory to ensure that the cache is updated.
+    (touch-file (mh:draft-folder-pathname))
     ;; The draft buffer delete hook expects this to be bound.
     (defhvar "Draft Information"
       "This holds the information about the current draft buffer."
@@ -1733,9 +1912,9 @@
 
 ;;; SHOW-DRAFT-MESSAGE shows the current message for hinfo.  If there is a
 ;;; main message buffer, clobber it, and we don't have to deal with kept
-;;; messages since that operations should have moved the message buffer
-;;; into the others list.  Make sure the message buffer is displayed in
-;;; some window.
+;;; messages since that operation should have moved the message buffer into
+;;; the others list.  Make sure the message buffer is displayed in some
+;;; window.
 ;;;
 (defun show-draft-message (hinfo)
   (multiple-value-bind (cur-msg cur-mark)
@@ -1776,7 +1955,7 @@
 		 "This is bound in message and draft buffers to their
 		  associated headers buffer."
 		 :value (headers-info-buffer hinfo) :buffer mbuffer)))
-      (read-mh-file msg-pathname mbuffer)
+      (read-message (mh:draft-folder) cur-msg mbuffer)
       (setf (buffer-writable mbuffer) writable)
       (get-message-buffer-window mbuffer))))
 
@@ -1969,6 +2148,18 @@
 
 
 ;;;; Message and Draft Stuff.
+
+;; FIX other var same name
+(defhvar "Message Headers"
+  "List of message headers to display in message buffers, or T for all."
+  :value '("Resent-To" "To" "Resent-Cc" "Cc"
+	   "Resent-From" "From" "Reply-To" "Date" "Subject"
+	   "Resent-Date"))
+
+(defhvar "Message Headers Alternate"
+  "List of alternate message headers to display in message buffers, or T
+   for all."
+  :value t)
 
 (defhvar "Headers Buffer"
   "This is bound in message and draft buffers to their associated headers
@@ -2449,9 +2640,9 @@
 
 ;; FIX ~ Auto Refile Mail Rule? Refile Headers rule.
 (defhvar "Split Mail Rule"
-  "A list of (\"folder\" pick-expression) lists or nil, to control mail
+  "A list of (\"folder\" pick-expression) lists, to control mail
    splitting."
-  :value nil)
+  :value ())
 
 (defun symbols-to-keywords (list)
   "Returns a list like List with symbols converted to keywords."
@@ -2462,40 +2653,15 @@
     (list  (mapcar 'symbols-to-keywords list))
     (t list)))
 
-;; FIX later perhaps, when able to display new mail in groups
-;;(defcommand "Split New Mail" (p)
-
-;; FIX this is quite slow, maybe mh can do it faster
 (defcommand "Split Mail" (p &optional (folder (value new-mail-folder)))
   "Split mail in folder into folders, according to \"Split Mail Rule\"."
   "Split mail in folder into folders, according to \"Split Mail Rule\"."
   (declare (ignore p))
-  (let ((rule-list (value split-mail-rule)))
-    ;;(message "rule-list: ~A" rule-list)
-    (when rule-list
+  (let ((rules (value split-mail-rule)))
+    (when rules
       (message "Splitting mail from ~A..." folder)
-      (let* ((folder (mh:coerce-folder-name folder))
-	     (*signal-mh-errors* nil)
-	     (msgs (pick-messages folder (breakup-message-spec "all") nil)))
-	;;(message "folder: ~A" folder)
-	(when msgs
-	  (dolist (rule rule-list)
-	    (let* ((*signal-mh-errors* nil)
-		   (msgs (pick-messages folder (breakup-message-spec "all") nil)))
-	      ;;(message "rule: ~A" rule)
-	      ;;(message "msgs: ~A" msgs)
-	      (when msgs
-		(let ((pick (let ((*signal-mh-errors* nil))
-			      (pick-messages folder
-					     msgs
-					     (let ((*pick-expression-strings* nil)
-						   (*package* *keyword-package*))
-					       (lisp-to-pick-expression
-						(symbols-to-keywords (cadr rule)))
-					       (nreverse *pick-expression-strings*))))))
-		  (if pick
-		      (refile-message folder pick (mh:coerce-folder-name (car rule)))))))))
-	(message "... done.")))))
+      (mh:split-messages folder rules #'refile-message)
+      (message "... done."))))
 
 
 ;;;; Deletion.
@@ -2559,7 +2725,7 @@
 			 (headers-info-msg-strings hinfo))
 		     :prompt "MH messages to pick from: "))
 	 (pick-exp (prompt-for-pick-expression))
-	 (msgs (pick-messages folder temp-msgs pick-exp))
+	 (msgs (mh:pick-messages folder temp-msgs pick-exp))
 	 (virtually (value virtual-message-deletion)))
     (declare (simple-string folder))
     (if virtually
@@ -2662,7 +2828,7 @@
 	(hbuf (headers-info-buffer hinfo)))
     (with-writable-buffer (hbuf)
       (with-mark ((end (line-start hmark) :left-inserting))
-	(unless (line-offset end 1 0) (buffer-end end))
+	(or (line-offset end 1 0) (buffer-end end))
 	(delete-region (region hmark end))))
     (let ((seq (mh:sequence-delete id (headers-info-msg-seq hinfo))))
       (setf (headers-info-msg-seq hinfo) seq)
@@ -2718,7 +2884,7 @@
 	(return)))))
 
 
-(defcommand "Undelete Message" (p)
+(defcommand "Undelete Message" (p)  ;; Restore?
   "Prompts for a folder, messages to undelete, and pick expression.  When in
    a headers buffer into the same folder specified, the messages prompt
    defaults to those messages in the buffer; \"all\" may be entered if this is
@@ -2731,7 +2897,7 @@
    \"Virtual Message Deletion\" set."
   (declare (ignore p))
   (or (value virtual-message-deletion)
-      (editor-error "You don't use virtual message deletion."))
+      (editor-error "Only possible with virtual message deletion."))
   (let* ((folder (prompt-for-folder))
 	 (hinfo (value headers-information))
 	 (temp-msgs (prompt-for-message
@@ -2742,10 +2908,10 @@
 				       (the simple-string
 					    (headers-info-folder hinfo))))
 			 (headers-info-msg-strings hinfo))
-		     :prompt "MH messages to pick from: "))
+		     :prompt "Messages to pick from: "))
 	 (pick-exp (prompt-for-pick-expression))
-	 (msgs (if pick-exp
-		   (or (pick-messages folder temp-msgs pick-exp) temp-msgs)
+	 (msgs (or (if pick-exp
+		       (mh:pick-messages folder temp-msgs pick-exp))
 		   temp-msgs)))
     (declare (simple-string folder))
     (mh:mark-messages folder msgs "edtrash" :delete)
@@ -2873,7 +3039,7 @@
 	(message "Compacting folder ...")
 	(mh:pack-folder folder))
       ;;
-      ;; Do a bunch of consistency maintenance.
+      ;; Maintain much consistency.
       (let ((new-buf-p (eq (current-buffer) *new-mail-buffer*)))
 	(message "Maintaining consistency ...")
 	(expunge-messages-fold-headers-buffers folder)
@@ -3018,10 +3184,10 @@
 				       (the simple-string
 					    (headers-info-folder hinfo))))
 			 (headers-info-msg-strings hinfo))
-		     :prompt "MH messages to pick from: "))
-	 (pick-exp (prompt-for-pick-expression))
+		     :prompt "Messages to pick from: "))
 	 ;; Return pick result or temp-msgs individually specified in a list.
-	 (msgs (pick-messages src-folder temp-msgs pick-exp)))
+	 (msgs (mh:pick-messages src-folder temp-msgs
+				 (prompt-for-pick-expression))))
     (declare (simple-string src-folder))
     (refile-message src-folder msgs
 		    (prompt-for-folder :must-exist nil
@@ -3142,19 +3308,19 @@
     (declare (list buffers))
     (do-strings (n b *buffer-names*)
       (declare (ignore n))
-      (unless (eq b *echo-area-buffer*)
-	(cond ((editor-bound-p 'message-buffer :buffer b)
-	       ;; Catches draft buffers associated with message buffers first.
-	       (push (cons b (variable-value 'message-buffer :buffer b))
-		     buffers))
-	      ((editor-bound-p 'headers-buffer :buffer b)
-	       ;; Then draft or message buffers associated with headers buffers.
-	       (push (cons b (variable-value 'headers-buffer :buffer b))
-		     buffers))
-	      ((or (editor-bound-p 'draft-information :buffer b)
-		   (editor-bound-p 'message-information :buffer b)
-		   (editor-bound-p 'headers-information :buffer b))
-	       (push b buffers)))))
+      (or (eq b *echo-area-buffer*)
+	  (cond ((editor-bound-p 'message-buffer :buffer b)
+		 ;; Catches draft buffers associated with message buffers first.
+		 (push (cons b (variable-value 'message-buffer :buffer b))
+		       buffers))
+		((editor-bound-p 'headers-buffer :buffer b)
+		 ;; Then draft or message buffers associated with headers buffers.
+		 (push (cons b (variable-value 'headers-buffer :buffer b))
+		       buffers))
+		((or (editor-bound-p 'draft-information :buffer b)
+		     (editor-bound-p 'message-information :buffer b)
+		     (editor-bound-p 'headers-information :buffer b))
+		 (push b buffers)))))
     (with-pop-up-display (s :height (length buffers))
       (dolist (ele (nreverse buffers))
 	(let* ((association (if (consp ele) (cdr ele)))
@@ -3278,106 +3444,12 @@
 ;;; PICK expression prompting.
 ;;;
 
-(defhvar "MH Lisp Expression"
-  "When this is set (the default), MH expression prompts are read in a Lisp
-   syntax.  Otherwise, the input is as if it had been entered on a shell
-   command line."
-  :value t)
-
-;;; This is dynamically bound to nil for argument processing routines.
-;;;
-(defvar *pick-expression-strings* nil)
-
 (defun prompt-for-pick-expression ()
-  "Prompts for an MH PICK-like expression that is converted to a list of
-   strings suitable for EXT:RUN-PROGRAM.  As a second value, the user's
-   expression as typed in is returned."
-  (let ((exp (prompt-for-string :prompt "MH expression: "
-				:help "Expression to PICK over mail messages."
-				:trim t))
-	(*pick-expression-strings* nil))
-    (if (value mh-lisp-expression)
-	(let ((exp (let ((*package* *keyword-package*))
-		     (read-from-string exp))))
-	  (if exp
-	      (if (consp exp)
-		  (lisp-to-pick-expression exp)
-		  (editor-error "Lisp PICK expressions cannot be atomic."))))
-	(expand-mh-pick-spec exp))
-    (values (nreverse *pick-expression-strings*)
-	    exp)))
-
-(defun lisp-to-pick-expression (exp)
-  (ecase (car exp)
-    (:and (lpe-and/or exp "-and"))
-    (:or (lpe-and/or exp "-or"))
-    (:not (push "-not" *pick-expression-strings*)
-	  (let ((nexp (cadr exp)))
-	    (unless (consp nexp) (editor-error "Bad expression -- ~S" nexp))
-	    (lisp-to-pick-expression nexp)))
-
-    (:cc (lpe-output-and-go exp "-cc"))
-    (:date (lpe-output-and-go exp "-date"))
-    (:from (lpe-output-and-go exp "-from"))
-    (:search (lpe-output-and-go exp "-search"))
-    (:subject (lpe-output-and-go exp "-subject"))
-    (:to (lpe-output-and-go exp "-to"))
-    (:-- (lpe-output-and-go (cdr exp)
-			    (concatenate 'simple-string
-					 "--" (string (cadr exp)))))
-
-    (:before (lpe-after-and-before exp "-before"))
-    (:after (lpe-after-and-before exp "-after"))
-    (:datefield (lpe-output-and-go exp "-datefield"))))
-
-(defun lpe-after-and-before (exp op)
-  (let ((operand (cadr exp)))
-    (when (numberp operand)
-      (setf (cadr exp)
-	    (if (plusp operand)
-		(number-string (- operand))
-		(number-string operand)))))
-  (lpe-output-and-go exp op))
-
-(defun lpe-output-and-go (exp op)
-  (push op *pick-expression-strings*)
-  (let ((operand (cadr exp)))
-    (etypecase operand
-      (string (push operand *pick-expression-strings*))
-      (symbol (push (symbol-name operand)
-		    *pick-expression-strings*)))))
-
-(defun lpe-and/or (exp op)
-  (push "-lbrace" *pick-expression-strings*)
-  (dolist (ele (cdr exp))
-    (lisp-to-pick-expression ele)
-    (push op *pick-expression-strings*))
-  (pop *pick-expression-strings*) ; Clear the extra "-op" arg.
-  (push "-rbrace" *pick-expression-strings*))
-
-;;; EXPAND-MH-PICK-SPEC takes a string of "words" assumed to be separated
-;;; by single spaces.  If a "word" starts with a quotation mark, then
-;;; everything is grabbed up to the next one and used as a single word.
-;;; Currently, this does not worry about extra spaces (or tabs) between
-;;; "words".
-;;;
-(defun expand-mh-pick-spec (spec)
-  (declare (simple-string spec))
-  (let ((start 0))
-    (loop
-      (let ((end (position #\space spec :start start :test #'char=)))
-	(unless end
-	  (if (zerop start)
-	      (setf *pick-expression-strings* (list spec))
-	      (push (subseq spec start) *pick-expression-strings*))
-	  (return))
-	(cond ((char= #\" (schar spec start))
-	       (setf end (position #\" spec :start (1+ start) :test #'char=))
-	       (unless end (editor-error "Bad quoting syntax."))
-	       (push (subseq spec (1+ start) end) *pick-expression-strings*)
-	       (setf start (+ end 2)))
-	      (t (push (subseq spec start end) *pick-expression-strings*)
-		 (setf start (1+ end))))))))
+  "Prompt for a pick expression."
+  (read-from-string (prompt-for-string
+		     :prompt "Message pick expression: "
+		     :help "Expression to pick over mail messages."
+		     :trim t)))
 
 
 ;;; Password prompting.
@@ -3539,7 +3611,7 @@
 
 (defvar *mh-error-output* (make-string-output-stream))
 
-(defun mh (utility args &key (errorp *signal-mh-errors*) environment)
+(defun mh (utility args &key (errorp t) environment)
   "Runs the MH utility with the list of args (suitable for EXT:RUN-PROGRAM),
    outputting to *standard-output*.  Environment is a list of strings
    appended with ext:*environment-list*.  This returns t, unless there is

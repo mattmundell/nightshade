@@ -59,7 +59,7 @@
 ;;; initial top level forms to reset the cookies.  We also use it in place
 ;;; of supplying initial values in the DEFVARs above so that we don't
 ;;; have to put the initial default cookie in two places.
-;;; 
+;;;
 (defun proclaim-init ()
   (setf *default-cookie*
 	(make-cookie :safety 1 :speed 1 :space 1 :cspeed 1
@@ -172,7 +172,7 @@
 	      (&aux (aux arg))
 	      (t
 	       (compiler-error "Found garbage in lambda-list when expecting a keyword: ~S." arg)))))
-      
+
       (values (required) (optional) restp rest keyp (keys) allowp (aux)
 	      morep more-context more-count))))
 
@@ -225,7 +225,7 @@
 ;;; -- If it names a macro, then give a warning and blast the macro
 ;;;    information.
 ;;; -- If it is a structure slot accessor, give a warning and blast the
-;;;    structure. 
+;;;    structure.
 ;;; -- Check for conflicting setf macros.
 ;;;
 (defun define-function-name (name)
@@ -247,7 +247,7 @@
      (clear-info function macro-function name))
     ((nil)
      (setf (info function kind name) :function)))
-  
+
 
   (note-if-setf-function-and-macro name)
   name)
@@ -311,11 +311,11 @@
 ;;;
 (defmacro declaim (&rest specs)
   "DECLAIM Declaration*
-  Do a declaration for the global environment."
+   Do a declaration for the global environment."
   `(progn ,@(mapcar #'(lambda (x)
 			`(proclaim ',x))
 		    specs)))
-  
+
 
 ;;; %Proclaim  --  Interface
 ;;;
@@ -323,32 +323,32 @@
 ;;; environment updating.
 ;;;
 (defun %proclaim (form)
-  (unless (consp form)
-    (error "Malformed PROCLAIM spec: ~S." form))
-  
+  (or (consp form)
+      (error "PROCLAIM spec must be a list: ~S." form))
+
   (let ((kind (first form))
 	(args (rest form)))
     (case kind
       (special
        (dolist (name args)
-	 (unless (symbolp name)
-	   (error "Variable name is not a symbol: ~S." name))
+	 (or (symbolp name)
+	     (error "Variable name is not a symbol: ~S." name))
 	 (clear-info variable constant-value name)
 	 (setf (info variable kind name) :special)))
       (type
        (when *type-system-initialized*
 	 (let ((type (specifier-type (first args))))
 	   (dolist (name (rest args))
-	     (unless (symbolp name)
-	       (error "Variable name is not a symbol: ~S." name))
+	     (or (symbolp name)
+		 (error "Variable name is not a symbol: ~S." name))
 	     (setf (info variable type name) type)
 	     (setf (info variable where-from name) :declared)))))
       (ftype
        (when *type-system-initialized*
 	 (let ((type (specifier-type (first args))))
-	   (unless (csubtypep type (specifier-type 'function))
-	     (error "Declared functional type is not a function type: ~S."
-		    (first args)))
+	   (or (csubtypep type (specifier-type 'function))
+	       (error "Declared functional type is not a function type: ~S."
+		      (first args)))
 	   (dolist (name (rest args))
 	     (cond ((info function accessor-for name)
 		    (warn "Ignoring FTYPE declaration for slot accesor:~%  ~S"
@@ -399,8 +399,8 @@
 	   (setf (info function info name) info))))
       (declaration
        (dolist (decl args)
-	 (unless (symbolp decl)
-	   (error "Declaration to be RECOGNIZED is not a symbol: ~S." decl))
+	 (or (symbolp decl)
+	     (error "Declaration to be RECOGNIZED is not a symbol: ~S." decl))
 	 (setf (info declaration recognized decl) t)))
       ((start-block end-block)) ; ignore.
       (t
@@ -410,13 +410,14 @@
 	      (warn "Unrecognized proclamation: ~S." form))))))
   (undefined-value))
 ;;;
+;; FIX why like this? where doc string? how to find in editor?
 (setf (symbol-function 'proclaim) #'%proclaim)
 
 ;;; %NOTE-TYPE-DEFINED  --  Interface
 ;;;
 ;;;    Note that the type Name has been (re)defined, updating the undefined
 ;;; warnings and VALUES-SPECIFIER-TYPE cache.
-;;; 
+;;;
 (defun %note-type-defined (name)
   (declare (symbol name))
   (note-name-defined name :type)

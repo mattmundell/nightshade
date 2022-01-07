@@ -126,11 +126,11 @@
       (when (and wildp2 (not wildp1))
 	(funcall *error-function*
 		 "Cannot handle destination having wildcards without ~
-		 source having wildcards."))
+		  source having wildcards."))
       (when (and wildp1 (not wildp2) (not dirp2))
 	(funcall *error-function*
 		 "Cannot handle source with wildcards and destination ~
-		 without, unless destination is a directory."))
+		  without wildcards, unless destination is a directory."))
       (cond ((and dirp1 dirp2)
 	     (unless (directory-existsp ses-name1)
 	       (funcall *error-function*

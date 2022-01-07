@@ -242,6 +242,9 @@
       ~:P           Prints an s if the previous argument is plural, else ""
 
 
+      ~/user:xxx/   Calls the function xxx with the output stream, next
+		    format argument and FIX possibly other args.
+
 
       ~n<...>       Prints content right-aligned in n spaces
       ~@n<...>      Prints content right-aligned in n spaces

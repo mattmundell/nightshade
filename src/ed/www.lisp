@@ -295,7 +295,7 @@
 	     (www-render-nodes ,mark (node-content text-node))
 	     (delete-characters ,mark 4) ; </u>
 	     (font-mark (mark-line ,mark) (mark-charpos ,mark)
-			original-font))
+			*original-font*))
 
 	    (html-anchor-node
 	     (delete-characters ,mark 1) ; a

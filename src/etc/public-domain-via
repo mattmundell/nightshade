@@ -1,8 +1,8 @@
 														-*- outline -*-
 
-Verification of the public domain status of maintainer-committed patches
-that were written by other people or that were based on work written by
-other people.  These names are from the CVS logs up to 18c.
+Pedantic verification of the public domain status of maintainer-committed
+patches that were written by other people or that were based on work
+written by other people.  These names are from the CVS logs up to 18c.
 
 FIX finish "from" search, research others ("by " was pretty thorough)
 
@@ -76,7 +76,22 @@ Searched for: "from"
 
 		Douglas rewrote the code before committing it anyway.
 
-------------------- FIX finish
+* Pierpaolo Bernardi
+
+	RCS file: /project/cmucl/cvsroot/src/code/exports.lisp,v
+	RCS file: /project/cmucl/cvsroot/src/code/filesys.lisp,v
+	----------------------------
+	revision 1.42
+	date: 1997-05-16 12:45:15 +0100;  author: dtc;  state: Exp;  lines: +25 -1
+	Function ensure-directories-exist, part of ANSI CL, contributed by
+	Pierpaolo Bernardi.
+	----------------------------
+
+		Rewrote the function Wed Feb 14 2007 (before looking at the above
+		commit), which was easier than searching for Pierpaolo.
+
+========================================================================================
+FIX finish
 
 * Pierre R. Mai
 
@@ -215,15 +230,3 @@ Searched for: "from"
 * Casper Dik
 
 	5 or so patches for sunos.
-
-* Pierpaolo Bernardi
-
-	RCS file: /project/cmucl/cvsroot/src/code/exports.lisp,v
-	RCS file: /project/cmucl/cvsroot/src/code/filesys.lisp,v
-	----------------------------
-	revision 1.42
-	date: 1997-05-16 12:45:15 +0100;  author: dtc;  state: Exp;  lines: +25 -1
-	Function ensure-directories-exist, part of ANSI CL, contributed by
-	Pierpaolo Bernardi.
-	----------------------------
-		find pierpaolo or rewrite function

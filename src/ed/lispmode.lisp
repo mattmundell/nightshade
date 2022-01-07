@@ -860,8 +860,10 @@
 ;;;
 (defindent "block" 1)
 (defindent "case" 1)
+(defindent "case=" 1)
 (defindent "catch" 1)
 (defindent "ccase" 1)
+(defindent "ccase=" 1)
 (defindent "compiler-let" 1)
 (defindent "ctypecase" 1)
 (defindent "collect" 1)
@@ -886,6 +888,7 @@
 (defindent "dolist" 1)
 (defindent "dotimes" 1)
 (defindent "ecase" 1)
+(defindent "ecase=" 1)
 (defindent "etypecase" 1)
 (defindent "eval-when" 1)
 (defindent "flet" 1)
@@ -1866,6 +1869,7 @@
 (setf (gethash "defprinter" lisp-special-forms) t)
 (setf (gethash "defsetf" lisp-special-forms) t)
 (setf (gethash "defstruct" lisp-special-forms) t)
+(setf (gethash "deftarget" lisp-special-forms) t)
 (setf (gethash "deftype" lisp-special-forms) t)
 (setf (gethash "defun" lisp-special-forms) t)
 (setf (gethash "defvar" lisp-special-forms) t)
@@ -1881,17 +1885,17 @@
 	  (pos 0))
       (if *in-string*
 	  (progn
-	    (chi-mark line 0 string-font chi-info)
+	    (chi-mark line 0 *string-font* chi-info)
 	    (setq pos (1+ (or (search-for-qmark chars)
 			      (return-from highlight-lisp-line))))
-	    (chi-mark line pos original-font chi-info)
+	    (chi-mark line pos *original-font* chi-info)
 	    (setq *in-string* nil))
 	  (when *in-comment*
-	    (chi-mark line 0 comment-font chi-info)
+	    (chi-mark line 0 *comment-font* chi-info)
 	    (setq pos (+ (or (search "|#" chars)
 			     (return-from highlight-lisp-line))
 			 2))
-	    (chi-mark line pos original-font chi-info)
+	    (chi-mark line pos *original-font* chi-info)
 	    (setq *in-comment* nil)))
       (loop
 	(let ((string (or (search-for-qmark chars pos)
@@ -1903,23 +1907,23 @@
 	      (oparen (or (position #\( chars :start pos)
 			  most-positive-fixnum)))
 	  (cond ((< string (min comment multic oparen))
-		 (chi-mark line string string-font chi-info)
+		 (chi-mark line string *string-font* chi-info)
 		 (setq pos (search-for-qmark chars (1+ string)))
 		 (if pos
-		     (chi-mark line (incf pos) original-font chi-info)
+		     (chi-mark line (incf pos) *original-font* chi-info)
 		     (progn
 		       (setq *in-string* t)
 		       (return-from highlight-lisp-line))))
 
 		((< comment (min string multic oparen))
-		 (chi-mark line comment comment-font chi-info)
+		 (chi-mark line comment *comment-font* chi-info)
 		 (return-from highlight-lisp-line))
 
 		((< multic (min comment string oparen))
-		 (chi-mark line multic comment-font chi-info)
+		 (chi-mark line multic *comment-font* chi-info)
 		 (setq pos (search "|#" chars :start2 (+ multic 2)))
 		 (if pos
-		     (chi-mark line (incf pos 2) original-font chi-info)
+		     (chi-mark line (incf pos 2) *original-font* chi-info)
 		     (progn
 		       (setq *in-comment* t)
 		       (return-from highlight-lisp-line))))
@@ -1942,8 +1946,8 @@
 			     (when (gethash (subseq chars (1+ oparen) pos)
 					    lisp-special-forms)
 			       ;; FIX Highlight next word if last was defun, defvar, def...
-			       (chi-mark line (1+ oparen) special-form-font chi-info)
-			       (chi-mark line pos original-font chi-info)))))))
+			       (chi-mark line (1+ oparen) *special-form-font* chi-info)
+			       (chi-mark line pos *original-font* chi-info)))))))
 
 		(t
 		 (return-from highlight-lisp-line))))))))

@@ -842,7 +842,7 @@
       (enqueue-tab stream kind colnum colinc)))
   nil)
 
-(defun pprint-fill (stream list &optional (colon? t) atsign?)
+(defun pprint-fill (stream list &optional (colon? t) atsign?)  ;; FIX colonp atsignp (more below)
   "Output LIST to STREAM putting :FILL conditional newlines between each
    element.  If COLON? is NIL (defaults to T), then no parens are printed
    around the output.  ATSIGN? is ignored (but allowed so that PPRINT-FILL

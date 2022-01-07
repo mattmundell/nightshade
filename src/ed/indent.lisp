@@ -193,7 +193,7 @@
 	(editor-error))))
 
 
-(defcommand "Convert Tabs to Spaces" (p)
+(defcommand "Tabs to Spaces" (p)
   "Convert tabs to spaces.  With a prefix insert prefix spaces per tab,
    else insert \"Spaces per Tab\" spaces per tab."
   "Convert tabs to spaces.  If P is true insert P spaces per tab, else

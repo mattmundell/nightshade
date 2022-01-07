@@ -22,6 +22,12 @@
 
 ;;;; Read-File.
 
+;; FIX consider this as a general stream op
+; (defun read-file (pathname stream)
+;   "Write the contents of the file named by PATHNAME into STREAM."
+; (defun transfer (in out)
+;   "Read to the end of stream IN, writing the content to stream OUT."
+;; FIX code:stream.lisp:transfer
 (defun read-file (pathname mark)
   "Insert the contents of the file named by PATHNAME at MARK."
   (with-mark ((mark mark :left-inserting))
@@ -139,12 +145,12 @@
 	  ;; Must do a TRUENAME in case the file has never been written.
 	  ;; It may have Common Lisp syntax that Unix can't handle.
 	  ;; If this is ever moved to the beginning of this function to use
-	  ;; Unix CREAT to create the file protected initially, they TRUENAME
-	  ;; will signal an error, and LISP::PREDICT-NAME will have to be used.
+	  ;; Unix CREAT to create the file protected initially, then TRUENAME
+	  ;; will signal an error, and LISP::PREDICT-NAME will have to be used.  ;; FIX where predict-name?
 	  (unix:unix-chmod (namestring (truename pathname)) access)
-	(unless winp
-	  (error "Could not set access code: ~S"
-		 (unix:get-unix-error-msg code)))))))
+	(fi winp
+	    (error "Could not set access code: ~S"
+		   (unix:get-unix-error-msg code)))))))
 
 (defun fast-write-file (region file)
   (let* ((start (region-start region))
@@ -183,17 +189,17 @@
 		      (setf (system:sap-ref-8 sap end)
 			    (char-code #\newline))
 		      (setf offset (1+ end))))
-		  (unless (zerop end-charpos)
-		    (system:%primitive byte-blt
-				       (chars end-line) 0
-				       sap offset
-				       (+ offset end-charpos))))
+		  (or (zerop end-charpos)
+		      (system:%primitive byte-blt
+					 (chars end-line) 0
+					 sap offset
+					 (+ offset end-charpos))))
 		(multiple-value-bind
 		    (okay errno)
 		    (unix:unix-write (system:fd-stream-fd file)
 				     sap 0 length)
-		  (unless okay
-		    (error "Could not write ~S: ~A"
-			   file
-			   (unix:get-unix-error-msg errno)))))
+		  (fi okay
+		      (error "Could not write ~S: ~A"
+			     file
+			     (unix:get-unix-error-msg errno)))))
 	    (system:deallocate-system-memory sap length)))))))

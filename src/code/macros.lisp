@@ -2,10 +2,10 @@
 
 (in-package "LISP")
 (export '(defvar defparameter defconstant when fi unless setf
-	  defsetf psetf shiftf rotatef push pushnew pop
-	  incf decf remf case typecase with-open-file
+	  defsetf psetf swap shiftf rotatef push pushnew pop
+	  incf decf remf case typecase case= with-open-file
 	  with-open-stream with-input-from-string with-output-to-string
-	  locally etypecase ctypecase ecase ccase
+	  locally etypecase ctypecase ecase ccase ecase= ccase=
 	  get-setf-expansion define-setf-expander
           define-modify-macro destructuring-bind nth-value
           otherwise ; Sacred to CASE and related macros.  FIX?
@@ -367,12 +367,15 @@
 
 ;;;; ASSORTED CONTROL STRUCTURES
 
+;;; FIX when in english is for ~ something that happened or is thought will happen
+;;;         "when the dog walked"  "when the dog walk over here"
+;;;     if is for something that may happen
 (defmacro when (test &body forms)
   "First arg is a predicate.  If it is non-null, the rest of the forms are
-  evaluated as a PROGN."
+   evaluated as a PROGN."
   `(cond (,test nil ,@forms)))
 
-;; FIX consider allowing (if x) for symmetry  (if x) == (if x t ()) => t?
+;; FIX consider adding (if x) for symmetry  (if x) == (if x t ())
 (defmacro fi (test &optional (else t) (then ()))
   "Backward if.  First arg (TEST) is a predicate.  If it is true then the
    second form (ELSE) is evaluated, else the first form (THEN) is
@@ -843,8 +846,8 @@
 
 (defmacro pushnew (obj place &rest keys &environment env)
   "Takes an object and a location holding a list.  If the object is already
-  in the list, does nothing.  Else, conses the object onto the list.  Returns
-  NIL.  If there is a :TEST keyword, this is used for the comparison."
+   in the list, does nothing.  Else, conses the object onto the list.  Returns
+   NIL.  If there is a :TEST keyword, this is used for the comparison."
   (if (symbolp place)
       `(setq ,place (adjoin ,obj ,place ,@keys))
       (multiple-value-bind (dummies vals newval setter getter)
@@ -915,6 +918,14 @@
 			       ,setter
 			       (return t))))))))
       (push (list (car d) (car v)) let-list))))
+
+(defmacro swap (a b)
+  "Swap the values of A and B using setf.  Return the new value of A."
+  (let ((tem (gensym)))
+    `(let ((,tem ,a))
+       (setf ,a ,b)
+       (setf ,b ,tem)
+       ,a)))
 
 
 ;;; The built-in DEFSETFs.
@@ -1167,15 +1178,15 @@
     (case-body-aux name keyform keyform-value clauses keys errorp proceedp
 		   `(,(if multi-p 'member 'or) ,@keys))))
 
-;;; CASE-BODY-AUX provides the expansion once CASE-BODY has groveled all the
-;;; cases.  Note: it is not necessary that the resulting code signal
-;;; case-failure conditions, but that's what KMP's prototype code did.  We call
-;;; CASE-BODY-ERROR, because of how closures are compiled.  RESTART-CASE has
-;;; forms with closures that the compiler causes to be generated at the top of
-;;; any function using the case macros, regardless of whether they are needed.
-;;;
 (defun case-body-aux (name keyform keyform-value clauses keys
 		      errorp proceedp expected-type)
+  "CASE-BODY-AUX provides the expansion once CASE-BODY has groveled all the
+   cases.  Note: it is not necessary that the resulting code signal
+   case-failure conditions, but that's what KMP's prototype code did.  We
+   call CASE-BODY-ERROR, because of how closures are compiled.
+   RESTART-CASE has forms with closures that the compiler causes to be
+   generated at the top of any function using the case macros, regardless
+   of whether they are needed."
   (if proceedp
       (let ((block (gensym))
 	    (again (gensym)))
@@ -1221,40 +1232,59 @@
 
 (defmacro case (keyform &body cases)
   "CASE Keyform {({(Key*) | Key} Form*)}*
-  Evaluates the Forms in the first clause with a Key EQL to the value of
-  Keyform.  If a singleton key is T then the clause is a default clause."
+   Evaluates the Forms in the first clause with a Key EQL to the value of
+   Keyform.  If a singleton key is T then the clause is a default clause."
   (case-body 'case keyform cases t 'eql nil nil))
 
 (defmacro ccase (keyform &body cases)
   "CCASE Keyform {({(Key*) | Key} Form*)}*
-  Evaluates the Forms in the first clause with a Key EQL to the value of
-  Keyform.  If none of the keys matches then a correctable error is
-  signalled."
+   Evaluates the Forms in the first clause with a Key EQL to the value of
+   Keyform.  If none of the keys matches then a correctable error is
+   signalled."
   (case-body 'ccase keyform cases t 'eql t t))
 
 (defmacro ecase (keyform &body cases)
   "ECASE Keyform {({(Key*) | Key} Form*)}*
-  Evaluates the Forms in the first clause with a Key EQL to the value of
-  Keyform.  If none of the keys matches then an error is signalled."
+   Evaluates the Forms in the first clause with a Key EQL to the value of
+   Keyform.  If none of the keys matches then an error is signalled."
   (case-body 'ecase keyform cases t 'eql t nil))
 
 (defmacro typecase (keyform &body cases)
   "TYPECASE Keyform {(Type Form*)}*
-  Evaluates the Forms in the first clause for which TYPEP of Keyform and Type
-  is true."
+   Evaluates the Forms in the first clause for which TYPEP of Keyform and Type
+   is true."
   (case-body 'typecase keyform cases nil 'typep nil nil))
 
 (defmacro ctypecase (keyform &body cases)
   "CTYPECASE Keyform {(Type Form*)}*
-  Evaluates the Forms in the first clause for which TYPEP of Keyform and Type
-  is true.  If no form is satisfied then a correctable error is signalled."
+   Evaluates the Forms in the first clause for which TYPEP of Keyform and Type
+   is true.  If no form is satisfied then a correctable error is signalled."
   (case-body 'ctypecase keyform cases nil 'typep t t))
 
 (defmacro etypecase (keyform &body cases)
   "ETYPECASE Keyform {(Type Form*)}*
-  Evaluates the Forms in the first clause for which TYPEP of Keyform and Type
-  is true.  If no form is satisfied then an error is signalled."
+   Evaluates the Forms in the first clause for which TYPEP of Keyform and Type
+   is true.  If no form is satisfied then an error is signalled."
   (case-body 'etypecase keyform cases nil 'typep t nil))
+
+(defmacro case= (keyform &body cases)
+  "CASE= Keyform {({(Key*) | Key} Form*)}*
+   Evaluates the Forms in the first clause with a Key EQUAL to the value of
+   Keyform.  If a singleton key is T then the clause is a default clause."
+  (case-body 'case= keyform cases t 'equal nil nil))
+
+(defmacro ccase= (keyform &body cases)
+  "CCASE= Keyform {({(Key*) | Key} Form*)}*
+   Evaluates the Forms in the first clause with a Key EQUAL to the value of
+   Keyform.  If none of the keys matches then a correctable error is
+   signalled."
+  (case-body 'ccase= keyform cases t 'equal t t))
+
+(defmacro ecase= (keyform &body cases)
+  "ECASE= Keyform {({(Key*) | Key} Form*)}*
+   Evaluates the Forms in the first clause with a Key EQUAL to the value of
+   Keyform.  If none of the keys matches then an error is signalled."
+  (case-body 'ecase= keyform cases t 'equal t nil))
 
 
 ;;;; ASSERT and CHECK-TYPE.
@@ -1411,7 +1441,7 @@
 	 ,@(if index `((setf ,index (string-input-stream-current ,var))))))))
 
 (defmacro with-output-to-string ((var &optional string) &body (forms decls))
-  "If *string* is specified, it must be a string with a fill pointer;
+  "If *string* FIX? is specified, it must be a string with a fill pointer;
    the output is incrementally appended to the string (as if by use of
    VECTOR-PUSH-EXTEND)."
   (if string
@@ -1497,7 +1527,7 @@
       (push (car pairs) setqs)
       (push gen setqs))))
 
-;;; LAMBDA -- from the ANSI spec.  FIX
+;;; LAMBDA -- from the ANSI spec.  FIX how was it before?
 ;;;
 (defmacro lambda (&whole form &rest bvl-decls-and-body)
   (declare (ignore bvl-decls-and-body))

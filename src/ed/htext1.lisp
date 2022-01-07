@@ -381,8 +381,8 @@
 
 (defun copy-mark (mark &optional (kind (mark-%kind mark)))
   "Returns a new mark pointing to the same position as Mark.  The kind
-  of mark created may be specified by Kind, which defaults to the
-  kind of the copied mark."
+   of mark created may be specified by Kind, which defaults to the
+   kind of the copied mark."
   (let ((mark (internal-make-mark (mark-line mark) (mark-charpos mark) kind)))
     (if (not (eq kind :temporary))
 	(push mark (line-marks (mark-line mark))))

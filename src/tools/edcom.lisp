@@ -181,6 +181,7 @@
 (comf "target:ed/buildcoms" :byte-compile t)
 (comf "target:ed/break" :byte-compile t)
 (comf "target:ed/enriched" :byte-compile t)
+(comf "target:ed/build" :byte-compile t)
 
 ) ;WITH-COMPILATION-UNIT for commands
 
@@ -327,4 +328,5 @@
  "target:ed/buildcoms"
  "target:ed/break"
  "target:ed/enriched"
+ "target:ed/build"
  "target:ed/bindings")

@@ -1,9 +1,16 @@
-towards a public domain computer
+towards a public domain computer					-*- outline -*-
 --------------------------------
+
 	allow reuse of the work in any way
-	  leaving any moral and ethical judgements to the user
+	  leaving any moral and ethical choice,judgement to the user
+	working together, sharing everything
+	ease reuse, for example of small [generic] parts
+
+* todo
+
 full pd
 	where is the full pd?
+	    only continue when full pd possible
 		revert to 17f
 			on "open source" os from company?
 				think only works on machine arch from same co
@@ -29,7 +36,6 @@ full pd
 			         mh.lisp  insert-mime-part  ; FIX uip/mhn.c h/mhn.h
 	    clean general-info/ and docs/ refs to  pcl
 											   clx?
-	    only continue when full pd possible
 		----------------------------
 		revision 1.22
 		date: 2000-05-22 18:43:09 +0100;  author: dtc;  state: Exp;  lines: +106 -1
@@ -60,6 +66,9 @@ full pd
 				(defun frame-catches (frame)
 				  "Returns an a-list mapping catch tags to code-locations.  These are
 		(in-package :extensions)  or  (in-package "EXTENSIONS")?
+		why exports.lisp?
+		package doc duplicated in package def in exports.lisp and in header of file defining pkg
+			maybe merge w manual
 		;;; Format-Time - External.   public interface internal
 		magic
 		pronouns
@@ -75,13 +84,26 @@ full pd
 			european keyboards.
 			----------------------------
 	    src/doc/internals/dave-memory-layout.mss (left out anyway)
-mail re manual  saw online somewhere
-~literate program manual  ie merge into source
+publish binary
+	try on jef laptop
+		mh first?
+		syncing additions?
 rest of ed naming
-doc packages
 rename cl to lisp
 clean tools:
 clean compiler:
+check doc:styles special
+--
+often reading keywords maybe dodgily
+		(let ((exp (let ((*package* *keyword-package*))
+			 (read-from-string exp))))
+add equiv of manual
+	very quickly, maybe just collect docstrings
+~literate program manual  ie merge into source
+	doc packages
+doc.lisp  merge interp,gen cases
+		 	  look into allowing , anywhere
+	 	  compile cv.lisp (hangs)
 (define clear (x)
   "Set X to ()."
   (setq X ()))
@@ -98,11 +120,20 @@ describe labels somewhere, esp that jumps to labels jump out of var bindings, e.
 		(b)))
   returns 1
   when to use a label?
+flet
+	an flet defnd function should stick around (perhaps via a declare/declaim)
+	  in case body does an eval which calls the function
 format time
 	(format-time () :style '(:day "_" :month "_" :year) ...
 	(format-time () :style '("~D_~M_~Y") ...
 	(format () "~dT_~mT_~yT" ...
 	(format () "~T(d_m_y)" (get-universal-time))
+	e.g. mh.lisp
+		(format stream "Date: ~A" (format-time () :style :rfc1123 :print-weekday ()))
+		(progn (format stream "Date: ") (format-time stream :style :rfc1123 :print-weekday ()))
+		s/b
+		(format stream "Date: ~Ts" :rfc1123 (get-universal-time)) ; Time-style
+		(format stream "Date: ~Ns" :rfc1123)                      ; Now-style
 doc lang
 	sharp macros
 	:doc/nightshade
@@ -133,7 +164,6 @@ may be simpler to write these if every needed
 		 rest seem ok in code
 	/home/matt/src/ftp.cs.cmu.edu/afs/cs.cmu.edu/project/clisp/old-system/systems/code/macromemo.lisp
 seq.lisp split  cmp filesys.lisp split-at-slashes
-publish binary
 replace dependencies on copyrighted code
 	replace external library dependencies
 		maths lib
@@ -142,6 +172,8 @@ replace dependencies on copyrighted code
 				code:irrat.lisp
 		c lib
 			maybe skalibs? eg for translation reference
+			isolate uses of unix pkg  eg dired.lisp (use filesys.lisp fncs?)
+				towards replacing unix interface
 		cc
 			move c into lisp
 				maybe start w interrupt.c  e.g. install_handler
@@ -151,11 +183,23 @@ replace dependencies on copyrighted code
 				switch to cgc.c? only x86, same as gencgc
 	replace unix parts
 		lisp build scripts  (almost done)
-		`make' system  move c into lisp
+		`make' system
+			move c into lisp
+			in dir Build.lisp lists rules; make w function build or cmd Build
+					;; perhaps defrule just defines a function, maybe in a pkg
+					(defvar files '("cv.tex" ...))
+					(load "build-publish.lisp") ; defines generic publishing rules
+					(defrule cv.tex (cv.lisp "File with spaces")
+						;; FIX ensure cv.lisp loaded
+						(~cv-to-latex "cv.tex"))
+					(defrule clean ()
+						(delete-files files))
+				maybe read re other newer make systems
 		lisp equivs of unix tools
 			parse
 				cmp w reader, byacc
-					maybe good token-based (ie only considers chars) version/option
+					maybe good token-based version/option
+						(ie parses only tokens sep'd w whitespace)
 				speed
 					*marks* optnl
 					create node afterwrds?
@@ -170,12 +214,24 @@ replace dependencies on copyrighted code
 			tar, compression
 				compress is public domain, lwz patent has expired
 				many compression algo's
+			cron
 		dict interface  pd version incl data
 		dictd, dict client
-				pd dicts  moby thes, jargon file, ...
-			orig source of gcide?
-			le dico?
 		add system services i.e. replace unix kernel
+data
+	dicts  moby thes, jargon file, ...
+		   orig source of gcide?
+		   le dico?
+	all knowledge
+		distributed shared ~peer hosting
+		wikiknowledge, infoanarchy data, wikip pd refs, us gov sites, ibiblio
+			organised as a whole
+	integrate public domain ~database
+		distributed
+		nuttal encyclopedia, infoanarchy wiki, 1911 encycl
+		dict
+			copyright on original source of gcide?
+		pd french dict, pd lojban words
 graphics, images
     vector graphics mixed w text
     http://www.w3.org/Graphics  for svg
@@ -191,6 +247,7 @@ graphics, images
 	  supported.  The protocols for terminal graphics include: Tektronix
 	  Vector Graphics, ReGIS (DEC), Sixel (DEC), and NAPLPS (North American
 	  Presentation Level Protocol Syntax).
+	drawing interface, then a logo  maybe two moon slivers that make a ()
 run cmucl/retroforth on a simple public domain architecture
 	MIT ran a project in the early 1980s that produced a "Scheme Chip". For
 	details check out ''' Design of a Lisp-based processor ''' by Guy Lewis
@@ -212,7 +269,9 @@ consider lojban
 		.
 		Even though Arabic originally had VSO word order, it is now usually more
 		understood with SVO, especially Egyptian Arabic and Moroccan Arabic.
+
     integrate w :doc/system
+
     letters ordered  most common first
 
     The language is a set of descriptions of state.
@@ -226,6 +285,7 @@ consider lojban
     Evaluation of a symbol produces the referred object.  Evaluation of
     a structure produces the structure.
 
+	;; ~ structures and symbols?
     The integers are structures of two symbols, universe and empty.  For
     example 1 is a structure of a structure of a symbol which is universe,
     and 3 is a structure of a structure of two symbols both universe.
@@ -234,10 +294,7 @@ consider lojban
     Argument evaluation, closures.
 
 
-	;; FIX mv into lang?
-	(defun t (&rest rest)
-	  (declare (ignore rest))
-	  t)
+* language,library ideas,notes
 
     hil is latin for true  false? is false required?
 	how bout just n/f? (like t)  or () which already works (usually for lists)
@@ -246,7 +303,14 @@ consider lojban
 	(~complement (page-large-object-p first-page))
 	for
 	(if (page-large-object-p first-page) nil t)
-	(- all true)?
+	  {now (fi (page-large-object-p first-page))}
+	(- all true)?  (- all all)
+
+	"is set" instead of "is true"
+	consider love,clear for ()
+
+    (>< (<>  (greater-than-or-less-than
+    epsilon, zero   list terminator, end, false   always, forever, ever
 
 	recycle instd of delete,remove
 		add to trash, recycle trash
@@ -257,8 +321,72 @@ consider lojban
 	how to return from a lambda?
 	add (return) to ret from current fun?
 		ie implied (block () ...) around function body
+	maybe a way to refer to current function
+		(return-from (this) t)  ; (return t) would return from a love block
+			this this-function this-block
 
 	eq take multiple args
+
+	change let to be like let*
+		(let ((a 1) (b a))        old  (let* ((a 1) (b a))
+	    (let ((b a) (a 1))        old  (let ((a 1) (b a))
+			side-effects may require the order
+
+	;; two ways the same, due to t,f?
+	(if  (if a (eq a b) t)         d)
+	(if  (or (eq a nil) (eq a b))  d)
+
+	eq char= string=
+	eq char-eq string-eq
+	= char= string=
+
+	consider a let-replacing push,pop, eg
+		(push (read-line in))
+		(if (top) (write-line (pop)))
+	  with compiler optim equiv to let
+	  maybe  block ends clear any excess pushes, and excess pops an error
+
+	how to eval the first , with the first `
+		``(a ,(b) ,(c))
+
+	"value" instd of "object"  eg db.lisp  find-object
+							   tty-display-object
+
+	destructuring-bind  split-bind?  bind-many?  multi-bind?
+	multiple-value-bind  *let?  mlet?  multi-bind?
+
+	(defmacro split (sequence &rest separators &key start end)
+		seems nicer than reqring seqarators to be a list
+		only gives "odd num of kwrds" error
+
+		consider &-- as in shell options
+		   (f :key1 a :-- :key1 arg2)  ; 2nd :key1 just an arg
+		   keywords seem like infix notation
+
+	nesting strings
+		{string with {nested string}}
+		"string with \"nested string\""
+
+		{string {sub {nested} first} end}
+		"string \"sub \\\"nested\\\" first\" end"
+
+	ed macros are like another language
+
+	might be useful if <,... returned the first arg
+		(or (< (file-size pathname) 99999)
+			">9999")
+
+    keyword as func name?  (:f arg)
+	maybe epsilon function name, eg ( arg arg2 :keyword val), (:keyword val)
+
+    ;; FIX logand  bit logic (vs maths logic)  (maybe bitand instead?)
+
+	keyword args
+		should be let-bound specials instead?
+			performance?
+				maybe possible to optimize into lex binding in most cases
+
+** conditionals
 
     if+,i+,*f instd of when? or+,o+,*r instd of unless? (like let*) maybe if*,or*
 	   these look like arithmetic ops
@@ -316,42 +444,14 @@ consider lojban
 	(if a b c)
 	(or (and a (progn b t)) c)
 
-	change let to be like let*
-		(let ((a 1) (b a))        old  (let* ((a 1) (b a))
-	    (let ((b a) (a 1))        old  (let ((a 1) (b a))
-			side-effects may require the order
-
-	;; two ways the same, due to t,f?
-	(if  (if a (eq a b) t)         d)
-	(if  (or (eq a nil) (eq a b))  d)
-
-	consider a let-replacing push,pop, eg
-		(push (read-line in))
-		(if (top) (write-line (pop)))
-	  with compiler optim equiv to let
-	  maybe  block ends clear any excess pushes, and excess pops an error
-
-	how to eval the first , with the first `
-		``(a ,(b) ,(c))
-
-    (>< (<>  (greater-than-or-less-than
-    epsilon, zero   list terminator, end, false   always, forever, ever
-
-	value instd of object  eg db.lisp  find-object
-							  tty-display-object
-
-	destructuring-bind  split-bind?
-
-	(defmacro split (sequence &rest separators &key start end)
-		seems nicer than reqring seqarators to be a list
-		only gives "odd num of kwrds" error
-
-	iteration
+** iteration
 
 		do-* loop
 		recursion labels iterate
 			tail recursion
 		map*
+
+		can map* be equivalently replaced by other loop construct?
 
 		do* should be do-*?
 
@@ -376,6 +476,14 @@ consider lojban
 		;   `(do () ((if ,cond nil t))
 		;      ,@body))
 		; (ed::defindent "while" 1)
+
+** format, strings
+
+	string special is /  "ab\"c\"" => ab"c"
+						 "ab\n" => abn
+	format special is ~
+		should be same?
+		string should allow more special chars, like newline?
 
 	format strings are like another language
 		(format () "x: ~A and y: ~2D, ~@[(y < x)~]" x y (> x y)
@@ -404,21 +512,7 @@ consider lojban
     add (format nil "x: ~$x")   ; like (format nil "x: ~A" x)     ; similar perl
         (format nil "x: ~$S$x") ; how to ~S like above
 
-	nesting strings
-		{string with {nested string}}
-		"string with \"nested string\""
-
-		{string {sub {nested} first} end}
-		"string \"sub \\\"nested\\\" first\" end"
-
-	might be useful if <,... returned the first arg
-		(or (< (file-size pathname) 99999)
-			">9999")
-
-    keyword as func name?  (:f arg)
-	maybe epsilon function name, eg ( arg arg2 :keyword val), (:keyword val)
-
-    ;; FIX logand  bit logic (vs maths logic)  (maybe bitand instead?)
+** evaluation, macros
 
     deflaz  (think lazy may usually mean evaluated, just as late as psbl)
 	    (whereas these args are optionally evaluated)
@@ -451,7 +545,7 @@ consider lojban
    (if ,cond ,(cons 'progn body)))    ; evaluate cond "twice", eval result of eval of (cons ...)
 
 
-handlers
+** handlers
 
   1 (handler-bind ((editor-top-level-catcher #'identity))
     (catch 'editor-top-level-catcher
@@ -486,8 +580,41 @@ handlers
 
   3  why handler-case handlers form* while handler-bind handlers functions?
 
+** type conversion, dynamic typing
+
+  (+ 4 "5")
+  	  should the 5 perhaps be read from the string automatically?
+		  is an attempt at some sort of behaviour better than
+			an error for every case?
+
+  (defun f (a b)
+	(declare (int b))
+	...)
+  (f 1 "2")
+
+  consider reducing type specification eg prefer equal to char=,string=
+
+  should 1 be always eq 1?  (vs equal)
+	  ie should the integers only be considered eq if they are the same instance
+	  how does that fit into a clean system?
+	  is there a case for integer instances?
+	  should there be instance comparison at all?
+
+** streams
+
+  search in streams   (search "foo" stream)  ;ret pos?
+					  (find #\a stream)      (find "aa" stream)?
+					  (position #\a stream)    "
+					 some optns may be hard/weird, like :from-end
+	  ed buffer operations ~duplicate this (for buffers)
+
+* longer term
+
 ~ generalized functions (as in clos)
     (~overloading?)
+	check oo systems such as clos,smalltalk
+
+	maybe an eg: call member on a string-table (currently call getstring)
 
 ~run-time modification of structure (ie the definition of the structure)
     eg to change node insert function
@@ -499,5 +626,9 @@ files as a type of variable
     so map a var name to memory on disk
     instd of mapping a file name to the set of blocks
 
-tracer, meta, <word for thinking about thinking>, higher-order
+	like persistant memory system
+
+tracer, meta, <word for thinking about thinking>, higher-order, inspect
    (name for tracing tool)
+
+consider expression-level comment  '((a 1) {b 2) (c 3))  ; "{" comments (b 2)

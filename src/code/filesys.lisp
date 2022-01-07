@@ -3,7 +3,8 @@
 (in-package "LISP")
 
 (export '(truename probe-file user-homedir-pathname directory
-          rename-file #|FIX|# fs-copy-file truncate-file delete-file delete-dir
+          rename-file #|FIX|# fs-copy-file touch-file truncate-file
+	  delete-file delete-dir
 	  file-write-date file-author file-mode file-size
 	  directoryp directory-name-p symlinkp))
 
@@ -674,33 +675,32 @@
 ;;;
 (defun unix-namestring (pathname &optional (for-input t) executable-only)
   "Convert PATHNAME into a string that can be used with UNIX system calls.
-   Search-lists and wild-cards are expanded. If optional argument
-   FOR-INPUT is true and PATHNAME doesn't exist, NIL is returned.
-   If optional argument EXECUTABLE-ONLY is true, NIL is returned
-   unless an executable version of PATHNAME exists."
-  ;; toy@rtp.ericsson.se: Let unix-namestring also handle logical
-  ;; pathnames too.
+   Search-lists and wild-cards are expanded. If optional argument FOR-INPUT
+   is true and PATHNAME doesn't exist, NIL is returned.  If EXECUTABLE-ONLY
+   is true, a string is only returned if an executable version of PATHNAME
+   exists, else NIL is returned."
   (let ((path (let ((lpn (pathname pathname)))
 		(if (logical-pathname-p lpn)
 		    (namestring (translate-logical-pathname lpn))
 		    pathname))))
-  (enumerate-search-list
-      (pathname path)
-    (collect ((names))
-      (enumerate-matches (name pathname nil
-			  :verify-existance for-input
-			  :follow-links t)
-	(when (or (not executable-only)
-		  (and (eq (unix:unix-file-kind name) :file)
-		       (unix:unix-access name unix:x_ok)))
-	  (names name)))
-      (let ((names (names)))
-	(when names
-	  (when (cdr names)
-	    (error 'simple-file-error
-		   :format-control "~S is ambiguous:~{~%  ~A~}"
-		   :format-arguments (list pathname names)))
-	  (return (car names))))))))
+    (enumerate-search-list
+     (pathname path)
+     (collect ((names))
+       (enumerate-matches (name pathname nil
+				:verify-existance for-input
+				:follow-links t)
+			  (when (if executable-only
+				    (and (eq (unix:unix-file-kind name) :file)
+					 (unix:unix-access name unix:x_ok))
+				    t)
+			    (names name)))
+       (let ((names (names)))
+	 (when names
+	   (when (cdr names)
+	     (error 'simple-file-error
+		    :format-control "~S is ambiguous:~{~%  ~A~}"
+		    :format-arguments (list pathname names)))
+	   (return (car names))))))))
 
 
 ;;;; TRUENAME and PROBE-FILE.
@@ -718,11 +718,11 @@
 	     :format-control "Bad place for a wild pathname."
 	     :pathname pathname)
       (let ((result (probe-file pathname)))
-	(unless result
-	  (error 'simple-file-error
-		 :pathname pathname
-		 :format-control "The file ~S does not exist."
-		 :format-arguments (list (namestring pathname))))
+	(or result
+	    (error 'simple-file-error
+		   :pathname pathname
+		   :format-control "The file ~S does not exist."
+		   :format-arguments (list (namestring pathname))))
 	result)))
 
 ;;; Probe-File  --  Public
@@ -815,21 +815,29 @@
     (unwind-protect
 	(multiple-value-bind (data byte-count mode)
 			     (fs-read-file fd file)
-	  (unwind-protect (fs-write-file (unix-namestring new-file)
+	  (unwind-protect (fs-write-file (unix-namestring new-file ())
 					 data byte-count mode)
 	    (system:deallocate-system-memory data byte-count)))
       (unix:unix-close fd))))
 
+;;; Touch-File  --  Public
+;;;
+(declaim (inline touch-file))
+(defun touch-file (file)
+  "Set the write date of FILE to now."
+  ;; FIX maybe rather (setf (file-write-date file))
+  (setf (file-write-date file) (get-universal-time)))
+
 ;;; Truncate-File  --  Public
 ;;;
 (defun truncate-file (file)
-  "Truncate the specified file."
+  "Truncate FILE."
   (with-open-file (stream file :direction :io :if-exists :supersede)))
 
 ;;; Delete-File  --  Public
 ;;;
 (defun delete-file (file)
-  "Delete the specified file."
+  "Delete FILE."
   (let ((namestring (unix-namestring file t)))
     (when (streamp file)
       (close file :abort t))
@@ -883,9 +891,9 @@
 ;;; File-Write-Date  --  Public
 ;;;
 (defun file-write-date (file)
-  "Return file's creation (FIX modified?) date in universal format, or NIL
-   if it doesn't exist.  An error of type file-error is signaled if file is
-   a wild pathname."
+  "If FILE exists return FILE's modification date in universal format, else
+   return love.  An error of type file-error is signaled if file is a wild
+   pathname."
   (if (wild-pathname-p file)
       (error 'simple-file-error
 	     :pathname file
@@ -899,6 +907,23 @@
 	    (when res
 	      (+ unix-to-universal-time mtime)))))))
 
+(defun set-file-write-date (file date)
+  "Set the modification date of FILE to universal format DATE.  FIX An
+   error of type file-error is signaled if file is a wild pathname."
+  (if (wild-pathname-p file)
+      (error 'simple-file-error
+	     :pathname file
+	     :format-control "Bad place for a wild pathname.")
+      (let ((name (unix-namestring file t)))
+	(when name
+	  (let ((date (- date unix-to-universal-time)))
+	    (multiple-value-bind (status errno)
+				 ;; FIX get usec how?
+				 (unix:unix-utimes name date 0 date 0)
+	      (values status errno)))))))
+
+(defsetf file-write-date set-file-write-date)
+
 ;;; File-Author  --  Public
 ;;;
 (defun file-author (file)
@@ -910,11 +935,11 @@
 	     :pathname file
 	     "Bad place for a wild pathname.")
       (let ((name (unix-namestring (pathname file) t)))
-	(unless name
-	  (error 'simple-file-error
-		 :pathname file
-		 :format-control "~S doesn't exist."
-		 :format-arguments (list file)))
+	(or name
+	    (error 'simple-file-error
+		   :pathname file
+		   :format-control "~S doesn't exist."
+		   :format-arguments (list file)))
 	(multiple-value-bind (winp dev ino mode nlink uid)
 			     (unix:unix-stat name)
 	  (declare (ignore dev ino mode nlink))
@@ -1235,18 +1260,20 @@
 ;;;
 (defun directory (pathname &key (all t) (check-for-subdirs t)
 			   (truenamep t) (follow-links t) (backups t)
-			   (recurse nil))
+			   recurse)
   "Returns a list of pathnames, one for each file that matches the given
-   pathname.  Supplying :ALL as nil causes this to ignore Unix dot files.  This
-   never includes Unix dot and dot-dot in the result.  If :TRUENAMEP is NIL,
-   then symblolic links in the result are not expanded which is not the
-   default because TRUENAME does follow links, and the result pathnames are
-   defined to be the TRUENAME of the pathname (the truename of a link may well
-   be in another directory.) If FOLLOW-LINKS is NIL then symbolic links are
-   not followed.  If BACKUPS is true then backup files (files ending in ~) are
-   also listed.  If RECURSE is true then pathnames of subdirectories are included,
-   recursively."
-  (let ((*ignore-wildcards* t))
+   pathname.  If :ALL is set causes Unix dot files are included.  Unix dot
+   and dot-dot are always left out.  If :TRUENAMEP is NIL, then symbolic
+   links in the result are not expanded which is not the default because
+   TRUENAME does follow links, and the result pathnames are defined to be
+   the TRUENAME of the pathname (the truename of a link may well be in
+   another directory.)  If FOLLOW-LINKS is set then symbolic links are
+   followed.  If BACKUPS is set then backup files (files ending in ~) are
+   also listed.  If RECURSE is set then pathnames of subdirectories are
+   included, recursively."
+;  (let ((*ignore-wildcards* t))
+  (let ((*ignore-wildcards* ()))
+    ;; FIX Surely this is a slow way.
     (mapcar #'(lambda (name)
 		(let ((name (if (and check-for-subdirs
 				     (eq (unix:unix-file-kind name)
@@ -1257,7 +1284,8 @@
 	    (sort (delete-duplicates (enumerate-names pathname
 						      all follow-links
 						      backups recurse)
-				     :test #'string=) #'string<))))
+				     :test #'string=)
+		  #'string<))))
 
 
 ;;;; Printing directories.
@@ -1265,8 +1293,8 @@
 ;;; PRINT-DIRECTORY is exported from the EXTENSIONS package.
 ;;;
 (defun print-directory (pathname &optional stream &key all verbose return-list
-				 (backups t) (recurse nil) coldefs)
-  "Like Directory, but prints a terse, multi-coloumn directory listing
+				 (backups t) recurse coldefs)
+  "Like Directory, but prints a terse, multi-column directory listing
    instead of returning a list of pathnames.  When :all is supplied and
    non-nil, then Unix dot files are included too (as ls -a).  When :verbose
    is supplied and non-nil, then a long listing of miscellaneous
@@ -1323,10 +1351,11 @@
 (defun print-directory-verbose (pathname contents all return-list coldefs)
   (declare (ignore all)) ;; FIX is all for something?
   (let ((result nil)
-	(dir-len (1+ (or (position #\/ (unix-namestring pathname)
-				   :from-end t
-				   :end (length (unix-namestring pathname))
-				   :test #'char=)
+	(dir-len (1+ (or (let ((name (unix-namestring (common-prefix pathname))))
+			   (position #\/ name
+				     :from-end t
+				     :end (length name)
+				     :test #'char=))
 			 -1))))
     (format t "v Directory of ~A :~%" (namestring pathname))
     (if coldefs
@@ -1446,10 +1475,12 @@
 	(names ())
 	(cnt 0)
 	(max-len 0)
-	(dir-len (1+ (or (position #\/ (unix-namestring pathname)
-				   :from-end t
-				   :end (length (unix-namestring pathname))
-				   :test #'char=)
+	(dir-len (1+ (or (let ((name (unix-namestring
+				      (common-prefix pathname))))
+			   (position #\/ name
+				     :from-end t
+				     :end (length name)
+				     :test #'char=))
 			 -1))))
     (declare (list names) (fixnum max-len cnt))
     ;;
@@ -1478,9 +1509,9 @@
 	  (let ((name (nth (+ i (the fixnum (* j lines))) names)))
 	    (when name
 	      (write-string name)
-	      (unless (eql j (1- cols))
-		(dotimes (i (- col-width (length (the simple-string name))))
-		  (write-char #\space))))))
+	      (or (eql j (1- cols))
+		  (dotimes (i (- col-width (length (the simple-string name))))
+		    (write-char #\space))))))
 	(terpri)))
     (when return-list
       result)))
@@ -1712,42 +1743,29 @@
   nil)
 
 
-;;; Ensure-Directories-Exist  --  Public
+;;; Public
 ;;;
-(defun ensure-directories-exist (pathspec &key verbose (mode #o777))
-  "Tests whether the directories containing the specified file actually
-   exist, and attempts to create them if they do not.  Portable programs
-   should avoid using the :MODE keyword argument."
-  (let* ((pathname (pathname pathspec))
-	 (pathname (if (logical-pathname-p pathname)
-		       (translate-logical-pathname pathname)
-		       pathname))
-	 (created-p nil))
-    (when (wild-pathname-p pathname)
-      (error 'simple-file-error
-	     :format-control "Bad place for a wild pathname."
-	     :pathname pathspec))
-    (enumerate-search-list (pathname pathname)
-       (let ((dir (pathname-directory pathname)))
-	 (loop for i from 1 upto (length dir)
-	       do (let ((newpath (make-pathname
-				  :host (pathname-host pathname)
-				  :device (pathname-device pathname)
-				  :directory (subseq dir 0 i))))
-		    (unless (probe-file newpath)
-		      (let ((namestring (namestring newpath)))
-			(when verbose
-			  (format *standard-output* "~&Creating directory: ~A~%"
-				  namestring))
-			(unix:unix-mkdir namestring mode)
-			(unless (probe-file namestring)
-			  (error 'simple-file-error
-				 :pathname pathspec
-				 :format-control "Can't create directory ~A."
-				 :format-arguments (list namestring)))
-			(setf created-p t)))))
-	 ;; Only the first path in a search-list is considered.
-	 (return (values pathname created-p))))))
+(defun ensure-directories-exist (pathname)
+  "Ensure that all the directories in PATHNAME exist.  Directories are
+   created readable, writable and searchable by all.  Only create the first
+   of the possible expansions if PATHNAME contains a search list."
+  (if (wild-pathname-p pathname) (error "Wild pathname given."))
+  (let ((dir "/"))
+    (loop
+      for parts =
+      (cdr (pathname-directory
+	    (enumerate-search-list
+	         (path (merge-pathnames pathname
+					;; FIX check error
+					(nth-value 1
+						   (unix:unix-current-directory))))
+	      (return-from () path))))
+      then (cdr parts) while parts do
+      (setq dir (concatenate 'simple-string dir (car parts) "/"))
+      (or (probe-file dir)
+	  (unix:unix-mkdir dir (logior unix:execall
+				       unix:readall
+				       unix:writeall))))))
 
 
 ;;; Public

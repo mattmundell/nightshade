@@ -208,7 +208,8 @@
     (or (> (length dired-files) 0)
 	(unix:unix-access (unix-namestring directory) unix:r_ok)
 	(loud-message "Read access to ~A withheld." directory))
-    (if (or (> (length dired-files) 0)
+    (setf (buffer-pathname buffer) directory)
+    (if (or (plusp (length dired-files))
 	    (value create-empty-dired-buffers))
 	(defhvar "Dired Information"
 	  "Contains the information necessary to manipulate dired buffers."
@@ -1016,11 +1017,11 @@
   "Can be either t, nil, or :update.  T means always query before clobbering an
    existing file, nil means don't query before clobbering an existing file, and
    :update means only ask if the existing file is newer than the source."
-  :value T)
+  :value t)
 
 (defhvar "Dired Rename File Confirm"
   "When non-nil, dired will query before clobbering an existing file."
-  :value T)
+  :value t)
 
 (defcommand "Dired Copy File" (p)
   "Copy the file under the point."
@@ -1039,7 +1040,6 @@
 			 (dired-info-files dired-info)))))
 	   (files (if source
 		      nil
-		      ;; FIX just append?
 		      (mapcar 'car (append marked-files
 					   marked-dirs))))
 	   (dest (merge-pathnames
@@ -1081,7 +1081,6 @@
 				(dired-info-files dired-info))))))
 	   (files (if source
 		      nil
-		      ;; FIX just append?
 		      (mapcar 'car (append marked-files
 					   marked-dirs))))
 	   (dest (merge-pathnames
@@ -1140,6 +1139,29 @@
 	    (dired:symlink-file (prompt dest) dest)
 	    (dolist (f files)
 	      (dired:symlink-file (prompt (car f)) f))))
+      (maintain-dired-consistency))))
+
+(defcommand "Dired Touch File" (p)
+  "Touch the file under point."
+  "Touch the file under point."
+  (declare (ignore p))
+  (multiple-value-bind (marked-files marked-dirs)
+		       (get-marked-dired-files)
+    (let ((dir-info (value dired-information)))
+      (if (or marked-files marked-dirs)
+	  (dolist (f (append marked-files marked-dirs))
+	    (touch-file (car f)))
+	  (touch-file (dired-file-pathname
+		       (array-element-from-mark
+			(current-point)
+			(dired-info-files dir-info)))))
+      ;; FIX this should also update other direds of this dir
+      ;;     as maitain-d-c depends on dir write-date, which is
+      ;;     the same after touching the files
+      ;;     maybe m-d-c s/b adjusted
+      (update-dired-buffer (current-directory)
+			   (dired-info-pattern dir-info)
+			   (current-buffer))
       (maintain-dired-consistency))))
 
 (defcommand "Dired Copy with Wildcard" (p)
@@ -1550,12 +1572,12 @@
 ;;; one directory.
 ;;;
 (defun dired-directorify (pathname)
-  (let ((directory (ext:unix-namestring pathname)))
+  (let ((directory (ext:unix-namestring (lisp::common-prefix pathname))))
     (if directory
 	(if (directory-name-p directory)
 	    directory
-	    (pathname (concatenate 'simple-string (namestring directory) "/"))))
-    pathname))
+	    (pathname (concatenate 'simple-string (namestring directory) "/")))
+	pathname)))
 
 
 ;;;; Locate.

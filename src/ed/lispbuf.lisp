@@ -202,14 +202,14 @@
       (beep)
       (when (prompt-for-y-or-n
 	     :prompt (concatenate 'simple-string
-				  "Point not past input mark.  "
+				  "Point before input mark.  "
 				  (value unwedge-interactive-input-string))
 	     :must-exist t :default t :default-string "yes")
 	(funcall (value unwedge-interactive-input-fun))
-	(message "Unwedged."))
+	(message "Point moved to input mark."))
       nil)
      (t
-      (editor-error "Point not past input mark.")))))
+      (editor-error "Point before input mark.")))))
 
 (defhvar "Interactive History Length"
   "This is the length used for the history ring in interactive buffers.

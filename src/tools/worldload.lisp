@@ -112,6 +112,7 @@
 #-runtime (maybe-byte-load "code:mh")
 #-runtime (maybe-byte-load "code:doc")
 #-runtime (maybe-byte-load "code:db")
+#-runtime (maybe-byte-load "code:build")
 
 ;;; Overwrite some cold-loaded stuff with byte-compiled versions, if any.
 #-(or gengc cgc)	; x86/cgc has stuff in static space.

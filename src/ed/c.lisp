@@ -185,17 +185,17 @@
 	  (pos 0))
       (if *in-string*
 	  (progn
-	    (chi-mark line 0 string-font chi-info)
+	    (chi-mark line 0 *string-font* chi-info)
 	    (setq pos (1+ (or (search-for-c-qmark chars)
 			      (return-from highlight-c-line))))
-	    (chi-mark line pos original-font chi-info)
+	    (chi-mark line pos *original-font* chi-info)
 	    (setq *in-string* nil))
 	  (when *in-comment*
-	    (chi-mark line 0 comment-font chi-info)
+	    (chi-mark line 0 *comment-font* chi-info)
 	    (setq pos (+ (or (search comment-end chars)
 			     (return-from highlight-c-line))
 			 (length comment-end)))
-	    (chi-mark line pos original-font chi-info)
+	    (chi-mark line pos *original-font* chi-info)
 	    (setq *in-comment* nil)))
       (let ((comment-start (value comment-start))
 	    (pp-start (value preprocessor-start)))
@@ -225,14 +225,14 @@
 		      (return-from nil))
 		  (when (gethash (subseq chars start (mark-charpos end))
 				 (value c-special-forms))
-		    (chi-mark line start special-form-font chi-info)
-		    (chi-mark line (mark-charpos end) original-font chi-info)))))
+		    (chi-mark line start *special-form-font* chi-info)
+		    (chi-mark line (mark-charpos end) *original-font* chi-info)))))
 	    ;; Highlight the rest.
 	    (cond ((< string (min preproc comment multic))
-		   (chi-mark line string string-font chi-info)
+		   (chi-mark line string *string-font* chi-info)
 		   (setq pos (search-for-c-qmark chars (1+ string)))
 		   (if pos
-		       (chi-mark line (incf pos) original-font chi-info)
+		       (chi-mark line (incf pos) *original-font* chi-info)
 		       (progn
 			 (setq *in-string* t)
 			 (return-from highlight-c-line))))
@@ -243,18 +243,18 @@
 		   (return-from highlight-c-line))
 
 		  ((< comment (min string preproc multic))
-		   (chi-mark line comment comment-font chi-info)
+		   (chi-mark line comment *comment-font* chi-info)
 		   (return-from highlight-c-line))
 
 		  ((< multic (min string preproc comment))
-		   (chi-mark line multic comment-font chi-info)
+		   (chi-mark line multic *comment-font* chi-info)
 		   (or comment-end (return-from highlight-c-line))
 		   (setq pos
 			 (search comment-end chars
 				 :start2 (+ multic (length comment-start))))
 		   (if pos
 		       (chi-mark line (incf pos (length comment-end))
-				 original-font chi-info)
+				 *original-font* chi-info)
 		       (progn
 			 (setq *in-comment* t)
 			 (return-from highlight-c-line))))

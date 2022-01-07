@@ -2,7 +2,8 @@
 
 (in-package "DOC")
 
-(export '(defun-doc-to-text doc-to-text
+(export '(*encode-emails*
+	  defun-doc-to-text doc-to-text
 	  defun-doc-to-html doc-to-html
 	  defun-doc-to-latex doc-to-latex
 	  return-from-many return-from-row))
@@ -67,23 +68,53 @@
   "Return VALUE from the code handling the current row."
   (throw 'end-row value))
 
+(defun style-size-to-portion (size)
+  (fi size
+      0
+      (let ((size (string-trim " " size)))
+	(cond ((char= (char size (1- (length size))) #\%)  ;; FIX (last size)?
+	       (/ (parse-integer (subseq size 0 (1- (length size)))) ;; FIX (subseq size 0)?
+		  100))
+	      ;; FIX correct em handling
+	      ((and (char= (char size (1- (length size))) #\m)
+		    (char= (char size (- (length size) 2)) #\e))
+	       (concat (subseq size 0 (- (length size) 2)) "pt")
+	       (error "FIX em: ~A" size))
+	      ((or (string= size "0") (string= (string-upcase size) "AUTO"))
+	       0)
+	      (t
+	       (error "FIX style-size-to-portion: \"~A\"" size))))))
+
+(defvar *encode-emails* t
+  "If true email addresses will be encoded.")
+
+(defun encode-email (address)
+  "Encode ADDRESS slightly: a@b.c => a(at)b.c."
+  (if *encode-emails*
+      (let ((parts (split address #\@)))
+	(concat (car parts) "(at)" (cadr parts)))
+      address))
+
 
 ;;;; Plain text.
 
 (declaim (special *emit* *first* *indent* *indents*
-		  *column-widths* *fill-widths*))
+		  *column-widths* *fill-widths* *section-depth*))
 
 ;; FIX use flet instead of labels  (somehow fix to keep functions)
 ;;        may be rqrd for cont (if every used)
 ;; FIX can the emit-switched cases combine?
 ;;     what is the combined result? ie the generic term for it
 ;;         some sort of combined compiler,interpreter implementation
+;;     combination exploring in test.lisp
 (defmacro translate-doc-to-text (emit &body body)
   "If EMIT is true return code that will translate a document description
    (list of nodes) into the body of a function that will produce plain text
-   for the documents described by that description.  Otherwise return the
-   body of an interpreter that will produce a document in plain text given
-   a description (list of nodes)."
+   for the documents described by that description i.e. compile a function
+   that will produce the defined document.  Otherwise return the body of an
+   interpreter that will produce a document in plain text given a
+   description (list of nodes) i.e. compile a doc definition to text
+   document translator."
   `(labels
        ((open-line ()
 	  ,(if (eval emit)
@@ -245,10 +276,10 @@
 			(loop for end = fill-width then (+ end fill-width) do
 			  (when (>= end len)
 			    (write-string string stream :start start)
-			    (if fill
-				(write-string (make-string (- end len)
-							   :initial-element #\space)
-					      stream))
+			    (when fill
+			      (write-string (make-string (- end len)
+							 :initial-element #\space)
+					    stream))
 			    (return))
 			  (loop
 			    for new-end from end downto start
@@ -282,9 +313,9 @@
 	    (interpret
 	     ,(if (eval emit)
 		  '`(%doc-to-text ,(car (gnode-content node))
-				  stream fill-width *indent* *indents*)
+				  stream styles fill-width *indent* *indents*)
 		  '(%doc-to-text (eval (car (gnode-content node)))
-				 stream fill-width *indent* *indents*)))
+				 stream styles fill-width *indent* *indents*)))
 	    (list
 	     ,(if (eval emit)
 		  '(collect ((out))
@@ -325,30 +356,105 @@
 	     (let ((args (gnode-args node)))
 	       ,(if (eval emit)
 		    '`(progn
+			#|
+		       let* ((props (ed::style styles :section ,(car args)))
+			     (width (ed::style-property props :width))
+			     (margin-left (ed::style-property props
+							      :margin-left))
+			     (margin-right (ed::style-property props
+							       :margin-right))
+			     (portion (if width
+					  (style-size-to-portion width)
+					  1)))
+			|#
+			(incf *section-depth*)
 			,(open-line)
+			(case *section-depth*
+			  (1
+			   (terpri stream)
+			   #|
+			   (let ((heading (substitute #\_ #\space ,(cadr args))))
+			     (format stream "~A" heading)
+			     (loop repeat (- fill-width (length heading)) do  ;; FIX - fill-width indent?
+			       (write-char #\_ stream)))
+			   |#
+			   (format stream "~A~%" ,(cadr args))
+			   (loop repeat (length ,(cadr args)) do
+			     (write-char #\= stream)))
+			  (2
+			   (format stream "~A~%" ,(cadr args))
+			   (terpri stream)
+			   (loop repeat (length ,(cadr args)) do
+			     (write-char #\- stream)))
+			  (3
+			   (format stream "~A~%" ,(cadr args))
+			   (loop repeat (length ,(cadr args)) do
+			     (write-char #\. stream)))
+			  (t
+			   (format stream "~A" ,(cadr args))))
+			;; FIX
+			;,(push-indentation '(t 1/2))
+			;,(push-indentation '(list t portion))
 			(terpri stream)
-			;(format stream "~A~%" ,(car args))
-			(let ((heading (substitute #\_ #\space ,(car args))))  ;; FIX - fill-width indent
-			  (format stream "~A" heading)
-			  (loop repeat (- fill-width (length heading)) do
-			    (write-char #\_ stream)))
-			,(push-indentation args)
-			(terpri stream)
-			(prog1 ,(write-generic-nodes (gnode-content node))
-			  ,(pop-indentation args)))
+			(unwind-protect
+			    ,(write-generic-nodes (gnode-content node))
+			  (progn
+			    ;,(push-indentation '(t 1/2))
+			    ;,(pop-indentation (list t portion))
+			    ;,(pop-indentation (list t portion))
+			    (decf *section-depth*))))
 		    '(progn
+		       #| let* ((props (ed::style styles :section (car args)))
+			    (width (ed::style-property props :width))
+			    (margin-left (ed::style-property props
+							     :margin-left))
+			    (margin-right (ed::style-property props
+							      :margin-right))
+			    (portion (if width
+					 (style-size-to-portion width)
+					 1)))
+		       |#
+		       (incf *section-depth*)
 		       (open-line)
-		       (terpri stream)
-		       ;(format stream "~A~%" (car args))
-		       (let ((heading (substitute #\_ #\space (car args))))
-			 (format stream "~A" heading)
-			 (loop repeat (- fill-width (length heading)) do
-			   (write-char #\_ stream)))
-		       (push-indentation args)
-		       (terpri stream)
-		       (prog1 (write-generic-nodes (gnode-content node))
-			 (pop-indentation args))))))
+		       (case *section-depth*
+			 (1
+			  (terpri stream)
+			  #|
+			  (let ((heading (substitute #\_ #\space (cadr args))))
+			    (format stream "~A" heading)
+			    (loop repeat (- fill-width (length heading)) do
+			      (write-char #\_ stream)))
+			  |#
+			  (format stream "~A~%" (cadr args))
+			  (loop repeat (length (cadr args)) do
+			    (write-char #\= stream)))
+			 (2
+			  (terpri stream)
+			  (format stream "~A~%" (cadr args))
+			  (loop repeat (length (cadr args)) do
+			    (write-char #\- stream)))
+			 (2
+			  (format stream "~A~%" (cadr args))
+			  (loop repeat (length (cadr args)) do
+			    (write-char #\. stream)))
+			 (t
+			  (format stream "~A" (cadr args))))
+		       ;; FIX
+		       ;(push (list t portion) *fill-widths*) ; Temp, for passing.
+		       (unwind-protect
+			   (progn
+			     ;(push-indentation (car *fill-widths*))
+			     (terpri stream)
+			     (write-generic-nodes (gnode-content node)))
+			 ;(pop-indentation '(list t portion))
+			 (pop *fill-widths*)
+			 (decf *section-depth*))))))
 	    (table
+	     ;; FIX This needs more work to handle tables where text in the first
+	     ;;     cols can wrap (the last col work ok now).  Probably
+	     ;;     buffer-rows should return a list with the cols already
+	     ;;     of the correct size ie it should handle wrapping of
+	     ;;     text past the edges of the columns.
 	     (let* ((rows (gnode-content node)))
 	       ,(if (eval emit)
 		    '`(let ((row-buffer (progn
@@ -361,11 +467,12 @@
 			    (setq fill-width *indent*)
 			    (loop for node = (car row) then (cdr node)
 			      for col = 0 then (1+ col) while node do
-			      (setq fill-width
-				    (min (car *fill-widths*)
-					 (+ fill-width (nth col *column-widths*))))
-			      (if (plusp col)
-				  ,(push-absolute-indentation '(nth (1- col) *column-widths*)))
+			      (let ((old-width fill-width))
+				(setq fill-width
+				      (min (car *fill-widths*)
+					   (+ fill-width (nth col *column-widths*))))
+				(if (plusp col)
+				    ,(push-absolute-indentation 'old-width)))
 			      ,(output-string '(car node) '(cdr node))
 			      (if (plusp col)
 				  ,(pop-absolute-indentation)))
@@ -382,11 +489,12 @@
 			   (setq fill-width *indent*)
 			   (loop for node = (car row) then (cdr node)
 			     for col = 0 then (1+ col) while node do
-			     (setq fill-width
-				   (min (car *fill-widths*)
-					(+ fill-width (nth col *column-widths*))))
-			     (if (plusp col)
-				 (push-absolute-indentation (nth (1- col) *column-widths*)))
+			     (let ((old-width fill-width))
+			       (setq fill-width
+				     (min (car *fill-widths*)
+					  (+ fill-width (nth col *column-widths*))))
+			       (if (plusp col)
+				   (push-absolute-indentation old-width)))
 			     (output-string (car node) (cdr node))
 			     (if (plusp col)
 				 (pop-absolute-indentation)))
@@ -394,20 +502,69 @@
 			 (setq fill-width (pop *fill-widths*)))
 		       t))))
 	    (rule
-	     (let ((portion (or (cadr (gnode-args node)) 1)))
+	     (let ((args (gnode-args node)))
 	       ,(if (eval emit)
-		    '`(progn
+		    '`(let* ((props (ed::style styles :hr ,(car args)))
+			     (width (ed::style-property props :width))
+			     (margin-left (ed::style-property props
+							      :margin-left))
+			     (margin-right (ed::style-property props
+							       :margin-right))
+			     (portion (if width
+					  (style-size-to-portion width)
+					  1))
+			     (margin (if (and (string= (string-upcase margin-left) "AUTO")
+					      (string= (string-upcase margin-right) "AUTO"))
+					 (* (/ (- 1 portion) 2) (- fill-width *indent*))
+					 0)))
 			,(open-line)
-			(loop repeat (* ,portion (- fill-width *indent*)) do
-			  (write-char #\_ stream))
+			(loop repeat margin do
+			  (write-char #\space stream))
+			(loop repeat (* portion (- fill-width *indent*)) do
+			  (write-char #\- stream))
 			(terpri stream)
 			t)
-		    `(progn
+		    `(let* ((props (progn
+				     (ed::style styles :hr (car args))))
+			    (width (ed::style-property props :width))
+			    (margin-left (ed::style-property props
+							     :margin-left))
+			    (margin-right (ed::style-property props
+							      :margin-right))
+			    (portion (if width
+					 (style-size-to-portion width)
+					 1))
+			    (margin (if (and (string= (string-upcase margin-left) "AUTO")
+					     (string= (string-upcase margin-right) "AUTO"))
+					(* (/ (- 1 portion) 2) (- fill-width *indent*))
+					0)))
 		       (open-line)
+		       (loop repeat margin do
+			 (write-char #\space stream))
 		       (loop repeat (* portion (- fill-width *indent*)) do
-			 (write-char #\_ stream))
+			 (write-char #\- stream))
 		       (terpri stream)
 		       t))))
+	    (ref
+	     ,(if (eval emit)
+		  '`(let ((link (let* ((sstream (make-string-output-stream))
+				       (stream (lisp::make-indenting-stream sstream)))
+				  ,(write-generic-nodes (gnode-content node))
+				  (get-output-stream-string sstream))))
+		      (write-string (if (string= (string-upcase (safe-subseq link 0 7))
+						 "MAILTO:")
+					(encode-email (subseq link 7))
+					link)
+				    stream))
+		  '(let ((link (let* ((sstream (make-string-output-stream))
+				      (stream (lisp::make-indenting-stream sstream)))
+				 (write-generic-nodes (gnode-content node))
+				 (get-output-stream-string sstream))))
+		     (write-string (if (string= (string-upcase (safe-subseq link 0 7))
+						"MAILTO:")
+				       (encode-email (subseq link 7))
+				       link)
+				   stream))))
 	    (string
 	     ,(if (eval emit)
 		  '(output-string
@@ -451,14 +608,18 @@
    document described by NODES."
   (translate-doc-to-text t
     `(defun ,name (&optional (stream *standard-output*)
+			     styles
 			     (fill-width 72)
 			     (*indent* 0)
 			     *indents*)
+       "Write a particular text document on STREAM according to STYLES with
+	FILL-WIDTH."
        (let ((stream (lisp::make-indenting-stream stream))
-	     (*column-widths*) (*fill-widths*) (*first*))
+	     (*section-depth* 0) (*column-widths*) (*fill-widths*) (*first* t))
 	 ,(write-generic-nodes (eval nodes))))))
 
 (defun %doc-to-text (nodes &optional (stream *standard-output*)
+			   styles
 			   (fill-width 72)
 			   (*indent* 0)
 			   *indents*)
@@ -467,21 +628,22 @@
   (translate-doc-to-text () (write-generic-nodes nodes)))
 
 (defun doc-to-text (nodes &optional (stream *standard-output*)
+			  styles
 			  (fill-width 72)
 			  (*indent* 0)
 			  *indents*)
   "Write the document described by NODES to STREAM as plain text."
   ;; FIX stream may already be indenting?
   (let ((stream (lisp::make-indenting-stream stream))
-	(*column-widths*) (*fill-widths*) (*first* t))
-    (%doc-to-text nodes stream fill-width *indent* *indents*)))
+	(*section-depth* 0) (**column-widths**) (*fill-widths*) (*first* t))
+    (%doc-to-text nodes stream styles fill-width *indent* *indents*)))
 
 
 ;;;; HTML.
 
 ;; FIX as in -to-text
 (defmacro translate-doc-to-html (emit &body body)
-  ;; FIX title, sheet
+  ;; FIX title, styles
   "If EMIT is true return code that will translate a document description
    (list of nodes) into the body of a function that will produce HTML for
    the documents described by that description.  Otherwise return the body
@@ -583,6 +745,7 @@
 	  (ecase (intern (symbol-name (gnode-type node)) "DOC")
 	    (many
 	     (let ((args (gnode-args node)))
+	       (declare (ignore args))
 	       ,(if (eval emit)
 		    '`(let ((cont t))
 			(catch 'end-many
@@ -604,13 +767,13 @@
 	     (let ((args (gnode-args node)))
 	       ,(if (eval emit)
 		    `(collect ((out))
-		       (let ((class (if ,(car args)
-					(format () " CLASS=\"~A\"" ,(car args))
+		       (let ((class (if (car args)
+					(format () " CLASS=\"~A\"" (car args))
 					"")))
-			 (out '(format stream "<UL~A>" class))
+			 (out `(format stream "<UL~A>" ,class))
 			 (loop for item = (gnode-content node) then (gnode-next item) while item do
 			   (out (open-line))
-			   (out '(format stream "<LI~A>" class))
+			   (out `(format stream "<LI~A>" ,class))
 			   (out `(setq last ,(write-generic-node item)))
 			   (out '(write-string "</LI>" stream))
 			   (out '(fresh-line stream)))
@@ -657,23 +820,21 @@
 			,(open-line)
 			(format stream
 				"~%<p>~
-	                         <table CLASS=\"heading\" CELLPADDING=\"0\" CELLSPACING=\"0\">~%~
-			         <tr><td CLASS=\"heading\">~A</td></tr>~%~
-                                 <tr><td><table WIDTH=\"100%\" STYLE=\"background-color: #000000\" CELLPADDING=\"0\" CELLSPACING=\"0\"><tr><td>~%~
-				 </td></tr></table></td></tr></table></p>~%"
-				,(car args))
-			;; FIX added ,
+	                         <table CLASS=\"~A-heading\">~%~
+			         <tr><td CLASS=\"~A-heading\">~A</td></tr>~%~
+				 </table></p>~%"
+				,(car args) ,(car args) ,(cadr args) ,(car args))
 			,(write-generic-nodes (gnode-content node)))
 		    '(progn
 		       (open-line)
 		       (terpri stream)
-		       (format stream
-			       "~%<p>~
-				<table CLASS=\"heading\" CELLPADDING=\"0\" CELLSPACING=\"0\">~%~
-				<tr><td CLASS=\"heading\">~A</td></tr>~%~
-				<tr><td><table WIDTH=\"100%\" STYLE=\"background-color: #000000\" CELLPADDING=\"0\" CELLSPACING=\"0\"><tr><td>~%~
-				</td></tr></table></td></tr></table></p>~%"
-			       (car args)) ;; FIX cadr
+		       (let ((style (car args)))
+			 (format stream
+				 "~%<p>~
+				  <table CLASS=\"~A-heading\">~%~
+				  <tr><td CLASS=\"~A-heading\">~A</td></tr>~%~
+				  </table></p>~%"
+				 style style (cadr args) style))
 		       (write-generic-nodes (gnode-content node))))))
 	    (table
 	     (let* ((rows (gnode-content node))
@@ -727,10 +888,8 @@
 				       (format () " CLASS=\"~A-rule-inner\"" ,(car args))
 				       "")))
 			,(open-line)
-			(format stream "<TABLE CELLPADDING=\"0\" CELLSPACING=\"0\"~A><TR><TD>~
-					  <TABLE CELLPADDING=\"0\" CELLSPACING=\"0\"~A>~
-					    <TR><TD></TD></TR></TABLE>~
-					</TD></TR></TABLE>~%" class inner)
+			(format stream "<TABLE ~A><TR><TD></TD></TR></TABLE>~%"
+				class inner)
 			t)
 		    `(let ((class (if (car args)
 				      (format () " CLASS=\"~A-rule\"" (car args))
@@ -739,11 +898,39 @@
 				      (format () " CLASS=\"~A-rule-inner\"" (car args))
 				      "")))
 		       (open-line)
-		       (format stream "<TABLE CELLPADDING=\"0\" CELLSPACING=\"0\"~A><TR><TD>~
-				       <TABLE CELLPADDING=\"0\" CELLSPACING=\"0\"~A>~
-				       <TR><TD></TD></TR></TABLE>~
-				       </TD></TR></TABLE>~%" class inner)
+		       (format stream "<TABLE ~A><TR><TD></TD></TR></TABLE>~%"
+			       class inner)
 		       t))))
+	    (ref
+	     ,(if (eval emit)
+		  '`(let ((link (let* ((sstream (make-string-output-stream))
+				       (old-stream stream))
+				  (setq stream (lisp::make-indenting-stream sstream))
+				  (unwind-protect
+				      ,(write-generic-nodes (gnode-content node))
+				    (setq stream old-stream))
+				  (get-output-stream-string sstream))))
+		      (format stream "<A HREF=\"~A\">~A</A>"
+			      link
+			      (if (and (> (length link) 6)
+				       (string= (string-upcase (subseq link 0 7))
+						"MAILTO:"))
+				  (encode-email (subseq link 7))
+				  link)))
+		  '(let ((link (let* ((sstream (make-string-output-stream))
+				      (old-stream stream))
+				 (setq stream (lisp::make-indenting-stream sstream))
+				 (unwind-protect
+				     (write-generic-nodes (gnode-content node))
+				   (setq stream old-stream))
+				 (get-output-stream-string sstream))))
+		     (format stream "<A HREF=\"~A\">~A</A>"
+			     link
+			     (if (and (> (length link) 6)
+				      (string= (string-upcase (subseq link 0 7))
+					       "MAILTO:"))
+				 (encode-email (subseq link 7))
+				 link)))))
 	    (string
 	     ,(if (eval emit)
 		  '(output-string
@@ -803,9 +990,11 @@
 			     title
 			     sheet
 			     (*indent* 0))
+       "Write a particular HTML document on STREAM according to STYLES with
+	FILL-WIDTH."
        (let ((stream (lisp::make-indenting-stream stream))
-	     (*column-widths*) (*first)
-	     (*title*) *indents*)
+	     (*column-widths*) (*first* t)
+	     *indents*)
 	 (begin-html stream title sheet)
 	 ,(write-generic-nodes (eval nodes))
 	 (format stream "  </BODY>~%  </HTML>~%")))))
@@ -835,12 +1024,6 @@
 
 ;;;; LaTeX.
 
-; (defun style (styles type class)
-;   (cdr (assoc class (cdr (or (assoc type styles) (return-from style))))))
-;
-; (defun style-property (style property)
-;   (cdr (assoc property style)))
-
 ;; FIX as in -to-text
 (defmacro translate-doc-to-latex (emit &body body)
   ;; FIX title, styles (classes?)
@@ -850,44 +1033,10 @@
    of an interpreter that will produce a LaTeX document given a description
    (list of nodes)."
   `(labels
-       ((style-to-latex-size (size) ;; FIX style-size-to-proportion?
-	  ,(if (eval emit)
-	       ''(fi size
-		     0
-		     (let ((size (string-trim " " size)))
-		       (cond ((char= (char size (1- (length size))) #\%)
-			      (/ (parse-integer (subseq size
-							0 (1- (length size))))
-				 100))
-			     ;; FIX correct em handling
-			     ((and (char= (char size (1- (length size))) #\m)
-				   (char= (char size (- (length size) 2)) #\e))
-			      (concat (subseq size 0 (- (length size) 2)) "pt")
-			      (error "FIX em: ~A" size))
-			     ((or (string= size "0") (string= size "auto"))
-			      0)
-			     (t
-			      (error "FIX style-to-latex-size: \"~A\"" size)))))
-	       '(fi size
-		    0
-		    (let ((size (string-trim " " size)))
-		      (cond ((char= (char size (1- (length size))) #\%)
-			     (/ (parse-integer (subseq size
-						       0 (1- (length size))))
-				100))
-			    ;; FIX correct em handling
-			    ((and (char= (char size (1- (length size))) #\m)
-				  (char= (char size (- (length size) 2)) #\e))
-			     (concat (subseq size 0 (- (length size) 2)) "pt")
-			     (error "FIX em: ~A" size))
-			    ((or (string= size "0") (string= size "auto"))
-			     0)
-			    (t
-			     (error "FIX style-to-latex-size: ~A" size)))))))
-	(begin-wrap-styles (type class)
+       ((begin-wrap-styles (type class)
 	  ;; FIX maybe buffer the end forms for end-wrap-styles
 	  ,(if (eval emit)
-	       '`(let* ((props (ed::style styles type class))
+	       '`(let* ((props (ed::style styles ,type ,class))
 			(font-weight (ed::style-property props :font-weight))
 			(margin-left (ed::style-property props :margin-left))
 			(margin-right (ed::style-property props :margin-right)))
@@ -901,16 +1050,16 @@
 		   (if (or margin-left margin-right)
 		       (format stream
 			       "\\begin{adjustwidth}{\\textwidth * ~A}{\\textwidth * ~A}~%"
-			       (style-to-latex-size margin-left)
-			       (style-to-latex-size margin-right)))
+			       (style-size-to-portion margin-left)
+			       (style-size-to-portion margin-right)))
 		   (let ((width (ed::style-property props :width)))
 		     (if width
 			 (format stream
 				 "\\changetext{}{- \\textwidth * ~A}{}{}{}~%"
-				 (- 1 (style-to-latex-size width)))))
-		   (and (string= margin-left "auto")
+				 (- 1 (style-size-to-portion width)))))
+		   (and (string= (string-upcase margin-left) "AUTO")
 			margin-right
-			(string= margin-right "auto")
+			(string= (string-upcase margin-right) "AUTO")
 			(format stream "\\centering~%")))
 	       '(let* ((props (ed::style styles type class))
 		       (font-weight (ed::style-property props :font-weight))
@@ -923,24 +1072,24 @@
 		  (if (or margin-left margin-right)
 		      (format stream
 			      "\\begin{adjustwidth}{\\textwidth * ~A}{\\textwidth * ~A}~%"
-			      (style-to-latex-size margin-left)
-			      (style-to-latex-size margin-right)))
+			      (style-size-to-portion margin-left)
+			      (style-size-to-portion margin-right)))
 		  (let ((width (ed::style-property props :width)))
 		    (if width
 			(format stream
 				"\\changetext{}{- \\textwidth * ~A}{}{}{}~%"
-				(- 1 (style-to-latex-size width)))))
-		  (and (string= margin-left "auto")
+				(- 1 (style-size-to-portion width)))))
+		  (and (string= (string-upcase margin-left) "AUTO")
 		       margin-right
-		       (string= margin-right "auto")
+		       (string= (string-upcase margin-right) "AUTO")
 		       (format stream "\\centering~%")))))
 	(end-wrap-styles (type class)
 	  ,(if (eval emit)
-	       '`(let* ((props (ed::style styles type class))
+	       '`(let* ((props (ed::style styles ,type ,class))
 			(font-weight (ed::style-property props :font-weight))
 			(width (ed::style-property props :width)))
 		   (if width
-		       (let ((ratio (- 1 (style-to-latex-size width))))
+		       (let ((ratio (style-size-to-portion width)))
 			 (format stream
 				 "\\changetext{}{\\textwidth * ~A / ~A - \\textwidth}{}{}{}~%"
 				 (denominator ratio)
@@ -954,7 +1103,7 @@
 		       (font-weight (ed::style-property props :font-weight))
 		       (width (ed::style-property props :width)))
 		  (if width
-		      (let ((ratio (style-to-latex-size width)))
+		      (let ((ratio (style-size-to-portion width)))
 			(format stream
 				"\\changetext{}{\\textwidth * ~A / ~A - \\textwidth}{}{}{}~%"
 				(denominator ratio)
@@ -1081,8 +1230,8 @@
 	     (let ((args (gnode-args node)))
 	       ,(if (eval emit)
 		    `(collect ((out))
-		       (out (if (car args)
-				,(begin-wrap-styles :ul (car args))))
+		       (out `(if ,(car args)
+				 ,(begin-wrap-styles :ul (car args))))
 		       (out '(format stream "\\begin{itemize}"))
 		       (loop for item = (gnode-content node) then (gnode-next item) while item do
 			 (out (open-line))
@@ -1090,8 +1239,8 @@
 			 (out `(setq last ,(write-generic-node item)))
 			 (out '(fresh-line stream)))
 		       (out '(format stream "\\end{itemize}~%"))
-		       (out (if (car args)
-				,(end-wrap-styles :ul (car args))))
+		       (out `(if ,(car args)
+				 ,(end-wrap-styles :ul (car args))))
 		       `(let ((last)) ,@(out) last))
 		    '(let ((last))
 		       (if (car args)
@@ -1113,11 +1262,11 @@
 		    ;;     return-from-many
 		    '`(progn
 			,(open-line)
-			(if (car args)
+			(if ,(car args)
 			    ,(begin-wrap-styles :p (car args)))
 			(prog1 ,(write-generic-nodes (gnode-content node))
 			  (fresh-line stream)
-			  (if (car args)
+			  (if ,(car args)
 			      ,(end-wrap-styles :p (car args)))))
 		    '(progn
 		       (open-line)
@@ -1132,13 +1281,47 @@
 	       ,(if (eval emit)
 		    '`(progn
 			,(open-line)
-			(format stream "\\section*{~A}" ,(car args))
-			,(write-generic-nodes (gnode-content node)))
+			(incf *section-depth*)
+			(unwind-protect
+			    (case *section-depth*
+			      (1
+			       (format stream "\\part*{~A}" ,(cadr args))
+			       ,(write-generic-nodes (gnode-content node)))
+			      (2
+			       (format stream "\\section*{~A}" ,(cadr args))
+			       ,(write-generic-nodes (gnode-content node)))
+			      (3
+			       (format stream "\\subsection*{~A}" ,(cadr args))
+			       ,(write-generic-nodes (gnode-content node)))
+			      (4
+			       (format stream "\\subsubsection*{~A}" ,(cadr args))
+			       ,(write-generic-nodes (gnode-content node)))
+			      (t
+			       (format stream "~A~%" ,(cadr args))
+			       ,(write-generic-nodes (gnode-content node))))
+			  (decf *section-depth*)))
 		    '(progn
 		       (open-line)
 		       (terpri stream)
-		       (format stream "\\section*{~A}" (car args))
-		       (write-generic-nodes (gnode-content node))))))
+		       (incf *section-depth*)
+		       (unwind-protect
+			   (case *section-depth*
+			     (1
+			      (format stream "\\part*{~A}" (cadr args))
+			      (write-generic-nodes (gnode-content node)))
+			     (2
+			      (format stream "\\section*{~A}" (cadr args))
+			      (write-generic-nodes (gnode-content node)))
+			     (3
+			      (format stream "\\subsection*{~A}" (cadr args))
+			      (write-generic-nodes (gnode-content node)))
+			     (4
+			      (format stream "\\subsubsection*{~A}" (cadr args))
+			      (write-generic-nodes (gnode-content node)))
+			     (t
+			      (format stream "~A~%" (cadr args))
+			      (write-generic-nodes (gnode-content node))))
+			 (decf *section-depth*))))))
 	    (table
 	     (let* ((rows (gnode-content node))
 		    (args (gnode-args node)))
@@ -1148,15 +1331,15 @@
 					  ,(buffer-rows rows))))
 			(when row-buffer
 			  ,(open-line)
-			  (if (car args)
+			  (if ,(car args)
 			      ,(begin-wrap-styles :table (car args)))
-			  (if (car args)
-			      (let* ((props (ed::style styles :table (car args)))
+			  (if ,(car args)
+			      (let* ((props (ed::style styles :table ,(car args)))
 				     (margin-left (ed::style-property props :margin-left))
 				     (margin-right (ed::style-property props :margin-right)))
 				(if (or margin-left margin-right)
-				    (let ((margin-left (style-to-latex-size margin-left))
-					  (margin-right (style-to-latex-size margin-right)))
+				    (let ((margin-left (style-size-to-portion margin-left))
+					  (margin-right (style-size-to-portion margin-right)))
 				      (format stream
 					      "\\begin{tabularx}{\\textwidth * ~A}{@{\\extracolsep{\\fill}}"
 					      (- 1 (+ margin-left margin-right))))
@@ -1173,10 +1356,9 @@
 			      for col = 0 then (1+ col) while node do
 			      ,(output-string '(car node))
 			      (if (cdr node) (write-string "&" stream)))
-			    (format stream "\\\\~%")
-			    (terpri stream))
+			    (format stream "\\\\~%"))
 			  (format stream "\\end{tabularx}~%")
-			  (if (car args)
+			  (if ,(car args)
 			      ,(end-wrap-styles :table (car args))))
 			t)
 		    '(let ((row-buffer (progn
@@ -1191,8 +1373,8 @@
 				    (margin-left (ed::style-property props :margin-left))
 				    (margin-right (ed::style-property props :margin-right)))
 			       (if (or margin-left margin-right)
-				   (let ((margin-left (style-to-latex-size margin-left))
-					 (margin-right (style-to-latex-size margin-right)))
+				   (let ((margin-left (style-size-to-portion margin-left))
+					 (margin-right (style-size-to-portion margin-right)))
 				     (format stream
 					     "\\begin{tabularx}{\\textwidth * ~A}{@{\\extracolsep{\\fill}}"
 					     (- 1 (+ margin-left margin-right))))
@@ -1209,8 +1391,7 @@
 			     for col = 0 then (1+ col) while node do
 			     (output-string (car node))
 			     (if (cdr node) (write-string "&" stream)))
-			   (format stream "\\\\")
-			   (terpri stream))
+			   (format stream "\\\\~%"))
 			 (format stream "\\end{tabularx}~%")
 			 (if (car args)
 			     (end-wrap-styles :table (car args))))
@@ -1220,14 +1401,14 @@
 	       ,(if (eval emit)
 		    '`(progn
 			,(open-line)
-			(if (car args)
+			(if ,(car args)
 			    ,(begin-wrap-styles :hr (car args)))
-			(let* ((props (ed::style styles :hr (car args)))
+			(let* ((props (ed::style styles :hr ,(car args)))
 			       (prop (ed::style-property props :width)))
 			  (if prop
-			      (format stream "\\rule{\\textwidth}~%")
+			      (format stream "\\rule{\\textwidth}{0.1pt}~%")
 			      (format stream "\\hrulefill~%")))
-			(if (car args)
+			(if ,(car args)
 			    ,(end-wrap-styles :hr (car args)))
 			t)
 		    `(progn
@@ -1242,6 +1423,33 @@
 		       (if (car args)
 			   (end-wrap-styles :hr (car args)))
 		       t))))
+	    (ref
+	     ,(if (eval emit)
+		  '`(let ((link (let* ((sstream (make-string-output-stream))
+				       (stream (lisp::make-indenting-stream sstream)))
+				  ,(write-generic-nodes (gnode-content node))
+				  (get-output-stream-string sstream))))
+		      (format stream "\\url{~A}"
+;			      link
+			      (if (string= (string-upcase (safe-subseq link 0 7))
+					   "MAILTO:")
+				  (encode-email (safe-subseq link 7))
+				  link)))
+		  ;; Simulate binding of `stream', as "call" to
+		  ;; write-generic-node jumps out of binding.
+		  '(let ((link (let* ((sstream (make-string-output-stream))
+				      (old-stream stream))
+				 (setq stream (lisp::make-indenting-stream sstream))
+				 (unwind-protect
+				     (write-generic-nodes (gnode-content node))
+				   (setq stream old-stream))
+				 (get-output-stream-string sstream))))
+		     (format stream "\\url{~A}"
+;			     link
+			     (if (string= (string-upcase (safe-subseq link 0 7))
+					  "MAILTO:")
+				 (encode-email (safe-subseq link 7))
+				 link)))))
 	    (string
 	     ,(if (eval emit)
 		  '(output-string
@@ -1293,6 +1501,7 @@
 \\usepackage{titlesec}
 \\usepackage{chngpage}
 \\usepackage{calc}
+\\usepackage{url}
 
 %\\geometry{verbose,a4paper,tmargin=5mm}
 \\geometry{verbose,a4paper,tmargin=24mm,bottom=24mm}
@@ -1302,7 +1511,8 @@
 \\setlength{\\parskip}{\\smallskipamount}
 \\setlength{\\parindent}{0pt}
 
-\\titleformat{\\section}{\\normalsize}{\\thesection.}{}{\\bfseries}[\\titlerule]
+\\titleformat{\\part}{\\normalsize}{\\thepart.}{}{\\bfseries}[\\titlerule]
+\\titleformat{\\section}{\\normalsize}{\\thesection.}{}{\\bfseries}
 
 % nice, but causes 0 width html columns from latex2html
 %\\newlength{\\datecollen}
@@ -1317,9 +1527,11 @@
     `(defun ,name (&optional (stream *standard-output*)
 			     styles
 			     (*indent* 0))
+       "Write a particular LaTeX document on STREAM according to STYLES
+	with FILL-WIDTH."
        (let ((stream (lisp::make-indenting-stream stream))
-	     (*column-widths*) (*first)
-	     (*title*) *indents*)
+	     (*column-widths*) (*first* t) (*section-depth* 0)
+	     *indents*)
 	 (begin-latex stream)
 	 ,(write-generic-nodes (eval nodes))
 	 (format stream "\\end{document}~%")))))
@@ -1339,10 +1551,11 @@
   "Write the document described by NODES to STREAM as LaTeX."
   ;; FIX stream may already be indenting?
   (let ((stream (lisp::make-indenting-stream stream))
-	(*column-widths*) (*first* t))
+	(*column-widths*) (*first* t) (*section-depth* 0))
     (begin-latex stream)
     (%doc-to-latex nodes stream styles *indent* *indents*)
     (format stream "\\end{document}~%")))
 
 
-;;; FIX odt, docbook, man, texinfo, svg, xml, ontology, vym
+;;; FIX odt, docbook, man, texinfo, svg, xml, ontology?, vym
+;;;     will be much quicker if interp,compile case combined

@@ -18,8 +18,11 @@
 	  write-char write-string write-line terpri fresh-line
 	  finish-output force-output clear-output write-byte
           stream streamp string-stream
+	  transfer
 	  *standard-input* *standard-output*
           *error-output* *query-io* *debug-io* *terminal-io* *trace-output*))
+
+;; FIX insertable-stream?
 
 (in-package "SYSTEM")
 (export '(make-indenting-stream read-n-bytes))
@@ -1600,6 +1603,14 @@
     (if (lisp-stream-p target)
 	(funcall (lisp-stream-sout target) target str 0 len)
 	(stream-write-string target str 0 len))))
+
+
+;;;; Transfer.
+
+(defun transfer (in out)
+  "Read to the end of stream IN, writing the content to stream OUT."
+  (loop for line = (read-line in ()) while line do
+    (write-line line out)))
 
 
 ;;;; Public interface from "EXTENSIONS" package.

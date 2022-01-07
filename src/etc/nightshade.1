@@ -8,13 +8,14 @@ nightshade \- Lisp environment
 .B nightshade
 [input-files] [switch-list]
 .SH DESCRIPTION
-.I nightshade
-starts up the Nightshade Lisp environment.  If
+Start the Nightshade Lisp environment.  If
 .I switch-list
-is empty, then Nightshade will enter a read-eval-print loop using
+is empty, then enter a read-eval-print loop using
 stdin, stdout and stderr.  The optional
 .I input-files
-provide operands for some switches.  These switches are defined:
+provide operands for certain switches.
+
+The following switches are defined:
 .
 .TP 10n
 .BR \-core " filename"
@@ -22,7 +23,7 @@ Specifies the suspended image (or `core file') to start up.  The default
 is `lib/lisp.core'.
 .TP
 .BR \-edit
-Causes Nightshade to enter the editor.
+Enter the editor.
 A file to edit may be specified by
 placing the name of the file between the program name (usually `nightshade') and
 the first switch.
@@ -35,9 +36,9 @@ it is wrapped in a form that does output.
 .TP
 .BR \-init " filename"
 Specifies the name of a file containing user customizations to be
-loaded each time Nightshade starts up (default ~/nightshade.lisp or ~/.nightshade.lisp).
+loaded (default ~/nightshade.lisp or ~/.nightshade.lisp).
 The loader
-loads any existing compiled versions of these files, else the source.
+loads any compiled version of these files, else the source.
 .TP
 .BR \-einit " filename"
 Similar to \-init, but specifies the name of the editor
@@ -49,7 +50,7 @@ Suppresses loading of the init file, and also prevents \-edit from loading the
 editor init file.
 .TP
 .BR \-load " filename"
-Loads the specified file into Nightshade before entering the read-eval-print loop.
+Loads the specified file before entering the read-eval-print loop.
 .TP
 .BR \-slave " editor-name"
 Specifies that Lisp should start up as a

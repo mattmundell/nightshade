@@ -7,13 +7,13 @@
 	  pathname-host pathname-device pathname-directory pathname-name
 	  pathname-type pathname-version namestring file-namestring
 	  directory-namestring host-namestring enough-namestring
-	  wild-pathname-p pathname-match-p translate-pathname
+	  wild-pathname-p common-prefix pathname-match-p translate-pathname
 	  translate-logical-pathname logical-pathname-translations
 	  load-logical-pathname-translations *default-pathname-defaults*))
 
 (in-package "EXTENSIONS")
 (export '(search-list search-list-defined-p clear-search-list
-		      enumerate-search-list))
+	  enumerate-search-list))
 
 (in-package "LISP")
 
@@ -343,8 +343,8 @@
 	 (and (pattern-p wild) (pattern= thing wild)))
 	(integer
 	 ;; an integer (version number) is matched by :WILD or the same
-	 ;; integer.  This branch will actually always be NIL as long is the
-	 ;; version is a fixnum.
+	 ;; integer.  This branch will actually always be NIL as long as
+	 ;; the version is a fixnum.
 	 (eql thing wild)))))
 
 ;;; COMPARE-COMPONENT  -- Internal
@@ -600,8 +600,8 @@
 			   (version nil versionp)
 			   defaults
 			   (case :local))
-  "Makes a new pathname from the component arguments.  Note that host is
-a host-structure or string."
+  "Makes a new pathname from the component arguments.  Host can be a
+   host-structure or string."
   (declare (type (or string host component-tokens) host)
 	   (type (or string component-tokens) device)
 	   (type (or list string pattern component-tokens) directory)
@@ -818,34 +818,34 @@ a host-structure or string."
 
 ;;; PARSE-NAMESTRING -- Interface
 ;;;
-(defun parse-namestring (thing
+(defun parse-namestring (pathname
 			 &optional host (defaults *default-pathname-defaults*)
 			 &key (start 0) end junk-allowed)
-  "Converts pathname, a pathname designator, into a pathname structure,
-   for a physical pathname, returns the printed representation. Host may be
-   a physical host structure or host namestring."
-  (declare (type path-designator thing)
+  "Converts Pathname, a pathname designator, into a pathname structure, for a
+   physical pathname, returns the printed representation. Host may be a
+   physical host structure or host namestring."
+  (declare (type path-designator pathname)
 	   (type (or null host) host)
 	   (type pathname defaults)
 	   (type index start)
 	   (type (or index null) end))
-    (etypecase thing
+    (etypecase pathname
       (simple-string
-       (%parse-namestring thing host defaults start end junk-allowed))
+       (%parse-namestring pathname host defaults start end junk-allowed))
       (string
-       (%parse-namestring (coerce thing 'simple-string)
+       (%parse-namestring (coerce pathname 'simple-string)
 			  host defaults start end junk-allowed))
       (pathname
        (let ((host (if host host (%pathname-host defaults))))
-	 (or (eq host (%pathname-host thing))
+	 (or (eq host (%pathname-host pathname))
 	     (error "Hosts do not match: ~S and ~S."
-		    host (%pathname-host thing))))
-       (values thing start))
+		    host (%pathname-host pathname))))
+       (values pathname start))
       (stream
-       (let ((name (file-name thing)))
+       (let ((name (file-name pathname)))
 	 (or name
 	     (error "Can't figure out the file associated with stream:~%  ~S"
-		    thing))
+		    pathname))
 	 (values name nil)))))
 
 ;;; NAMESTRING -- Interface
@@ -947,6 +947,32 @@ a host-structure or string."
 	(:name (frob (%pathname-name pathname)))
 	(:type (frob (%pathname-type pathname)))
 	(:version (frob (%pathname-version pathname)))))))
+
+;;; COMMON-PREFIX
+;;;
+(defun common-prefix (pathname)
+  "Return a pathname representing all of Pathname that comes before the
+   first wild entry."
+  (declare (type path-designator pathname))
+  (with-pathname (pathname pathname)
+    (collect ((prefix-dir))
+      (let ((wild))
+	(loop for node in (pathname-directory pathname)
+	  while node
+	  do
+	  (when (eq node :WILD)
+	    (setq wild t)
+	    (return))
+	  (prefix-dir node))
+	(flet ((or-wild (x) (fi (eq x :wild) x)))
+	  (let* ((name (fi wild (or-wild (pathname-name pathname))))
+		 (type (if name (or-wild (pathname-type pathname)))))
+	    (make-pathname :host (pathname-host pathname)
+			   :device (pathname-device pathname) ; FIX can be wild?
+			   :directory (prefix-dir)
+			   :name name
+			   :type type
+			   :version (fi type (or-wild (pathname-version pathname))))))))))
 
 ;;; PATHNAME-MATCH-P -- Interface
 ;;;
@@ -1638,7 +1664,7 @@ a host-structure or string."
 			  :offset (cdadr chunks)))))
 	(parse-host (logical-chunkify namestr start end)))
       (values host :unspecific
-	      (and (not (equal (directory)'(:absolute)))(directory))
+	      (fi (equal (directory) '(:absolute)) (directory))
 	      name type version))))
 
 ;;; Can't defvar here because not all host methods are loaded yet.

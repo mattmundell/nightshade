@@ -115,7 +115,7 @@
   (or rule
       (setq rule (prompt-for-string :prompt "Rule Search: "
 				    ;; FIX this prints the surrounding parens
-				    :default (format nil "~S" *last-rule-search-rule*)
+				    :default (format () "~S" *last-rule-search-rule*)
 				    :help "Rule for which to find a match.")))
   (let* ((pattern (get-rule-search-pattern (cons 'group
 						 (read-list-from-string rule))

@@ -647,6 +647,10 @@
 (bind-key "Message Help" #k"?" :mode "Message")
 (bind-key "Fill Paragraph Respect Comment" #k"meta-q" :mode "Message")
 (bind-key "Toggle Message Headers" #k"hyper-s h" :mode "Message")
+(bind-key "View MIME Part" #k"return" :mode "Message")
+(bind-key "Next MIME Part" #k"tab" :mode "Message")
+(bind-key "Previous MIME Part" #k"meta-tab" :mode "Message")
+(bind-key "Save MIME Part" #k"s" :mode "Message")
 
 ;;; Draft mode.
 ;;;
@@ -935,6 +939,7 @@
 (bind-key "Dired Rename File" #k"r" :mode "Dired")
 (bind-key "Dired Rename with Wildcard" #k"R" :mode "Dired")
 (bind-key "Dired Symlink File" #k"l" :mode "Dired")
+(bind-key "Dired Touch File" #k"T" :mode "Dired")
 (bind-key "Dired Compare Files" #k"=" :mode "Dired")
 (bind-key "Dired Shell Command on File" #k"!" :mode "Dired")
 (bind-key "Dired WWW File" #k"W" :mode "Dired")

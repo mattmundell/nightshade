@@ -13,12 +13,19 @@
 	  create-folder delete-folder sort-folder pack-folder summarize-folder
 	  list-folders print-folders
 	  ;;
-	  summarize-message delete-message mark-message mark-messages
-	  move-messages show-messages delete-messages summarize-messages
+	  annotate-message delete-message get-part mark-message write-headers
+	  write-message resend-message summarize-message
+	  ;;
+	  draft-forward draft-new draft-reply draft-resend
+	  ;;
+	  delete-messages deliver-messages mark-messages move-messages
+	  pick-messages show-messages split-messages summarize-messages
 	  ;;
 	  make-drop new-mail-p incorporate))
 
 ;; FIX current message (sequence) handling
+
+;; FIX always use get-field
 
 
 ;;;; User profile variables.
@@ -29,26 +36,58 @@
 (defvar *draft-folder* "drafts"
   "Name of draft folder.")
 
+(defvar *smtp-server* "localhost"
+  "Name of SMTP server.")
+
 (defvar *maildrop* "/var/spool/mail/matt" ; FIX
   "Pathname of mail drop.")
 
 (defvar *unseen-sequence* "in"
   "Name of sequence for new mail.")
 
-(defvar *repl* "-cc all -nocc me -fcc archive/misc"
-  "FIX reply control.")
+(defvar *reply-archive* "archive/misc"
+  "Last resort folder in which to archive replies.")
 
-;FIX rmmproc: /bin/rm
-
-(defvar *alternate-mailboxes* '("m.mundell@tao-group.com"
-				"matt@zen.co.za"
-				"mundell@pop3.ukfsn.org"
-				"mattm@comp.leeds.ac.uk"
-				"mmundell@tao-group.com") ; FIX
-  "Alternate addresses.")
+(defun archive-for-reply (folder message)
+  "Return the folder in which to archive a reply to MESSAGE from FOLDER."
+  (declare (ignore message))
+  (let ((folder (strip-folder-name folder)))
+    (case= folder
+      ("inbox" *reply-archive*)
+      (t folder))))
 
 (defvar *signature* "Matthew Mundell"  ; FIX
   "Signature")
+
+(defvar *address* "matt@mundell.ukfsn.org"  ; FIX
+  "Email address.  Last resort for address-for-reply-to and
+   address-for-from.")
+
+(defvar *alternate-addresses* '("m.mundell@tao-group.com"
+				"matt@zen.co.za"
+				"mundell@pop3.ukfsn.org"
+				"mundell@ukfsn.org"
+				"mattm@comp.leeds.ac.uk"
+				"mmundell@tao-group.com") ; FIX
+  "A list of alternate addresses, as strings.")
+
+(defun address-for-reply-to (folder message)
+  "Return the address for the reply-to field of a reply to MESSAGE from
+   FOLDER."
+  (declare (ignore message))
+  (let ((folder (strip-folder-name folder)))
+    (case= folder
+      ("inbox" *address*)
+      (t *address*))))
+
+(defun address-for-from (folder message)
+  "Return the address for the from field of a reply to MESSAGE from
+   FOLDER."
+  (declare (ignore message))
+  (let ((folder (strip-folder-name folder)))
+    (case= folder
+      ("inbox" *address*)
+      (t *address*))))
 
 
 ;;;; Structure.
@@ -67,9 +106,17 @@
   sequences)  ; List of (sequence-name ((msg | (start . end))*)) lists.
 
 
+;;;; Date
+
+(defun write-date-field (name stream &optional (date (get-universal-time)))
+  (format stream "~A: " name)
+  (format-universal-time stream date :style :rfc1123 :print-weekday ())
+  (terpri stream))
+
+
 ;;;; Profile.
 
-(defvar *profile-pathname* nil)
+(defvar *profile-pathname* ())
 
 (defun profile-pathname ()
   "Returns the pathname of the MH profile."
@@ -494,7 +541,7 @@
 	       (let ((id (parse-integer seq)))
 		 (seqs (cons id id))))))
 	  (values (seqs) t))
-	(values () ()))))
+	(values () ()))))  ;; (values)?
 
 (defun update-sequences (folder-info)
   "Update the sequences in FOLDER-INFO and the .mh_sequences file in the
@@ -545,6 +592,8 @@
       (format stream "~A:" (car sequence))
       (dolist (message (cdr sequence))
 	(etypecase message
+	  (integer ;; FIX integers allowed?
+	   (format stream " ~A" message))
 	  (string
 	   (format stream " ~A" message))
 	  (list
@@ -618,7 +667,7 @@
     (multiple-value-bind (winp err)
 			 (unix:unix-mkdir name (or protection #o711))
       (or winp
-	  (error "Couldn't make directory ~S: ~A"
+	  (error "Failed to make directory ~S: ~A"
 		 name
 		 (unix:get-unix-error-msg err)))
       (setf (getstring folder (get-folder-table)) t))))
@@ -673,7 +722,7 @@
   (do-folders folder
     (format stream "~A~A~%" prefix folder)))
 
-(defun read-message (input output)
+(defun transfer-message (input output)
   "Write a single message from INPUT on OUTPUT."
   (loop
     for line = (read-line input ()) while line do
@@ -709,7 +758,7 @@
 		      (if file
 			  (file-write-date file)
 			  (get-universal-time)))))
-	(push (cons "Universal-date" uni) alist))
+	(push (cons "Universal-Date" uni) alist))
       alist)))
 
 (defun cache-folder (folder)
@@ -753,13 +802,27 @@
       ((t)
        (cache-folder folder))
       ((())
-       (error "Folder should be in *folder-table* already."))
+       (error "~A should be in *folder-table* already." folder))
       (t
        (let ((date (file-write-date dir)))
 	 (or date (error "Failed to read modification time on ~A." dir))
-	 (if (equal (folder-info-write-date info) date)
-	     info
-	     (cache-folder folder)))))))
+#|
+	 ;; FIX This is too slow, rely instead on the draft message
+	 ;;     modifier updating the folder write date.
+	 (if (equal dir (draft-folder-pathname))
+	     ;; Scan the draft folder every time, as draft messages can be
+	     ;; modified.
+	     (cache-folder folder)
+|#
+	     ;; FIX assumes normal msgs always stay the same
+	     ;;       eg might need to update if a msg has been annotated
+	     (if (equal (folder-info-write-date info) date)
+		 info
+		 (cache-folder folder))
+#|
+	     )
+|#
+	 )))))
 
 ;;; Public.
 ;;;
@@ -876,10 +939,11 @@
 ;;;; Fields.
 
 (defvar *body-scan-length* 50
-  "Maximun number of characters to scan from message body.")
+  "Maximum number of characters to scan from message body.")
 
 (defun read-field (stream)
-  "Read and return name and text of next field in STREAM."
+  "Read and return name and text of next field in STREAM.  For the body
+   field also return the position of the start of the body."
   (let ((char (read-char stream nil)))
     (when char
       (if (member char '(#\newline #\- #\return))
@@ -887,13 +951,14 @@
 	  (let ((body (make-string *body-scan-length* :initial-element #\ )))
 	    (loop for ch = char then (read-char stream nil) while ch do
 	      (if (char= ch #\newline) (return)))
-	    (loop for len from 0 to (1- *body-scan-length*)
-	      for char = (read-char stream nil)
-	      while char do
-	      (setf (char body len)
-		    (cond ((member char '(#\tab #\newline #\return #\null)) #\space)
-			  (t char))))
-	    (values :body body))
+	    (let ((pos (file-position stream)))
+	      (loop for len from 0 to (1- *body-scan-length*)
+		for char = (read-char stream nil)
+		while char do
+		(setf (char body len)
+		      (cond ((member char '(#\tab #\newline #\return #\null)) #\space)
+			    (t char))))
+	      (values :body body pos)))
 	  ;; Field.
 	  (let ((text))
 	    (unread-char char stream)
@@ -919,24 +984,20 @@
 				      (1- line-length)
 				      line-length)))
 		    ;; More lines.
-		    (loop for char = (read-char stream nil) while char do
+		    (loop for char = (read-char stream ()) while char do
 		      (unread-char char stream)
 		      (or (char= char #\space)
 			  (char= char #\tab)
 			  (return))
 		      (let* ((line (read-line stream))
-			     (pos 0)
 			     (line-length (length line)))
-			;; FIX ensure pos stays within string
-			(loop for po from pos to (1- line-length)
-			  for char = (char line po)
-			  while (or (char= char #\space) (char= char #\tab)) do
-			  (incf pos))
+			;; Keep the leading space of these lines, so that
+			;; it is written if this message is sent.
 			;; FIX ^M check
 			(setq text
 			      (concat text
 				      (string #\newline)
-				      (subseq line pos
+				      (subseq line 0
 					      (if (char= (char line
 							       (1- line-length))
 							 #\return)
@@ -947,18 +1008,23 @@
 (defun read-fields (stream)
   "Return an alist of the fields in the first message in STREAM.  The
    message body excerpt has key :body."
-  (let ((alist))
+  (collect ((alist))
     (loop
-      (multiple-value-bind (name text)
+      (multiple-value-bind (name text pos)
 			   (read-field stream)
 	(or name (return))
-	(push (cons (if (stringp name)
-			(nstring-capitalize name)
-			name)
-		    text)
-	      alist)
-	(if (equal name :body) (return))))
-    alist))
+	(when (eq name :body)
+	  (alist (list (if (stringp name)
+			   (nstring-capitalize name)
+			   name)
+		       text
+		       pos))
+	  (return))
+	(alist (cons (if (stringp name)
+			 (nstring-capitalize name)
+			 name)
+		     text))))
+    (alist)))
 
 (defun strip-date (date)
   "Return a short date from DATE field.  Throw an error if the parse
@@ -1059,14 +1125,17 @@
    name and ENTRY bound to the cache entry for the message.  MESSAGES can
    be a single message or a list or messages.  A message in MESSAGES can be
    a (start-id-string . end-id-string) range, the name of a sequence or a
-   message id string."
+   message id string.  If MESSAGES is () do all messages in folder."
   (let ((id (gensym))
 	(sequence (gensym))
 	(folder-messages (gensym))
 	(sequences (gensym)))
     `(let ((,folder-messages (folder-info-messages ,folder-info))
 	   (,sequences (folder-info-sequences ,folder-info)))
-       (dolist (,message (if (listp ,messages) ,messages (list ,messages)))
+       (dolist (,message
+		(if ,messages
+		    (if (listp ,messages) ,messages (list ,messages))
+		    (mapcar #'car ,folder-messages)))
 	 ;; FIX hack to allow "4-7" temp'ly, maybe should be perm
 	 (when (stringp ,message)
 	   (let ((,id (position #\- ,message)))
@@ -1082,14 +1151,14 @@
 	               to (parse-integer (cdr ,message))
 	       do
 	       (let* ((,message (number-string ,id))
-		      (,entry (cdr (assoc ,message ,folder-messages
-					  :test #'string=))))
+		      (,entry (assoc ,message ,folder-messages
+				     :test #'string=)))
 		 (or ,entry
 		     (error "Failed to find range message ~A in ~A cache."
 			    ,message ,folder))
 		 ,@body))
-	     (let ((,entry (cdr (assoc ,message ,folder-messages
-				       :test #'string=))))
+	     (let ((,entry (assoc ,message ,folder-messages
+				  :test #'string=)))
 	       (if ,entry
 		   (progn
 		     ,@body)
@@ -1097,8 +1166,8 @@
 					     :test #'string=))))
 		     (if ,sequence
 			 (do-sequence (,message ,sequence)
-			   (let ((,entry (cdr (assoc ,message ,folder-messages
-						     :test #'string=))))
+			   (let ((,entry (assoc ,message ,folder-messages
+						:test #'string=)))
 			     (or ,entry
 				 (error
 				  "Failed to find sequence message ~A in ~A cache."
@@ -1125,9 +1194,9 @@
     (let ((alist (read-fields input)))
       (when alist
 	(let ((from (cdr (assoc "From" alist :test #'string=)))
-	      (body (cdr (assoc :body alist)))
+	      (body (cadr (assoc :body alist)))
 	      (date (cdr (assoc "Date" alist :test #'string=))))
-	  (dolist (box (cons *signature* *alternate-mailboxes*)
+	  (dolist (box (cons *signature* *alternate-addresses*)
 		       (setq from (strip-name from)))
 	    (when (search box from)
 	      (setq from (concat "To: "
@@ -1200,8 +1269,8 @@
 ;;;; Messages.
 
 (defun message-older (msg1 msg2)
-  (let ((date1 (cdr (assoc "Universal-date" (cdr msg1) :test #'string=)))
-	(date2 (cdr (assoc "Universal-date" (cdr msg2) :test #'string=))))
+  (let ((date1 (cdr (assoc "Universal-Date" (cdr msg1) :test #'string=)))
+	(date2 (cdr (assoc "Universal-Date" (cdr msg2) :test #'string=))))
     (if date2
 	(if date1
 	    (if (<= date1 date2) t ())
@@ -1334,6 +1403,815 @@
 	    (setf (current-message folder) (highest folder-info)))
 	(update-sequences folder-info)))))
 
+(declaim (inline get-field get-body))
+
+(defun get-field (entry field)
+  (assoc field (cdr entry) :test #'string=))
+
+(defun get-body (entry)
+  (assoc :body (cdr entry)))
+
+(declaim (special *entry*))
+
+(defun cc (string)
+  "Return true if STRING is a substring of the Cc field of *entry*."
+  (search string (cdr (get-field *entry* "Cc"))))
+
+(defun f-cc (string)
+  "With case folding, return true if STRING is a substring of the Cc field
+   of *entry*."
+  (search (string-upcase string)
+	  (string-upcase (cdr (or (get-field *entry* "Cc")
+				  (return-from f-cc))))))
+
+(defun from (string)
+  "Return true if STRING is a substring of the From field of *entry*."
+  (search string (cdr (get-field *entry* "From"))))
+
+(defun f-from (string)
+  "With case folding, return true if STRING is a substring of the From
+   field of *entry*."
+  ;; FIX (let ((*case-fold* t)) ...
+  (search (string-upcase string)
+	  (string-upcase (cdr (or (get-field *entry* "From")
+				  (return-from f-from))))))
+
+(defun to (string)
+  "Return true if STRING is a substring of the To field of *entry*."
+  (or (search string (cdr (get-field *entry* "Delivered-To")))
+      (search string (cdr (get-field *entry* "To")))))
+
+;; FIX finish rest of folding functions
+
+; (defun f-to (string)
+;   "With case folding, return true if STRING is a substring of the To field of *entry*."
+;   (or (search string (cdr (get-field *entry* "Delivered-To")))
+;       (search string (cdr (get-field *entry* "To")))))
+
+(defun subject (string)
+  "Return true if STRING is a substring of the Subject field of *entry*."
+  (search string (cdr (get-field *entry* "Subject"))))
+
+(defun f-subject (string)
+  "With case folding, return true if STRING is a substring of the Subject
+   field of *entry*."
+  (search (string-upcase string)
+	  (string-upcase (cdr (or (get-field *entry* "Subject")
+				  (return-from f-subject))))))
+
+(defun content (string)
+  "Return true if STRING is a substring any part of message *entry*.
+   Expect to be called in the directory in which *entry* resides."
+  (with-open-file (input (car *entry*) :direction :input)
+    (loop for line = (read-line input ()) while line do
+      (if (search string line)
+	  (return-from content t)))))
+
+(defun date (string &optional (field "Date"))
+  "Return true if STRING is a substring of FIELD in *entry*."
+  (search string (cdr (get-field *entry* field))))
+
+(defun f-date (string &optional (field "Date"))
+  "With case folding, return true if STRING is a substring of FIELD in
+   *entry*."
+  (search string (cdr (get-field *entry* field))))
+
+(defun before (date &optional (field "Date"))
+  "Return true if string DATE is earlier than FIELD in *entry*.  Expect the
+   current directory to be the one in which *entry* resides."
+  (> (or (parse-time date) (return-from before))
+     (or (parse-time (cdr (or (get-field *entry* field)
+			      (return-from before))))
+	 (return-from before))))
+
+(defun after (date &optional (field "Date"))
+  "Return true if string DATE is later than FIELD in *entry*.  Expect the
+   current directory to be the one in which *entry* resides."
+  (< (or (parse-time date) (return-from after))
+     (or (parse-time (cdr (or (get-field *entry* field)
+			      (return-from after))))
+	 (return-from after))))
+
+(defun -- (field string)
+  "Return true if STRING is a substring of FIELD in *entry*."
+  (search string (cdr (get-field *entry* field))))
+
+(defun f--- (field string)
+  "With case folding, return true if STRING is a substring of FIELD in
+   *entry*."
+  (search (string-upcase string)
+	  (string-upcase (cdr (or (get-field *entry* field)
+				  (return-from f---))))))
+
+;;; Public.
+;;;
+(defun pick-messages (folder messages expression)
+  "Return the list of message from MESSAGES in FOLDER that are described by
+   EXPRESSION."
+  (let ((folder-info (scan-folder folder)))
+    (collect ((pick) (msgs))
+      ;; Expand messages into a list of messages.
+      (in-directory (folder-pathname folder)
+	(do-messages (message entry messages folder folder-info)
+		     (msgs message))
+	(fi expression
+	    (msgs)
+	    (let ((folder-msgs (folder-info-messages folder-info)))
+	      (in-package "MH")
+	      (loop for message in (msgs) do
+		(let ((*entry* (assoc message folder-msgs :test #'string=)))
+		  (when *entry*
+		    (if (eval expression) (pick (car *entry*))))))
+	      (pick)))))))
+
+;;; Public.
+;;;
+(defun split-messages (folder rules refiler)
+  "Split the messages in FOLDER according to RULES using function REFILER.
+   REFILER is called with a source folder, message and destination folder."
+  (let* ((folder-info (scan-folder folder))
+	 (folder (coerce-folder-name folder))
+	 (msgs (folder-info-messages folder-info))
+	 (messages (if msgs (mapcar #'car msgs))))
+    (dolist (rule rules)
+      (or messages (return))
+      (loop for pick in (pick-messages folder messages (cadr rule)) do
+	(setq messages (delete pick messages))
+	(funcall refiler folder pick
+		 (mh:coerce-folder-name (car rule)))))))
+
+;; FIX when compiled:  XXX
+; 	Function with declared result type NIL returned:
+; 	   MH:DRAFT-NEW
+;      when byte-compiled:
+; 	Type-error in KERNEL::OBJECT-NOT-FUNCTION-ERROR-HANDLER:
+; 	   95822313 is not of type FUNCTION
+;
+(eval-when (eval load)
+
+;;; Public.
+;;;
+(defun draft-new (&optional (components-name "components") components)
+  "Draft a new message, returning the number of the draft.  Insert in the
+   message COMPONENTS if COMPONENTS is set, otherwise the contents of the
+   file named COMPONENTS-NAME in the mail directory if the file exists,
+   otherwise a simple set of headers."
+  (let* ((folder-info (scan-folder (draft-folder)))
+	 (new (1+ (highest folder-info)))
+	 (dir (draft-folder-pathname))
+	 (comppath (fi components
+		       (merge-pathnames components-name *directory*))))
+    ;; Create file.
+    ;;
+    (flet ((create-draft (dir name in)
+	     (with-open-file (out
+			      (merge-pathnames (string name) dir)
+			      :direction :output)
+	       (loop for line = (read-line in ()) while line do
+		 (write-line line out)))))
+      (cond (components
+	     (with-input-from-string (in components)
+	       (create-draft dir new in)))
+	    ((probe-file comppath)
+	     (with-open-file (in comppath :direction :input)
+	       (create-draft dir new in)))
+	    (t
+	     (with-input-from-string (in #.(format () "To:~%~
+						       cc:~%~
+						       Subject:~%~
+						       --------~%"))
+	       (create-draft dir new in)))))
+    ;; Update cache.
+    ;;
+    (setf (folder-info-highest folder-info) new)
+    (setf (folder-info-messages folder-info)
+	  ;; FIX should be sorted?
+	  (cons
+	   ;; Make a folder cache entry.
+	   (let* ((msg (string new))
+		  (pathname (merge-pathnames (string new) dir)))
+	     (cons msg
+		   (with-open-file (input pathname
+					  :direction :input)
+		     (or (scan-message input pathname)
+			 (error "Failed to scan new draft (~A in ~A)"
+				msg (draft-folder))))))
+	   (folder-info-messages folder-info)))
+    (setf (current-message (draft-folder)) new)
+    ;; Update folder cache write date.
+    (setf (folder-info-write-date folder-info) (file-write-date dir))
+    ;; Update cache and disk sequences.
+    (update-sequences folder-info)
+    new))
+
+;;; Public.
+;;;
+(defun draft-resend ()
+  "Create a resend draft."
+  (draft-new () (format () "Resent-To: ~%Resent-Cc: ~%")))
+
+;;; Public.
+;;;
+(defun draft-forward (folder message)
+  "Draft a forward of MESSAGE from FOLDER."
+  (with-open-file (in
+		   (merge-pathnames (string message)
+				    (folder-pathname folder))
+		   :direction :input)
+    (with-open-file (out
+		     (merge-pathnames (string (draft-new "forwcomps"))
+				      (draft-folder-pathname))
+		     :direction :output
+		     :if-does-not-exist :error
+		     :if-exists :append)
+      (format out "~&~%------- Forwarded Message~%~%")
+      (loop for line = (read-line in ()) while line do
+	(write-line line out))
+      (format out "~&------- End of Forwarded Message~%"))))
+
+;;; Public.
+;;;
+(defun draft-reply (folder message &optional cc)
+  "Draft a reply to MESSAGE from FOLDER.  CC can be :all, :others or ()."
+  (let* ((folder-info (scan-folder folder))
+	 (messages (folder-info-messages folder-info))
+	 (entry (assoc (string message) messages :test #'string=)))
+    (or entry (error "Failed to find ~A in ~A" message folder))
+    ; To: UKFSN Renewals <support@ukfsn.org>
+    ; cc: mundell@ukfsn.org
+    ; Fcc: archive/misc
+    ; Subject: Re: Your UKFSN account renewal
+    ; In-reply-to: Message of Sun, 25 Feb 2007 04:53:35 +0000.
+    ; 		<20070225045335.F24DEE6DAE@mail.ukfsn.org>
+    ; From: Matthew Mundell <matt@mundell.ukfsn.org>
+    ; Reply-To: matt@mundell.ukfsn.org
+    ; --------
+    (draft-new
+     ()
+     (format () "To: ~A~%~A~
+		 Fcc: ~A~%~
+		 Subject: Re: ~A~%~
+		 In-reply-to: Message of ~A.
+		 ~A~%~
+		 From: ~A <~A>~%~
+		 Reply-To: ~A~%~
+		 --------~%"
+	     (or (cdr (assoc "Reply-To" (cdr entry) :test #'string=))
+		 (cdr (assoc "From" (cdr entry) :test #'string=)))
+	     (ecase cc
+	       ;; FIX wrap at some col width
+	       (:all
+		(let* ((cc (cdr (assoc "Cc" (cdr entry)
+				       :test #'string=)))
+		       (to (cdr (assoc "To" (cdr entry)
+				       :test #'string=)))
+		       (to (if to
+			       (fi (loop for ad in
+				     (cons *address* *alternate-addresses*)
+				     do
+				     (if (search ad to) (return t)))
+				   (if cc
+				       (concat ", " to)
+				       to)))))
+		  (if (or to cc)
+		      (format () "Cc: ~A~A~%"
+			      (or cc "")
+			      (or to ""))
+		      "")))
+	       ;; FIX wrap at some col width
+	       ;; FIX This will split up an address containing , or ;.
+	       (:others
+		(let* ((cc (cdr (assoc "Cc" (cdr entry)
+				       :test #'string=)))
+		       (cc (if cc
+			       (let ((cc (split cc '(#\, #\;))))
+				 (collect ((others))
+				   (loop for from in cc do
+				     (or (loop for ad in
+					   (cons *address*
+						 *alternate-addresses*)
+					   do
+					   (if (search ad from)
+					       (return t)))
+					 (others from)))
+				   (others)))))
+		       (to (cdr (assoc "To" (cdr entry)
+				       :test #'string=)))
+		       (to (if to
+			       (fi (loop for ad in
+				     (cons *address* *alternate-addresses*)
+				     do
+				     (if (search ad to) (return t)))
+				   (if cc
+				       (concat ", " to)
+				       to)))))
+		  (if (or to cc)
+		      (format () "Cc: ~A~A~%"
+			      (if cc (string-trim '(#\space)
+						  (apply #'concatenate
+							 'simple-string cc))
+				  "")
+			      (or to ""))
+		      "")))
+	       ((()) ""))
+	     (archive-for-reply folder message)
+	     (let ((subject (cdr (assoc "Subject" (cdr entry)
+					:test #'string=))))
+	       (if (and (> (length subject) 2)
+			(string= (string-upcase subject) "RE:"
+				 :end1 3))
+		   (subseq subject
+			   (if (and (> (length subject) 3)
+				    (char= (char subject 3) #\ ))
+			       4
+			       3))
+		   subject))
+	     (cdr (assoc "Date" (cdr entry) :test #'string=))
+	     (cdr (assoc "Message-Id" (cdr entry) :test #'string=))
+	     *signature*
+	     (address-for-from folder message)
+	     (address-for-reply-to folder message)))))
+
+) ; eval-when
+
+(defun parse-address (string)
+  "Return the first email address in STRING and the position in string at
+   the end of the address."
+  (let ((at-pos (position #\@ string)))
+    (when at-pos
+      (let* ((string (substitute #\space #\newline string))
+	     (start (position #\space string
+			      :from-end t :end at-pos))
+	     (end (or (position #\space string :start at-pos)
+		      (length string))))
+	(if start (incf start) (setq start 0))
+	(if (char= (char string start) #\<) (incf start))
+	(if (char= (char string (1- end)) #\>) (decf end))
+	(values (subseq string start end) end)))))
+
+(defun finish-headers (stream from &optional msgid)
+  "Write delivery-time fields to STREAM."
+  (let ((time (get-universal-time)))
+    (write-date-field "Date" stream time)
+    (if msgid
+	(format stream "Message-ID: <~D.~D@~A>~%"
+		(unix:unix-getpid)
+		time
+		(machine-instance)))
+    (format stream "Sender: ~A~%" from)))
+
+;;; Public.
+;;;
+(defun deliver-messages (account messages &optional (folder (draft-folder)))
+  "Deliver MESSAGES from FOLDER via ACCOUNT.  Return t on success, else ()
+   and the error response."
+  (let* ((folder-info (scan-folder folder))
+	 (folder-messages (folder-info-messages folder-info))
+	 (folder-pathname (folder-pathname folder)))
+    (loop for message in messages do
+      (let ((entry (assoc (string message) folder-messages :test #'string=))
+	    (to))
+	(or entry (error "Failed to find ~A in ~A" message folder))
+	(if (get-field entry "Bcc") (error "Bcc"))
+	(if (get-field entry "Resent-Bcc") (error "Resent-Bcc"))
+	(let ((resent-to (get-field entry "Resent-to"))
+	      (resent-cc (get-field entry "Resent-cc")))
+	  (loop for string in
+	    (if (or resent-to resent-cc)
+		`(,resent-to ,resent-cc)
+		`(,(cdr (assoc "Cc" (cdr entry) :test #'string=))
+		  ,(cdr (assoc "To" (cdr entry) :test #'string=)))) do
+	    (loop
+	      (multiple-value-bind (address end)
+				   (parse-address string)
+		(or address (return))
+		(push address to)
+		(setq string (subseq string end)))))
+	  (or to (error "Message must have a destination address."))
+	  (let ((from (if (or resent-to resent-cc)
+			  (or (parse-address (cdr (assoc "Resent-from"
+							 (cdr entry)
+							 :test #'string=)))
+			      (error "Message must have a Resent-From address."))
+			  (or (parse-address (cdr (assoc "From" (cdr entry)
+							 :test #'string=)))
+			      (error "Message must have a From address.")))))
+	    (multiple-value-bind
+		(success error)
+		(internet:smtp-mail (stream to from account)
+		  (let* ((pos)
+			 (fcc-folder (cdr (get-field entry "Fcc")))
+			 (fcc-folder-info (if fcc-folder (scan-folder fcc-folder)))
+			 (fcc-message (if fcc-folder (1+ (highest fcc-folder-info))))
+			 (fcc (when fcc-folder
+				(ensure-directories-exist
+				 (folder-pathname fcc-folder))
+				(open (merge-pathnames
+				       (string fcc-message)
+				       (folder-pathname fcc-folder))
+				      :direction :io
+				      :if-does-not-exist :create
+				      :if-exists :error)))
+			 (stream (if fcc
+				     (make-broadcast-stream stream fcc)
+				     stream)))
+		    (loop for fields = (cdr entry) then (cdr fields)
+		      while fields do
+		      (case= (caar fields)
+			("Universal-Date" "Fcc")
+			(:body (setq pos (caddar fields)))
+			(t
+			 (format stream "~A: " (caar fields))
+			 (write-string (cdar fields) stream)
+			 (terpri stream))))
+		    (finish-headers stream from)
+		    (terpri stream)
+		    (with-open-file (in (merge-pathnames message folder-pathname)
+					:direction :input)
+		      (file-position in pos)
+		      (loop for line = (read-line in ()) while line do
+			(write-line line stream)))
+		    (when fcc
+		      (file-position fcc :start)
+		      (let ((alist (scan-message fcc)))
+			(when alist
+			  ;; Update the fcc folder cache.
+			  (push (cons (string fcc-message) alist)
+				; FIX msgs should be sorted?
+				;; FIX ok to push for first msg?
+				(folder-info-messages fcc-folder-info))
+			  (setf (folder-info-highest fcc-folder-info)
+				fcc-message)
+			  (setf (folder-info-write-date fcc-folder-info)
+				(file-write-date (folder-pathname fcc-folder)))))
+		      (close fcc))))
+	      (if success
+		  (delete-message folder message)
+		  (return-from deliver-messages (values () error)))))))))
+  t)
+
+;;; Public.
+;;;
+(defun write-headers (folder message stream &optional (headers t))
+  "Write headers of MESSAGE in FOLDER to STREAM.  Return t on success, else
+   ()."
+  (with-open-file (in (merge-pathnames message (folder-pathname folder))
+		      :direction :input
+		      :if-does-not-exist ())
+    (when in
+      (let* ((folder-info (scan-folder folder))
+	     (folder-messages (folder-info-messages folder-info))
+	     (entry (assoc (string message) folder-messages
+			   :test #'string=)))
+	(if (eq headers t)
+	    (loop for fields = (cdr entry) then (cdr fields)
+	      while fields do
+	      (let ((field (caar fields)))
+		(case= field
+		  ((:body "Universal-Date"))
+		  (t (format stream "~A: ~A~%"
+			     field (cdar fields))))))
+	    (loop for header in headers while header do
+	      (let ((field (get-field entry header)))
+		(if field
+		    (format stream "~A: ~A~%" (car field) (cdr field))))))
+	(terpri stream)))
+    t))
+
+#|
+(defun parse-content-type (entry)
+  (let ((field (cdr (get-field entry "Content-Type")))
+	type subtype start params)
+    (when field
+      (string-trim '(#\space) field)
+      (setq field (nsubstitute #\newline #\space field))
+      (let ((pos 0) (len (length field)))
+	(flet ((next (&optional (end-ok t))
+		 (incf pos)
+		 (if (eq pos len)
+		     (return-from parse-content-type
+				  (if end-ok
+				      (values type subtype))))))
+	  ;; Type.
+	  (setq type
+		(loop while (and (< pos len)
+				 (alphanumericp (char field pos)))
+		  finally return (string-downcase (subseq field 0 pos))
+		  do (incf pos)))
+	  (if (eq pos len)
+	      (return-from parse-content-type
+			   (values type subtype)))
+	  ;; Subtype.
+	  (when (char= (char field pos) #\/)
+	    (next)
+	    (loop while (char= (char field pos) #\space) do (next))
+	    (if (char= (char field pos) #\()
+		(error "FIX comment after /"))
+	    (setq start pos)
+	    (setq subtype
+		  (loop while (and (< pos len)
+				   (alphanumericp (char field pos)))
+		    finally return (string-downcase (subseq field start pos))
+		    do (incf pos)))
+	    (if (eq pos len)
+		(return-from parse-content-type
+			     (values type subtype))))
+	  (loop while (char= (char field pos) #\space) do (next))
+	  (if (char= (char field pos) #\()
+	      (error "FIX comment after subtype"))
+	  ;; Parameters.
+	  (loop while (char= (char field pos) #\;) do
+	    (next) ;; FIX if end str before param then err
+	    (loop while (char= (char field pos) #\space) do (next))
+	    (if (char= (char field pos) #\()
+		(error "FIX comment after ;"))
+
+	    )))
+      (values type subtype))))
+|#
+
+;;; Public.
+;;;
+;;; FIX This handles a minimal portion of the MIME part type.
+;;;
+(defun write-part (in out entry body-start ct-parser)
+  "Write the MIME part of ENTRY from IN to OUT, using CT-PARSER to parse
+   Content-Type fields.  BODY-START is the file position of the start of
+   the body."
+  (let ((field (cdr (get-field entry "Content-Type"))))
+    (when field
+      (string-trim '(#\space) field)
+      (setq field (nsubstitute #\space #\newline field))
+      ;; FIX ct-parser works around confinement of parsers
+      ;;     to ed pkg
+      (multiple-value-bind (type subtype params)
+			   (with-input-from-string
+			       (ct-stream field)
+			     (funcall ct-parser ct-stream))
+	(case= (string-downcase type)
+	  ("text"
+	   (file-position in body-start)
+	   (lisp:transfer in out))
+	  ("multipart"
+	   (let ((enc (cdr (get-field entry
+				      "Content-Transfer-Encoding"))))
+	     (if enc
+		 ;; FIX which encodings are really allowed?
+		 (or (string= enc "7bit") (string= enc "8bit")
+		     (error "Multipart encoding should be \"7bit\" or \"8bit\"."))))
+	   #|
+	   (format out "subtype: ~A~%" subtype)
+	   (format out "params: ~A~%" params)
+	   |#
+	   (let (boundary)
+	     (or (and params
+		      (setq boundary
+			    (cdr (assoc "boundary" params
+					:test #'string=))))
+		 (error "Multipart must have a \"boundary\" parameter."))
+	     (let ((boundary-len (+ (length boundary) 2)))
+	       (file-position in body-start)
+	       (collect ((parts))
+		 (let ((line (read-line in ()))
+		       (alternative (string= subtype "alternative")))
+		   (loop for endp = () do
+		     (fi (and (>= (length line) boundary-len)
+			      (char= (char line 0) #\-)
+			      (char= (char line 1) #\-)
+			      (string= line boundary
+				       :start1 2
+				       :end1 boundary-len))
+			 ;; Skip to first.
+			 (setq line (read-line in ()))
+			 (fi (eq (length line) boundary-len)
+			     (setq endp t)
+			     ;; Parse a part.
+			     ;; FIX this scans body too
+			     (let* ((fields (read-fields in))
+				    (displayp (and (eq (length fields) 1)
+						   (eq (caar fields) :body)))
+				    (type (cdr (get-field (cons :dummy fields)
+							  "Content-Type")))
+				    (pos (file-position out)))
+			       (when type
+				 (string-trim '(#\space) type)
+				 (setq type (nsubstitute #\space #\newline type))
+				 (multiple-value-bind (type subtype params)
+						      (with-input-from-string
+							  (ct-stream type)
+							(funcall ct-parser ct-stream))
+				   (case= type
+				     ("text"
+				      (case= subtype
+					("html"
+					 (format out
+						 "#FIX HTML part~%"))
+					("plain"
+					 (setq displayp t))))
+				     ("multipart"
+				      (write-part in out (cons :dummy fields)
+						  (caddr (get-body (cons :dummy fields)))
+						  ct-parser))
+				     (t
+				      (format out "#~A/~A [~A]~@[ ~A~]~%"
+					      type subtype
+					      (or (cdr (get-field (cons :dummy fields)
+								  "Content-Description"))
+						  "")
+					      params params)))))
+			       #|
+			       (loop for fields = fields then (cdr fields) while fields do
+				 (or (eq (caar fields) :body)
+				     (format out "~A: ~A~%" (caar fields) (cdar fields))))
+			       |#
+			       (file-position in (or (caddr (get-body (cons :dummy fields)))
+						     (error "Expected message body.")))
+			       (if displayp
+				   (loop for line = (read-line in ()) while line do
+				     (when (and (>= (length line) boundary-len)
+						(char= (char line 0) #\-)
+						(char= (char line 1) #\-)
+						(string= line boundary
+							 :start1 2
+							 :end1 boundary-len))
+				       (or (eq (length line) boundary-len)
+					   (setq endp t))
+				       (return))
+				     (format out "~A~%" line))
+				   (parts
+				    (list pos
+					  (with-output-to-string (part)
+					    (loop for line = (read-line in ()) while line do
+					      (when (and (>= (length line) boundary-len)
+							 (char= (char line 0) #\-)
+							 (char= (char line 1) #\-)
+							 (string= line boundary
+								  :start1 2
+								  :end1 boundary-len))
+						(or (eq (length line) boundary-len)
+						    (setq endp t))
+						(return))
+					      (format part "~A~%" line)))
+					  fields)))
+			       (if alternative (setq endp t)))))
+		     (when endp
+		       (pushnew (cons :parts (parts)) (cdr entry))
+		       (return))))))))
+	  (t
+	   (format out "FIX handle content type ~A~%" type)
+	   (format out "subtype: ~A~%" subtype)
+	   (format out "params: ~A~%" params)
+	   (format out "encoding: ~A~%"
+		   (cdr (get-field entry
+				   "Content-Transfer-Encoding")))))))))
+
+;;; Public.
+;;;
+(defun write-message (folder message stream &optional (headers t) ct-parser)
+  "Write MESSAGE in FOLDER to STREAM.  Return t on success, else ()."
+  (with-open-file (in (merge-pathnames message (folder-pathname folder))
+		      :direction :input
+		      :if-does-not-exist ())
+    (when in
+      (if (eq headers t)
+	  (lisp:transfer in stream)
+	  (let* ((folder-info (scan-folder folder))
+		 (folder-messages (folder-info-messages folder-info))
+		 (entry (assoc (string message) folder-messages
+			       :test #'string=))
+		 (body-start (caddr (get-body entry))))
+	    (or body-start (return-from write-message))
+	    ;; Write headers.
+	    (loop for header in headers while header do
+	      (let ((field (get-field entry header)))
+		(if field
+		    (format stream "~A: ~A~%" (car field) (cdr field)))))
+	    (terpri stream)
+	    ;; Transfer body.
+	    (let ((content-type (get-field entry "Mime-Version")))
+	      (fi content-type
+		  (progn
+		    (file-position in body-start)
+		    (lisp:transfer in stream))
+		  (progn
+		    (or (string= (cdr content-type) "1.0")
+			(error "Expected MIME version 1.0"))
+		    (write-part in stream entry body-start ct-parser))))))
+      t)))
+
+;;; Public.
+;;;
+(defun get-part (folder message position)
+  "Return the part at POSITION in written MESSAGE from FOLDER."
+  (let* ((folder-info (scan-folder folder))
+	 (messages (folder-info-messages folder-info))
+	 (entry (assoc (string message) messages :test #'string=))
+	 (part (assoc position (cdr (assoc :parts (cdr entry))))))
+    (when part
+      (let* ((part-fields (caddr part))
+	     (encoding (cdr (assoc "Content-Transfer-Encoding" part-fields
+				   :test #'string=))))
+	(ecase= encoding
+	  ("base64" (base64:base64-decode (cadr part))))))))
+
+;;; Public.
+;;;
+;;; FIX guessing this should only write certain fields from message into
+;;; the new draft (currently writes fields like message-id and
+;;; delivered-to).
+;;;
+(defun resend-message (account message folder draft-message
+			       &optional (draft-folder (draft-folder)))
+  "Resend MESSAGE in FOLDER via ACCOUNT, as defined by DRAFT-MESSAGE in
+   DRAFT-FOLDER."
+  (let* ((new (string (draft-new (merge-pathnames
+				  draft-message
+				  (folder-pathname draft-folder)))))
+	 (folder-info (scan-folder folder))
+	 (folder-messages (folder-info-messages folder-info))
+	 (folder-pathname (folder-pathname folder))
+	 (entry (assoc (string message) folder-messages :test #'string=))
+	 (draft-message (string draft-message))
+	 (draft-messages (folder-info-messages
+			  (scan-folder draft-folder))))
+    ;; FIX new must added to folder cache?
+    ;; Append the message to a copy of the draft, prepending any "Resent"
+    ;; field in the message with "Prev-".
+    (with-open-file (out (merge-pathnames new (folder-pathname draft-folder))
+			 :direction :output
+			 :if-exists :supersede)
+      (loop for field in (cdr entry) while field do
+	(let ((name (car field)))
+	  (if (and (stringp name)
+		   (> (length name) 7)
+		   (string= name "Resent-" :end1 7))
+	      (format out "Prev-Resent-~A: ~A~%"
+		      (subseq name 7) (cdr field))
+	      (case= name
+		("Universal-Date")
+		(:body ; FIX assumes body last
+		 ;; Write the resent fields from the draft.
+		 ;; FIX draft-message must be rescanned as ed has just modified the headers
+		 ;; FIX    a general problem w drafts?
+		 ;;           if msg has been mod'd should rescan
+		 ;;               maybe check file-write-date
+		 (let* ((entry (assoc draft-message draft-messages
+				      :test #'string=)))
+		   (loop for field in (cdr entry) while field do
+		     (or (eq (car field) :body)
+			 (string= (car field) "Universal-Date")
+			 (format out "~A: ~A~%" (car field) (cdr field)))))
+		 ;; Write the from and date resent fields.
+		 (or (get-field entry "Resent-From")
+		     (format out "Resent-From: ~A~%"
+			     (address-for-from folder message)))
+		 (or (get-field entry "Resent-Date")
+		     (write-date-field "Resent-Date" out))
+		 (terpri out)
+		 ;; Write the body.
+		 (with-open-file (in (merge-pathnames message
+						      folder-pathname))
+		   (file-position in (caddr field))
+		   (loop for line = (read-line in ()) while line do
+		     (write-line line out)))
+		 (return))
+		(t
+		 (format out "~A: ~A~%" (car field) (cdr field))))))))
+    ;; Send the newly created draft.
+    (multiple-value-bind (success response)
+			 (deliver-messages account (list new))
+      (if success
+	  (progn
+	    ;; FIX Annotate message being resent (the original message).
+	    (delete-message draft-folder draft-message)
+	    t)
+	  ;; FIX If fail delete new draft
+	  (progn
+	    (delete-message draft-folder draft-message)
+	    (values success response))))))
+
+;;; Public.
+;;;
+(defun annotate-message (folder message component &optional text (datep t))
+  "Annotate MESSAGE from FOLDER with COMPONENT.  If DATEP add a date
+   COMPONENT field.  If TEXT add a text component field (in addition to any
+   date field."
+  (or (plusp (length component)) (error "COMPONENT must have length."))
+  (let* ((folder-info (scan-folder folder))
+	 (messages (folder-info-messages folder-info))
+	 (entry (assoc (string message) messages :test #'string=))
+	 (tem (pick-temporary-file-name))
+	 (in-pathname (merge-pathnames (car entry) (folder-pathname folder))))
+    (with-open-file (out tem :direction :output)
+      (if datep
+	  (write-date-field component out))
+      (when text
+	(format out "~A: ~A~%" component text))
+      (with-open-file (in in-pathname :direction :input)
+	(loop for line = (read-line in ()) while line do
+	  (write-line line out)))
+      (rename-file out in-pathname))))
+
 
 ;;;; Drops.
 
@@ -1350,7 +2228,7 @@
 	     (&optional (location
 			 (or (cdr (assoc :mail ext:*environment-list*))
 			     (cdr (assoc :maildrop ext:*environment-list*))
-			     (profile-component "MailDrop")
+			     (profile-component "MailDrop") ; FIX
 			     (merge-pathnames
 			      (cdr (assoc :user ext:*environment-list*))
 			      "/usr/spool/mail/"))))))
@@ -1369,7 +2247,7 @@
 (defun make-pop-drop (type &key port timeout server user password)
   (%make-pop-drop type
 		  (make-inet-account server user password)
-		  (or port 110)  ; POP3 (POP2 109)
+		  (or port 110)  ; POP3 (POP2 is 109)
 		  (or timeout 10)))
 
 (defvar *drop-makers* '((:local . make-local-drop)
@@ -1470,7 +2348,7 @@
 					 :direction :io
 					 :if-does-not-exist :create
 					 :if-exists :error)
-			  (read-message in file-stream)
+			  (transfer-message in file-stream)
 			  (file-position file-stream :start)
 			  (let ((alist (scan-message file-stream)))
 			    (when alist

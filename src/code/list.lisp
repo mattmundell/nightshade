@@ -432,7 +432,7 @@
   thing)
 
 (defun t (&rest args)
-  "Returns t."
+  "Return t."
   (declare (ignore args))
   t)
 
@@ -968,6 +968,7 @@
 
 
 ;;; Functions for compatibility sake:
+;;; FIX always use others (member, assoc, delete)?
 
 (defun memq (item list)
   "Returns tail of list beginning with first element eq to item"

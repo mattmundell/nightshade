@@ -1129,7 +1129,7 @@
 
 (defun unix-mkdir (name mode)
   "Unix-mkdir creates a new directory with the specified name and mode.
-   (Same as those for unix-fchmod.)  It returns T upon success, otherwise
+   (Same as those for unix-chmod.)  It returns T upon success, otherwise
    NIL and an error number."
   (declare (type unix-pathname name)
 	   (type unix-file-mode mode))

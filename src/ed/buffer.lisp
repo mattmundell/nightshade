@@ -5,7 +5,8 @@
 (export '(*buffer-list*
 	  buffer-modified buffer-region buffer-name buffer-pathname
 	  buffer-major-mode buffer-minor-mode buffer-modeline-fields
-	  buffer-modeline-field-p current-buffer current-point current-line
+	  buffer-modeline-field-p
+	  current-buffer current-point current-line current-directory
 	  in-recursive-edit exit-recursive-edit abort-recursive-edit
 	  recursive-edit defmode mode-major-p mode-variables mode-documentation
 	  unique-buffer-name make-unique-buffer
@@ -36,7 +37,7 @@
 
 (defun %set-buffer-modified (buffer sense)
   "If true make the buffer modified, if NIL unmodified."
-  (unless (bufferp buffer) (error "~S is not a buffer." buffer))
+  (or (bufferp buffer) (error "~S is not a buffer." buffer))
   (invoke-hook ed::buffer-modified-hook buffer sense)
   (if sense
       (setf (buffer-modified-tick buffer) (tick))
@@ -306,7 +307,9 @@
 
 (proclaim '(inline current-buffer))
 
-(defun current-buffer () "Return the current buffer object." *current-buffer*)
+(defun current-buffer ()
+  "Return the current buffer object."
+  *current-buffer*)
 
 (defun current-point ()
   "Return the Buffer-Point of the current buffer."
@@ -315,6 +318,16 @@
 (defun current-line ()
   "Return the line of the Buffer-Point of the current buffer."
   (mark-line (buffer-point *current-buffer*)))
+
+(defun current-directory ()
+  "Return the current directory."
+  (let ((bpn (buffer-pathname (current-buffer))))
+    (if bpn
+	(directory-namestring bpn)
+	(or (multiple-value-bind (res path)
+				 (unix:unix-current-directory)
+	      (if res (ed::dired-directorify path))) ;; FIX dired-directorify
+	    (value pathname-defaults)))))
 
 ;;; %SET-CURRENT-BUFFER  --  Internal
 ;;;

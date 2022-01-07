@@ -179,6 +179,7 @@
    string2 (using char=)."
   (string=* string1 string2 start1 end1 start2 end2))
 
+;; FIX (relation to string-not-equal?)
 (defun string/= (string1 string2 &key (start1 0) end1 (start2 0) end2)
   "Given two strings, if the first string is not lexicographically equal to
    the second string, returns the longest common prefix (using char=) of
@@ -530,6 +531,7 @@
 			(declare (fixnum index)))))
       (subseq (the simple-string string) left-end right-end))))
 
+(declaim (inline concat))
 (defun concat (&rest strings)
   "Return a concatenation of the given Strings."
   (apply #'concatenate 'simple-string strings))

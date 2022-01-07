@@ -147,7 +147,7 @@
 	      (get-source-directory))
       (confirm-typescript-input-command nil))))
 
-(defcommand "Build" (p)
+(defcommand "Build All" (p)
   "Build all systems."
   "Build all systems."
   (declare (ignore p))

@@ -105,28 +105,28 @@
 		     ;; FIX table? pass name to font-mark?
 		     (cond ((string= param "lightsalmon")
 			    (font-mark (mark-line ,mark) (mark-charpos *mark*)
-				       special-form-font))
+				       *special-form-font*))
 			   ((string= param "chocolate1")
 			    (font-mark (mark-line ,mark) (mark-charpos *mark*)
 				       *preprocessor-font*))
 			   ((string= param "yellow")
 			    (font-mark (mark-line ,mark) (mark-charpos *mark*)
-				       variable-name-font))
+				       *variable-name-font*))
 			   ((string= param "aquamarine")
 			    (font-mark (mark-line ,mark) (mark-charpos *mark*)
 				       *function-name-font*))
 			   ((string= param "palegreen")
 			    (font-mark (mark-line ,mark) (mark-charpos *mark*)
-				       string-font))
+				       *string-font*))
 			   ((string= param "lightgoldenrod")
 			    (font-mark (mark-line ,mark) (mark-charpos *mark*)
-				       variable-name-font))
+				       *variable-name-font*))
 			   (t
 			    (font-mark (mark-line ,mark) (mark-charpos *mark*)
 				       *error-font*)))))
 		 (render-enriched-node ,mark) ; text
 		 (font-mark (mark-line ,mark) (mark-charpos ,mark)
-			    original-font)
+			    *original-font*)
 		 (setq *params* orig-params))
 		((string= name "bold")
 		 (setq node (node-next (node-next node)))
@@ -134,11 +134,11 @@
 		 (setq node (node-next node))
 		 ;; FIX how to bold and font?
 		 (or *params* (font-mark (mark-line ,mark) (mark-charpos ,mark)
-					 comment-font))
+					 *comment-font*))
 		 (render-enriched-node ,mark)
 		 ;; FIX how to bold and font?
 		 (or *params* (font-mark (mark-line ,mark) (mark-charpos ,mark)
-					 original-font)))) ; text
+					 *original-font*)))) ; text
 	  (delete-characters ,mark (+ (length name) 3))))))) ; </name>
 
 (defun render-enriched-node (*mark*)

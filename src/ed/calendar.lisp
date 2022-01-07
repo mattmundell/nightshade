@@ -915,8 +915,8 @@
 
 (defhvar "Diary Line Fonts"
   "List of line beginning characters and associated fonts."
-  :value `((#\: ,string-font)
-	   (#\= ,comment-font)
+  :value `((#\: ,*string-font*)
+	   (#\= ,*comment-font*)
 	   (#\| ,*preprocessor-font*)))
 
 (defmacro rehighlight-diary-line (info)
@@ -925,13 +925,13 @@
        (delete-font-mark fmark))
      (let ((mark (mark line 0)))
        (if (zerop (character-attribute :whitespace (next-character mark)))
-	   (push (font-mark line 0 variable-name-font)
+	   (push (font-mark line 0 *variable-name-font*)
 		 (ch-info-font-marks ,info))
 	   (when (find-attribute mark :whitespace #'zerop)
 	     (if (eq (next-character mark) #\~) (mark-after mark))
 	     (cond ((digit-char-p (next-character mark))
 		    (push (font-mark (mark-line mark) (mark-charpos mark)
-				     special-form-font)
+				     *special-form-font*)
 			  (ch-info-font-marks ,info)))
 		   (t
 		    (let ((assoc (assoc (next-character mark)

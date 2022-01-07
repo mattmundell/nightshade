@@ -464,16 +464,22 @@
   "If this is true, Revert File will prompt before reverting."
   :value t)
 
+(defhvar "Revert Consider Checkpoint"
+  "If Save Mode when this is true Revert File will consider reverting to a
+   checkpoint file if there is one."
+  :value t)
+
 (defcommand "Revert File" (p)
-  "Unless in Save Mode, reads in the last saved version of the file in
-   the current buffer. When in Save Mode, reads in the last checkpoint or
-   the last saved version, whichever is more recent. An argument will always
-   force Revert File to use the last saved version. In either case, if the
-   buffer has been modified and \"Revert File Confirm\" is true, then Revert
-   File will ask for confirmation beforehand. An attempt is made to maintain
-   the point's relative position."
+  "Normally reads in the last saved version of the file in the current
+   buffer.  When in Save Mode, if Revert Consider Checkpoint is true reads
+   in the last checkpoint or the last saved version, whichever is more
+   recent, otherwise reads in the last saved version.  An argument will
+   always force Revert File to use the last saved version.  In either case,
+   if the buffer has been modified and \"Revert File Confirm\" is true,
+   then Revert File will ask for confirmation beforehand.  An attempt is
+   made to maintain the points relative position."
   "With an argument reverts to the last saved version of the file in the
-   current buffer. Without, reverts to the last checkpoint or last saved
+   current buffer.  Without, reverts to the last checkpoint or last saved
    version, whichever is more recent."
   (let* ((buffer (current-buffer))
 	 (buffer-pn (buffer-pathname buffer))
@@ -481,8 +487,8 @@
 	 (lines (1- (count-lines (region (buffer-start-mark buffer) point)))))
     (multiple-value-bind (revert-pn used-checkpoint)
 			 (if p buffer-pn (revert-pathname buffer))
-      (unless revert-pn
-	(editor-error "No file associated with buffer to revert to!"))
+      (or revert-pn
+	  (editor-error "No file associated with buffer to revert to!"))
       (when (or (not (value revert-file-confirm))
 		(not (buffer-modified buffer))
 		(prompt-for-y-or-n
@@ -492,33 +498,42 @@
  "Reverting the file will undo any changes by reading in the last ~
  ~:[saved version~;checkpoint file~]." used-checkpoint)
 		 :default t))
-	(read-buffer-file revert-pn buffer)
-	(when used-checkpoint
-	  (setf (buffer-modified buffer) t)
-	  (setf (buffer-pathname buffer) buffer-pn)
-	  (message "Reverted to checkpoint file ~A." (namestring revert-pn)))
-	(unless (line-offset point lines)
-	  (buffer-end point))))))
+	(if (value revert-consider-checkpoint)
+	    (read-buffer-file revert-pn buffer)
+	    (hlet ((auto-save-offer-revert ()))
+	      (read-buffer-file revert-pn buffer)))
+	(if used-checkpoint
+	    (progn
+	      (setf (buffer-modified buffer) t)
+	      (setf (buffer-pathname buffer) buffer-pn)
+	      (message "Reverted to checkpoint file ~A." (namestring revert-pn)))
+	    (message "Reverted to last saved version." (namestring revert-pn)))
+	(fi (line-offset point lines)
+	    (buffer-end point))))))
 
 ;;; REVERT-PATHNAME -- Internal
 ;;;
-;;; If in Save Mode, return either the checkpoint pathname or the buffer
-;;; pathname whichever is more recent. Otherwise return the buffer-pathname
-;;; if it exists. If neither file exists, return NIL.
+;;; If in Save Mode and Revert Consider Checkpoint is true return either
+;;; the checkpoint pathname or the buffer pathname, whichever is more
+;;; recent.  Otherwise return the buffer-pathname if it exists. If neither
+;;; file exists, return NIL.
 ;;;
 (defun revert-pathname (buffer)
   (let ((buffer-pn (buffer-pathname buffer)))
     (if buffer-pn
-	(let* ((buffer-pn-date (file-write-date buffer-pn))
-	       (checkpoint-pn (get-checkpoint-pathname buffer))
-	       (checkpoint-pn-date (and checkpoint-pn
-					(file-write-date checkpoint-pn))))
-	  (cond (checkpoint-pn-date
-		 (if (> checkpoint-pn-date (or buffer-pn-date 0))
-		     (values checkpoint-pn t)
-		     (values buffer-pn nil)))
-		(buffer-pn-date (values buffer-pn nil))
-		(t (values nil nil))))
+	(let ((buffer-pn-date (file-write-date buffer-pn)))
+	  (fi (value revert-consider-checkpoint)
+	      (cond (buffer-pn-date (values buffer-pn nil))
+		    (t (values nil nil)))
+	      (let* ((checkpoint-pn (get-checkpoint-pathname buffer))
+		     (checkpoint-pn-date (and checkpoint-pn
+					      (file-write-date checkpoint-pn))))
+		(if checkpoint-pn-date
+		    (if (> checkpoint-pn-date (or buffer-pn-date 0))
+			(values checkpoint-pn t)
+			(values buffer-pn nil))
+		    (cond (buffer-pn-date (values buffer-pn nil))
+			  (t (values nil nil)))))))
 	(values nil nil))))
 
 
@@ -722,13 +737,13 @@
 		 (equal (make-pathname :version nil :defaults buffer-pn)
 			(make-pathname :version nil :defaults pathname))
 		 (/= date file-date))
-	(unless (prompt-for-yes-or-no :prompt (list
+	(or (prompt-for-yes-or-no :prompt (list
  "File has been changed on disk since it was read.~%Overwrite ~A anyway? "
  (namestring buffer-pn))
 				      :help
 				      "Type No to cancel writing the file or Yes to overwrite the disk version."
 				      :default nil)
-	  (editor-error "Write cancelled."))))
+	    (editor-error "Write cancelled."))))
     (let ((val (value add-newline-at-eof-on-writing-file)))
       (when val
 	(let ((end (buffer-end-mark buffer)))
@@ -747,13 +762,13 @@
     (write-file (buffer-region buffer) pathname)
     (let ((tn (truename pathname)))
       (message "~A written." (namestring tn))
-      (setf (buffer-modified buffer) nil)
-      (unless (equal tn buffer-pn)
-	(setf (buffer-pathname buffer) tn))
+      (setf (buffer-modified buffer) ())
+      (or (equal tn buffer-pn)
+	  (setf (buffer-pathname buffer) tn))
       (setf (buffer-write-date buffer) (file-write-date tn))
       (let ((name (pathname-to-buffer-name tn)))
-	(unless (getstring name *buffer-names*)
-	  (setf (buffer-name buffer) name)))))
+	(or (getstring name *buffer-names*)
+	    (setf (buffer-name buffer) name)))))
   (invoke-hook write-file-hook buffer))
 
 (defcommand "Write File" (p &optional pathname (buffer (current-buffer)))
@@ -772,7 +787,7 @@
 
 (defcommand "Save File" (p &optional (buffer (current-buffer)))
   "Writes the contents of the current buffer to the associated file.  If there
-  is no associated file, prompts for one."
+   is no associated file, prompts for one."
   "Writes the contents of the current buffer to the associated file."
   (declare (ignore p))
   (when (or (buffer-modified buffer)
@@ -1162,8 +1177,7 @@
 		    (getstring buffer-name *buffer-names*)
 		    (prompt-for-buffer :prompt "Kill Buffer: "
 				       :default (current-buffer)))))
-    (if (not buffer)
-	(editor-error "No buffer named ~S" buffer-name))
+    (or buffer (editor-error "No buffer named ~S" buffer-name))
     (if (and (buffer-modified buffer)
 	     (if (value kill-buffer-only-prompt-to-save-file-buffers)
 		 (buffer-pathname buffer)
@@ -1271,10 +1285,12 @@
 	      :help "Pathname to do directory on."
 	      :default (make-pathname :device (pathname-device dpn)
 				      :directory (pathname-directory dpn))
-	      :must-exist nil)))
+	      :must-exist ())))
     (setf (value pathname-defaults) (merge-pathnames pn dpn))
-    (with-pop-up-display (s)
-      (print-directory pn s :all p))))
+    (in-directory (or (buffer-pathname (current-buffer))
+		      (directory-namestring dpn))
+      (with-pop-up-display (s)
+	(print-directory pn s :all p)))))
 
 (defcommand "Verbose Directory" (p)
   "Do a directory into a pop-up window.  If an argument is supplied, then
@@ -1289,8 +1305,10 @@
 				      :directory (pathname-directory dpn))
 	      :must-exist nil)))
     (setf (value pathname-defaults) (merge-pathnames pn dpn))
-    (with-pop-up-display (s)
-      (print-directory pn s :verbose t :all p))))
+    (in-directory (or (buffer-pathname (current-buffer))
+		      (directory-namestring dpn))
+      (with-pop-up-display (s)
+	(print-directory pn s :verbose t :all p)))))
 
 
 ;;;; Change log stuff:

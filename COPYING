@@ -13,19 +13,17 @@ External contributions made towards CMUCL 18c after the CMU public domain
 release were recorded in the logs.  The public domain status of these
 additions falls into three categories:
 
-	- Confirmed public domain by contributor.
+	- Confirmed public domain by contributor
 		  Peter Van Eynde, Fred Gilham, Eric Marsden, Timothy Miller,
 		  Raymond Toy.
 
-	- Reverted.
-		  Pierre Mai.
+	- Reverted
+		  Pierre Mai, Pierpaolo Bernardi.
 
-	- Status pending.
-		  Marco Antoniotti, Pierpaolo Bernardi, Casper Dik, Julian Dolby,
-		  Mike McDonald, Tim Moore, Ken Olum.
+	- Status pending
+		  Marco Antoniotti, Casper Dik, Julian Dolby, Mike McDonald,
+		  Tim Moore, Ken Olum.
 
 Every new addition to the CMUCL 18c base is public domain.  A few of these
 additions come from outside the Nightshade project, the sources of these
 are detailed in the file etc/AUTHORS.
-
-Nightshade thanks everyone for the work.

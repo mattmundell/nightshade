@@ -32,7 +32,8 @@
 	  unix-setitimer unix-getitimer
 	  unix-access r_ok w_ok x_ok f_ok unix-chdir unix-chmod setuidexec
 	  setgidexec savetext readown writeown execown readgrp writegrp
-	  execgrp readoth writeoth execoth unix-fchmod unix-chown unix-fchown
+	  execgrp readoth writeoth execoth readall writeall execall
+	  unix-fchmod unix-chown unix-fchown
 	  unix-getdtablesize unix-close unix-creat unix-dup unix-dup2
 	  unix-fcntl f-dupfd f-getfd f-setfd f-getfl f-setfl f-getown f-setown
 	  fndelay fappend fasync fcreat ftrunc fexcl unix-link unix-lseek
@@ -1830,9 +1831,9 @@
   (void-syscall ("chdir" c-string) path))
 
 (defun unix-current-directory ()
-  "Put the absolute pathname of the current working directory in BUF.
-   If successful, return BUF.  If not, put an error message in
-   BUF and return NULL.  BUF should be at least PATH_MAX bytes long."
+  "Put the absolute pathname of the current working directory in BUF.  If
+   successful, return BUF.  If not, put an error message in BUF and return
+   NULL.  BUF should be at least PATH_MAX bytes long."
   (with-alien ((buf (array char 1024)))
     (values (not (zerop (alien-funcall (extern-alien "getwd"
 						     (function int (* char)))
@@ -2711,7 +2712,7 @@ in at a time in poll.")
 
 (defun unix-mkdir (name mode)
   "Unix-mkdir creates a new directory with the specified name and mode.
-   (Same as those for unix-fchmod.)  It returns T upon success, otherwise
+   (Same as those for unix-chmod.)  It returns T upon success, otherwise
    NIL and an error number."
   (declare (type unix-pathname name)
 	   (type unix-file-mode mode))

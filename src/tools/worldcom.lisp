@@ -292,6 +292,7 @@
 (comf "target:code/mh")
 (comf "target:code/doc")
 (comf "target:code/db")
+(comf "target:code/build")
 
 (comf "target:code/setf-funs")
 (comf "target:code/exports" :proceed t)

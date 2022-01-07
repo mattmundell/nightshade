@@ -243,9 +243,9 @@
     (if initial (insert-string (buffer-point *echo-area-buffer*) initial))
     (setf (current-window) *echo-area-window*)
     (unwind-protect
-     (use-buffer *echo-area-buffer*
-       (recursive-edit nil))
-     (setf (current-window) start-window))))
+	(use-buffer *echo-area-buffer*
+		    (recursive-edit nil))
+      (setf (current-window) start-window))))
 
 
 
@@ -342,19 +342,21 @@
 
 (defun file-verification-function (string)
   (let ((pn (pathname-or-lose (if string (ed::filter-tildes string)))))
-    (if pn
-	(let ((merge
-	       (when *parse-default*
-		 (cond ((directoryp pn)
-			(merge-pathnames pn *parse-default*))
-		       (t
-			(merge-pathnames pn
-					 (directory-namestring
-					  *parse-default*)))))))
-	  (cond ((probe-file pn) (list pn))
-		((and merge (probe-file merge)) (list merge))
-		((not *parse-value-must-exist*) (list (or merge pn)))
-		(t nil))))))
+    (when pn
+      (if (wild-pathname-p pn)
+	  (list pn)
+	  (let ((merge
+		 (when *parse-default*
+		   (cond ((directory-name-p pn) ; Was directoryp, wildcard errors.
+			  (merge-pathnames pn *parse-default*))
+			 (t
+			  (merge-pathnames pn
+					   (directory-namestring
+					    *parse-default*)))))))
+	    (cond ((probe-file pn) (list pn))
+		  ((and merge (probe-file merge)) (list merge))
+		  ((not *parse-value-must-exist*) (list (or merge pn)))
+		  (t ())))))))
 
 ;;; PATHNAME-OR-LOSE tries to convert string to a pathname using
 ;;; PARSE-NAMESTRING.  If it succeeds, this returns the pathname.  Otherwise,

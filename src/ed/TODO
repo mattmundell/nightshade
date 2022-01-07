@@ -1,25 +1,21 @@
 -*- Mode: Text; Package: ed -*-
 
 revert rest of sys to public domain  ../etc/TODO
-create online release plan (quick, for better direction)  ../etc/TODO
-c-o  w 1 win  mv pnt to same posn in new that was display on line in old
-  ie screen shows same text, split in two windows
+turn this into online release plan (quick, for better direction)  ../etc/TODO
 reeval defvar on Ed Ev Defun (c-x e)
    warn if keep same val?
-.db saving
 locate  c-g before cmd finishes
 hyper
 flush-t-w option buffer,mode
 dired versions  eg :src/mh/mh-6.8.3
-revert always revert to orig
-rename font vars *xx*
+vc
+	very slow eg dir of many files
+	err on entering subdir
+	or  under vc   stay in dir list
 mail
-	split
 	complet
 		with pnt directly after "To:"
 		hard to just write a space, maybe tab / alt-spce / alt-enter to complet
-	o on head open other win  instd of changing layout
-    base64 text attachments
     when refresh and empty must clear old msgs (~?  eg send last draft)
 		could rotate buffers or show empty buf
     list of mail folders
@@ -31,6 +27,9 @@ mail
 		ok if save, buffer still gone (~reused?) save save (?)
 			prompt to save old one?
     c-g during send  draft gone
+	consid  Edit Last Draft  like comp -use
+	mime eg mime version of forw (draft-forward)
+		/home/matt/src/mh/mh-6.8.3/uip/forw.c:573
 Auto Inflate Files
 	similar Content-Type: text/enriched
 		eg /home/matt/doc/retrospect/year-level-overview
@@ -57,17 +56,28 @@ backup to isp  prhps tramp-like
     ftp://user@x.domain/
     (pathname "user@localhost:/")
     (read-file (pathname "localhost:/") (current-point))
-vc
-	very slow eg dir of many files
-	err on entering subdir
-	or  under vc   stay in dir list
 
-=================== ok for everyday work  (nightshade 2)
+=================== ok for everyday work  (nightshade 2 if entirely pd?)
 
-set b pkg  completion
+c-h k c-c s s  should find in .hem
+    rompsite fun-defined-from-pathname get pn from %function-self
+      which is a function like make-interpreted-function
+rotate buffers  sometimes seems to rotate forward when should be back
+					maybe after find file
+dired +  sometimes makes dir elsewhere
+	think related buffer-pathname,current-dir
+
+mv to location of revert when reverting
+Byte Compile commands
+Clear Variable
+Set Variable in Buffer,Mode?
+man pg tab to next link
+set buffer pkg  completion
 Search Buffers
 (setq *error-output*
       (make-hemlock-output-stream (buffer-end-mark edi::*message-buffer*)))
+~ Copy Remote File   dir, recurse    ftp, http
+	Copy File [Recursively]       ftp://..  http://..
 naming
 	edit sys procs
 	edit dir
@@ -78,18 +88,14 @@ naming
 consider optnl generic cmd complete msg
 spell  i insert into personal dict permanently
 c-uc-f /home/matt/src/nightshade/build/lisp/lisp:
-dired +  sometimes makes dir elsewhere
-rotate buffers  sometimes seems to rotate forward when should be back
-					maybe after find file
 sometimes "bad address" on build
 isearch
 	history
 	c-l during stays in search
-~ Copy Remote File   dir, recurse    ftp, http
-	Copy File [Recursively]       ftp://..  http://..
-bufed  flag if process
-       ~ improve layout ~ long lines
+bufed  ~ improve layout ~ long lines
        keep posn on refresh
+	   spc,rub for scroll
+	   o open buf in other
 cmp  finish dir cmp
 	 show line numbers
 	 highlight
@@ -104,13 +110,9 @@ m-q  (fill para)
 	respect open lines (when in string)
 list processes  enter goes to process (ie proced)
 + interface to vm:memory-interface  (crashes on :dynamic)
-m-/ complete from all buffers (at least all visible)
 c-g in  macro def
 		?-invoked ~inspection  eg backtrace
 cmp defparse "algo" w byacc
-c-h k c-c s s  should find in .hem
-    rompsite fun-defined-from-pathname get pn from %function-self
-      which is a function like make-interpreted-function
 multiple revert  buffer history
     similar  cvs, sys trace tool that goes backwards
 archive viewing,editing mode  part of dired
@@ -120,13 +122,16 @@ goto var def  meta-g v
 dired  mv,cp adjust existing buffers, offer to mv,cp bak,ckp
        slow  eg /home/matt/Mail/archive/misc/  anything w many files
        recursive D
-Convert Spaces To Tabs   (long name  cf End of Buffer (vs Go To End of..))
+       /home/matt/src/nightshade/src/ed/*.lisp
+           (file-write-date err in init-dired-buf)
+               dired built for single entity pathname
+                   dired w pattern does pattern
 --
 correct :line,% redisplay
     prhps redispl should check if modeline has changed?
 recursive extended cmd
 repeat last cmd  C-z z*
-vc interface
+vc interfaces
 	darcs, subversion, trac, git, hg... as required
     retrieve prompted versions
     annotate
@@ -143,22 +148,17 @@ lisp find expressions like mh pick exps
    (or (name (* :c) ".lisp") (search "foo"))
    ;(or (name ".abc") (search "foo"))
    (or (name :c "abc") (search "foo"))
-mail  replace external program w lisp
-          split mail slow   calls mh ~scan for every rule
-      better multipart handling
-          nested parts
-	  other types of attachment encoding
-	  attach file  suggest type, type completion
+mail  attach file  suggest type, type completion
       auto address to .db
-integrate public domain ~database
-    distributed
-    nuttal encyclopedia, infoanarchy wiki, 1911 encycl
-    dict
-        copyright on original source of gcide?
-	pd french dict, pd lojban words
+	  finish rest of folding pick functions  f-to..
+	  cleanup resend msg  eg should it add all the orig headers?
+	  cleanup,finish mime parsing
+		  other types of attachment encoding
 native web browser
     need frames?  maybe like generaliz of emacs header lines
     generate parser defn from dtd,schema?
+chars like £ (pound sign)  these (at least pound) work in emacs
+	unicode?
 
 clear out FIXes
 
