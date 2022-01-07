@@ -1,20 +1,5 @@
-;;; -*- Package: Lisp -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/stream.lisp,v 1.25.2.7 2000/08/24 19:55:53 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Stream functions for Spice Lisp.
-;;; Written by Skef Wholey and Rob MacLachlan.
-;;; Gray streams support by Douglas Crosher, 1998.
-;;;
-;;; This file contains the OS-independent stream functions.
-;;;
+;;; OS-independent stream functions.
+
 (in-package "LISP")
 
 (export '(broadcast-stream make-broadcast-stream broadcast-stream-streams
@@ -28,7 +13,7 @@
 	  make-string-input-stream make-string-output-stream
 	  get-output-stream-string stream-element-type input-stream-p
 	  output-stream-p open-stream-p interactive-stream-p
-	  open-stream-p close read-line read-char
+	  close read-line read-char
 	  unread-char peek-char listen read-char-no-hang clear-input read-byte
 	  write-char write-string write-line terpri fresh-line
 	  finish-output force-output clear-output write-byte
@@ -101,6 +86,7 @@
 (defun %print-stream (structure stream d)
   (declare (ignore d structure))
   (write-string "#<Bare Stream>" stream))
+
 
 ;;; HOW THE STREAM STRUCTURE IS USED:
 ;;;
@@ -156,7 +142,7 @@
 ;;; without calling any stream method.  Any stream may put stuff in
 ;;; the In-Buffer, and may also assume that any input in the In-Buffer
 ;;; has been consumed before any in-method is called.  If a text
-;;; stream has in In-Buffer, then the first character should not be
+;;; stream has FIX? in In-Buffer, then the first character should not be
 ;;; used to buffer normal input so that it is free for unreading into.
 ;;;
 ;;;    The In-Buffer slot is a vector In-Buffer-Length long.  The
@@ -176,7 +162,7 @@
 ;;; the default values for the slots.
 
 
-;;; Stream manipulation functions.
+;;;; Stream manipulation functions.
 
 (defun input-stream-p (stream)
   "Returns non-nil if the given Stream can perform input operations."
@@ -192,18 +178,14 @@
        (or (not (eq (lisp-stream-out stream) #'ill-out))
 	   (not (eq (lisp-stream-bout stream) #'ill-bout)))))
 
-(defun open-stream-p (stream)
-  "Return true if Stream is not closed."
-  (declare (type stream stream))
-  (not (eq (lisp-stream-in stream) #'closed-flame)))
-
 (defun stream-element-type (stream)
   "Returns a type specifier for the kind of object returned by the Stream."
   (declare (type stream stream))
   (funcall (lisp-stream-misc stream) stream :element-type))
 
 (defun interactive-stream-p (stream)
-  "Return true if Stream does I/O on a terminal or other interactive device."
+  "Return true if Stream does I/O on a terminal or other interactive
+   device."
   (declare (type stream stream))
   (funcall (lisp-stream-misc stream) stream :interactive-p))
 
@@ -214,8 +196,8 @@
 
 (defun close (stream &key abort)
   "Closes the given Stream.  No more I/O may be performed, but inquiries
-  may still be made.  If :Abort is non-nil, an attempt is made to clean
-  up the side effects of having created the stream."
+   may still be made.  If :Abort is non-nil, an attempt is made to clean up
+   the side effects of having created the stream."
   (declare (type stream stream))
   (when (open-stream-p stream)
     (funcall (lisp-stream-misc stream) stream :close abort))
@@ -240,9 +222,9 @@
 ;;;
 (defun file-position (stream &optional position)
   "With one argument returns the current position within the file
-   File-Stream is open to.  If the second argument is supplied, then
-   this becomes the new file position.  The second argument may also
-   be :start or :end for the start and end of the file, respectively."
+   File-Stream is open to.  If the second argument is supplied, then this
+   becomes the new file position.  The second argument may also be :start
+   or :end for the start and end of the file, respectively."
   (declare (stream stream)
 	   (type (or index (member nil :start :end)) position))
   (cond
@@ -253,23 +235,23 @@
     (let ((res (funcall (lisp-stream-misc stream) stream :file-position nil)))
       (when res (- res (- in-buffer-length (lisp-stream-in-index stream))))))))
 
-
 ;;; File-Length  --  Public
 ;;;
 ;;;    Like File-Position, only use :file-length.
 ;;;
 (defun file-length (stream)
-  "This function returns the length of the file that File-Stream is open to."
+  "This function returns the length of the file that File-Stream is open
+   to."
   (declare (stream stream))
   (funcall (lisp-stream-misc stream) stream :file-length))
 
 
-;;; Input functions:
+;;;; Input functions.
 
 (defun read-line (&optional (stream *standard-input*) (eof-errorp t) eof-value
 			    recursive-p)
   "Returns a line of text read from the Stream as a string, discarding the
-  newline character."
+   newline character."
   (declare (ignore recursive-p))
   (let ((stream (in-synonym-of stream)))
     (if (lisp-stream-p stream)
@@ -346,7 +328,8 @@
 
 (defun peek-char (&optional (peek-type nil) (stream *standard-input*)
 			    (eof-errorp t) eof-value recursive-p)
-  "Peeks at the next character in the input Stream.  See manual for details."
+  "Peeks at the next character in the input Stream.  FIX See manual for
+   details."
   (declare (ignore recursive-p))
   (let ((stream (in-synonym-of stream)))
     (if (lisp-stream-p stream)
@@ -391,7 +374,7 @@
 		     char)))))))
 
 (defun listen (&optional (stream *standard-input*))
-  "Returns T if a character is availible on the given Stream."
+  "Returns T if a character is available on the given Stream."
   (let ((stream (in-synonym-of stream)))
     (if (lisp-stream-p stream)
 	(or (/= (the fixnum (lisp-stream-in-index stream)) in-buffer-length)
@@ -402,7 +385,7 @@
 
 (defun read-char-no-hang (&optional (stream *standard-input*)
 				    (eof-errorp t) eof-value recursive-p)
-  "Returns the next character from the Stream if one is availible, or nil."
+  "Returns the next character from the Stream if one is available, or nil."
   (declare (ignore recursive-p))
   (let ((stream (in-synonym-of stream)))
     (if (lisp-stream-p stream)
@@ -415,7 +398,6 @@
 	  (if (eq char :eof)
 	      (eof-or-lose stream eof-errorp eof-value)
 	      char)))))
-
 
 (defun clear-input (&optional (stream *standard-input*))
   "Clears any buffered input associated with the Stream."
@@ -473,7 +455,6 @@
 		    (- numbytes num-buffered)
 		    eof-errorp)
 	   num-buffered))))))
-
 
 ;;; Amount of space we leave at the start of the in-buffer for unreading.  4
 ;;; instead of 1 to allow word-aligned copies.
@@ -533,7 +514,7 @@
 	   (aref ibuf start)))))
 
 
-;;; Output functions:
+;;;; Output functions.
 
 (defun write-char (character &optional (stream *standard-output*))
   "Outputs the Character to the Stream."
@@ -547,8 +528,8 @@
   nil)
 
 (defun fresh-line (&optional (stream *standard-output*))
-  "Outputs a new line to the Stream if it is not positioned at the begining of
-   a line.  Returns T if it output a new line, nil otherwise."
+  "Outputs a new line to the Stream if it is not positioned at the begining
+   of a line.  Returns T if it output a new line, nil otherwise."
   (let ((stream (out-synonym-of stream)))
     (if (lisp-stream-p stream)
 	(when (/= (or (charpos stream) 1) 0)
@@ -557,6 +538,12 @@
 	;; Fundamental-stream.
 	(stream-fresh-line stream))))
 
+;; FIX `write' arg stream is key; `format' stream is first  (same w write-char)
+;; (write-string t string)
+;; (write-string stream string)
+;; (write stream string)  (write t string)
+;; (write-char t #\a)
+;; or (format "abc")  (format "abc" t)  (format "abc" stream) (format "~Aabc" stream x)
 (defun write-string (string &optional (stream *standard-output*)
 			    &key (start 0) (end (length (the vector string))))
   "Outputs the String to the given Stream."
@@ -579,7 +566,8 @@
 
 (defun write-line (string &optional (stream *standard-output*)
 			  &key (start 0) (end (length string)))
-  "Outputs the String to the given Stream, followed by a newline character."
+  "Outputs the String to the given Stream, followed by a newline
+   character."
   (write-line* string stream start end))
 
 (defun write-line* (string &optional (stream *standard-output*)
@@ -600,13 +588,13 @@
     string))
 
 (defun charpos (&optional (stream *standard-output*))
-  "Returns the number of characters on the current line of output of the given
-  Stream, or Nil if that information is not availible."
+  "Returns the number of characters on the current line of output of the
+   given Stream, or Nil if that information is not availible."
   (with-out-stream stream (lisp-stream-misc :charpos) (stream-line-column)))
 
 (defun line-length (&optional (stream *standard-output*))
-  "Returns the number of characters that will fit on a line of output on the
-  given Stream, or Nil if that information is not available."
+  "Returns the number of characters that will fit on a line of output on
+   the given Stream, or Nil if that information is not available."
   (with-out-stream stream (lisp-stream-misc :line-length)
 		   (stream-line-length)))
 
@@ -634,13 +622,13 @@
   (with-out-stream stream (lisp-stream-bout integer)
 		   (stream-write-byte integer))
   integer)
-
 
-;;; Stream-misc-dispatch
+
+;;;; Stream-misc-dispatch
 ;;;
-;;; Called from lisp-steam routines that encapsulate CLOS streams to
-;;; handle the misc routines and dispatch to the appropriate Gray
-;;; stream functions.
+;;; Called from lisp-stream routines that encapsulate CLOS streams to
+;;; handle the misc routines and dispatch to the appropriate Gray stream
+;;; functions.
 ;;;
 (defun stream-misc-dispatch (stream operation &optional arg1 arg2)
   (declare (type fundamental-stream stream)
@@ -676,7 +664,7 @@
      (file-position stream arg1))))
 
 
-;;;; Broadcast streams:
+;;;; Broadcast streams.
 
 (defstruct (broadcast-stream (:include lisp-stream
 				       (out #'broadcast-out)
@@ -689,7 +677,8 @@
   (streams () :type list :read-only t))
 
 (setf (documentation 'make-broadcast-stream 'function)
- "Returns an ouput stream which sends its output to all of the given streams.")
+ "Returns an ouput stream which sends its output to all of the given
+  streams.")
 
 (defun %print-broadcast-stream (s stream d)
   (declare (ignore s d))
@@ -733,7 +722,7 @@
 		     (stream-misc-dispatch stream operation arg1 arg2)))))))))
 
 
-;;;; Synonym Streams:
+;;;; Synonym Streams.
 
 (defstruct (synonym-stream (:include lisp-stream
 				     (in #'synonym-in)
@@ -753,8 +742,8 @@
   (format stream "#<Synonym Stream to ~S>" (synonym-stream-symbol s)))
 
 (setf (documentation 'make-synonym-stream 'function)
-  "Returns a stream which performs its operations on the stream which is the
-   value of the dynamic variable named by Symbol.")
+  "Returns a stream which performs its operations on the stream which is
+   the value of the dynamic variable named by Symbol.")
 
 ;;; The output simple output methods just call the corresponding method
 ;;; in the synonymed stream.
@@ -789,7 +778,6 @@
   (in-fun synonym-bin read-byte eof-errorp eof-value)
   (in-fun synonym-n-bin read-n-bytes buffer start numbytes eof-errorp))
 
-
 ;;; Synonym-Misc  --  Internal
 ;;;
 ;;;    We have to special-case the operations which could look at stuff in
@@ -810,7 +798,7 @@
 	   (funcall (lisp-stream-misc syn) syn operation arg1 arg2)))
 	(stream-misc-dispatch syn operation arg1 arg2))))
 
-;;;; Two-Way streams:
+;;;; Two-Way streams.
 
 (defstruct (two-way-stream
 	    (:include lisp-stream
@@ -835,8 +823,8 @@
 	  (two-way-stream-output-stream s)))
 
 (setf (documentation 'make-two-way-stream 'function)
-  "Returns a bidirectional stream which gets its input from Input-Stream and
-   sends its output to Output-Stream.")
+  "Returns a bidirectional stream which gets its input from Input-Stream
+   and sends its output to Output-Stream.")
 
 (macrolet ((out-fun (name slot stream-method &rest args)
 	     `(defun ,name (stream ,@args)
@@ -889,7 +877,7 @@
 	       (stream-misc-dispatch out operation arg1 arg2)))))))
 
 
-;;;; Concatenated Streams:
+;;;; Concatenated Streams.
 
 (defstruct (concatenated-stream
 	    (:include lisp-stream
@@ -898,8 +886,8 @@
 		      (misc #'concatenated-misc))
 	    (:print-function %print-concatenated-stream)
 	    (:constructor make-concatenated-stream (&rest streams)))
-  ;; This is a list of all the streams. The car of this is the stream
-  ;; we are reading from now.
+  ;; This is a list of all the streams.  The car of this is the stream we
+  ;; are reading from now.
   (streams nil :type list))
 
 (defun %print-concatenated-stream (s stream d)
@@ -959,7 +947,7 @@
 	       (stream-misc-dispatch current operation arg1 arg2))))))))
 
 
-;;;; Echo Streams:
+;;;; Echo Streams.
 
 (defstruct (echo-stream
 	    (:include two-way-stream
@@ -970,7 +958,6 @@
 	    (:print-function %print-echo-stream)
 	    (:constructor make-echo-stream (input-stream output-stream)))
   unread-stuff)
-
 
 (macrolet ((in-fun (name fun out-slot stream-method)
 	     `(defun ,name (stream eof-errorp eof-value)
@@ -1025,7 +1012,7 @@
    sends its output to Output-Stream.  In addition, all input is echoed to
    the output stream")
 
-;;;; String Input Streams:
+;;;; String Input Streams.
 
 (defstruct (string-input-stream
 	     (:include lisp-stream
@@ -1106,15 +1093,15 @@
 
 (defun make-string-input-stream (string &optional
 					(start 0) (end (length string)))
-  "Returns an input stream which will supply the characters of String between
-  Start and End in order."
+  "Returns an input stream which will supply the characters of String
+   between Start and End in order."
   (declare (type string string)
 	   (type index start)
 	   (type (or index null) end))
   (internal-make-string-input-stream (coerce string 'simple-string)
 				     start end))
 
-;;;; String Output Streams:
+;;;; String Output Streams.
 
 (defstruct (string-output-stream
 	    (:include lisp-stream
@@ -1198,15 +1185,16 @@
 
 (defun dump-output-stream-string (in-stream out-stream)
   "Dumps the characters buffer up in the In-Stream to the Out-Stream as
-  Get-Output-Stream-String would return them."
+   Get-Output-Stream-String would return them."
   (write-string* (string-output-stream-string in-stream) out-stream
 		 0 (string-output-stream-index in-stream))
   (setf (string-output-stream-index in-stream) 0))
+
 
-;;;; Fill-pointer streams:
+;;;; Fill-pointer streams.
 ;;;
-;;;    Fill pointer string output streams are not explicitly mentioned in
-;;; the CLM, but they are required for the implementation of With-Output-To-String.
+;;;    Fill pointer string output streams are used in the implementation of
+;;; With-Output-To-String.
 
 (defstruct (fill-pointer-output-stream
  	    (:include lisp-stream
@@ -1220,7 +1208,6 @@
 	    (:constructor make-fill-pointer-output-stream (string)))
   ;; The string we throw stuff in.
   string)
-
 
 (defun fill-pointer-ouch (stream character)
   (let* ((buffer (fill-pointer-output-stream-string stream))
@@ -1243,7 +1230,6 @@
 	    (setf (fill-pointer buffer) current+1))
 	(setf (schar workspace offset-current) character)))
     current+1))
-
 
 (defun fill-pointer-sout (stream string start end)
   (declare (simple-string string) (fixnum start end))
@@ -1272,7 +1258,6 @@
 		    workspace offset-current offset-dst-end)))
     dst-end))
 
-
 (defun fill-pointer-misc (stream operation &optional arg1 arg2)
   (declare (ignore arg1 arg2))
   (case operation
@@ -1288,7 +1273,11 @@
 	       current)))))
      (:element-type 'base-char)))
 
-;;;; Indenting streams:
+;;;; Indenting streams.
+
+;;; FIX consider adding the indenting spaces when the line is written
+;;;     instead of when a newline creates the line, else the indent.
+;;;     spaces can become trailing whitespace
 
 (defstruct (indenting-stream (:include lisp-stream
 				       (out #'indenting-out)
@@ -1308,8 +1297,8 @@
   (declare (ignore s d))
   (write-string "#<Indenting Stream>" stream))
 
-;;; Indenting-Indent writes the right number of spaces needed to indent output on
-;;; the given Stream based on the specified Sub-Stream.
+;;; Indenting-Indent writes the right number of spaces needed to indent
+;;; output on the given Stream based on the specified Sub-Stream.
 
 (defmacro indenting-indent (stream sub-stream)
   `(do ((i 0 (+ i 60))
@@ -1344,8 +1333,8 @@
 	     (setq i end))))))
 
 ;;; Indenting-Misc just treats just the :Line-Length message differently.
-;;; Indenting-Charpos says the charpos is the charpos of the base stream minus
-;;; the stream's indentation.
+;;; Indenting-Charpos says the charpos is the charpos of the base stream
+;;; minus the stream's indentation.
 
 (defun indenting-misc (stream operation &optional arg1 arg2)
   (let ((sub-stream (indenting-stream-stream stream)))
@@ -1375,9 +1364,7 @@
 	  (t
 	   (stream-misc-dispatch sub-stream operation arg1 arg2))))))
 
-
 (proclaim '(maybe-inline read-char unread-char read-byte listen))
-
 
 
 ;;;; Case frobbing streams, used by format ~(...~).
@@ -1632,10 +1619,11 @@
 ;;;
 ;;; We can't simply call the stream's misc method because nil is an
 ;;; ambiguous return value: does it mean text arrived, or does it mean the
-;;; stream's misc method had no :get-command implementation.  We can't return
-;;; nil until there is text input.  We don't need to loop because any stream
-;;; implementing :get-command would wait until it had some input.  If the
-;;; LISTEN fails, then we have some random stream we must wait on.
+;;; stream's misc method had no :get-command implementation.  We can't
+;;; return nil until there is text input.  We don't need to loop because
+;;; any stream implementing :get-command would wait until it had some
+;;; input.  If the LISTEN fails, then we have some random stream we must
+;;; wait on.
 ;;;
 (defun get-stream-command (stream)
   "This takes a stream and waits for text or a command to appear on it.  If
@@ -1653,12 +1641,12 @@
 ;;; READ-SEQUENCE -- Public
 ;;;
 (defun read-sequence (seq stream &key (start 0) (end nil))
-  "Destructively modify SEQ by reading elements from STREAM.
-  SEQ is bounded by START and END. SEQ is destructively modified by
-  copying successive elements into it from STREAM. If the end of file
-  for STREAM is reached before copying all elements of the subsequence,
-  then the extra elements near the end of sequence are not updated, and
-  the index of the next element is returned."
+  "Destructively modify SEQ by reading elements from STREAM.  SEQ is
+   bounded by START and END. SEQ is destructively modified by copying
+   successive elements into it from STREAM. If the end of file for STREAM
+   is reached before copying all elements of the subsequence, then the
+   extra elements near the end of sequence are not updated, and the index
+   of the next element is returned."
   (declare (type sequence seq)
 	   (type stream stream)
 	   (type index start)
@@ -1747,7 +1735,6 @@
 	   (funcall write-function (aref seq i) stream)))))))
 
 
-
 ;;; finish-standard-output-streams  --  Public
 ;;;
 ;;; Finish output on some of the standard output streams.

@@ -1,27 +1,13 @@
-;;; -*- Mode: Lisp; Package: Lisp; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/search-list.lisp,v 1.4 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Logical name (search list) hackery for Lisp'ers.
-;;;
-;;; Written by Bill Chiles.
 
 (in-package 'lisp)
+
 (in-package "EXTENSIONS")
 (export 'search-list)
 (in-package 'lisp)
 
-
 (defvar *search-list-table* (make-hash-table :test #'equal))
 (defvar *rsl-circularity-check* (make-hash-table :test #'equal))
-
 
 (defun search-list (name)
   "Returns a list of strings that are the of name.
@@ -29,7 +15,7 @@
    does end with a colon or slash, a slash is added.  Also, the
    list is copied."
   (let ((dev (pathname-device name)))
-    (unless dev (error "No device in ~S." name))
+    (or dev (error "No device in ~S." name))
     (copy-list (gethash dev *search-list-table*))))
 
 (defun %set-search-list (name new-value)
@@ -51,7 +37,6 @@
 		  new-value)))
   new-value)
 
-
 (defun resolve-search-list (name first-only-p)
   "This takes a Sesame search-list name (\"default\") instead of the form
    taken by SEARCH-LIST (\"default:\").  If first-only-p is non-nil, then
@@ -64,7 +49,6 @@
     (resolve-search-list-aux name first-only-p)
     (clrhash *rsl-circularity-check*)))
 
-
 ;;; RESOLVE-SEARCH-LIST-BODY is used in RESOLVE-SEARCH-LIST-AUX and
 ;;; RSL-FIRST.  This means the former is recursive, and the former and
 ;;; latter are mutually recursive.  This form first looks at an element of
@@ -73,12 +57,12 @@
 ;;; the already-form.  If there is a colon, grab the new element to resolve
 ;;; recursively.  If this new element has been seen already, we have an
 ;;; infinite recursion brewing.  Recursively expand this new element.  If
-;;; there are no expansions, signal an error with the offending search list;
-;;; otherwise, execute the expanded-form if the argument element was only a
-;;; search list, or the concat-form if the argument element was a search
-;;; list followed by a directory sequence.  The locals pos, len, and res
-;;; are meant to be referenced at the call sites.
-;;; 
+;;; there are no expansions, signal an error with the offending search
+;;; list; otherwise, execute the expanded-form if the argument element was
+;;; only a search list, or the concat-form if the argument element was a
+;;; search list followed by a directory sequence.  The locals pos, len, and
+;;; res are meant to be referenced at the call sites.
+;;;
 (eval-when (compile eval)
 (defmacro resolve-search-list-body (first-only-p element expanded-form
 						 concat-form already-form)
@@ -113,7 +97,7 @@
 ;;; concatenate each of the expansions of the search list with the
 ;;; directory, appending this to result.  If entry is just a directory
 ;;; spec, then append the list of entry to result.
-;;; 
+;;;
 (defun resolve-search-list-aux (dev first-only-p)
   (let ((entry (gethash dev *search-list-table*)))
     (if entry
@@ -128,27 +112,27 @@
 		 nil entry (nconc result res)
 		 (nconc result (rsl-concat res (subseq entry (1+ pos) len)))
 		 (nconc result (list entry))))))
-	(error "Undefined search list -- ~S" 
+	(error "Undefined search list -- ~S"
 	       (concatenate 'simple-string dev ":")))))
 
-;;; RSL-FIRST takes a possible expansion and resolves it if necessary.
-;;; If first is just another search list, then return the expansions
-;;; of this search list.  If first is another search list followed by
-;;; directory spec, then concatenate each of the expansions of the
-;;; search list with the directory, returning this list.  If first is
-;;; just a directory spec, then return the list of it.
-;;; 
+;;; RSL-FIRST takes a possible expansion and resolves it if necessary.  If
+;;; first is just another search list, then return the expansions of this
+;;; search list.  If first is another search list followed by directory
+;;; spec, then concatenate each of the expansions of the search list with
+;;; the directory, returning this list.  If first is just a directory spec,
+;;; then return the list of it.
+;;;
 (defun rsl-first (first)
   (declare (simple-string first))
   (resolve-search-list-body t first res
 			    (rsl-concat res (subseq first (1+ pos) len))
 			    (list first)))
 
-;;; RSL-CONCAT takes a list of expansions (prefixes) for a search list
-;;; that was concatenated with a directory spec (suffix).  Each prefix
-;;; is concatenated with the suffix and stored back where the prefix
-;;; was.  The destructively modified prefixes is returned.
-;;; 
+;;; RSL-CONCAT takes a list of expansions (prefixes) for a search list that
+;;; was concatenated with a directory spec (suffix).  Each prefix is
+;;; concatenated with the suffix and stored back where the prefix was.  The
+;;; destructively modified prefixes is returned.
+;;;
 (defun rsl-concat (prefixes suffix)
   (declare (simple-string suffix))
   (do ((ptr prefixes (cdr ptr)))

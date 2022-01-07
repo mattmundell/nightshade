@@ -1,17 +1,6 @@
-;;; -*- Log: code.log; Package: C -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/type-boot.lisp,v 1.9 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    Some initialization hacks that we need to get the type system started up
-;;; enough so that we can define the types used to define types.
-;;;
+;;; Some initialization hacks to get the type system started up enough to
+;;; define the types used to define types.
+
 (in-package "C")
 
 (deftype inlinep ()
@@ -22,8 +11,8 @@
 
 (in-package "KERNEL")
 
-;;; Define this so that we can copy type-class structures before the defstruct
-;;; for type-class runs.
+;;; Define this so that we can copy type-class structures before the
+;;; defstruct for type-class runs.
 ;;;
 (defun copy-type-class (tc)
   (let ((new (make-type-class)))
@@ -33,7 +22,7 @@
 	    (%instance-ref tc i)))
     new))
 
-;;; Define the STRUCTURE-OBJECT class as a subclass of INSTANCE.  This must be
-;;; the first DEFSTRUCT executed.
+;;; Define the STRUCTURE-OBJECT class as a subclass of INSTANCE.  This must
+;;; be the first DEFSTRUCT executed.
 ;;;
 (defstruct (structure-object (:alternate-metaclass instance)))

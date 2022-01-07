@@ -170,8 +170,8 @@
       #+(and mach sparc) "/usr/tmp/kernel.core"
       #-(and mach sparc) "target:lisp/kernel.core")
 (setf *genesis-c-header-name* "target:lisp/internals.h")
-(setf *genesis-symbol-table* "target:lisp/lisp.nm")
-(setf *genesis-map-name* "target:lisp/lisp.map")
+(setf *genesis-symbol-table* "target:lisp/nightshade.nm")
+(setf *genesis-map-name* "target:lisp/nightshade.map")
 
 (when (boundp '*target-page-size*)
   (locally (declare (optimize (inhibit-warnings 3)))

@@ -1,26 +1,12 @@
-;;; -*- Log: code.log; Package: Lisp -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/sharpm.lisp,v 1.14.2.2 2000/05/23 16:36:49 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Spice Lisp Interim Sharp Macro
-;;; Written by David Dill
-;;; Runs in the standard Spice Lisp environment.
-;;; This uses the special std-lisp-readtable, which is internal to READER.LISP
-;;;
+;;; Interim sharp macro.
+
 (in-package "LISP")
+
 (export '(*read-eval*))
 
 
-;;; declared in READ.LISP
-
-(proclaim '(special *read-suppress* std-lisp-readtable *bq-vector-flag*))
+(proclaim '(special *read-suppress* std-lisp-readtable ; reader.lisp
+		    *bq-vector-flag*)) ; backq.lisp
 
 (defun ignore-numarg (sub-char numarg)
   (when numarg
@@ -38,10 +24,9 @@
 	   (%reader-error stream "Unrecognized character name: ~S"
 			  charstring)))))
 
-
 (defun sharp-quote (stream sub-char numarg)
   (ignore-numarg sub-char numarg)
-  ;; 4th arg tells read that this is a recrusive call.
+  ;; 4th arg tells read that this is a recursive call.
   `(function ,(read stream t nil t)))
 
 (defun sharp-left-paren (stream ignore length)
@@ -105,7 +90,6 @@
 	   (%reader-error stream
 			 "Bit vector is longer than specified length #~A*~A"
 			 numarg bstring)))))
-
 
 (defun sharp-colon (stream sub-char numarg)
   (ignore-numarg sub-char numarg)
@@ -119,6 +103,7 @@
 		     token))
      (t
       (make-symbol token)))))
+
 
 ;;;; #. handling.
 
@@ -135,8 +120,8 @@
       (eval token))))
 
 
-;;;; Numeric radix stuff:
- 
+;;;; Numeric radix stuff.
+
 (defun sharp-R (stream sub-char radix)
   (cond (*read-suppress*
 	 (read-extended-token stream)
@@ -148,9 +133,9 @@
 	(t
 	 (let ((res (let ((*read-base* radix))
 		      (read stream t nil t))))
-	   (unless (typep res 'rational)
-	     (%reader-error stream "#~A (base ~D) value is not a rational: ~S."
-			   sub-char radix res))
+	   (or (typep res 'rational)
+	       (%reader-error stream "#~A (base ~D) value is not a rational: ~S."
+			      sub-char radix res))
 	   res))))
 
 (defun sharp-B (stream sub-char numarg)
@@ -164,8 +149,6 @@
 (defun sharp-X (stream sub-char numarg)
   (ignore-numarg sub-char numarg)
   (sharp-r stream sub-char 16))
-
-
 
 (defun sharp-A (stream ignore dimensions)
   (declare (ignore ignore))
@@ -196,12 +179,10 @@
 	     (read stream t nil t)
 	   (make-array dims :element-type element-type
 		       :initial-contents contents)))))
-	 
-
 
 (defun sharp-S (stream sub-char numarg)
   (ignore-numarg sub-char numarg)
-  ;;this needs to know about defstruct implementation
+  ;; This needs to know about defstruct implementation.
   (when *read-suppress*
     (read stream t nil t)
     (return-from sharp-S nil))
@@ -232,9 +213,10 @@
 ;;;
 (defvar *sharp-equal-circle-table*)
 
-;; This function is kind of like to NSUBLIS, but checks for circularities and
-;; substitutes in arrays and structures as well as lists.  The first arg is an
-;; alist of the things to be replaced assoc'd with the things to replace them.
+;; This function is kind of like to NSUBLIS, but checks for circularities
+;; and substitutes in arrays and structures as well as lists.  The first
+;; arg is an alist of the things to be replaced assoc'd with the things to
+;; replace them.
 ;;
 (defun circle-subst (old-new-alist tree)
   (cond ((not (typep tree '(or cons (array t) structure-object)))
@@ -273,15 +255,16 @@
 ;;; called) we GENSYM a symbol is which is used as an unforgeable tag.
 ;;; *SHARP-SHARP-ALIST* maps the integer tag to this gensym.
 ;;;
-;;; When SHARP-SHARP encounters a reference to a label, it returns the symbol
-;;; assoc'd with the label.  Resolution of the reference is deferred until the
-;;; read done by #= finishes.  Any already resolved tags (in
+;;; When SHARP-SHARP encounters a reference to a label, it returns the
+;;; symbol assoc'd with the label.  Resolution of the reference is deferred
+;;; until the read done by #= finishes.  Any already resolved tags (in
 ;;; *SHARP-EQUAL-ALIST*) are simply returned.
 ;;;
 ;;; After reading of the #= form is completed, we add an entry to
-;;; *SHARP-EQUAL-ALIST* that maps the gensym tag to the resolved object.  Then
-;;; for each entry in the *SHARP-SHARP-ALIST, the current object is searched
-;;; and any uses of the gensysm token are replaced with the actual value.
+;;; *SHARP-EQUAL-ALIST* that maps the gensym tag to the resolved object.
+;;; Then for each entry in the *SHARP-SHARP-ALIST, the current object is
+;;; searched and any uses of the gensysm token are replaced with the actual
+;;; value.
 ;;;
 (defvar *sharp-sharp-alist* ())
 ;;;
@@ -321,18 +304,18 @@
 ;;;; #+/-
 
 (flet ((guts (stream not-p)
-	 (unless (if (handler-case
-			 (let ((*package* *keyword-package*)
-			       (*read-suppress* nil))
-			   (featurep (read stream t nil t)))
-		       (reader-package-error
-			(condition)
-			(declare (ignore condition))
-			nil))
-		     (not not-p)
-		     not-p)
-	   (let ((*read-suppress* t))
-	     (read stream t nil t)))
+	 (or (if (handler-case
+		     (let ((*package* *keyword-package*)
+			   (*read-suppress* nil))
+		       (featurep (read stream t nil t)))
+		   (reader-package-error
+		    (condition)
+		    (declare (ignore condition))
+		    nil))
+		 (not not-p)
+		 not-p)
+	     (let ((*read-suppress* t))
+	       (read stream t nil t)))
 	 (values)))
 
   (defun sharp-plus (stream sub-char numarg)
@@ -345,7 +328,7 @@
 
 (defun sharp-C (stream sub-char numarg)
   (ignore-numarg sub-char numarg)
-  ;;next thing better be a list of two numbers.
+  ;; Next thing better be a list of two numbers.
   (let ((cnum (read stream t nil t)))
     (when *read-suppress* (return-from sharp-c nil))
     (if (and (listp cnum) (= (length cnum) 2))

@@ -298,7 +298,7 @@
 ;;;
 ;;; Every other character has class :other.
 ;;;
-(hi::do-alpha-chars (char :both)
+(edi::do-alpha-chars (char :both)
   (setf (svref *key-character-classes* (char-code char)) :letter))
 (setf (svref *key-character-classes* (char-code #\<)) :ISO-start)
 (setf (svref *key-character-classes* (char-code #\>)) :ISO-end)

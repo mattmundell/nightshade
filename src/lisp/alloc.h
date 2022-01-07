@@ -3,7 +3,7 @@
 #ifndef _ALLOC_H_
 #define _ALLOC_H_
 
-#include "lisp.h"
+#include "nightshade.h"
 
 extern lispobj alloc_cons(lispobj car, lispobj cdr);
 extern lispobj alloc_number(long n);

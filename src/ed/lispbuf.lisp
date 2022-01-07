@@ -1,7 +1,8 @@
 ;;; Stuff to do lisp hacking in the editor Lisp environment.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
+(export '(defun-region))
 
 (define-file-option "Package" (buffer value)
   (defhvar "Current Package"

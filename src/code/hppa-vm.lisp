@@ -1,16 +1,5 @@
-;;; -*- Package: HPPA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/hppa-vm.lisp,v 1.7 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; This file contains the HPPA specific runtime stuff.
-;;;
+
 (in-package "HPPA")
 (use-package "SYSTEM")
 (use-package "ALIEN")
@@ -110,7 +99,6 @@
 
 (pushnew :hppa *features*)
 
-
 
 ;;;; MACHINE-TYPE and MACHINE-VERSION
 
@@ -121,7 +109,6 @@
 (defun machine-version ()
   "Returns a string describing the version of the local machine."
   "HPPA")
-
 
 
 ;;; FIXUP-CODE-OBJECT -- Interface
@@ -156,7 +143,6 @@
 		(logior (ash bits 3)
 			(logand inst #xffe0e002)))))))))
 
-
 
 ;;;; Internal-error-arguments.
 
@@ -164,7 +150,7 @@
 ;;;
 ;;; Given the sigcontext, extract the internal error arguments from the
 ;;; instruction stream.
-;;; 
+;;;
 (defun internal-error-arguments (scp)
   (declare (type (alien (* sigcontext)) scp))
   (with-alien ((scp (* sigcontext) scp))
@@ -204,7 +190,7 @@
 ;;; SIGCONTEXT-REGISTER -- Interface
 ;;;
 ;;; An escape register saves the value of a register for a frame that someone
-;;; interrupts.  
+;;; interrupts.
 ;;;
 (defun sigcontext-register (scp index)
   (declare (type (alien (* sigcontext)) scp))
@@ -225,7 +211,6 @@
     new))
 
 (defsetf sigcontext-register %set-sigcontext-register)
-
 
 ;;; SIGCONTEXT-FLOAT-REGISTER  --  Interface
 ;;;
@@ -257,7 +242,6 @@
 ;;;
 (defsetf sigcontext-float-register %set-sigcontext-float-register)
 
-
 ;;; SIGCONTEXT-FLOATING-POINT-MODES  --  Interface
 ;;;
 ;;;    Given a sigcontext pointer, return the floating point modes word in the
@@ -270,18 +254,16 @@
   (with-alien ((scp (* sigcontext) scp))
     (slot scp 'sc-fpc-csr)))
 
-
 
 ;;; EXTERN-ALIEN-NAME -- interface.
 ;;;
 ;;; The loader uses this to convert alien names to the form they occure in
 ;;; the symbol table (for example, prepending an underscore).  On the HPPA
 ;;; we just leave it alone.
-;;; 
+;;;
 (defun extern-alien-name (name)
   (declare (type simple-base-string name))
   name)
-
 
 
 ;;; SANCTIFY-FOR-EXECUTION -- Interface.
@@ -289,7 +271,7 @@
 ;;; Do whatever is necessary to make the given code component executable.
 ;;; On the PA-RISC, this means flushing the data cache and purging the
 ;;; inst cache.
-;;; 
+;;;
 (defun sanctify-for-execution (component)
   (without-gcing
     (alien-funcall (extern-alien "sanctify_for_execution"

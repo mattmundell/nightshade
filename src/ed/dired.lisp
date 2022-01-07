@@ -2,14 +2,17 @@
 ;;;
 ;;; Site dependent code for dired.
 
+;;; FIX consider mving to ~filesys.lisp  eg used in code:db.lisp
+
 (defpackage "DIRED"
-  (:shadow "RENAME-FILE" "DELETE-FILE")
+  (:shadow "RENAME-FILE" "COPY-FILE" "DELETE-FILE")
   (:export "COPY-FILE" "RENAME-FILE" "SYMLINK-FILE" "FIND-FILE" "DELETE-FILE"
 	   "MAKE-DIRECTORY"
 	   "*UPDATE-DEFAULT*" "*CLOBBER-DEFAULT*" "*RECURSIVE-DEFAULT*"
 	   "*REPORT-FUNCTION*" "*ERROR-FUNCTION*" "*YESP-FUNCTION*"
 	   "*POST-DELETE-FUNCTION*"
-	   "PATHNAMES-FROM-PATTERN"))
+	   "PATHNAMES-FROM-PATTERN")
+  (:documentation "Site dependant file manipulation interface for Dired."))
 
 (in-package "DIRED")
 
@@ -601,8 +604,8 @@
 (defun open-file (ses-name)
   (multiple-value-bind (fd err)
 		       (unix:unix-open ses-name unix:o_rdonly 0)
-    (unless fd
-      (funcall *error-function* "Opening ~S failed: ~A." ses-name err))
+    (or fd
+	(funcall *error-function* "Opening ~S failed: ~A." ses-name err))
     fd))
 
 (defun close-file (fd)
@@ -612,8 +615,9 @@
   (multiple-value-bind (winp dev-or-err ino mode nlink uid gid rdev size)
 		       (unix:unix-fstat fd)
     (declare (ignore ino nlink uid gid rdev))
-    (unless winp (funcall *error-function*
-			  "Opening ~S failed: ~A."  ses-name dev-or-err))
+    (or winp
+	(funcall *error-function*
+		 "Opening ~S failed: ~A."  ses-name dev-or-err))
     (let ((storage (system:allocate-system-memory size)))
       (multiple-value-bind (read-bytes err)
 			   (unix:unix-read fd storage size)
@@ -625,14 +629,14 @@
 
 (defun write-file (ses-name data byte-count mode)
   (multiple-value-bind (fd err) (unix:unix-creat ses-name #o644)
-    (unless fd
-      (funcall *error-function* "Couldn't create file ~S: ~A"
-	       ses-name (unix:get-unix-error-msg err)))
+    (or fd
+	(funcall *error-function* "Couldn't create file ~S: ~A"
+		 ses-name (unix:get-unix-error-msg err)))
     (multiple-value-bind (winp err) (unix:unix-write fd data 0 byte-count)
-      (unless winp
-	(funcall *error-function* "Writing file ~S failed: ~A"
-	       ses-name
-	       (unix:get-unix-error-msg err))))
+      (or winp
+	  (funcall *error-function* "Writing file ~S failed: ~A"
+		   ses-name
+		   (unix:get-unix-error-msg err))))
     (unix:unix-fchmod fd (logand mode #o777))
     (unix:unix-close fd)))
 
@@ -640,22 +644,23 @@
   (multiple-value-bind (winp dev-or-err ino mode nlink uid gid rdev size atime)
 		       (unix:unix-stat ses-name)
     (declare (ignore ino mode nlink uid gid rdev size))
-    (unless winp
-      (funcall *error-function* "Couldn't stat file ~S failed: ~A."
-	       ses-name dev-or-err))
+    (or winp
+	(funcall *error-function* "Couldn't stat file ~S failed: ~A."
+		 ses-name dev-or-err))
     (multiple-value-bind (winp err)
 	(unix:unix-utimes ses-name atime 0 secs 0)
-      (unless winp
-	(funcall *error-function* "Couldn't set write date of file ~S: ~A"
-		 ses-name (unix:get-unix-error-msg err))))))
+      (fi winp
+	  (funcall *error-function* "Couldn't set write date of file ~S: ~A"
+		   ses-name (unix:get-unix-error-msg err))))))
 
 (defun get-write-date (ses-name)
   (multiple-value-bind (winp dev-or-err ino mode nlink uid gid rdev size
 			atime mtime)
  		       (unix:unix-stat ses-name)
     (declare (ignore ino mode nlink uid gid rdev size atime))
-    (unless winp (funcall *error-function* "Couldn't stat file ~S failed: ~A."
-			  ses-name dev-or-err))
+    (or winp
+	(funcall *error-function* "Couldn't stat file ~S failed: ~A."
+		 ses-name dev-or-err))
     mtime))
 
 ;;; SUB-RENAME-FILE must exist because we can't use Common Lisp's RENAME-FILE.
@@ -666,9 +671,9 @@
 ;;;
 (defun sub-rename-file (ses-name1 ses-name2)
   (multiple-value-bind (res err) (unix:unix-rename ses-name1 ses-name2)
-    (unless res
-      (funcall *error-function* "Failed to rename ~A to ~A: ~A."
-	       ses-name1 ses-name2 (unix:get-unix-error-msg err)))))
+    (fi res
+	(funcall *error-function* "Failed to rename ~A to ~A: ~A."
+		 ses-name1 ses-name2 (unix:get-unix-error-msg err)))))
 
 (defun directory-existsp (ses-name)
   (eq (unix:unix-file-kind ses-name) :directory))
@@ -681,24 +686,24 @@
 		   (subseq ses-name 0 (1- (length ses-name)))
 		   ses-name)))
     (multiple-value-bind (winp err) (unix:unix-mkdir name #o755)
-      (unless winp
-	(funcall *error-function* "Couldn't make directory ~S: ~A"
-		 name
-		 (unix:get-unix-error-msg err))))))
+      (fi winp
+	  (funcall *error-function* "Couldn't make directory ~S: ~A"
+		   name
+		   (unix:get-unix-error-msg err))))))
 
 (defun delete-directory (ses-name)
   (declare (simple-string ses-name))
   (multiple-value-bind (winp err)
 		       (unix:unix-rmdir (subseq ses-name 0
 						(1- (length ses-name))))
-    (unless winp
-      (funcall *error-function* "Couldn't delete directory ~S: ~A"
-	       ses-name
-	       (unix:get-unix-error-msg err)))))
+    (fi winp
+	(funcall *error-function* "Couldn't delete directory ~S: ~A"
+		 ses-name
+		 (unix:get-unix-error-msg err)))))
 
 (defun sub-symlink-file (ses-source ses-dest)
   (multiple-value-bind (res err) (unix:unix-symlink ses-dest ses-source)
-    (or res
+    (fi res
 	(funcall *error-function* "Failed to symlink ~A to ~A: ~A."
 		 ses-source ses-dest (unix:get-unix-error-msg err)))))
 
@@ -715,8 +720,3 @@
       (setf (cdr listing) files)
       (setf files listing))
     (setf listing hold)))
-
-
-;; FIX identical copy in HI in rompsite.lisp
-(defun directoryp (p)
-  (not (or (pathname-name p) (pathname-type p))))

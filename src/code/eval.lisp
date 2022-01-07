@@ -1,14 +1,5 @@
-;;; -*- Log: code.log; Package: Lisp -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/eval.lisp,v 1.26.2.3 2000/08/10 10:56:24 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
+;;; Eval and friends.
+
 (in-package "LISP")
 (export '(eval constantp quote proclaim
 	  eval-when progn prog1 prog2 let let*
@@ -18,7 +9,7 @@
 	  compiler-macro-function
 	  return function setq psetq apply funcall
 	  progv flet labels macrolet
-	  mapcar maplist mapc mapl mapcan mapcon
+	  mapcar maplist mapc mapl mapcan mapcon mapconcat ; FIX why these here?
 	  tagbody prog prog* go
 	  values multiple-values-limit
 	  values-list multiple-value-list multiple-value-call
@@ -60,21 +51,21 @@
 
 (defconstant lambda-list-keywords
   '(&optional &rest &key &aux &body &whole &allow-other-keys &environment)
-  "Keywords that you can put in a lambda-list, supposing you should want
-  to do such a thing.")
+  "Keywords that you can put in a lambda-list, supposing you should want to
+   do such a thing.")
 
 (defconstant call-arguments-limit most-positive-fixnum
   "The exclusive upper bound on the number of arguments which may be passed
-  to a function, including rest args.")
+   to a function, including rest args.")
 
 (defconstant lambda-parameters-limit most-positive-fixnum
-  "The exclusive upper bound on the number of parameters which may be specifed
-  in a given lambda list.  This is actually the limit on required and optional
-  parameters.  With &key and &aux you can get more.")
+  "The exclusive upper bound on the number of parameters which may be
+   specifed in a given lambda list.  This is actually the limit on required
+   and optional parameters.  With &key and &aux you can get more.")
 
 (defconstant multiple-values-limit most-positive-fixnum
   "The exclusive upper bound on the number of multiple-values that you can
-  have.")
+   have.")
 
 
 ;;;;
@@ -147,7 +138,6 @@
      :WARN  -- Print a warning, but declare the variable special (the default.)
       T     -- Quietly declare the variable special.
       NIL   -- Never declare the variable, giving warnings on each use.")
-
 
 ;;; EVAL  --  Public
 ;;;
@@ -257,7 +247,6 @@
       (t
        exp))))
 
-
 ;;; Dummy stubs for EVAL:INTERNAL-EVAL and EVAL:MAKE-INTERPRETED-FUNCTION in
 ;;; case the compiler isn't loaded yet.
 ;;;
@@ -270,7 +259,6 @@
   (error "EVAL called on #'(lambda (x) ...) when the compiler isn't loaded:~
 	  ~%     ~S~%"
 	 x))
-
 
 ;;; FUNCTION-LAMBDA-EXPRESSION  --  Public
 ;;;
@@ -307,7 +295,6 @@
 			   (values nil t name))))))
 	    (values nil t name)))))
 
-
 ;;; FIND-IF-IN-CLOSURE  --  Interface
 ;;;
 ;;;    Like FIND-IF, only we do it on a compiled closure's environment.
@@ -328,11 +315,10 @@
 
 (defvar *macroexpand-hook* 'funcall
   "The value of this variable must be a function that can take three
-  arguments, a macro expander function, the macro form to be expanded,
-  and the lexical environment to expand in.  The function should
-  return the expanded form.  This function is called by MACROEXPAND-1
-  whenever a runtime expansion is needed.  Initially this is set to
-  FUNCALL.")
+   arguments, a macro expander function, the macro form to be expanded, and
+   the lexical environment to expand in.  The function should return the
+   expanded form.  This function is called by MACROEXPAND-1 whenever a
+   runtime expansion is needed.  Initially this is set to FUNCALL.")
 
 ;;; INVOKE-MACROEXPAND-HOOK -- public.
 ;;;
@@ -479,7 +465,7 @@ internally...
 
 (defun constantp (object &optional environment)
   "True of any Lisp object that has a constant value: types that eval to
-  themselves, keywords, constants, and list whose car is QUOTE."
+   themselves, keywords, constants, and list whose car is QUOTE."
   (declare (ignore environment))
   (typecase object
     (number t)
@@ -494,9 +480,9 @@ internally...
 
 (defun apply (function arg &rest args)
   "Applies FUNCTION to a list of arguments produced by evaluating ARGS in
-  the manner of LIST*.  That is, a list is made of the values of all but the
-  last argument, appended to the value of the last argument, which must be a
-  list."
+   the manner of LIST*.  That is, a list is made of the values of all but
+   the last argument, appended to the value of the last argument, which
+   must be a list."
   (cond ((atom args)
 	 (apply function arg))
 	((atom (cdr args))
@@ -507,11 +493,9 @@ internally...
 		 (rplacd a1 (car a2))
 		 (apply function (cons arg args)))))))
 
-
 (defun funcall (function &rest arguments)
   "Calls Function with the given Arguments."
   (apply function arguments))
-
 
 
 ;;; Multiple-Value forms:

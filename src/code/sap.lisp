@@ -1,16 +1,5 @@
-;;; -*- Package: SYSTEM -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/sap.lisp,v 1.13.2.2 2000/05/23 16:36:49 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file holds the support for System Area Pointers (saps).
-;;;
+;;; Support for System Area Pointers (saps).
+
 (in-package "SYSTEM")
 
 (export '(system-area-pointer sap-ref-8 sap-ref-16 sap-ref-32 sap-ref-sap
@@ -29,7 +18,6 @@
 (in-package "SYSTEM")
 
 (use-package "KERNEL")
-
 
 
 ;;;; Primitive SAP operations.
@@ -226,7 +214,6 @@
 	   (fixnum offset)
 	   (type long-float new-value))
   (setf (sap-ref-long sap offset) new-value))
-
 
 
 ;;;; System memory allocation.

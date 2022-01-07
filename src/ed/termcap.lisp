@@ -3,7 +3,7 @@
 ;;; Parses a Termcap file and returns a data structure suitable for
 ;;; initializing a redisplay methods device.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 
 

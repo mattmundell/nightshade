@@ -5,7 +5,7 @@
 
 #ifndef LANGUAGE_ASSEMBLY
 
-#include "lisp.h"
+#include "nightshade.h"
 
 extern int foreign_function_call_active;
 

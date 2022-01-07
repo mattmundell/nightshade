@@ -1,6 +1,6 @@
 ;;; Code to peruse the library of hacks.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 (defmode "Lisp-Lib" :major-p t)

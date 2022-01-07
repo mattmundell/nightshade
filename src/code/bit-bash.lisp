@@ -1,25 +1,9 @@
-;;; -*- Log: code.log; Package: VM -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/bit-bash.lisp,v 1.20 1997/02/05 16:15:32 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Functions to implement bit bashing.
-;;;
-;;; Written by William Lott.
-;;;
 
 (in-package "VM")
 
-
 
 ;;;; Constants and Types.
-
 
 (eval-when (compile load eval)
 
@@ -46,8 +30,7 @@
   `(integer 0 (,(ceiling max-bits unit-bits))))
 
 
-); eval-when
-
+) ; eval-when
 
 
 ;;;; Support routines.
@@ -146,7 +129,6 @@
   (setf (sap-ref-32 sap (the index (ash offset 2))) value))
 ;;;
 (defsetf word-sap-ref %set-word-sap-ref)
-
 
 
 ;;;; DO-CONSTANT-BIT-BASH
@@ -514,4 +496,3 @@
 			(fix-sap-and-offset src src-offset)
      (do-unary-bit-bash src src-offset dst dst-offset length
 			#'%raw-bits #'%set-raw-bits #'word-sap-ref))))
-  

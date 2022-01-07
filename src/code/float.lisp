@@ -1,21 +1,7 @@
-;;; -*- Mode: Lisp; Package: KERNEL; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/float.lisp,v 1.15.2.3 2000/05/23 16:36:28 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the definitions of float specific number support
-;;; (other than irrational stuff, which is in irrat.)  There is code in here
-;;; that assumes there are only two float formats: IEEE single and double.
-;;;
-;;; Author: Rob MacLachlan
-;;; Long-float support by Douglas Crosher, 1998.
-;;; 
+;;; The definitions of float specific number support (other than irrational
+;;; stuff, which is in irrat.)  There is code in here that assumes there
+;;; are only two float formats: IEEE single and double.
+
 (in-package "KERNEL")
 (export '(%unary-truncate %unary-round))
 
@@ -87,7 +73,7 @@
   (make-long-float (logior (ash sign 15) exp)
 		   (ldb (byte 32 32) sig)
 		   (ldb (byte 32 0) sig)))
-					
+
 
 ;;;; Float parameters:
 
@@ -291,7 +277,6 @@
     (zerop (logand (ldb vm:long-float-significand-byte hi)
 		   vm:long-float-trapping-nan-bit))))
 
-
 ;;; FLOAT-PRECISION  --  Public
 ;;;
 ;;;    If denormalized, use a subfunction from INTEGER-DECODE-FLOAT to find the
@@ -323,7 +308,6 @@
       ((long-float)
        (frob vm:long-float-digits vm:long-float-bias
 	 integer-decode-long-denorm)))))
-
 
 (defun float-sign (float1 &optional (float2 (float 1 float1)))
   "Returns a floating-point number that has the same sign as
@@ -364,7 +348,6 @@
   (declare (ignore f))
   2)
 
-
 
 ;;;; INTEGER-DECODE-FLOAT and DECODE-FLOAT:
 
@@ -391,7 +374,6 @@
 	    (- (- vm:single-float-bias) vm:single-float-digits extra-bias)
 	    (if (minusp (float-sign x)) -1 1))))
 
-
 ;;; INTEGER-DECODE-SINGLE-FLOAT  --  Internal
 ;;;
 ;;;    Handle the single-float case of INTEGER-DECODE-FLOAT.  If an infinity or
@@ -413,7 +395,6 @@
 	   (integer-decode-single-denorm x))
 	  (t
 	   (values (logior sig vm:single-float-hidden-bit) biased sign)))))
-
 
 ;;; INTEGER-DECODE-DOUBLE-DENORM  --  Internal
 ;;;
@@ -450,7 +431,6 @@
 		  (truly-the fixnum (- biased extra-bias))
 		  sign)))))
 
-
 ;;; INTEGER-DECODE-DOUBLE-FLOAT  --  Internal
 ;;;
 ;;;    Like INTEGER-DECODE-SINGLE-FLOAT, only doubly so.
@@ -478,7 +458,6 @@
 			 32)
 		    lo)
 	    biased sign)))))
-
 
 ;;; INTEGER-DECODE-LONG-DENORM  --  Internal
 ;;;
@@ -514,7 +493,6 @@
 		  (truly-the fixnum (- biased extra-bias))
 		  sign)))))
 
-
 ;;; INTEGER-DECODE-LONG-FLOAT  --  Internal
 ;;;
 #+(and long-float x86)
@@ -535,7 +513,6 @@
 	   (integer-decode-long-denorm x))
 	  (t
 	   (values (logior (ash hi 32) lo) biased sign)))))
-
 
 ;;; INTEGER-DECODE-FLOAT  --  Public
 ;;;
@@ -558,7 +535,6 @@
     ((long-float)
      (integer-decode-long-float x))))
 
-
 (proclaim '(maybe-inline decode-single-float decode-double-float))
 
 ;;; DECODE-SINGLE-DENORM  --  Internal
@@ -576,7 +552,6 @@
 	    (truly-the fixnum (+ exp vm:single-float-digits))
 	    (float sign x))))
 
-
 ;;; DECODE-SINGLE-FLOAT  --  Internal
 ;;;
 ;;;    Handle the single-float case of DECODE-FLOAT.  If an infinity or NAN,
@@ -589,7 +564,7 @@
 	 (sign (float-sign x))
 	 (biased (truly-the single-float-exponent
 			    (- exp vm:single-float-bias))))
-    (unless (<= exp vm:single-float-normal-exponent-max) 
+    (unless (<= exp vm:single-float-normal-exponent-max)
       (error "Can't decode NAN or infinity: ~S." x))
     (cond ((zerop x)
 	   (values 0.0f0 biased sign))
@@ -602,11 +577,10 @@
 			 bits))
 		   biased sign)))))
 
-
 ;;; DECODE-DOUBLE-DENORM  --  Internal
 ;;;
 ;;;    Like DECODE-SINGLE-DENORM, only doubly so.
-;;; 
+;;;
 (defun decode-double-denorm (x)
   (declare (double-float x))
   (multiple-value-bind (sig exp sign)
@@ -618,7 +592,6 @@
 	     (ldb (byte 32 0) sig))
 	    (truly-the fixnum (+ exp vm:double-float-digits))
 	    (float sign x))))
-
 
 ;;; DECODE-DOUBLE-FLOAT  --  Public
 ;;;
@@ -645,7 +618,6 @@
 		    lo)
 		   biased sign)))))
 
-
 ;;; DECODE-LONG-DENORM  --  Internal
 ;;;
 #+(and long-float x86)
@@ -657,7 +629,6 @@
 			     (ldb (byte 32 0) sig))
 	    (truly-the fixnum (+ exp vm:long-float-digits))
 	    (float sign x))))
-
 
 ;;; DECODE-LONG-FLOAT  --  Public
 ;;;
@@ -683,7 +654,6 @@
 		    hi
 		    lo)
 		   biased sign)))))
-
 
 ;;; DECODE-FLOAT  --  Public
 ;;;
@@ -745,7 +715,6 @@
 	  (single-float (single-from-bits sign new-exp sig))
 	  (double-float (double-from-bits sign new-exp sig))))))))
 
-
 ;;; SCALE-FLOAT-MAYBE-OVERFLOW  --  Internal
 ;;;
 ;;;    Called when scaling a float overflows, or the oringinal float was a NaN
@@ -774,7 +743,6 @@
        (etypecase x
 	 (single-float single-float-positive-infinity)
 	 (double-float double-float-positive-infinity))))))
-
 
 ;;; SCALE-SINGLE-FLOAT, SCALE-DOUBLE-FLOAT  --  Internal
 ;;;
@@ -837,7 +805,7 @@
      (scale-long-float f ex))))
 
 
-;;;; Converting to/from floats:
+;;;; Converting to/from floats.
 
 (defun float (number &optional (other () otherp))
   "Converts any REAL to a float.  If OTHER is not provided, it returns a
@@ -851,7 +819,6 @@
       (if (floatp number)
 	  number
 	  (coerce number 'single-float))))
-
 
 (macrolet ((frob (name type)
 	     `(defun ,name (x)
@@ -867,7 +834,6 @@
   (frob %double-float double-float)
   #+long-float
   (frob %long-float long-float))
-
 
 ;;; FLOAT-RATIO  --  Internal
 ;;;
@@ -965,11 +931,10 @@ rounding modes & do ieee round-to-integer.
       (if (<= shift (- vm:single-float-digits))
 	  0
 	  (let ((res (ash frac shift)))
-	    (declare (type (unsigned-byte 31) res)) 
+	    (declare (type (unsigned-byte 31) res))
 	    (if (minusp bits)
 		(- res)
 		res))))))
-
 
 ;;; %UNARY-TRUNCATE-DOUBLE-FLOAT/FIXNUM  --  Interface
 ;;;
@@ -1002,7 +967,6 @@ rounding modes & do ieee round-to-integer.
 		res))))))
 |#
 
-  
 ;;; %UNARY-TRUNCATE  --  Interface
 ;;;
 ;;;    This function is called when we are doing a truncate without any funky
@@ -1030,7 +994,6 @@ rounding modes & do ieee round-to-integer.
 	     (if (minusp number)
 		 (- res)
 		 res)))))))
-
 
 ;;; %UNARY-ROUND  --  Interface
 ;;;
@@ -1062,11 +1025,10 @@ rounding modes & do ieee round-to-integer.
 		 (- rounded)
 		 rounded)))))))
 
-
 (defun rational (x)
-  "RATIONAL produces a rational number for any real numeric argument.  This is
-  more efficient than RATIONALIZE, but it assumes that floating-point is
-  completely accurate, giving a result that isn't as pretty."
+  "RATIONAL produces a rational number for any real numeric argument.  This
+   is more efficient than RATIONALIZE, but it assumes that floating-point
+   is completely accurate, giving a result that isn't as pretty."
   (number-dispatch ((x real))
     (((foreach single-float double-float #+long-float long-float))
      (multiple-value-bind (bits exp)
@@ -1081,13 +1043,13 @@ rounding modes & do ieee round-to-integer.
 		 (integer-/-integer (ash int ex) (ash 1 digits)))))))
     ((rational) x)))
 
-
 #+nil
 (defun rationalize (x)
-  "Converts any REAL to a RATIONAL.  Floats are converted to a simple rational
-  representation exploiting the assumption that floats are only accurate to
-  their precision.  RATIONALIZE (and also RATIONAL) preserve the invariant:
-      (= x (float (rationalize x) x))"
+  "Converts any REAL to a RATIONAL.  Floats are converted to a simple
+   rational representation exploiting the assumption that floats are only
+   accurate to their precision.  RATIONALIZE (and also RATIONAL) preserve
+   the invariant:
+       (= x (float (rationalize x) x))"
   (number-dispatch ((x real))
     (((foreach single-float double-float #+long-float long-float))
      ;; Thanks to Kim Fateman, who stole this function rationalize-float
@@ -1184,8 +1146,8 @@ rounding modes & do ieee round-to-integer.
 ;;;
 (defun rationalize (x)
   "Converts any REAL to a RATIONAL.  Floats are converted to a simple rational
-  representation exploiting the assumption that floats are only accurate to
-  their precision.  RATIONALIZE (and also RATIONAL) preserve the invariant:
+   representation exploiting the assumption that floats are only accurate to
+   their precision.  RATIONALIZE (and also RATIONAL) preserve the invariant:
       (= x (float (rationalize x) x))"
   (number-dispatch ((x real))
     (((foreach single-float double-float #+long-float long-float))
@@ -1225,4 +1187,3 @@ rounding modes & do ieee round-to-integer.
 			  p1 p2
 			  q1 q2))))))))
     ((rational) x)))
-

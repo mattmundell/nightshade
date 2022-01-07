@@ -1,16 +1,16 @@
 ;;; Documentation and help commands.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 ;;;; Help.
 
 (defun switch-to-messages ()
   "Switch to message history buffer."
-  (or hi::*message-buffer*
-      (setq hi::*message-buffer* (or (getstring "Messages" *buffer-names*)
+  (or edi::*message-buffer*
+      (setq edi::*message-buffer* (or (getstring "Messages" *buffer-names*)
 				     (make-buffer "Messages"))))
-  (change-to-buffer hi::*message-buffer*))
+  (change-to-buffer edi::*message-buffer*))
 
 (defun edit-editor-todo ()
   "Edit the editor TODO file."
@@ -50,7 +50,9 @@
      (editor-describe-command nil))
 ;     (#\p "Describe commands with mouse/Pointer bindings."
 ;      (describe-pointer-command nil))
-    (#\p "Describe a Person or entity, from the .db database."
+    (#\p "Describe a Package."
+     (describe-package-command nil))
+    (#\r "Describe the Record for a person or entity, from the .db database."
      (describe-record-command nil))
     (#\t "Edit the TODO file."
      (edit-editor-todo))
@@ -78,7 +80,6 @@
 	 (t
 	  (format s "~S may be invoked in the following ways:~%" nam)
 	  (print-command-bindings bindings s)))))))
-
 
 
 ;;;; Apropos.
@@ -151,13 +152,12 @@
     (write-string "  " stream)
     (write-line str stream)))
 
-
 
 ;;;; Describe command, key, pointer.
 
 (defcommand "Describe Command" (p)
   "Describe a command.
-  Prompts for a command and then prints out its full documentation."
+   Prompts for a command and then prints out its full documentation."
   "Print out the command documentation for a command which is prompted for."
   (declare (ignore p))
   (multiple-value-bind (nam com)
@@ -197,13 +197,13 @@
   (let ((old-window (current-window)))
     (unwind-protect
 	(progn
-	  (setf (current-window) hi::*echo-area-window*)
-	  (hi::display-prompt-nicely "Describe key: " nil)
-	  (setf (fill-pointer hi::*prompt-key*) 0)
+	  (setf (current-window) edi::*echo-area-window*)
+	  (edi::display-prompt-nicely "Describe key: " nil)
+	  (setf (fill-pointer edi::*prompt-key*) 0)
 	  (loop
-	    (let ((key-event (get-key-event hi::*editor-input*)))
-	      (vector-push-extend key-event hi::*prompt-key*)
-	      (let ((res (get-command hi::*prompt-key* :current)))
+	    (let ((key-event (get-key-event edi::*editor-input*)))
+	      (vector-push-extend key-event edi::*prompt-key*)
+	      (let ((res (get-command edi::*prompt-key* :current)))
 		(ext:print-pretty-key-event key-event *echo-area-stream*)
 		(write-char #\space *echo-area-stream*)
 		(cond ((commandp res)
@@ -216,14 +216,14 @@
 				    (concatenate 'simple-string
 						 (command-name res)
 						 "-COMMAND")))
-			 (print-pretty-key (copy-seq hi::*prompt-key*) s)
+			 (print-pretty-key (copy-seq edi::*prompt-key*) s)
 			 (format s " is bound to ~S.~%" (command-name res))
 			 (format s "Documentation for this command:~%   ~A"
 				 (command-documentation res)))
 		       (return))
 		      ((not (eq res :prefix))
 		       (with-pop-up-display (s :height 1)
-			 (print-pretty-key (copy-seq hi::*prompt-key*) s)
+			 (print-pretty-key (copy-seq edi::*prompt-key*) s)
 			 (write-string " is not bound to anything." s))
 		       (return)))))))
       (setf (current-window) old-window))))
@@ -261,7 +261,6 @@
 		    (push cmd result)
 		    (return t)))
 	    (return)))))))
-
 
 
 ;;;; Generic describe variable, command, key, attribute.
@@ -310,7 +309,6 @@
        (format s "Documentation for ~S:~%  ~A" nam doc)))
     (t (error "Bad documentation: ~S" doc))))
 
-
 
 ;;;; Describing and show variables.
 
@@ -354,7 +352,6 @@
       (format s "Value of ~S in ~S Mode:~%  ~S~%"
 	      name mode-name
 	      (variable-value var :mode mode-name)))))
-
 
 
 ;;;; Describing modes.
@@ -426,6 +423,98 @@
     (format *stdout* "Global bindings:~%")
     (map-bindings #'print-binding :global)
     (terpri *stdout*)))
+
+
+;;;; Describing packages.
+
+(defun describe-package (package stream)
+  (let ((nicks (package-nicknames package))
+	(package-name (package-name package))
+	(doc (lisp::package-doc-string package))
+	(istream (make-indenting-stream stream))
+	(value-width (- (value fill-column) 20)))
+    (format stream "The ~A package~%~%" package-name)
+    (when doc
+      (write-string "    " istream)
+      (setf (lisp::indenting-stream-indentation istream) 4)
+      ;; FIX why does it indent blank lines?
+      (write-string doc istream)
+      (terpri stream)
+      (terpri stream))
+    ;; FIX for all of these write only to width (use format?)
+    (let ((*print-right-margin* (value fill-column))
+	  (*print-miser-width* 10))
+      (format stream "         Nicknames:" package-name)
+      (write-string (mapconcat #'identity nicks " " t) stream)
+      (terpri stream)
+      (format stream "              Uses:")
+      (flet ((string-or-name (package)
+	       (if (packagep package)
+		   (package-name package)
+		   package)))
+	(write-string (mapconcat #'string-or-name (package-use-list package) " " t)
+		      stream)
+	(terpri stream)
+	(format stream "           Used by:")
+	(write-string (mapconcat #'string-or-name (package-used-by-list package) " " t)
+		      stream)))
+    (terpri stream)
+    (format stream "           Shadows:")
+    (write-string (mapconcat #'symbol-name
+			     (package-shadowing-symbols package)
+			     " " t)
+		  stream)
+    (terpri stream)
+    (multiple-value-bind (iu it) (lisp::internal-symbol-count package)
+      (multiple-value-bind (eu et) (lisp::external-symbol-count package)
+	(format stream
+		"  Internal symbols: ~D/~D~%  External symbols: ~D/~D~%"
+		iu it eu et)))
+    ;; FIX how to tell if var special?
+    ;; FIX var vs fun needs work
+    (format stream "Exported variables:")
+    (let ((width 0))
+      (do-external-symbols (symbol package)
+	(if (boundp symbol)
+	    (let ((len (length (symbol-name symbol))))
+	      (incf width (1+ len))
+	      (when (> width value-width)
+		(format stream "~%                   ")
+		(setq width len))
+	      (format stream " ~A" symbol)))))
+    (terpri stream)
+    (format stream "Exported functions:")
+    (let ((width 0))
+      (do-external-symbols (symbol package)
+	(or (boundp symbol)
+	    (let ((len (length (symbol-name symbol))))
+	      (incf width (1+ len))
+	      (when (> width value-width)
+		(format stream "~%                   ")
+		(setq width len))
+	      (format stream " ~A" symbol)))))
+    (terpri stream)))
+
+(defun table-all-packages ()
+  "Return a string table of the names of all packages."
+  (let ((table (make-string-table)))
+    (maphash #'(lambda (key value)
+		 (declare (ignore key))
+		 (setf (getstring (package-name value) table) value))
+	     lisp::*package-names*)
+    table))
+
+(defcommand "Describe Package" (p)
+  "Describe a prompted package."
+  "Describe a prompted package."
+  (declare (ignore p))
+  (let ((package (prompt-for-keyword (list (table-all-packages))
+				     ;; FIX why always cl?
+				     :default (package-name (lisp::current-package))
+				     :prompt "Describe package: "
+				     :help "Name of package to describe.")))
+    (with-pop-up-display (stream)
+      (describe-package (find-package package) stream))))
 
 
 ;;;; Printing bindings and last N characters typed.

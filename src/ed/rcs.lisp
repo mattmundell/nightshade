@@ -1,6 +1,6 @@
 ;;; Various commands for dealing with RCS.  (Superseded by vc.lisp.)
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 
@@ -13,6 +13,7 @@
     pathname))
 
 
+;; FIX moved to filesys.lisp
 (defmacro in-directory (directory &body forms)
   (let ((cwd (gensym)))
     `(let ((,cwd (ext:default-directory)))
@@ -468,7 +469,7 @@
   (let ((tn (or tn (buffer-pathname buffer))))
     (setf (variable-value 'rcs-status :buffer buffer)
 	  (if tn (rcs-file-status tn))))
-  (hi::update-modelines-for-buffer buffer))
+  (edi::update-modelines-for-buffer buffer))
 ;;;
 (add-hook read-file-hook 'rcs-update-buffer-status)
 (add-hook write-file-hook 'rcs-update-buffer-status)

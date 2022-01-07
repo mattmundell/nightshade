@@ -1,6 +1,6 @@
 ;;; This stuff can be used for testing tty redisplay.  There are four
 ;;; commands that, given "Setup Tty Buffer", that test
-;;; HI::COMPUTE-TTY-CHANGES: "Two Deletes", "Two Inserts", "One Delete One
+;;; EDI::COMPUTE-TTY-CHANGES: "Two Deletes", "Two Inserts", "One Delete One
 ;;; Insert", and "One Insert One Delete.  Each can be called with an
 ;;; argument to generate a grand total of eight screen permutations.
 ;;; "Setup Tty Buffer" numbers the lines of the main window 0 through 19
@@ -12,13 +12,11 @@
 
 (in-package "ED")
 
-
-(proclaim '(special hemlock-internals::*debugging-tty-redisplay*
-		    hemlock-internals::*testing-delete-queue*
-		    hemlock-internals::*testing-insert-queue*
-		    hemlock-internals::*testing-moved*
-		    hemlock-internals::*testing-writes*))
-
+(proclaim '(special edi::*debugging-tty-redisplay*
+		    edi::*testing-delete-queue*
+		    edi::*testing-insert-queue*
+		    edi::*testing-moved*
+		    edi::*testing-writes*))
 
 (defcommand "Setup Tty Buffer" (p)
   "Clear buffer and insert numbering strings 0..19."
@@ -35,17 +33,17 @@
   "Set *debugging-tty-redisplay* to t, and some other stuff to nil."
   "Set *debugging-tty-redisplay* to t, and some other stuff to nil."
   (declare (ignore p))
-  (setf hi::*debugging-tty-redisplay* t)
-  (setf hi::*testing-delete-queue* nil)
-  (setf hi::*testing-insert-queue* nil)
-  (setf hi::*testing-moved* nil)
-  (setf hi::*testing-writes* nil))
+  (setf edi::*debugging-tty-redisplay* t)
+  (setf edi::*testing-delete-queue* nil)
+  (setf edi::*testing-insert-queue* nil)
+  (setf edi::*testing-moved* nil)
+  (setf edi::*testing-writes* nil))
 
 (defcommand "Cleanup for Debugging" (p)
   "Set *debugging-tty-redisplay* to nil."
   "Set *debugging-tty-redisplay* to nil."
   (declare (ignore p))
-  (setf hi::*debugging-tty-redisplay* nil))
+  (setf edi::*debugging-tty-redisplay* nil))
 
 ;;; Given "Setup Tty Buffer", deletes lines numbered 3, 4, 5, 10, 11, 12,
 ;;; 13, and 14.  With argument, 3..7 and 12..14.
@@ -146,9 +144,9 @@
   ""
   ""
   (declare (ignore p))
-  (let* ((device (hi::device-hunk-device (hi::window-hunk (current-window))))
-	 (lines (hi::tty-device-lines device))
-	 (columns (hi::tty-device-columns device))
-	 (screen-image (hi::tty-device-screen-image device)))
+  (let* ((device (edi::device-hunk-device (edi::window-hunk (current-window))))
+	 (lines (edi::tty-device-lines device))
+	 (columns (edi::tty-device-columns device))
+	 (screen-image (edi::tty-device-screen-image device)))
     (dotimes (i lines)
-      (setf (svref screen-image i) (hi::make-si-line columns)))))
+      (setf (svref screen-image i) (edi::make-si-line columns)))))

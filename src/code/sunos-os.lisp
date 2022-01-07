@@ -1,19 +1,9 @@
-;;; -*- Mode: Lisp; Package: Lisp; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/sunos-os.lisp,v 1.8.2.1 1998/06/23 11:22:33 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; OS interface functions for CMU CL under Mach.  From Miles Bader and David
-;;; Axmark.
-;;;
+;;; OS interface functions for running under SunOS.
+
 (in-package "SYSTEM")
+
 (use-package "EXTENSIONS")
+
 (export '(get-system-info get-page-size os-init))
 
 (pushnew :sunos *features*)
@@ -35,11 +25,10 @@
             (subseq version-line 0 (1- (length version-line))))))
   *software-version*)
 
-
 ;;; OS-INIT -- interface.
 ;;;
 ;;; Other OS dependent initializations.
-;;; 
+;;;
 (defun os-init ()
   ;; Decache version on save, because it might not be the same when we restart.
   (setf *software-version* nil))

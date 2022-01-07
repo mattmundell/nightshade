@@ -1,6 +1,6 @@
 ;;; System dependent display.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 
 ;;;; Terminal init and exit methods.

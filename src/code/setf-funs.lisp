@@ -1,17 +1,6 @@
-;;; -*- Package: Kernel -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/setf-funs.lisp,v 1.5.2.1 1998/07/19 01:06:12 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    Stuff to automatically generate SETF functions for all the standard
+;;; Stuff to automatically generate SETF functions for all the standard
 ;;; functions that are currently implemented with setf macros.
-;;;
+
 (in-package "KERNEL")
 
 (eval-when (compile eval)
@@ -33,7 +22,6 @@
      (t
       (warn "Hairy setf expander for function ~S." name)
       nil))))
-       
 
 (defmacro define-setters (packages &rest ignore)
   (collect ((res))

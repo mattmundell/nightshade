@@ -25,7 +25,7 @@
 #include <fcntl.h>
 #include <assert.h>
 #include <nlist.h>
-#include "lisp.h"
+#include "nightshade.h"
 #include "internals.h"
 
 struct nlist nl[] = {
@@ -51,7 +51,7 @@ main(int argc, char **argv)
    assert(nl[0].n_value && !(nl[0].n_value&0x3));
    assert(nl[1].n_value && !(nl[1].n_value&0x3));
    assert(nl[2].n_value && !(nl[2].n_value&0x3));
-   
+
    if(elf_version(EV_CURRENT) == EV_NONE) {
       fprintf(stderr, "ELF punted! Recompile %s\n", argv[0]);
       exit(1);
@@ -62,7 +62,7 @@ main(int argc, char **argv)
       perror("open");
       exit(1);
       }
-   
+
    elf = elf_begin(fd, ELF_C_RDWR, NULL);
 
    ehdr = elf32_getehdr(elf);
@@ -93,7 +93,7 @@ main(int argc, char **argv)
 
    assert(textdata[nl[2].n_value/4] == 0x000B000D);
    textdata[nl[2].n_value/4] = type_ReturnPcHeader;
-   
+
    elf_flagdata(data, ELF_C_SET, ELF_F_DIRTY);
    elf_update(elf, ELF_C_WRITE);
    elf_end(elf);

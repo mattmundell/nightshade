@@ -1,20 +1,10 @@
-;;; -*- Log: code.log; Package: Lisp -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/struct.lisp,v 1.19.2.1 1998/06/23 11:22:33 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains structure definitions that need to be compiled early
-;;; for bootstrapping reasons.
-;;;
+;;; Structure definitions that need to be compiled early for bootstrapping
+;;; reasons.
+
 (in-package "LISP")
 
-;;;; The stream structure:
+
+;;;; The stream structure.
 
 (defconstant in-buffer-length 512 "The size of a stream in-buffer.")
 (deftype in-buffer-type ()
@@ -22,7 +12,7 @@
 
 ;;; Change the kind of lisp-stream to :instance so that the defstruct
 ;;; doesn't flame out.
-;;; 
+;;;
 (eval-when (compile eval)
   (setf (info type kind 'lisp-stream) :instance))
 
@@ -43,7 +33,8 @@
 (defun streamp (stream)
   (typep stream 'stream))
 
-;;; Alien value structures:
+
+;;;; Alien value structures.
 
 (in-package "ALIEN")
 

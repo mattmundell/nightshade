@@ -85,9 +85,9 @@
 ;;;
 (defun copy-packages (packages)
   "Rename all the of the Named packages to OLD-Name, and then create new
-  packages for each name that have the same names, nicknames, imports, shadows
-  and exports.  If any of the OLD-Name packages already exist, then we quietly
-  do nothing."
+   packages for each name that have the same names, nicknames, imports,
+   shadows and exports.  If any of the OLD-Name packages already exist,
+   then we quietly do nothing."
   (let* ((packages (lisp::package-listify packages))
 	 (names (mapcar #'package-name packages))
 	 (new-names (mapcar #'(lambda (x)
@@ -228,7 +228,7 @@
     (make-pathname :directory (pathname-directory f)))))
 
 
-;;; CAT-IF-ANYTHING-CHAGNED
+;;; CAT-IF-ANYTHING-CHANGED
 
 (defun cat-if-anything-changed (output-file &rest input-files)
   (flet ((add-correct-type (pathname)

@@ -1,13 +1,15 @@
 ;;; Indentation commands.
 
-(in-package "HEMLOCK")
+(in-package "ED")
+
+(export '(delete-horizontal-space indent-region indent-region-for-commands))
 
 (defun update-spaces-per-tab (&optional name kind where value)
   "Update display to a new Value of Spaces per Tab."
   (declare (ignore name kind where value))
   ;; FIX change only takes effect when buffer is switched
-  (when hi::*in-the-editor*
-    (setq hi::*screen-image-trashed* t)
+  (when edi::*in-the-editor*
+    (setq edi::*screen-image-trashed* t)
     (redisplay-all)))
 
 (defhvar "Spaces per Tab"

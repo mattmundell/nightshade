@@ -1,17 +1,4 @@
-;;; -*- Package: EXTENSIONS -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/final.lisp,v 1.2 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Finalization based on weak pointers.  Written by William Lott, but
-;;; the idea really was Chris Hoover's.
-;;;
+;;; Finalization based on weak pointers.
 
 (in-package "EXTENSIONS")
 
@@ -20,7 +7,7 @@
 (defvar *objects-pending-finalization* nil)
 
 (defun finalize (object function)
-  "Arrage for FUNCTION to be called when there are no more references to
+  "Arrange for FUNCTION to be called when there are no more references to
    OBJECT."
   (declare (type function function))
   (system:without-gcing

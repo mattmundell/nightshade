@@ -1,20 +1,8 @@
-;;; -*- Mode: Lisp; Package: Multiprocessing -*-
-;;;
-;;; **********************************************************************
-;;; This code was written by Douglas T. Crosher and has been placed in
-;;; the Public domain, and is provided 'as is'.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/multi-proc.lisp,v 1.29.2.4 2000/08/19 17:48:48 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Stack-group and multi-process support for CMUCL x86.
-;;;
+;;; Stack-group and multi-process support for x86.
 
 (in-package "MULTIPROCESSING")
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;;;; Handle the binding stack.
 
 ;;; Undo all the bindings in the bind stack, restoring the global
@@ -120,7 +108,7 @@
 			  (aref new-binding-stack index))))))
   (values))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;;;; Alien-stack
 
 ;;; The Top of the Alien-stack.
@@ -165,7 +153,7 @@
 	  (aref save-stack index)))
   (values))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;;;; Interrupt contexts.
 
 ;;; Save the interrupt contexts.
@@ -198,7 +186,7 @@
 	      (aref save-vector index)))))
   (values))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;;;;
 
 ;;; The control stacks need special handling on the x86 as they
@@ -565,7 +553,6 @@
 	(lisp::maybe-gc))
       child-stack-group)))
 
-
 ;;; Stack-Group-Resume -- Interface
 ;;;
 ;;; Transfer control to the given stack-group, resuming its execution,
@@ -673,7 +660,7 @@
     (lisp::maybe-gc))
   (values))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;;;; Double-float timing functions for use by the scheduler.
 
 ;;; These timer functions use double-floats for accuracy. In most
@@ -710,9 +697,9 @@
 	     (coerce stime-usec 'double-float))
 	  1d-6))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;;; Multi-process support. The interface is based roughly on the
-;;;; CLIM-SYS spec. and support needed for cl-http.
+
+;;;; Multi-process support. The interface is based roughly on the CLIM-SYS
+;;;; specification and support needed for cl-http.
 
 (defvar *multi-processing* t)
 
@@ -860,7 +847,6 @@
     (setf (process-scheduled-run-time new-process) run-time))
   (values))
 
-
 ;;; Make-Process -- Public
 ;;;
 (defun make-process (function &key (name "Anonymous"))
@@ -918,7 +904,6 @@
 	   (atomic-push process *all-processes*)
 	   process))))
 
-
 ;;; Process-Interrupt  --  Public
 ;;;
 (defun process-interrupt (process function)
@@ -929,7 +914,6 @@
    (setf (process-interrupts process)
 	 (append (list function) (process-interrupts process))))
   (process-yield))
-
 
 ;;; Destroy-Process  --  Public
 ;;;
@@ -1007,15 +991,12 @@
    (push process *all-processes*))
   process)
 
-
-;;; Process-Preset
 (defun process-preset (process function &rest args)
   "Restart process, unwinding it to its initial state and calls
   function with args."
   (setf (process-initial-function process) function)
   (setf (process-initial-args process) args)
   (restart-process process))
-
 
 ;;; Disable-Process  --  Public
 ;;;
@@ -1440,7 +1421,6 @@
 ;;;
 (pushnew 'scrub-all-processes-stacks ext:*before-gc-hooks*)
 
-
 ;;; Process-Wait-Until-FD-Usable  --  Public.
 ;;;
 ;;; Wait until FD is usable for DIRECTION.
@@ -1512,7 +1492,6 @@
 		     (mp:process-wait "Output Wait"
 				      #'fd-usable-for-output)))))))))
 
-
 ;;; Sleep  --  Public
 ;;;
 ;;; Redefine the sleep function to call process-wait-with-timeout,
@@ -1539,8 +1518,6 @@
 	 nil)
 	(t
 	 (process-wait-with-timeout "Sleep" n (constantly nil)))))
-
-
 
 ;;; With-Timeout-Internal  --  Internal
 ;;;
@@ -1569,7 +1546,6 @@
 	  (tf () . ,timeout-forms))
     (with-timeout-internal ,timeout #'fn #'tf)))
 
-
 ;;; Show-Processes  --  Public
 ;;;
 (defun show-processes (&optional verbose)
@@ -1587,7 +1563,6 @@
 	      (process-run-time process)
 	      (process-real-time process)
 	      (process-idle-time process)))))
-
 
 ;;; Top-Level  --  Internal
 ;;;
@@ -1729,10 +1704,9 @@
     ;; Make the listening thread.
     (make-process #'listener)))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;;;; Simple Locking.
 
-;;;
 (defstruct (lock
 	     (:constructor nil)
 	     (:print-function %print-lock))

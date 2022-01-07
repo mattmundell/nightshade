@@ -1,6 +1,6 @@
 ;;; A minimal Pascal mode.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 (defmode "Pascal" :major-p t)
 

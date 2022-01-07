@@ -1,7 +1,7 @@
 ;;; Screen allocation functions: screen management and event handlers for
 ;;; the editor under X.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(make-xwindow-like-hwindow *create-window-hook* *delete-window-hook*
 	  *random-typeout-hook* *create-initial-windows-hook*))
@@ -1157,12 +1157,12 @@
 ;;; DEFAULT-RANDOM-TYPEOUT-HOOK  --  Internal
 ;;;
 ;;;    The default hook-function for random typeout.  Nothing very fancy
-;;; for now.  If not given a window, makes one on top of the initial
-;;; Hemlock window using specials set in INIT-BITMAP-SCREEN-MANAGER.  If
-;;; given a window, we will change the height subject to the constraint
-;;; that the bottom won't be off the screen.  Any resulting window has
-;;; input and boundary crossing events selected, an editor cursor defined,
-;;; and is mapped.
+;;; for now.  If not given a window, makes one on top of the initial editor
+;;; window using specials set in INIT-BITMAP-SCREEN-MANAGER.  If given a
+;;; window, we will change the height subject to the constraint that the
+;;; bottom won't be off the screen.  Any resulting window has input and
+;;; boundary crossing events selected, an editor cursor defined, and is
+;;; mapped.
 ;;;
 (defun default-random-typeout-hook (device window height)
   (declare (fixnum height))
@@ -1303,7 +1303,7 @@
 	(set-hunk-size hunk (xlib:drawable-width xwindow)
 		       (xlib:drawable-height xwindow) t))
       ;;
-      ;; Get a Hemlock window and hide it from the rest of Hemlock.
+      ;; Get an editor window and hide it from the rest of the editor.
       (let ((hwin (window-for-hunk hunk mark *random-typeout-ml-fields*)))
 	(update-modeline-field (window-buffer hwin) hwin :more-prompt)
 	(setf (bitmap-hunk-window hunk) hwin)
@@ -1408,10 +1408,10 @@
 			  w echo-height ff-width ff-height)))))))))
 
 (defvar *create-initial-windows-hook* #'default-create-initial-windows-hook
-  "Hemlock uses this function when it initializes the screen manager to make
-   the first windows, typically the main and echo area windows.  It takes a
-   Hemlock device as a required argument.  It sets *current-window* and
-   *echo-area-window*.")
+  "The editor uses this function when it initializes the screen manager to
+   make the first windows, typically the main and echo area windows.  It
+   takes an editor device as a required argument.  It sets *current-window*
+   and *echo-area-window*.")
 
 (defun make-echo-xwindow (root x y width height)
   (let* ((font-width (font-family-width *default-font-family*))
@@ -1672,9 +1672,9 @@
 
 
 ;;; WINDOW-ROOT-XY returns the x and y coordinates for a window relative to
-;;; its root.  Some window managers reparent Hemlock's window, so we have
-;;; to mess around possibly to get this right.  If x and y are supplied, they
-;;; are relative to xwin's parent.
+;;; its root.  Some window managers reparent the editor's window, so we
+;;; have to mess around possibly to get this right.  If x and y are
+;;; supplied, they are relative to xwin's parent.
 ;;;
 (defun window-root-xy (xwin &optional x y)
   (multiple-value-bind (children parent root)

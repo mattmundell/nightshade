@@ -1,10 +1,10 @@
 ;;; Structures and assorted macros.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(mark mark-line mark-charpos markp region region-start region-end
 	  regionp buffer bufferp buffer-modes buffer-point buffer-writable
-	  buffer-delete-hook buffer-windows buffer-variables buffer-write-date
+	  buffer-delete-hook buffer-variables buffer-windows buffer-write-date
 	  buffer-line-count
 	  region regionp region-start region-end window windowp window-height
 	  window-width window-display-start window-display-end window-point
@@ -565,9 +565,6 @@
   "Make a buffer modified or unmodified.")
 (defsetf buffer-pathname %set-buffer-pathname
   "Sets the pathname of a buffer, invoking the Buffer Pathname Hook.")
-
-(defsetf getstring %set-string-table
-  "Sets the value for a string-table entry, making a new one if necessary.")
 
 (defsetf window-buffer %set-window-buffer
   "Change the buffer a window is mapped to.")

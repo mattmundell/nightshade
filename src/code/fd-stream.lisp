@@ -1,21 +1,9 @@
-;;; -*- Log: code.log; Package: LISP -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/fd-stream.lisp,v 1.40.2.7 2000/10/16 17:32:44 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Streams for UNIX file descriptors.
-;;;
-;;; Written by William Lott, July 1989 - January 1990.
-;;; Some tuning by Rob MacLachlan.
-;;;
-;;; **********************************************************************
 
+(in-package "LISP")
+
+(export '(file-stream file-string-length stream-external-format))
+(deftype file-stream () 'fd-stream)
 
 (in-package "SYSTEM")
 
@@ -23,16 +11,11 @@
           io-timeout beep *beep-function* output-raw-bytes
 	  *tty* *stdin* *stdout* *stderr*))
 
-
 (in-package "EXTENSIONS")
 
 (export '(*backup-extension*))
 
-
 (in-package "LISP")
-
-(export '(file-stream file-string-length stream-external-format))
-(deftype file-stream () 'fd-stream)
 
 
 ;;;; Buffer manipulation routines.
@@ -112,7 +95,6 @@
   (declare (ignore depth) (stream stream))
   (format stream "#<Stream for ~A>"
 	  (fd-stream-name fd-stream)))
-
 
 (define-condition io-timeout (stream-error)
   ((direction :reader io-timeout-direction :initarg :direction))
@@ -217,7 +199,6 @@
 		((not (eql count length))
 		 (output-later stream base (the index (+ start count))
 			       end reuse-sap)))))))
-
 
 ;;; FLUSH-OUTPUT-BUFFER -- internal
 ;;;
@@ -327,7 +308,6 @@
 			   (fd-stream-obuf-tail stream))
 	byte))
 
-
 ;;; OUTPUT-RAW-BYTES -- public
 ;;;
 ;;;   Does the actual output. If there is space to buffer the string, buffer
@@ -337,8 +317,8 @@
 ;;; send it directly (after flushing the buffer, of course).
 ;;;
 (defun output-raw-bytes (stream thing &optional start end)
-  "Output THING to stream.  THING can be any kind of vector or a sap.  If THING
-  is a SAP, END must be supplied (as length won't work)."
+  "Output THING to stream.  THING can be any kind of vector or a sap.  If
+   THING is a SAP, END must be supplied (as length won't work)."
   (let ((start (or start 0))
 	(end (or end (length (the (simple-array * (*)) thing)))))
     (declare (type index start end))
@@ -693,7 +673,6 @@
 		     (- requested (/ bytes elsize))))))
 |#
 
-
 ;;; FD-STREAM-READ-N-BYTES -- internal
 ;;;
 ;;;    The N-Bin method for FD-STREAMs.  This doesn't use the SERVER; it blocks
@@ -1039,7 +1018,6 @@
     (:file-position
      (fd-stream-file-position stream arg1))))
 
-
 ;;; FD-STREAM-FILE-POSITION -- internal.
 ;;;
 (defun fd-stream-file-position (stream &optional newpos)
@@ -1121,7 +1099,6 @@
 			stream
 			(unix:get-unix-error-msg errno))))))))
 
-
 
 ;;;; Creation routines (MAKE-FD-STREAM and OPEN)
 
@@ -1148,15 +1125,15 @@
   (declare (type index fd) (type (or index null) timeout)
 	   (type (member :none :line :full) buffering))
   "Create a stream for the given unix file descriptor.
-  If input is non-nil, allow input operations.
-  If output is non-nil, allow output operations.
-  If neither input nor output are specified, default to allowing input.
-  Element-type indicates the element type to use (as for open).
-  Buffering indicates the kind of buffering to use.
-  Timeout (if true) is the number of seconds to wait for input.  If NIL (the
-    default), then wait forever.  When we time out, we signal IO-TIMEOUT.
-  File is the name of the file (will be returned by PATHNAME).
-  Name is used to identify the stream when printed."
+   If input is non-nil, allow input operations.
+   If output is non-nil, allow output operations.
+   If neither input nor output are specified, default to allowing input.
+   Element-type indicates the element type to use (as for open).
+   Buffering indicates the kind of buffering to use.
+   Timeout (if true) is the number of seconds to wait for input.  If NIL (the
+   default), then wait forever.  When we time out, we signal IO-TIMEOUT.
+   File is the name of the file (will be returned by PATHNAME).
+   Name is used to identify the stream when printed."
   (cond ((not (or input-p output-p))
 	 (setf input t))
 	((not (or input output))
@@ -1177,7 +1154,6 @@
 		    (format *terminal-io* "** Closed file descriptor ~D~%"
 			    fd))))
     stream))
-
 
 ;;; PICK-PACKUP-NAME -- internal
 ;;;
@@ -1237,7 +1213,6 @@
 		   (unix:get-unix-error-msg err))
 	   nil))))
 
-
 ;;; OPEN -- public
 ;;;
 ;;;   Open the given file.
@@ -1260,10 +1235,10 @@
    :if-exists - one of :error, :new-version, :rename, :rename-and-delete,
                        :overwrite, :append, :supersede or nil
    :if-does-not-exist - one of :error, :create or nil
-  See the manual for details."
+  FIX See the manual for details."
   (declare (ignore external-format))
 
-  ;; First, make sure that DIRECTION is valid. Allow it to be changed if not.
+  ;; First, make sure that DIRECTION is valid.  Allow it to be changed if not.
   (setf direction
 	(assure-one-of direction
 		       '(:input :output :io :probe)

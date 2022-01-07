@@ -1,7 +1,6 @@
 ;;; Bufed (Buffer list Editing) mode.
 
-(in-package "HEMLOCK")
-
+(in-package "ED")
 
 
 ;;;; Representation of existing buffers.
@@ -29,13 +28,13 @@
     (setf *bufed-buffer* nil)
     (setf *bufed-buffers* nil)))
 
-
 
 ;;;; Commands.
 
 (defmode "Bufed" :major-p t
   :documentation
-  "Bufed allows the user to quickly save, goto, delete, etc., his buffers.")
+  "Bufed is a mode for editing buffers, including save, going to and
+   killing a buffer.")
 
 (defhvar "Virtual Buffer Deletion"
   "When set, \"Bufed Delete\" marks a buffer for deletion instead of immediately
@@ -181,7 +180,7 @@
 	    (declare (simple-string n))
 	    (or (eq b *echo-area-buffer*)
 		(eq b buf)
-		(eq b hi::*message-buffer*)
+		(eq b edi::*message-buffer*)
 		(progn
 		  (bufed-write-line b n s)
 		  (setf (svref *bufed-buffers* i) (make-bufed-buffer b))
@@ -235,7 +234,7 @@
   (let ((pos (or pos (gensym))))
     `(when (and *bufed-buffers*
 		(not (eq *bufed-buffer* ,buffer))
-		(not (eq hi::*message-buffer* ,buffer))
+		(not (eq edi::*message-buffer* ,buffer))
 		(not (eq *echo-area-buffer* ,buffer)))
        (let ((,pos (position ,buffer *bufed-buffers* :key #'car
 			     :test #'eq :end *bufed-buffers-end*)))

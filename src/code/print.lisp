@@ -1,19 +1,4 @@
-;;; -*- Log: code.log; Package: Lisp -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/print.lisp,v 1.66.2.4 2000/05/23 16:36:45 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; CMU Common Lisp printer.
-;;;
-;;; Written by Neal Feinberg, Bill Maddox, Steven Handerson, and Skef Wholey.
-;;; Modified by various CMU Common Lisp maintainers.
-;;;
+;;; Lisp printer.
 
 (in-package "LISP")
 
@@ -32,7 +17,6 @@
 	  punt-if-too-long output-symbol-name))
 
 (in-package "LISP")
-
 
 
 ;;;; Exported printer control variables.
@@ -65,6 +49,7 @@
 (defvar *print-lines* nil
   "The maximum number of lines to print.  If NIL, unlimited.")
 (defvar *print-right-margin* nil
+  ;; FIX ems?
   "The position of the right margin in ems.  If NIL, try to determine this
    from the stream in use.")
 (defvar *print-miser-width* nil
@@ -233,7 +218,6 @@
 	(get-output-stream-string stream)
       (push stream *string-output-streams*))))
 
-
 
 ;;;; PRINT-UNREADABLE-OBJECT macro
 
@@ -285,26 +269,25 @@
       (char= char #\return)
       (char= char #\linefeed)))
 
-
 
-;;;; Circularity detection stuff.
+;;;; Circularity detection.
 
 ;;; *CIRCULARITY-HASH-TABLE* -- internal.
 ;;;
-;;; When *print-circle* is T, this gets bound to a hash table that (eventually)
-;;; ends up with entries for every object printed.  When we are initially
-;;; looking for circularities, we enter a T when we find an object for the
-;;; first time, and a 0 when we encounter an object a second time around.
-;;; When we are actually printing, the 0 entries get changed to the actual
-;;; marker value when they are first printed.
+;;; When *print-circle* is T, this gets bound to a hash table that
+;;; (eventually) ends up with entries for every object printed.  When we
+;;; are initially looking for circularities, we enter a T when we find an
+;;; object for the first time, and a 0 when we encounter an object a second
+;;; time around.  When we are actually printing, the 0 entries get changed
+;;; to the actual marker value when they are first printed.
 ;;;
 (defvar *circularity-hash-table* nil)
 
 ;;; *CIRCULARITY-COUNTER* -- internal.
 ;;;
-;;; When NIL, we are just looking for circularities.  After we have found them
-;;; all, this gets bound to 0.  Then whenever we need a new marker, it is
-;;; incremented.
+;;; When NIL, we are just looking for circularities.  After we have found
+;;; them all, this gets bound to 0.  Then whenever we need a new marker, it
+;;; is incremented.
 ;;;
 (defvar *circularity-counter* nil)
 
@@ -476,7 +459,7 @@
 	       (%instancep object)
 	       (typep object '(array t *)))
 	   ;; If we have already started circularity detection, this object
-	   ;; might be a sharded reference.  If we have not, then if it is
+	   ;; might be a sharded (FIX shared?) reference.  If we have not, then if it is
 	   ;; a cons, a instance, or an array of element type t it might
 	   ;; contain a circular reference to itself or multiple shared
 	   ;; references.
@@ -645,7 +628,7 @@
       (funcall *internal-symbol-output-function* name stream)))
 
 
-;;;; Escaping symbols:
+;;;; Escaping symbols.
 
 ;;;    When we print symbols we have to figure out if they need to be
 ;;; printed with escape characters.  This isn't a whole lot easier than
@@ -733,7 +716,6 @@
 (dotimes (i 36)
   (let ((char (digit-char i 36)))
     (setf (aref digit-bases (char-code char)) i)))
-
 
 ;;; SYMBOL-QUOTEP  --  Internal
 ;;;
@@ -889,7 +871,6 @@
 ;;; Case hackery.  These functions are stored in
 ;;; *INTERNAL-SYMBOL-OUTPUT-FUNCTION* according to the values of *PRINT-CASE*
 ;;; and READTABLE-CASE.
-;;;
 
 ;; Called when:
 ;; READTABLE-CASE	*PRINT-CASE*
@@ -957,7 +938,6 @@
 	  (t
 	   (write-string pname stream)))))
 
-
 #|
 (defun test1 ()
   (let ((*readtable* (copy-readtable nil)))
@@ -985,7 +965,6 @@
 		  (symbol-name symbol)
 		  (prin1-to-string symbol)
 		  (princ-to-string symbol)))))))
-
 |#
 
 ;;;; Recursive objects.
@@ -1007,7 +986,6 @@
 	(write-char #\space stream)
 	(incf length)))
     (write-char #\) stream)))
-
 
 (defun output-vector (vector stream)
   (declare (vector vector))
@@ -1185,18 +1163,13 @@
 			       (+ (char-code #\0) remainder)))
 		stream)))
 
-;;;; Bignum printing
-
-;;; Written by Steven Handerson
-;;;  (based on Skef's idea)
-;;;
-;;; Rewritten to remove assumptions about the length of fixnums for the
-;;; MIPS port by William Lott.
-;;;
+
+;;;; Bignum printing.
 
 ;;; *BASE-POWER* holds the number that we keep dividing into the bignum for
-;;; each *print-base*.  We want this number as close to *most-positive-fixnum*
-;;; as possible, i.e. (floor (log most-positive-fixnum *print-base*)).
+;;; each *print-base*.  We want this number as close to
+;;; *most-positive-fixnum* as possible, i.e. (floor (log
+;;; most-positive-fixnum *print-base*)).
 ;;;
 (defparameter *base-power* (make-array 37 :initial-element nil))
 
@@ -1207,9 +1180,9 @@
 
 ;;; PRINT-BIGNUM -- internal.
 ;;;
-;;; Print the bignum to the stream.  We first generate the correct value for
-;;; *base-power* and *fixnum-power--1* if we have not already.  Then we call
-;;; bignum-print-aux to do the printing.
+;;; Print the bignum to the stream.  We first generate the correct value
+;;; for *base-power* and *fixnum-power--1* if we have not already.  Then we
+;;; call bignum-print-aux to do the printing.
 ;;;
 (defun print-bignum (big stream)
   (unless (aref *base-power* *print-base*)
@@ -1241,7 +1214,6 @@
 	 (dotimes (i zeros) (write-char #\0 stream))
 	 (sub-output-integer fix stream)))))
 
-
 (defun output-ratio (ratio stream)
   (when *print-radix*
     (write-char #\# stream)
@@ -1266,11 +1238,6 @@
 
 ;;;; Float printing.
 
-;;;
-;;;  Written by Bill Maddox
-;;;
-;;;
-;;;
 ;;; FLONUM-TO-STRING (and its subsidiary function FLOAT-STRING) does most of
 ;;; the work for all printing of floating point numbers in the printer and in
 ;;; FORMAT.  It converts a floating point number to a string in a free or
@@ -1327,7 +1294,7 @@
 ;;; from its printed decimal representation. Furthermore, only as many digits
 ;;; as necessary to satisfy this condition will be printed.
 ;;;
-;;;
+;;; FIX
 ;;; FLOAT-STRING actually generates the digits for positive numbers.  The
 ;;; algorithm is essentially that of algorithm Dragon4 in "How to Print
 ;;; Floating-Point Numbers Accurately" by Steele and White.  The current
@@ -1527,7 +1494,6 @@
 ;;; accuracy as non-exponential notation, using the method described in the
 ;;; Steele and White paper.
 
-
 ;;; PRINT-FLOAT-EXPONENT  --  Internal
 ;;;
 ;;;    Print the appropriate exponent marker for X and the specified exponent.
@@ -1547,7 +1513,6 @@
 		  (long-float #\L))
 		plusp exp))))
 
-
 ;;; FLOAT-FORMAT-NAME  --  Internal
 ;;;
 ;;;    Return the string name of X's float format.
@@ -1559,7 +1524,6 @@
     (double-float "DOUBLE-FLOAT")
     (short-float "SHORT-FLOAT")
     (long-float "LONG-FLOAT")))
-
 
 ;;; OUTPUT-FLOAT-INFINITY  --  Internal
 ;;;
@@ -1582,7 +1546,6 @@
   (unless *read-eval*
     (write-string ">" stream)))
 
-
 ;;; OUTPUT-FLOAT-NAN  --  Internal
 ;;;
 ;;;    Output a #< NaN or die trying.
@@ -1592,7 +1555,6 @@
     (write-string (float-format-name x) stream)
     (write-string (if (float-trapping-nan-p x) " Trapping" " Quiet") stream)
     (write-string " NaN" stream)))
-
 
 ;;; OUTPUT-FLOAT  --  Internal
 ;;;
@@ -1698,10 +1660,8 @@
     (write-string "FDEFINITION object for " stream)
     (output-object (fdefn-name fdefn) stream)))
 
-
 
 ;;;; Various flavors of function pointers.
-
 
 ;;; OUTPUT-FUNCTION-OBJECT outputs the main part of the printed
 ;;; representation of function objects.  It is called from OUTPUT-RANDOM
@@ -1710,7 +1670,6 @@
 (defun output-function-object (subr stream)
   (write-string "Function " stream)
   (prin1 (%function-name subr) stream))
-
 
 ;;; OUTPUT-INTERPRETED-FUNCTION  --  Internal
 ;;;
@@ -1744,7 +1703,7 @@
        (write-string "Unknown Function" stream)))))
 
 
-;;;; Catch-all for unknown things.
+;;;; Catch-all for the rest.
 
 (defun output-random (object stream)
   (print-unreadable-object (object stream :identity t)

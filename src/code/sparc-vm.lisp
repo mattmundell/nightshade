@@ -1,17 +1,7 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/sparc-vm.lisp,v 1.17.2.1 1998/06/23 11:22:30 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the SPARC specific runtime stuff.
-;;;
+;;; SPARC specific runtime stuff.
+
 (in-package "SPARC")
+
 (use-package "SYSTEM")
 (use-package "UNIX")
 
@@ -48,7 +38,6 @@
 (pushnew :sparc *features*)
 (pushnew :sun4 *features*)
 
-
 
 ;;;; MACHINE-TYPE and MACHINE-VERSION
 
@@ -59,7 +48,6 @@
 (defun machine-version ()
   "Returns a string describing the version of the local machine."
   "SPARCstation")
-
 
 
 ;;; FIXUP-CODE-OBJECT -- Interface
@@ -81,7 +69,6 @@
 	(setf (ldb (byte 10 0) (sap-ref-32 sap offset))
 	      (ldb (byte 10 0) fixup)))))))
 
-
 
 ;;;; Internal-error-arguments.
 
@@ -89,7 +76,7 @@
 ;;;
 ;;; Given the sigcontext, extract the internal error arguments from the
 ;;; instruction stream.
-;;; 
+;;;
 (defun internal-error-arguments (scp)
   (declare (type (alien (* sigcontext)) scp))
   (let* ((pc (with-alien ((scp (* sigcontext) scp))
@@ -174,7 +161,7 @@
 ;;; SIGCONTEXT-REGISTER -- Interface.
 ;;;
 ;;; An escape register saves the value of a register for a frame that someone
-;;; interrupts.  
+;;; interrupts.
 ;;;
 (defun sigcontext-register (scp index)
   (declare (type (alien (* sigcontext)) scp))
@@ -188,7 +175,6 @@
     new))
 
 (defsetf sigcontext-register %set-sigcontext-register)
-
 
 ;;; SIGCONTEXT-FLOAT-REGISTER  --  Interface
 ;;;
@@ -220,7 +206,6 @@
 ;;;
 (defsetf sigcontext-float-register %set-sigcontext-float-register)
 
-
 ;;; SIGCONTEXT-FLOATING-POINT-MODES  --  Interface
 ;;;
 ;;;    Given a sigcontext pointer, return the floating point modes word in the
@@ -231,18 +216,16 @@
   (with-alien ((scp (* sigcontext) scp))
     (slot (slot scp 'sc-g1) 'fsr)))
 
-
 
 ;;; EXTERN-ALIEN-NAME -- interface.
 ;;;
 ;;; The loader uses this to convert alien names to the form they occure in
 ;;; the symbol table (for example, prepending an underscore).  On the SPARC,
 ;;; we prepend an underscore.
-;;; 
+;;;
 (defun extern-alien-name (name)
   (declare (type simple-base-string name))
   (concatenate 'string "_" name))
-
 
 
 ;;; SANCTIFY-FOR-EXECUTION -- Interface.
@@ -250,7 +233,7 @@
 ;;; Do whatever is necessary to make the given code component executable.
 ;;; On the sparc, we don't need to do anything, because the i and d caches
 ;;; are unified.
-;;; 
+;;;
 (defun sanctify-for-execution (component)
   (declare (ignore component))
   nil)

@@ -1,16 +1,5 @@
-;;; -*- Package: RT -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/rt-vm.lisp,v 1.7 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the RT specific runtime stuff.
-;;;
+;;; RT specific runtime stuff.
+
 (in-package "RT")
 (use-package "SYSTEM")
 (use-package "ALIEN")
@@ -32,11 +21,11 @@
     (sc-sp system-area-pointer)
     (sc-fp system-area-pointer)
     (sc-ap system-area-pointer)
+
     (sc-pc system-area-pointer) ; IBM calls it the iar.
     (sc-icscs unsigned-long)
     (sc-saveiar system-area-pointer)
     (sc-regs (array unsigned-long 16))))
-
 
 
 ;;;; Add machine specific features to *features*
@@ -44,7 +33,6 @@
 (pushnew :ibm-pc-rt *features*)
 (pushnew :ibmrt *features*)
 (pushnew :rt *features*)
-
 
 
 ;;;; MACHINE-TYPE and MACHINE-VERSION
@@ -56,7 +44,6 @@
 (defun machine-version ()
   "Returns a string describing the version of the local machine."
   "IBM PC/RT")
-
 
 
 ;;; FIXUP-CODE-OBJECT -- Interface
@@ -81,7 +68,6 @@
 	(setf (sap-ref-16 sap 2)
 	      (ldb (byte 16 0) fixup)))))))
 
-
 
 ;;;; Internal-error-arguments.
 
@@ -89,7 +75,7 @@
 ;;;
 ;;; Given the sigcontext, extract the internal error arguments from the
 ;;; instruction stream.
-;;; 
+;;;
 (defun internal-error-arguments (scp)
   (with-alien ((scp (* sigcontext) scp))
     (let ((pc (slot scp 'sc-pc)))
@@ -111,14 +97,13 @@
 	      (sc-offsets (c::read-var-integer vector index)))
 	    (values error-number (sc-offsets))))))))
 
-
 
 ;;;; Sigcontext accessing stuff.
 
 ;;; SIGCONTEXT-REGISTER -- Internal.
 ;;;
 ;;; An escape register saves the value of a register for a frame that someone
-;;; interrupts.  
+;;; interrupts.
 ;;;
 (defun sigcontext-register (scp index)
   (declare (type (alien (* sigcontext)) scp))
@@ -132,7 +117,6 @@
     new))
 
 (defsetf sigcontext-register %set-sigcontext-register)
-
 
 ;;; SIGCONTEXT-FLOAT-REGISTER  --  Internal
 ;;;
@@ -155,7 +139,6 @@
 ;;;
 (defsetf sigcontext-float-register %set-sigcontext-float-register)
 
-
 ;;; SIGCONTEXT-FLOATING-POINT-MODES  --  Interface
 ;;;
 ;;;    Given a sigcontext pointer, return the floating point modes word in the
@@ -166,16 +149,13 @@
   ;; ### Some day we should figure out how to do this right.
   0)
 
-
-
 
 ;;; EXTERN-ALIEN-NAME -- interface.
 ;;;
 ;;; The loader uses this to convert alien names to the form they occure in
 ;;; the symbol table (for example, prepending an underscore).  On the RT,
 ;;; we prepend an underscore.
-;;; 
+;;;
 (defun extern-alien-name (name)
   (declare (type simple-base-string name))
   (concatenate 'string "_" name))
-

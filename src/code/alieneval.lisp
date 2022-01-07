@@ -1,17 +1,6 @@
-;;; -*- Package: ALIEN -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/alieneval.lisp,v 1.39.2.3 2000/05/23 16:36:09 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains any the part of the Alien implementation that
-;;; is not part of the compiler.
-;;;
+;;; Any the part of the Alien implementation that is not part of the
+;;; compiler.
+
 (in-package "ALIEN")
 (use-package "EXT")
 (use-package "SYSTEM")
@@ -195,7 +184,6 @@
 
 ); eval-when
 
-
 ;;; We define a keyword "BOA" constructor so that we can reference the slots
 ;;; names in init forms.
 ;;;
@@ -260,7 +248,6 @@
 		    (when fn
 		      (return fn))))
 		,type ,@args))))
-
 
 
 ;;;; Alien-type defstruct.
@@ -393,8 +380,6 @@
 (defun %unparse-alien-type (type)
   (invoke-alien-type-method :unparse type))
 
-
-
 
 ;;;; Alien type defining stuff.
 
@@ -464,7 +449,6 @@
   (setf (info alien-type definition name) new)
   (setf (info alien-type kind name) :defined)
   name)
-
 
 
 ;;;; Interfaces to the different methods
@@ -540,9 +524,6 @@
 
 (defun compute-alien-rep-type (type)
   (invoke-alien-type-method :alien-rep type))
-
-
-
 
 
 ;;;; Default methods.
@@ -649,7 +630,6 @@
 	`(,ref-fun ,sap (/ ,offset vm:byte-bits))
 	(error "Cannot extract ~D bit integers."
 	       (alien-integer-type-bits type)))))
-
 
 
 ;;;; The BOOLEAN type.
@@ -802,9 +782,8 @@
 		   `(,(car mapping) ,(cdr mapping)))
 	       (alien-enum-type-from type))))
 
-
 
-;;;; the FLOAT types.
+;;;; The FLOAT types.
 
 (def-alien-type-class (float)
   (type (required-argument) :type symbol))
@@ -895,7 +874,7 @@
   `(sap-ref-sap ,sap (/ ,offset vm:byte-bits)))
 
 
-;;;; the ALIEN-VALUE type.
+;;;; The ALIEN-VALUE type.
 
 (def-alien-type-class (alien-value :include system-area-pointer))
 
@@ -1242,7 +1221,6 @@
 	      (alien-values-type-values type1)
 	      (alien-values-type-values type2))))
 
-
 
 ;;;; Alien variables.
 
@@ -1448,7 +1426,6 @@
 			       *auxiliary-type-definitions*)))
        ,@body)))
 
-
 
 ;;;; Runtime C values that don't correspond directly to Lisp types.
 
@@ -1490,7 +1467,6 @@
   "Return a System-Area-Pointer pointing to Alien's data."
   (declare (type alien-value alien))
   (alien-value-sap alien))
-
 
 
 ;;;; Allocation/Deallocation of heap aliens.
@@ -1659,9 +1635,9 @@
 			(car indices))
 		     0))))
       (alien-array-type
-       (unless (= (length indices) (length (alien-array-type-dimensions type)))
-	 (error "Incorrect number of indices when derefing ~S: ~D"
-		type (length indices)))
+       (or (= (length indices) (length (alien-array-type-dimensions type)))
+	   (error "Incorrect number of indices when derefing ~S: ~D"
+		  type (length indices)))
        (labels ((frob (dims indices offset)
 		  (if (null dims)
 		      offset
@@ -1749,7 +1725,6 @@
 	   (optimize (inhibit-warnings 3)))
   (%sap-alien (eval (heap-alien-info-sap-form info))
 	      (make-alien-pointer-type :to (heap-alien-info-type info))))
-
 
 
 ;;;; Accessing local aliens.
@@ -1866,7 +1841,6 @@
 	    (error "~S cannot be casted." alien)))
       (error "Cannot cast to alien type ~S" (unparse-alien-type target-type))))
 
-
 
 ;;;; The ALIEN-SIZE macro.
 
@@ -1883,7 +1857,6 @@
 			   (:words vm:word-bits))))
 	(error "Unknown size for alien type ~S."
 	       (unparse-alien-type alien-type)))))
-
 
 
 ;;;; Naturalize, deport, extract-alien-value, deposit-alien-value
@@ -1911,7 +1884,6 @@
 	   (type alien-type type))
   (funcall (coerce (compute-deposit-lambda type) 'function)
 	   sap offset type value))
-
 
 
 ;;;; alien-funcall, def-alien-function

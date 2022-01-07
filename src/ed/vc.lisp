@@ -5,7 +5,7 @@
 ;;; To extend this to other version control systems add maker functions to
 ;;; *vc-info-makers*.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 ;;;; Structure.
@@ -386,19 +386,29 @@
     buffer))
 
 (defcommand "VC Compare Buffer File" (p)
-  "Compare buffered file to repository."
-  "Compare buffered file to repository."
-  (declare (ignore p))
+  "Compare buffered file to repository.  With a prefix prompt for versions
+   to compare."
+  "Compare buffered file to repository.  If P is true prompt for versions
+   to compare."
   (let ((buffer (get-comparison-buffer))
 	(pathname (current-buffer-pathname)))
     (delete-region (buffer-region buffer))
-    (message "Comparing to repository ...")
     (with-mark ((mark (buffer-start-mark buffer) :left-inserting))
-      (let ((vc-info (current-vc-info)))
+      (message "Comparing to repository ...")
+      (let* ((vc-info (current-vc-info))
+ 	     (tag1 (if p (prompt-for-string
+			  :prompt "First version: "
+			  :help "Version of first of files to compare."
+			  :default (vc-info-version vc-info))))
+	     (tag2 (if p (prompt-for-string
+			  :prompt "Second version: "
+			  :help "Version of second of files to compare."
+			  :default (vc-info-version vc-info)))))
 	(funcall (vc-info-compare-fun vc-info)
 		 vc-info
 		 (make-hemlock-output-stream mark)
-		 (namestring pathname))))
+		 (namestring pathname)
+		 tag1 tag2)))
     (change-to-buffer buffer)
     (buffer-start (current-point))
     (setf (buffer-modified buffer) nil)
@@ -443,7 +453,7 @@
 	:value nil))
   (setf (variable-value 'vc-info :buffer buffer)
 	(make-vc-info (buffer-pathname buffer)))
-  (hi::update-modelines-for-buffer buffer))
+  (edi::update-modelines-for-buffer buffer))
 ;;;
 (add-hook read-file-hook 'update-buffer-vc-info)
 (add-hook write-file-hook 'update-buffer-vc-info)
@@ -506,11 +516,16 @@
     (do-command t "cvs" (list "log" (file-namestring pathname))
 		:output stream)))
 
-(defun cvs-compare (vc-info stream pathname)
-  "Insert in Stream a comparison of Pathname and the repository version."
+(defun cvs-compare (vc-info stream pathname &optional tag1 tag2)
+  "Insert in Stream a comparison of Pathname and the repository version.
+   If tag1 and tag2 are given compare those versions of Pathname."
   (declare (ignore vc-info))
   (in-directory pathname
-    (do-command nil "cvs" (list "diff" (file-namestring pathname))
+    (do-command nil "cvs"
+		(if tag1
+		    (list "diff" "-r" tag1 "-r" tag2
+			  (file-namestring pathname))
+		    (list "diff" (file-namestring pathname)))
 		:output stream)))
 
 (defvar *cvs-update-file-recurse* nil

@@ -1,6 +1,6 @@
 ;;; Source comparison.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 (defhvar "Source Compare Ignore Extra Newlines"
@@ -153,31 +153,30 @@
 		(hlet ((source-compare-style :terse))
 		  ;; FIX recurse
 		  ;; FIX should this use streams? so can be split into lib fun
-		  (map-files one
-			     #'(lambda (file)
-				 (if (directoryp file)
-				     (format log "FIX ~A is a directory.~%~%"
-					     file)
-				     (let ((two-file (merge-pathnames (file-namestring file)
-								      two)))
-				       (if (probe-file two-file)
-					   (progn
-					     (if (directoryp two-file)
-						 (format log "FIX ~A is a directory.~%~%"
-							 two-file))
-					     ;; FIX skip offer to revert to CKP
-					     (read-buffer-file file buffer-one)
-					     (read-buffer-file two-file buffer-two)
-					     (compare-buffers-command nil
-								      buffer-one
-								      buffer-two
-								      log-buffer
-								      file
-								      two-file)
-					     ;; FIX (pushnew two-file two-checked)
-					     )
-					   (format log "~A only present in ~A.~%"
-						   (file-namestring file) one))))))
+		  (do-files (file one)
+		    (if (directoryp file)
+			(format log "FIX ~A is a directory.~%~%"
+				file)
+			(let ((two-file (merge-pathnames (file-namestring file)
+							 two)))
+			  (if (probe-file two-file)
+			      (progn
+				(if (directoryp two-file)
+				    (format log "FIX ~A is a directory.~%~%"
+					    two-file))
+				;; FIX skip offer to revert to CKP
+				(read-buffer-file file buffer-one)
+				(read-buffer-file two-file buffer-two)
+				(compare-buffers-command nil
+							 buffer-one
+							 buffer-two
+							 log-buffer
+							 file
+							 two-file)
+				;; FIX (pushnew two-file two-checked)
+				)
+			      (format log "~A only present in ~A.~%"
+				      (file-namestring file) one)))))
 		  ;; FIX print for rest of two
 		  )
 		(message "Directory comparison done.")))

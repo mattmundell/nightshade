@@ -1,7 +1,7 @@
 ;;; All the definitions of keysyms (see key-event.lisp).  These keysyms
 ;;; match those for X11.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 
 ;;; The IBM RT keyboard has X11 keysyms defined for the following modifier

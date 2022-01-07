@@ -1,17 +1,5 @@
-;;; -*- Log: code.log; Package: Lisp -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/load.lisp,v 1.62.2.4 2000/05/23 16:36:35 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Loader for Spice Lisp.
-;;; Written by Skef Wholey and Rob MacLachlan.
-;;;
+;;; Loader.
+
 (in-package "LISP")
 (export '(load *load-verbose* *load-print* *load-truename* *load-pathname*))
 
@@ -57,8 +45,7 @@
 (defvar *load-pathname* nil
   "The defaulted pathname that LOAD is currently loading.")
 
-(declaim (type (or pathname null) *load-truename* *load-pathname*)) 
-
+(declaim (type (or pathname null) *load-truename* *load-pathname*))
 
 ;;; Internal state variables:
 
@@ -72,7 +59,7 @@
 ;;; LOAD-FRESH-LINE -- internal.
 ;;;
 ;;; Output the corrent number of semicolons after a fresh-line.
-;;; 
+;;;
 (defconstant semicolons ";;;;;;;;;;;;;;;;")
 ;;;
 (defun load-fresh-line ()
@@ -125,7 +112,7 @@
 
 ;;;; The Fop-Stack:
 ;;;
-;;;  The is also in a simple-vector, but it grows down, since it is somewhat 
+;;;  The is also in a simple-vector, but it grows down, since it is somewhat
 ;;; cheaper to test for overflow that way.
 ;;;
 (defvar *fop-stack* (make-array 100)
@@ -311,7 +298,7 @@
 	 (*current-fop-table* (or (pop *free-fop-tables*) (make-array 1000)))
 	 (*current-fop-table-size* (length *current-fop-table*))
 	 (*fop-stack-pointer-on-entry* *fop-stack-pointer*))
-    (unwind-protect 
+    (unwind-protect
       (do ((loaded-group (load-group stream) (load-group stream)))
 	  ((not loaded-group)))
       (setq *fop-stack-pointer* *fop-stack-pointer-on-entry*)
@@ -328,7 +315,6 @@
   t)
 
 #|
-
 (defvar *fop-counts* (make-array 256 :initial-element 0))
 (defvar *fop-times* (make-array 256 :initial-element 0))
 (defvar *print-fops* nil)
@@ -353,7 +339,7 @@
 		   (setq ,lvar (subseq (sort ,lvar #'(lambda (x y)
 						       (> (cdr x) (cdr y))))
 				       0 10)))))
-		 
+
       (breakdown counts total-count *fop-counts*)
       (breakdown times total-time *fop-times*)
       (format t "Total fop count is ~D~%" total-count)
@@ -420,7 +406,7 @@
 
 ;;; Load-S-Integer loads a signed integer Length bytes long from the File.
 
-(defun load-s-integer (length)  
+(defun load-s-integer (length)
   (declare (fixnum length) (optimize (inhibit-warnings 2)))
   (do* ((index length (1- index))
 	(byte 0 (read-byte *fasl-file*))
@@ -491,7 +477,7 @@
        Forces the input to be interpreted as a source or object file, instead
        of guessing based on the file type.  This also inhibits file type
        defaulting.  Probably only necessary if you have source files with a
-       \"fasl\" type. 
+       \"fasl\" type.
 
    The variables *LOAD-VERBOSE*, *LOAD-PRINT* and EXT:*LOAD-IF-SOURCE-NEWER*
    determine the defaults for the corresponding keyword arguments.  These
@@ -518,7 +504,7 @@
       (let ((*package* *package*)
 	    (*readtable* *readtable*)
 	    (*load-depth* (1+ *load-depth*)))
-	(values 
+	(values
 	 (with-simple-restart (continue "Return NIL from load of ~S." filename)
 	   (if (streamp filename)
 	       (if (or (eq contents :binary)
@@ -537,7 +523,6 @@
 			   (internal-load pn tn if-does-not-exist contents)
 			   (internal-load-default-type
 			    pn if-does-not-exist))))))))))))
-
 
 ;;; INTERNAL-LOAD  --  Internal
 ;;;
@@ -592,11 +577,9 @@
 	      (namestring truename)))
 	   (internal-load pathname truename if-does-not-exist :source))))))))
 
-
 ;;; TRY-DEFAULT-TYPES  --  Internal
 ;;;
 (defun try-default-types (pathname types lp-type)
-  ;; Modified 18-Jan-97/pw for logical-pathname support.
   (flet ((frob (pathname type)
 	   (let* ((pn (make-pathname :type type :defaults pathname))
 		  (tn (probe-file pn)))
@@ -698,7 +681,7 @@
 ;;; In the normal loader, we just ignore these.  Genesis overwrites
 ;;; fop-maybe-cold-load with something that knows when to revert to
 ;;; cold-loading or not.
-;;; 
+;;;
 (define-fop (fop-normal-load 81 :nope))
 (define-fop (fop-maybe-cold-load 82 :nope))
 
@@ -715,7 +698,7 @@
 (declaim (simple-string *load-symbol-buffer*))
 (defvar *load-symbol-buffer-size* 100)
 (declaim (type index *load-symbol-buffer-size*))
-   
+
 (macrolet ((frob (name code name-size package)
 	     (let ((n-package (gensym))
 		   (n-size (gensym))
@@ -884,7 +867,6 @@
 
 
 ;;;; Loading arrays:
-;;;
 
 (clone-fop (fop-string 37)
 	   (fop-small-string 38)
@@ -1028,7 +1010,7 @@
        (done-with-fast-read-byte)
        (make-array n :element-type `(signed-byte ,size)
 		   :initial-element value))))
- 
+
 (define-fop (fop-eval 53)
   (let ((result (eval (pop-stack))))
     (when *load-print*
@@ -1068,7 +1050,6 @@
 	(idx (read-arg 4))
 	(val (pop-stack)))
     (setf (car (nthcdr idx obj)) val)))
-
 
 (define-fop (fop-rplacd 201 nil)
   (let ((obj (svref *current-fop-table* (read-arg 4)))
@@ -1120,9 +1101,8 @@
 	     (imp-name implementation)
 	     (imp-name #.(c:backend-fasl-file-implementation c:*backend*)))))))
 
-
-;;; Load-Code loads a code object.  NItems objects are popped off the stack for
-;;; the boxed storage section, then Size bytes of code are read in.
+;;; Load-Code loads a code object.  NItems objects are popped off the stack
+;;; for the boxed storage section, then Size bytes of code are read in.
 ;;;
 #-x86
 (defun load-code (box-num code-length)
@@ -1143,7 +1123,6 @@
 		      #+gengc (* code-length vm:word-bytes)))
       code)))
 
-
 ;;; Moving native code during a GC or purify is not trivial on the x86
 ;;; port, so there are a few options for code placement.
 ;;;
@@ -1153,18 +1132,17 @@
 ;;;
 ;;; Native code top level forms only have a short life so can be
 ;;; safely loaded into the dynamic heap (without fixups) so long as
-;;; the GC is not active. This could be handy during a world load to
+;;; the GC is not active.  This could be handy during a world load to
 ;;; save core space without the need to enable the support for moving
-;;; x86 native code. Enable with *load-x86-tlf-to-dynamic-space*.
+;;; x86 native code.  Enable with *load-x86-tlf-to-dynamic-space*.
 ;;;
 ;;; One strategy for allowing the loading of x86 native code into the
 ;;; dynamic heap requires that the addresses of fixups be saved for
 ;;; all these code objects.  After a purify these fixups can be
-;;; dropped. This is enabled with *enable-dynamic-space-code*.
+;;; dropped.  This is enabled with *enable-dynamic-space-code*.
 ;;;
 ;;; A little analysis of the header information is used to determine
 ;;; if a code object is byte compiled, or native code.
-;;;
 
 (defvar *load-byte-compiled-code-to-dynamic-space* t)
 (defvar *load-x86-tlf-to-dynamic-space* nil)  ; potentially dangerous with CGC.
@@ -1200,12 +1178,12 @@
 	(when (and (typep tto 'list)
 		   (not (and (c::debug-info-p dbi)
 			     (not (c::compiled-debug-info-p dbi)))))
-	      (format t "* tto list on non-bc code: ~s~% ~s ~s~%" 
+	      (format t "* tto list on non-bc code: ~s~% ~s ~s~%"
 		      stuff dbi tto))
-	
+
 	(when *load-code-verbose*
 	      (format t "stuff: ~s~%" stuff)
-	      (format t "   : ~s ~s ~s ~s~%" 
+	      (format t "   : ~s ~s ~s ~s~%"
 		      (c::compiled-debug-info-p dbi)
 		      (c::debug-info-p dbi)
 		      (c::compiled-debug-info-name dbi)
@@ -1213,14 +1191,14 @@
 	      (if load-to-dynamic-space
 		  (format t "   Loading to the dynamic space~%")
 		(format t "   Loading to the static space~%")))
-      
+
 	(let ((code
 	       (if load-to-dynamic-space
 		   (%primitive
 		    allocate-dynamic-code-object box-num code-length)
 		   (%primitive allocate-code-object box-num code-length)))
-	      (index (+ vm:code-trace-table-offset-slot box-num))) 
-	  (declare (type index index)) 
+	      (index (+ vm:code-trace-table-offset-slot box-num)))
+	  (declare (type index index))
 	  (when *load-code-verbose*
 		(format t "  obj addr=~x~%"
 			(kernel::get-lisp-obj-address code)))
@@ -1246,11 +1224,10 @@
     (vm:sanctify-for-execution component)
     component))
 
-;;; Now a NOOP except in cold load... 
+;;; Now a NOOP except in cold load...
 (define-fop (fop-fset 74 nil)
   (pop-stack)
   (pop-stack))
-
 
 ;;; Modify a slot in a Constants object.
 ;;;
@@ -1295,8 +1272,6 @@
       (load-fresh-line)
       (format t "~S defined~%" res))
     res))
-
-
 
 
 ;;;; Linkage fixups.

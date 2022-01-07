@@ -1,24 +1,4 @@
-;;; -*- Mode: Lisp; Package: Lisp; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/describe.lisp,v 1.31.2.2 2000/08/10 10:56:24 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This is the describe mechanism for Common Lisp.
-;;;
-;;; Written by Skef Wholey or Rob MacLachlan originally.
-;;; Cleaned up, reorganized, and enhanced by Blaine Burks.
-;;; Ported to the new system and cleaned up some more by Rob MacLachlan.
-;;;
-;;; This should be done better using CLOS more effectively once CMU Common
-;;; Lisp is brought up to the new standard.  The TYPECASE in DESCRIBE-AUX
-;;; should be unnecessary.	-- Bill Chiles
-;;;
+;;; The describe mechanism.
 
 (in-package "LISP")
 (export '(describe))
@@ -37,15 +17,15 @@
 
 (defvar *describe-verbose* nil
   "If non-nil, descriptions may provide interpretations of information and
-  pointers to additional information.  Normally nil.")
+   pointers to additional information.  Normally nil.")
 
 (defvar *describe-print-level* 2
   "*print-level* gets bound to this inside describe.  If null, use
-  *print-level*")
+   *print-level*")
 
 (defvar *describe-print-length* 5
   "*print-length* gets bound to this inside describe.  If null, use
-  *print-length*.")
+   *print-length*.")
 
 (defvar *describe-indentation* 3
   "Number of spaces that sets off each line of a recursive description.")
@@ -53,11 +33,12 @@
 (defvar *in-describe* nil
   "Used to tell whether we are doing a recursive describe.")
 (defvar *current-describe-level* 0
-  "Used to implement recursive description cutoff.  Don't touch.")
+  "Used to implement recursive description cutoff.")
 (defvar *describe-output* nil
   "An output stream used by Describe for indenting and stuff.")
 (defvar *described-objects* nil
-  "List of all objects describe within the current top-level call to describe.")
+  "List of all objects describe within the current top-level call to
+   describe.")
 (defvar *current-describe-object* nil
   "The last object passed to describe.")
 
@@ -67,14 +48,14 @@
 (defun describe (x &optional stream)
   "Prints a description of the object X."
   (declare (type (or stream (member t nil)) stream))
-  (unless *describe-output*
-    (setq *describe-output* (make-indenting-stream *standard-output*)))
+  (or *describe-output*
+      (setq *describe-output* (make-indenting-stream *standard-output*)))
   (cond (*in-describe*
-	 (unless (or (eq x nil) (eq x t))
-	   (let ((*current-describe-level* (1+ *current-describe-level*))
-		 (*current-describe-object* x))
-	     (indenting-further *describe-output* *describe-indentation*
-	       (describe-aux x)))))
+	 (or (eq x nil) (eq x t)
+	     (let ((*current-describe-level* (1+ *current-describe-level*))
+		   (*current-describe-object* x))
+	       (indenting-further *describe-output* *describe-indentation*
+				  (describe-aux x)))))
 	(t
 	 (setf (indenting-stream-stream *describe-output*)
 	       (case stream
@@ -116,10 +97,9 @@
 	      (symbolp (cadr x))
 	      (fboundp x))
 	 (describe-function (fdefinition x) :function x)
-	 (default-describe x)))
-    (t (default-describe x)))
+	 (describe-other x)))
+    (t (describe-other x)))
   x)
-
 
 
 ;;;; Implementation properties.
@@ -133,19 +113,14 @@
 
 
 ;;;; Miscellaneous DESCRIBE methods:
-	  
-(defun default-describe (x)
+
+(defun describe-other (x)
   (format t "~&~S is a ~S." x (type-of x)))
 
 (defun describe-instance (x &optional (kind :structure))
-  (cond ((let ((so-class (find-class 'pcl::std-object nil)))
-	   (and so-class (typep x so-class)))
-	 (fresh-line *standard-output*)
-	 (describe-object x *standard-output*))
-	(t
-	 (format t "~&~S is a ~(~A~) of type ~A." x kind (type-of x))
-	 (dolist (slot (cddr (inspect::describe-parts x)))
-	   (format t "~%~A: ~S." (car slot) (cdr slot))))))
+  (format t "~&~S is a ~(~A~) of type ~A." x kind (type-of x))
+  (dolist (slot (cddr (inspect::describe-parts x)))
+    (format t "~%~A: ~S." (car slot) (cdr slot))))
 
 (defun describe-array (x)
   (let ((rank (array-rank x)))
@@ -203,7 +178,6 @@
 	(format t "~&~@(~A documentation:~)~&  ~A"
 		(or kind-doc kind) doc)))))
 
-
 ;;; DESCRIBE-FUNCTION-NAME  --  Internal
 ;;;
 ;;;    Describe various stuff about the functional semantics attached to the
@@ -223,13 +197,12 @@
 	(format t "~&Its ~(~A~) argument types are:~%  ~S"
 		where (second type))
 	(format t "~&Its result type is:~%  ~S" (third type)))))
-      
+
   (let ((inlinep (info function inlinep name)))
     (when inlinep
       (format t "~&It is currently declared ~(~A~);~
 		 ~:[no~;~] expansion is available."
 	      inlinep (info function inline-expansion name)))))
-
 
 ;;; DESCRIBE-FUNCTION-INTERPRETED  --  Internal
 ;;;
@@ -248,23 +221,22 @@
 	     (write-string "  ")
 	     (indenting-further *standard-output* 2
 	       (prin1 args)))))
-    
+
     (let ((name (or name dname)))
       (desc-doc name 'function kind)
       (unless (eq kind :macro)
 	(describe-function-name
 	 name
 	 (type-specifier (eval:interpreted-function-type x)))))
-    
+
     (when closure-p
       (format t "~&Its closure environment is:")
       (indenting-further *standard-output* 2
 	(let ((clos (eval:interpreted-function-closure x)))
 	  (dotimes (i (length clos))
 	    (format t "~&~D: ~S" i (svref clos i))))))
-    
-    (format t "~&Its definition is:~%  ~S" exp)))
 
+    (format t "~&Its definition is:~%  ~S" exp)))
 
 ;;; PRINT-COMPILED-FROM  --  Internal
 ;;;
@@ -290,7 +262,6 @@
 	      (:stream (format t "~&~S" name))
 	      (:lisp (format t "~&~S" name)))))))))
 
-
 ;;; DESCRIBE-FUNCTION-COMPILED  --  Internal
 ;;;
 ;;;    Describe a compiled function.  The closure case calls us to print the
@@ -315,7 +286,6 @@
 
   (print-compiled-from (kernel:function-code-header x)))
 
-
 (defun describe-function-byte-compiled (x kind name)
 
   (let ((name (or name (c::byte-function-name x))))
@@ -325,7 +295,6 @@
 
   (print-compiled-from (c::byte-function-component x)))
 
-  
 ;;; DESCRIBE-FUNCTION  --  Internal
 ;;;
 ;;;    Describe a function with the specified kind and name.  The latter
@@ -367,7 +336,6 @@
 	 (describe-instance x :funcallable-instance))))
     (t
      (format t "~&It is an unknown type of function."))))
-
 
 (defun describe-symbol (x)
   (let ((package (symbol-package x)))

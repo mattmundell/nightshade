@@ -1,6 +1,6 @@
 ;;; Commands and functions for sorting buffer text.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 (defun sort-lines (region &optional (predicate 'string<))
   "Sort the lines in Region according to Predicate."
@@ -39,8 +39,7 @@
    With a prefix reverse the sort."
   "Sort the lines in the current region alphabetically.
    With a prefix reverse the sort."
-  (sort-lines (current-region)
-	      (if p 'string> 'string<)))
+  (sort-lines (current-region) (if p 'string> 'string<)))
 
 (defcommand "Sort Buffer Lines" (p)
   "Sort the lines in the current buffer alphabetically.

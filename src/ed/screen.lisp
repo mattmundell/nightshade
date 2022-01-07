@@ -1,6 +1,6 @@
 ;;; Device independent screen management functions.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(make-window delete-window next-window previous-window))
 
@@ -64,7 +64,7 @@
    Device is the editor device to make the window on.  If it is nil, then
    the window is made on the same device as CURRENT-WINDOW.
 
-   Window is an X window to be used with the Hemlock window.  The supplied
+   Window is an X window to be used with the editor window.  The supplied
    window becomes the parent window for a new group of windows that behave
    in a stack orientation as windows do on the terminal.
 
@@ -73,7 +73,7 @@
    If Ask-User is non-nil, the editor prompts the user for missing X, Y, Width,
    and Height arguments to make a new group of windows that behave in a stack
    orientation as windows do on the terminal.  This occurs by invoking
-   hi::*create-window-hook*.  X and Y are supplied as pixels, but Width and
+   edi::*create-window-hook*.  X and Y are supplied as pixels, but Width and
    Height are supplied in characters.
 
    In the case of the window creation failing, if Error is true then invoke
@@ -91,7 +91,7 @@
 
 (defun delete-window (window)
   "Make Window go away, removing it from the screen.  This uses
-   hi::*delete-window-hook* to get rid of parent windows on a bitmap device
+   edi::*delete-window-hook* to get rid of parent windows on a bitmap device
    when you delete the last editor window in a group."
   (when (<= (length *window-list*) 2)
     (error "Cannot kill the only window."))

@@ -1,21 +1,70 @@
-;;; towards a public domain computer
+towards a public domain computer
+--------------------------------
+	allow reuse of the work in any way
+	  leaving any moral and ethical judgements to the user
 full pd
-    revert to as far back as possible
-		publish ns binary
-		release dates
 	where is the full pd?
-		# list pd status of all 18c files
-		#     maybe start in lisp/, code/
-	perhaps can revert ed to full pd now
-	revert each part as far back as possible
-	    eg code/ hemlock/ or every file in those dirs
-		are any files in hem already pd?
-    reduce to pd
-        clean general-info/ and docs/ refs to clx...
-	    only when these are full pd
+		revert to 17f
+			on "open source" os from company?
+				think only works on machine arch from same co
+		or 18a on old gnu/linux
+			need glibc1 distro/image/machine
+		n:src/etc/public-domain-via
+			 code:numbers.lisp
+				 ;;; ISQRT  --  Public
+				 ;;;
+				 ;;;    From discussion on comp.lang.lisp and Akira Kurihara.
+			 pprint.lisp
+				 William Lott.  Algorithm stolen from Richard Waters' XP.
+					old-sys xp.lisp
+						ok to copy algo?
+							an mit report describes the functions
+					;------------------------------------------------------------------------;
+					;                    Written by Richard C. Waters                        ;
+					;       Copyright (c) Massachusetts Institute of Technology, 1989        ;
+					;------------------------------------------------------------------------;
+		mh
+			transcribe from orig
+				check extent of other addns
+			         mh.lisp  insert-mime-part  ; FIX uip/mhn.c h/mhn.h
+	    clean general-info/ and docs/ refs to  pcl
+											   clx?
+	    only continue when full pd possible
+		----------------------------
+		revision 1.22
+		date: 2000-05-22 18:43:09 +0100;  author: dtc;  state: Exp;  lines: +106 -1
+		New implementation of the function rationalize, from Raymond Toy based
+		on an algorithm from Bruno Haible.
+		----------------------------
+			float.lisp
+			maybe revert this to revert haible doc requirement
+	clean :doc/nightshade
     consistent comments,docs,msgs
+		maybe easier to automate
+			eg reader reads,stores comments, printer outputs in a style
+				(towards ~ continual/lazy source optimization)
 		docs
 			arg names all same
+			    ARG `function' `Command' *var* `Ed Var'
+			always describe fun in docstring
+				std seems doc public function in docstring, internal funcs w comment
+					think rather all in docstring and note in ed interface if internal
+				--
+				;;; FRAME-CATCHES -- Public.
+				;;;
+				(defun frame-catches (frame)
+				  "Returns an a-list mapping catch tags to code-locations.  These are
+			   s/b?
+				;;; Public.
+				;;;
+				(defun frame-catches (frame)
+				  "Returns an a-list mapping catch tags to code-locations.  These are
+		(in-package :extensions)  or  (in-package "EXTENSIONS")?
+		;;; Format-Time - External.   public interface internal
+		magic
+		pronouns
+		positive sense
+		imperitive
 	check
 		ed
 			----------------------------
@@ -25,44 +74,78 @@ full pd
 			Patch from Jeurgen Weiss to translate-key-event which makes it deal better with
 			european keyboards.
 			----------------------------
-			----------------------------
-			revision 1.12
-			date: 1998-06-16 07:58:57 +0100;  author: dtc;  state: Exp;  lines: +12 -11
-			Linux port update from Peter VanEynde: revision of the glibc2 support,
-			better hemlock tty mode support.
-			----------------------------
-	    src/doc/internals/dave-memory-layout.mss
+	    src/doc/internals/dave-memory-layout.mss (left out anyway)
+mail re manual  saw online somewhere
+~literate program manual  ie merge into source
+rest of ed naming
+doc packages
+rename cl to lisp
+clean tools:
+clean compiler:
+(define clear (x)
+  "Set X to ()."
+  (setq X ()))
+(last "abc") and other seqs?
+	(char x (length x))
+appendf?  (like push-back)
+describe labels somewhere, esp that jumps to labels jump out of var bindings, e.g.
+	(let ((s 1))
+	  (labels ((a ()
+			 s)
+		   (b ()
+			 (let ((s 2))
+			   (a))))
+		(b)))
+  returns 1
+  when to use a label?
+format time
+	(format-time () :style '(:day "_" :month "_" :year) ...
+	(format-time () :style '("~D_~M_~Y") ...
+	(format () "~dT_~mT_~yT" ...
+	(format () "~T(d_m_y)" (get-universal-time))
+doc lang
+	sharp macros
+	:doc/nightshade
+docs
+	scribe  (make-dispatch-macro-character #\@ t)?
 code/sunset.lisp
 parse-time.lisp  dow incr day past end of month
-shell,vc.lisp byte compiling
 take out (replace?) monitor
-merge in pd from c-l.net  :src/alexandria,anaphora,cl-telnet
-merge in cl-utilities
-   note each licence in html doc, eg split-sequence
-	This code was written various people, and the license is unknown. Since
-	multiple people worked on it collaboratively and none of them seem interested
-	in keeping their intellectual property rights to it, I'll assume that it is in
-	the public domain (since the process that produced it seems like the very
-	essence of public domain). If this is incorrect, please contact me so we can
-	get it straightened out.
-	split-sequence.lisp
-	;; cl-utilities note: the license of this file is unclear, and I don't
-	;; even know whom to contact to clarify it. If anybody objects to my
-	;; assumption that it is public domain, please contact me so I can do
-	;; something about it. Previously I required the split-sequence
-	 ; package as a dependency, but that was so unwieldy that it was *the*
-	;; sore spot sticking out in the design of cl-utilities. -Peter Scott
-     rest seem ok in code
+may be simpler to write these if every needed
+  (some maybe from orig cmucl anyway)
+	merge in pd from c-l.net  :src/alexandria,anaphora
+		cl-telnet  contains code from araneida which is bsd-licensed
+	merge in cl-utilities
+	   note each licence in html doc, eg split-sequence
+		This code was written various people, and the license is unknown. Since
+		multiple people worked on it collaboratively and none of them seem interested
+		in keeping their intellectual property rights to it, I'll assume that it is in
+		the public domain (since the process that produced it seems like the very
+		essence of public domain). If this is incorrect, please contact me so we can
+		get it straightened out.
+		split-sequence.lisp
+		;; cl-utilities note: the license of this file is unclear, and I don't
+		;; even know whom to contact to clarify it. If anybody objects to my
+		;; assumption that it is public domain, please contact me so I can do
+		;; something about it. Previously I required the split-sequence
+		 ; package as a dependency, but that was so unwieldy that it was *the*
+		;; sore spot sticking out in the design of cl-utilities. -Peter Scott
+		 rest seem ok in code
+	/home/matt/src/ftp.cs.cmu.edu/afs/cs.cmu.edu/project/clisp/old-system/systems/code/macromemo.lisp
 seq.lisp split  cmp filesys.lisp split-at-slashes
+publish binary
 replace dependencies on copyrighted code
 	replace external library dependencies
 		maths lib
 			libc6-dev provides /usr/lib/libm.a
 				why linked?
+				code:irrat.lisp
 		c lib
-			maybe skalibs?
+			maybe skalibs? eg for translation reference
 		cc
 			move c into lisp
+				maybe start w interrupt.c  e.g. install_handler
+				purify.lisp  Rewritten in C by William Lott.
 				gencgc
 					first attempt left in 0.0+
 				switch to cgc.c? only x86, same as gencgc
@@ -71,6 +154,8 @@ replace dependencies on copyrighted code
 		`make' system  move c into lisp
 		lisp equivs of unix tools
 			parse
+				cmp w reader, byacc
+					maybe good token-based (ie only considers chars) version/option
 				speed
 					*marks* optnl
 					create node afterwrds?
@@ -81,8 +166,10 @@ replace dependencies on copyrighted code
 					  what about backup files?
 					  maybe c-u results in prompts for all of these
 						  fold case, search hidden, search backup
-				head, tail...
-				tar, compression
+			head, tail...
+			tar, compression
+				compress is public domain, lwz patent has expired
+				many compression algo's
 		dict interface  pd version incl data
 		dictd, dict client
 				pd dicts  moby thes, jargon file, ...
@@ -95,10 +182,36 @@ graphics, images
     terminal graphics eg `graph -T tek < data' on an xterm
 	img formats
 		http://www.dcs.ed.ac.uk/home/mxr/gfx/2d-hi.html  (maybe old)
-		:pkgs/lisp/skippy.lisp  (when gif patent ends)
+		:pkgs/lisp/skippy.lisp  (now that gif patent has ended)
+	http://www.cca.org/vector/
+		vector graphics terminals
+	from text-term howto
+	  Many text terminals can display bit-mapped images, but not in color.
+	  Unfortunately, the popular image formats used on the Internet are not
+	  supported.  The protocols for terminal graphics include: Tektronix
+	  Vector Graphics, ReGIS (DEC), Sixel (DEC), and NAPLPS (North American
+	  Presentation Level Protocol Syntax).
 run cmucl/retroforth on a simple public domain architecture
+	MIT ran a project in the early 1980s that produced a "Scheme Chip". For
+	details check out ''' Design of a Lisp-based processor ''' by Guy Lewis
+	Steele, Jr. and Gerald Jay Sussman, Communications of the ACM
+	23(11):628--645, November 1980. and ''' The Scheme-81 architecture - system
+	and chip ''' by John Batali, Edmund Goodhue, Chris Hanson, Howie Shrobe,
+	Richard M. Stallman, and Gerald Jay Sussman. In Proceedings, Conference on
+	Advanced Research in VLSI, pages 69--77. Paul Penfield, Jr., editor. Artech
+	House, 610 Washington Street, Dedham MA, 1982.
 consider lojban
     which spoken langs are verb-first like lisp?
+		Examples of languages with VSO word order include the Gaelic branch of the
+		Celtic language family (namely Irish, Scottish Gaelic and Manx), related Welsh
+		(the only VSO Brythonic language), Ancient Egyptian, Aramaic, Biblical Hebrew,
+															 ^^^^^^^^ of jesus
+		Pangasinan, Phoenician, Canaanite, Ge'ez, Classic Maya, Tagalog, Hawaiian,
+	    ^^^^^^^^^^ alive        ^^ hewbrew?
+		Mˆ€‚ori, and Tongan.
+		.
+		Even though Arabic originally had VSO word order, it is now usually more
+		understood with SVO, especially Egyptian Arabic and Moroccan Arabic.
     integrate w :doc/system
     letters ordered  most common first
 
@@ -135,16 +248,47 @@ consider lojban
 	(if (page-large-object-p first-page) nil t)
 	(- all true)?
 
+	recycle instd of delete,remove
+		add to trash, recycle trash
+
     always, multi-return-protect, <throw-protect>, always-after
       instead of unwind-protect
 
+	how to return from a lambda?
+	add (return) to ret from current fun?
+		ie implied (block () ...) around function body
+
 	eq take multiple args
 
-    or instd of unless
     if+,i+,*f instd of when? or+,o+,*r instd of unless? (like let*) maybe if*,or*
 	   these look like arithmetic ops
 	(when a b)
 	(a a b)      ; a for and, maybe and*, an*, a*  ..+ ..1
+
+	(fi x) == (fi x t) == (if x () t)
+		(if x) == (if x t) == t
+		(if)   == (if t) == (if t t) == t
+		should the lang use all the combinations of ~parts?
+
+	(fi x (a) (b)) == (if x (b) (a))
+	(fi x (a)) == (if x () (a))
+			   == (or x (a))
+	(f1 x (a) (b)) == (or x (progn (a) (b)))
+				   == (o1 x (a) (b))
+	(1f x (a) (b)) == (if x (progn (a) (b)))
+				   == (when x (a) (b))
+	               == (and x (progn (a) (b)))
+
+		consistent conditional syntax
+			and, if, when                 a* ao a1        and if and*
+			or, fi, unless				  o* oa o1		  or fi fi*
+					either, nehw (when backwards)
+			cond
+			case
+
+			(xxx a (a) (b))
+
+	(when a b)   (nehw a)
 
 	(unless a b)
 	(o a b)      ; o for or, maybe or*, o*  ..+ ..1
@@ -172,37 +316,104 @@ consider lojban
 	(if a b c)
 	(or (and a (progn b t)) c)
 
+	change let to be like let*
+		(let ((a 1) (b a))        old  (let* ((a 1) (b a))
+	    (let ((b a) (a 1))        old  (let ((a 1) (b a))
+			side-effects may require the order
+
 	;; two ways the same, due to t,f?
 	(if  (if a (eq a b) t)         d)
 	(if  (or (eq a nil) (eq a b))  d)
 
+	consider a let-replacing push,pop, eg
+		(push (read-line in))
+		(if (top) (write-line (pop)))
+	  with compiler optim equiv to let
+	  maybe  block ends clear any excess pushes, and excess pops an error
+
+	how to eval the first , with the first `
+		``(a ,(b) ,(c))
+
     (>< (<>  (greater-than-or-less-than
     epsilon, zero   list terminator, end, false   always, forever, ever
 
-    replace do w loop? (and rename loop do)            ~ scheme uses heavy recursion
-    (do ((for x t :then f)        ; (let i 0 f)
-	 (for i 0 :to 10 :count)  ; (let i 0 :to 10 :count)
-				  ; (let ((i 0 10 :count)))?
-	 (while x)
-	 (return t))
-       body)
-	(do t body)  for  (loop body)
-    (do (for x 0 10) body)      (do (x 0 10) body) (do (:list list)
-    dolist?
-	     (do ((for ele :in list)) ...)
-	     (do ((list ele list)) ...)
-	     (dolist (ele list) ...)
-	     (do ((list list)) ...)  elements bound to var $ or $_ $1
-	     (do (list list) ...)    elements bound to var $ or $_ $1 $A it
-from hem macros.lisp
-;; FIX structure like do  FIX use (loop while ... do
-; (defmacro while (cond &rest body)
-;   `(do () ((if ,cond nil t))
-;      ,@body))
-; (ed::defindent "while" 1)
+	value instd of object  eg db.lisp  find-object
+							  tty-display-object
 
-    add (format nil "x: ~$x")   ; like (format nil "x: ~A" x)
+	destructuring-bind  split-bind?
+
+	(defmacro split (sequence &rest separators &key start end)
+		seems nicer than reqring seqarators to be a list
+		only gives "odd num of kwrds" error
+
+	iteration
+
+		do-* loop
+		recursion labels iterate
+			tail recursion
+		map*
+
+		do* should be do-*?
+
+		replace do w modified loop? (and rename loop do)            ~ scheme uses heavy recursion
+		(do ((for x t :then f)        ; (let i 0 f)
+		 (for i 0 :to 10 :count)  ; (let i 0 :to 10 :count)
+					  ; (let ((i 0 10 :count)))?
+		 (while x)
+		 (return t))
+		   body)
+		(do t body)  for  (loop body)
+		(do (for x 0 10) body)      (do (x 0 10) body) (do (:list list)
+		dolist?
+			 (do ((for ele :in list)) ...)
+			 (do ((list ele list)) ...)
+			 (dolist (ele list) ...)
+			 (do ((list list)) ...)  elements bound to var $ or $_ $1
+			 (do (list list) ...)    elements bound to var $ or $_ $1 $A it
+		from hem macros.lisp
+		;; FIX structure like do  FIX use (loop while ... do
+		; (defmacro while (cond &rest body)
+		;   `(do () ((if ,cond nil t))
+		;      ,@body))
+		; (ed::defindent "while" 1)
+
+	format strings are like another language
+		(format () "x: ~A and y: ~2D, ~@[(y < x)~]" x y (> x y)
+	  could use lisp instead
+		(format () "x: " x " and y: " (D y 2) ", " (if (> x y) "(y < x)"))
+	  even in the string
+		(format () "x: ~x and y: ~(D y 2), ~(if (> x y) \"(y < x)\")")
+		(format () "x: ~x and y: ~(D y 2), ~(if (> x y) '(y < x)')")    special '
+		(format () "x: ~x and y: ~(D y 2), ~(if (> x y) "(y < x)")")    reader string parsing
+
+
+		(format "int: " (D i) ", any " (A var) ", " (A var) (%)
+				"looping: " (loop for i in '(1 2 3) do (D i) (A ", ")))
+															 ^^^^^^^^sux
+
+		(format "int: ~D, any ~(A var), ~(A var) ~%
+				looping: ~{'(1 2 3) (D $) (A ", ")})
+
+		(format "int: ~D, any ~A, ~A~%looping: ~{~D, ~}"
+				i var var '(1 2 3))
+
+			seems like current format style will always be neater
+
+				are there other novel styles?
+
+    add (format nil "x: ~$x")   ; like (format nil "x: ~A" x)     ; similar perl
         (format nil "x: ~$S$x") ; how to ~S like above
+
+	nesting strings
+		{string with {nested string}}
+		"string with \"nested string\""
+
+		{string {sub {nested} first} end}
+		"string \"sub \\\"nested\\\" first\" end"
+
+	might be useful if <,... returned the first arg
+		(or (< (file-size pathname) 99999)
+			">9999")
 
     keyword as func name?  (:f arg)
 	maybe epsilon function name, eg ( arg arg2 :keyword val), (:keyword val)
@@ -217,6 +428,8 @@ from hem macros.lisp
 
         name all such functions similarly
 	at least highlight all same (as special forms currently highltd)
+
+	+ ability to pass these functions around
 
 (deflaz when (cond &rest body)
    (if ,cond ,body))

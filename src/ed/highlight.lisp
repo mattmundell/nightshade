@@ -1,7 +1,6 @@
 ;;; Highlighting.
 
-(in-package "HEMLOCK")
-
+(in-package "ED")
 
 
 ;;;; Open parens.
@@ -25,7 +24,6 @@
 (defvar *open-paren-highlight-font* 2
   "The index into the font-map for the open paren highlighting font.")
 
-
 ;;; MAYBE-HIGHLIGHT-OPEN-PARENS is a redisplay hook that matches parens by
 ;;; highlighting the corresponding open-paren after a close-paren is
 ;;; typed.
@@ -35,24 +33,35 @@
   (when (value highlight-open-parens)
     (if (and (value highlight-active-region) (region-active-p))
 	(kill-open-paren-font-marks)
-	(multiple-value-bind
-	    (start end)
-	    (funcall (value open-paren-finder-function)
-		     (current-point))
-	  (if (and start end)
-	      (set-open-paren-font-marks start end)
-	      (kill-open-paren-font-marks))))))
+	(when (mark-line (current-point))
+	  (multiple-value-bind
+	      (start end)
+	      (funcall (value open-paren-finder-function)
+		       (current-point))
+	    (if (and start end)
+		(set-open-paren-font-marks start end)
+		(kill-open-paren-font-marks)))))))
 ;;;
 (add-hook redisplay-hook 'maybe-highlight-open-parens)
 
 (defun set-open-paren-font-marks (start end)
   (if *open-paren-font-marks*
-      (flet ((maybe-move (dst src)
-	       (or (mark= dst src)
-		   (move-font-mark dst src))))
-	(declare (inline maybe-move))
-	(maybe-move (region-start *open-paren-font-marks*) start)
-	(maybe-move (region-end *open-paren-font-marks*) end))
+      (let ((fmark (region-start *open-paren-font-marks*)))
+	(if (mark-line fmark)
+	    (or (mark= fmark start)
+		(move-font-mark fmark start))
+	    (setf (region-start *open-paren-font-marks*)
+		  (font-mark (mark-line start)
+			     (mark-charpos start)
+			     *open-paren-highlight-font*)))
+	(setq fmark (region-end *open-paren-font-marks*))
+	(if (mark-line fmark)
+	    (or (mark= fmark end)
+		(move-font-mark fmark end))
+	    (setf (region-end *open-paren-font-marks*)
+		  (font-mark (mark-line end)
+			     (mark-charpos end)
+			     *open-paren-highlight-font*))))
       (let ((line (mark-line start)))
 	(setf *open-paren-font-marks*
 	      (region
@@ -66,15 +75,12 @@
     (delete-font-mark (region-end *open-paren-font-marks*))
     (setf *open-paren-font-marks* nil)))
 
-
-
 
 ;;;; Active regions.
 
 (defvar *active-region-font-marks* nil)
 (defvar *active-region-highlight-font* 3
   "The index into the font-map for the active region highlighting font.")
-
 
 ;;; HIGHLIGHT-ACTIVE-REGION is a redisplay hook for active regions.
 ;;; Since it is too hard to know how the region may have changed when it is
@@ -110,7 +116,7 @@
 	    (stash-a-mark mark)
 	    (or (line-offset mark 1 0) (return))
 	    (when (mark>= mark end) (return)))
-	  (unless (start-line-p end) (stash-a-mark end 0))))))
+	  (or (start-line-p end) (stash-a-mark end 0))))))
   (setf *active-region-font-marks* (nreverse *active-region-font-marks*)))
 
 (defun kill-active-region-font-marks ()
@@ -193,25 +199,28 @@
 				   (not (start-line-p fmark))
 				   (mark= fmark end))))))))))))
 
-
-
 
 ;;;; Context (syntax).
 
 (defvar original-font 0
-  "Number of the font to use for normal text.")
+  "Index of the font to use for normal text.")
 (defvar comment-font 1
-  "Number of the font to use for comments.")
+  "Index of the font to use for comments.")
 (defvar string-font 2
-  "Number of the font to use for strings.")
+  "Index of the font to use for strings.")
 (defvar variable-name-font 3
-  "Number of the font to use for variable names.")
-(defvar special-form-font 6
-  "Number of the font to use for special forms.")
+  "Index of the font to use for variable names.")
+(defvar *function-name-font* 4
+  "Index of the font to use for variable names.")
 (defvar *preprocessor-font* 5
-  "Number of the font to use for preprocessor directives.")
+  "Index of the font to use for preprocessor directives.")
+(defvar special-form-font 6
+  "Index of the font to use for special forms.")
 (defvar *error-font* 7
-  "Number of the font to use for errors.")
+  "Index of the font to use for errors.")
+
+(defvar *underline-font* 19
+  "Index of the font to use for errors.")
 
 (proclaim '(inline search-for-qmark))
 
@@ -301,7 +310,7 @@
       (let ((fmark (cadr *last-used-mark*)))
 	(setq *last-used-mark* (cdr *last-used-mark*))
 	(if (mark-line fmark)
-	    (setf (hi::font-mark-font (move-font-mark fmark
+	    (setf (edi::font-mark-font (move-font-mark fmark
 						      (mark line pos)))
 		  font)
 	    (setf (car *last-used-mark*) (font-mark line pos font))))
@@ -355,7 +364,7 @@
 	   (*in-comment*)
 	   (line (mark-line (window-display-start window)))
 	   (end (mark-line (window-display-end window))))
-       (or (eq (hi::window-first-changed window) hi::the-sentinel)
+       (or (eq (edi::window-first-changed window) edi::the-sentinel)
 	   (progn
 	     ;; Move to the first changed line.
 	     (loop while (and line (line<= line end) (line-same-p line)) do
@@ -450,13 +459,13 @@
       (let ((info (getf (line-plist line) 'trailing-ch-info)))
 	(when info
 	  (dolist (fmark (ch-info-font-marks info))
-	    (delete-font-mark fmark))
+	    (if (mark-line fmark) (delete-font-mark fmark)))
 	  (setf (ch-info-font-marks info) nil))))))
 
 (defmacro rehighlight-line-trailing-space (info)
   `(progn
      (dolist (fmark (ch-info-font-marks ,info))
-       (delete-font-mark fmark))
+       (if (mark-line fmark) (delete-font-mark fmark)))
      (setf (ch-info-font-marks ,info) nil)
      (let ((mark (mark line (line-length line))))
        (when (reverse-find-attribute mark :whitespace #'zerop)
@@ -477,7 +486,7 @@
 		    'trailing-ch-info)))
     (when info
       (dolist (fmark (ch-info-font-marks info))
-	(delete-font-mark fmark))
+	(if (mark-line fmark) (delete-font-mark fmark)))
       (setf (ch-info-font-marks info) nil)
       ;; Force line to be reconsidered on next refresh.
       (setf (ch-info-signature info) nil))))
@@ -506,7 +515,7 @@
       (when info
 	(dolist (fmark (ch-info-font-marks info))
 	  (when (mark<= fmark point)
-	    (delete-font-mark fmark)
+	    (if (mark-line fmark) (delete-font-mark fmark))
 	    (setf (ch-info-font-marks info)
 		  (delq fmark (ch-info-font-marks info)))))
 	;; Force line to be reconsidered on next refresh.
@@ -517,7 +526,7 @@
   (let ((end-line (mark-line (window-display-end window))))
     (loop
       for line = (mark-line (window-display-start window))
-      then (line-next line)
+               then (line-next line)
       while (and line (line<= line end-line))
       do
       (when (> (line-length line) 0)
@@ -526,10 +535,13 @@
     (let* ((point (buffer-point (window-buffer window)))
 	   (info (get-h-t-s-line-info (mark-line point))))
       (dolist (fmark (ch-info-font-marks info))
-	(when (mark<= fmark point)
-	  (delete-font-mark fmark)
-	  (setf (ch-info-font-marks info)
-		(delq fmark (ch-info-font-marks info)))))
+	(if (mark-line fmark)
+	    (when (mark<= fmark point)
+	      (if (mark-line fmark) (delete-font-mark fmark))
+	      (setf (ch-info-font-marks info)
+		    (delq fmark (ch-info-font-marks info))))
+	    (setf (ch-info-font-marks info)
+		  (delq fmark (ch-info-font-marks info)))))
       ;; Force line to be reconsidered on next refresh.
       (setf (ch-info-signature info) nil))))
 

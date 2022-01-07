@@ -1,19 +1,7 @@
-;;; -*- Mode: Lisp; Package: Extensions; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/commandline.lisp,v 1.6.2.4 2000/11/06 17:15:10 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Stuff to eat the command line passed to us from the shell.
-;;; Written by Bill Chiles.
-;;;
+;;; Parsing the command line passed from the shell.
 
 (in-package "EXTENSIONS")
+
 (export '(*command-line-words* *command-line-switches*
 	  *command-switch-demons* *command-line-utility-name*
 	  *command-line-strings* *batch-mode*
@@ -21,6 +9,7 @@
 	  cmd-switch-name cmd-switch-value cmd-switch-words command-line-switch
 	  defswitch cmd-switch-arg get-command-line-switch))
 
+
 (defvar *command-line-switches* ()
   "A list of cmd-switch's representing the arguments used to invoke
   this process.")
@@ -62,7 +51,6 @@
       (when words (prin1 words stream))))
   (write-string ">" stream))
 
-
 
 ;;;; Processing the command strings.
 
@@ -73,22 +61,22 @@
 	str)
     (declare (special lisp::lisp-command-line-list))
     ;; Set some initial variables.
-    ;; 
+    ;;
     (setf *command-line-strings* (copy-list lisp::lisp-command-line-list))
     (setf *command-line-utility-name* (pop cmd-strings))
     (setq str (pop cmd-strings))
     ;; Set initial command line words.
-    ;; 
+    ;;
     (loop
       (unless str (return nil))
       (unless (zerop (length (the simple-string str)))
-	(when (char= (schar str 0) #\-) 
+	(when (char= (schar str 0) #\-)
 	  (setq *command-line-words* (reverse *command-line-words*))
 	  (return nil))
 	(push str *command-line-words*))
       (setq str (pop cmd-strings)))
     ;; Set command line switches.
-    ;; 
+    ;;
     (loop
       (unless str
 	(return (setf *command-line-switches*
@@ -100,7 +88,7 @@
 				(length (the simple-string str))))))
 	(setq str (pop cmd-strings))
 	;; Set this switch's words until the next switch.
-	;; 
+	;;
 	(let (word-list)
 	  (loop
 	    (unless str
@@ -128,7 +116,6 @@
       (or (cmd-switch-value switch)
 	  (cmd-switch-words switch)
 	  T))))
-
 
 
 ;;;; Defining Switches and invoking demons.
@@ -200,7 +187,7 @@
         *gc-verbose* nil
         *herald-items* nil))
 (defswitch "quiet" #'quiet-switch-demon)
-        
+
 (defun cmd-switch-arg (switch)
   (or (cmd-switch-value switch)
       (car (cmd-switch-words switch))
@@ -209,6 +196,6 @@
 (defswitch "core")
 (defswitch "init")
 (defswitch "noinit")
-(defswitch "hinit")
+(defswitch "einit")
 (defswitch "batch")
 (defswitch "dynamic-space-size")

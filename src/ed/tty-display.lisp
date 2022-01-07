@@ -1,6 +1,6 @@
 ;;; Display.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(redisplay redisplay-all define-tty-font))
 
@@ -1260,7 +1260,7 @@
 #|
 (defun test ()
   (ed::with-output-to-mark
-   (hi::*trace-stream* (ed::buffer-point (ed::getstring "trc" ed::*buffer-names*)))
+   (edi::*trace-stream* (ed::buffer-point (ed::getstring "trc" ed::*buffer-names*)))
 
    (trc "test~%")
    (ed::kill-characters (current-point) -1)

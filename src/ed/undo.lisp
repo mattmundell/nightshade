@@ -1,19 +1,19 @@
 ;;; The undo mechanism.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
+(export '(make-region-undo save-for-undo))
 
+
 ;;;; Constants
 
 (defconstant undo-name "Undo")
-
 
 
 ;;;; Variables
 
 (defvar *undo-info* nil
   "Structure containing necessary info to undo last undoable operation.")
-
 
 
 ;;;; Structures
@@ -45,11 +45,9 @@
 (setf (documentation 'undo-info-method-undo 'function)
       "Return the closure that undoes what undo-info-method does.")
 
-
 (defun %print-undo-info (obj s depth)
   (declare (ignore depth))
   (format s "#<Undo Info ~S>" (undo-info-name obj)))
-
 
 
 ;;;; Commands
@@ -83,7 +81,6 @@
 	    (t (if cleanup (funcall cleanup))
 	       (setf *undo-info* nil))))))
 
-
 
 ;;;; Primitives
 
@@ -103,8 +100,6 @@
 	   *undo-info*))
 	(t (setf *undo-info*
 		 (%make-undo-info name method cleanup method-undo buffer)))))
-
-
 
 (eval-when (compile eval)
 

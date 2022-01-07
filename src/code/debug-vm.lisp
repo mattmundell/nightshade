@@ -1,19 +1,4 @@
-;;; -*- Package: VM -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/debug-vm.lisp,v 1.2 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This is some very low-level support for the debugger :function-end
-;;; breakpoints.
-;;;
-;;; Written by William Lott.
-;;;
+;;; Some very low-level support for the debugger :function-end breakpoints.
 
 (in-package "VM")
 
@@ -26,11 +11,11 @@
 ;;; MAKE-BOGUS-LRA -- Interface.
 ;;;
 (defun make-bogus-lra (real-lra &optional known-return-p)
-  "Make a bogus LRA object that signals a breakpoint trap when returned to.  If
-   the breakpoint trap handler returns to the fake component, the fake code
-   template returns to real-lra.  This returns three values: the bogus LRA
-   object, the code component it points to, and the pc-offset for the trap
-   instruction."
+  "Make a bogus LRA object that signals a breakpoint trap when returned to.
+   If the breakpoint trap handler returns to the fake component, the fake
+   code template returns to real-lra.  This returns three values: the bogus
+   LRA object, the code component it points to, and the pc-offset for the
+   trap instruction."
   (system:without-gcing
    (let* ((src-start (truly-the system-area-pointer
 				(%primitive foreign-symbol-address

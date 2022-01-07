@@ -2,7 +2,7 @@
 #include <stdio.h>
 
 #include "print.h"
-#include "lisp.h"
+#include "nightshade.h"
 #include "internals.h"
 #include "monitor.h"
 #include "vars.h"
@@ -363,7 +363,7 @@ static void brief_otherptr(lispobj obj)
             }
             putchar('"');
             break;
-            
+
         default:
             printf("#<ptr to ");
             brief_otherimm(header);
@@ -401,11 +401,11 @@ static void print_otherptr(lispobj obj)
 	    printf("(invalid address)");
     else {
 #ifndef alpha
-        unsigned long *ptr; 
+        unsigned long *ptr;
         unsigned long header;
         unsigned long length;
 #else
-        u32 *ptr; 
+        u32 *ptr;
         u32 header;
         u32 length;
 #endif
@@ -607,7 +607,7 @@ static void print_otherptr(lispobj obj)
 	    case type_Fdefn:
 		print_slots(fdefn_slots, count, ptr);
 		break;
-		
+
 #ifdef type_ScavengerHook
 	    case type_ScavengerHook:
 		print_slots(scavenger_hook_slots, count, ptr);
@@ -635,7 +635,7 @@ static void print_obj(char *prefix, lispobj obj)
     char buffer[256];
     boolean verbose = cur_depth < brief_depth;
 
-    
+
     if (!continue_p(verbose))
         return;
 

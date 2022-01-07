@@ -454,17 +454,17 @@ active, but this never deactivates the current region (see section
 @ref[active-regions]).  @i[Mark] is returned.
 @enddefun
 
-@defvar[var {buffer-list}]
+@defvar[var {*buffer-list*}]
 This variable holds a list of all the buffer objects made with @f[make-buffer].
 @enddefvar
 
 @defvar[var {buffer-names}]
 This variable holds a @f[string-table] (page @pageref(string-tables)) of all the
-names of the buffers in @var[buffer-list].  The values of the entries are the
+names of the buffers in @var[*buffer-list*].  The values of the entries are the
 corresponding buffer objects.
 @enddefvar
 
-@defvar[var {buffer-history}]
+@defvar[var {*buffer-history*}]
 This is a list of buffer objects ordered from those most recently selected to
 those selected farthest in the past.  When someone makes a buffer, an element
 of @hid[Make Buffer Hook] adds this buffer to the end of this list.  When
@@ -475,11 +475,11 @@ never contains the @var[echo-area-buffer].
 
 @defun[fun {change-to-buffer}, args {@i[buffer]}]
 This switches to @i[buffer] in the @f[current-window] maintaining
-@f[buffer-history].
+@f[*buffer-history*].
 @enddefun
 
 @defun[fun {previous-buffer}]
-This returns the first buffer from @var[buffer-history] that is not the
+This returns the first buffer from @var[*buffer-history*] that is not the
 @f[current-buffer].  If none can be found, then this returns @nil.
 @enddefun
 
@@ -498,7 +498,7 @@ of modeline-field objects (see section @ref[modelines]) which may be @nil.
 @f[delete-buffer] invokes these along with @hid[Delete Buffer Hook].
 
 Buffers created with @f[make-buffer] are entered into the list
-@var[buffer-list], and their names are inserted into the
+@var[*buffer-list*], and their names are inserted into the
 string-table @var[buffer-names].  When a buffer is created the hook
 @hid[Make Buffer Hook] is invoked with the new buffer.
 @enddefun
@@ -619,7 +619,7 @@ invokes when deleting a buffer.  This is @f[setf]'able.
 
 @defun[fun {delete-buffer}, args {@i[buffer]}]
 @defhvar1[var {Delete Buffer Hook}]
-@f[delete-buffer] removes @i[buffer] from @varref[buffer-list] and its name
+@f[delete-buffer] removes @i[buffer] from @varref[*buffer-list*] and its name
 from @varref[buffer-names].  Before @i[buffer] is deleted, this invokes the
 functions on @i[buffer] returned by @f[buffer-delete-hook] and those found in
 @hid[Delete Buffer Hook].  If @i[buffer] is the @f[current-buffer], or if it is
@@ -629,7 +629,7 @@ displayed in any windows, then this function signals an error.
 @defun[fun {delete-buffer-if-possible}, args {@i[buffer]}]
 This uses @f[delete-buffer] to delete @i[buffer] if at all possible.  If
 @i[buffer] is the @f[current-buffer], then this sets the @f[current-buffer] to
-the first distinct buffer in @f[buffer-history].  If @i[buffer] is displayed in
+the first distinct buffer in @f[*buffer-history*].  If @i[buffer] is displayed in
 any windows, then this makes each window display the same distinct buffer.
 @enddefun
 
@@ -3018,7 +3018,7 @@ File groups provide a simple way of collecting the files that compose a system
 and naming that collection.  @Hemlock supports commands for searching,
 replacing, and compiling groups.
 
-@defvar[var {active-file-group}]
+@defvar[var {*active-file-group*}]
 This is the list of files that constitute the currently selected file group.
 If this is @nil, then there is no current group.
 @enddefvar

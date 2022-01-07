@@ -1,7 +1,8 @@
 ;;; Basic commands.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
+(export '(word-offset))
 
 ;;; Make a mark for buffers as they're consed:
 
@@ -408,8 +409,8 @@
 	      (setf (aref msg (- (length msg) 2)) #\.)
 	      (message msg)))))))
 
-(progn (hi::ring-vector *extended-command-history*))
-(progn (hi::ring-vector *echo-area-history*))
+(progn (edi::ring-vector *extended-command-history*))
+(progn (edi::ring-vector *echo-area-history*))
 
 (defhvar "Universal Argument Default"
   "Default value for \"Universal Argument\" command."

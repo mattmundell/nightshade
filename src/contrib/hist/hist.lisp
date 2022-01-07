@@ -23,6 +23,12 @@
 ;;; Dependencies: Depends only on standard Common Lisp facilities.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(defpackage "HIST"
+  (:use "LISP")
+  (:export "HIST" "HIST-RECORD")
+  (:documentation
+   "Simple Histogram facility.  Just prints out the result using Format."))
+
 (in-package "HIST")
 (export '(hist hist-record))
 
@@ -40,12 +46,12 @@
 (defmacro hist ((low high &optional (bucket-size 1))
 		&body body)
   "Format is (HIST (low high [bucket-size]) . body).
-  Creates a histogram with buckets of the specified size (defaults to 1),
-  spanning the range from Low (inclusive) to High (exclusive), with two
-  additional buckets to catch values below and above this range.
-  The body is executed as a progn, and every call to Hist-Record within
-  the body provides a value for the histogram to count.
-  When Body exits, the histogram is printed out and Hist returns Nil."
+   Creates a histogram with buckets of the specified size (defaults to 1),
+   spanning the range from Low (inclusive) to High (exclusive), with two
+   additional buckets to catch values below and above this range.
+   The body is executed as a progn, and every call to Hist-Record within
+   the body provides a value for the histogram to count.
+   When Body exits, the histogram is printed out and Hist returns Nil."
   `(let* ((*hist-lower-limit* ,low)
 	  (*hist-upper-limit* ,high)
 	  (*hist-bucket-size* ,bucket-size)

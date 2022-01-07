@@ -1,18 +1,5 @@
-;;; -*- Log: code.log; Package: Lisp -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/array.lisp,v 1.23.2.3 2000/05/23 16:36:10 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Functions to implement arrays for CMU Common Lisp.
-;;; Written by Skef Wholey.
-;;; Worked over for the MIPS port by William Lott.
-;;;
+;;; Functions to implement arrays.
+
 (in-package "LISP")
 
 (export '(array-rank-limit array-dimension-limit array-total-size-limit
@@ -40,12 +27,11 @@
 (defconstant array-total-size-limit most-positive-fixnum
   "The exclusive upper bound on the total number of elements in an array.")
 
-
 
 ;;;; Random accessor functions.
 
-;;; These functions are needed by the interpreter, 'cause the compiler inlines
-;;; them.
+;;; These functions are needed by the interpreter, 'cause the compiler
+;;; inlines them.
 
 (macrolet ((frob (name)
 	     `(progn
@@ -118,7 +104,6 @@
 
 ); eval-when
 
-
 (defun %vector-type-code (type)
   (pick-type type
     (base-char (values #.vm:simple-string-type #.vm:byte-bits))
@@ -152,11 +137,11 @@
     (bit #.vm:complex-bit-vector-type)
     (t #.vm:complex-vector-type)))
 
-(defun make-array (dimensions &key
-			      (element-type t)
-			      (initial-element nil initial-element-p)
-			      initial-contents adjustable fill-pointer
-			      displaced-to displaced-index-offset)
+(defun make-array (dimensions
+		   &key (element-type t)
+		        (initial-element nil initial-element-p)
+			initial-contents adjustable fill-pointer
+			displaced-to displaced-index-offset)
   "Creates an array of the specified Dimensions." ;; FIX details
   (let* ((dimensions (if (listp dimensions) dimensions (list dimensions)))
 	 (array-rank (length (the list dimensions)))
@@ -164,8 +149,9 @@
 		      (not adjustable)
 		      (null displaced-to))))
     (declare (fixnum array-rank))
-    (when (and displaced-index-offset (null displaced-to))
-      (error "Can't specify :displaced-index-offset without :displaced-to"))
+    (if displaced-index-offset
+	(or displaced-to
+	    (error "Can't specify :displaced-index-offset without :displaced-to")))
     (if (and simple (= array-rank 1))
 	;; Its a (simple-array * (*))
 	(multiple-value-bind (type bits)
@@ -187,12 +173,12 @@
 	    (when initial-contents
 	      (when initial-element
 		(error "Cannot specify both :initial-element and ~
-		:initial-contents"))
-	      (unless (= length (length initial-contents))
-		(error "~D elements in the initial-contents, but the ~
-		vector length is ~D."
-		       (length initial-contents)
-		       length))
+			:initial-contents"))
+	      (or (= length (length initial-contents))
+		  (error "~D elements in the initial-contents, but the ~
+			  vector length is ~D."
+			 (length initial-contents)
+			 length))
 	      (replace array initial-contents))
 	    array))
 	;; It's either a complex array or a multidimensional array.
@@ -208,19 +194,19 @@
 			     (t vm:complex-array-type))
 		       array-rank)))
 	  (cond (fill-pointer
-		 (unless (= array-rank 1)
-		   (error "Only vectors can have fill pointers."))
+		 (or (= array-rank 1)
+		     (error "Only vectors can have fill pointers."))
 		 (let ((length (car dimensions)))
 		   (declare (fixnum length))
 		   (setf (%array-fill-pointer array)
 		     (cond ((eq fill-pointer t)
 			    length)
 			   (t
-			    (unless (and (fixnump fill-pointer)
-					 (>= fill-pointer 0)
-					 (<= fill-pointer length))
-				    (error "Invalid fill-pointer ~D"
-					   fill-pointer))
+			    (or (and (fixnump fill-pointer)
+				     (>= fill-pointer 0)
+				     (<= fill-pointer length))
+				(error "Invalid fill-pointer ~D"
+				       fill-pointer))
 			    fill-pointer))))
 		 (setf (%array-fill-pointer-p array) t))
 		(t
@@ -246,16 +232,17 @@
 	      (incf axis)))
 	  array))))
 
-;;; DATA-VECTOR-FROM-INITS returns a simple vector that has the specified array
-;;; characteristics.  Dimensions is only used to pass to FILL-DATA-VECTOR
-;;; for error checking on the structure of initial-contents.
+;;; DATA-VECTOR-FROM-INITS returns a simple vector that has the specified
+;;; array characteristics.  Dimensions is only used to pass to
+;;; FILL-DATA-VECTOR for error checking on the structure of
+;;; initial-contents.
 ;;;
 (defun data-vector-from-inits (dimensions total-size element-type
 			       initial-contents initial-element
 			       initial-element-p)
-  (when (and initial-contents initial-element-p)
-    (error "Cannot supply both :initial-contents and :initial-element to
-            either make-array or adjust-array."))
+  (and initial-contents initial-element-p
+       (error "Cannot supply both :initial-contents and :initial-element to
+	       either make-array or adjust-array."))
   (let ((data (if initial-element-p
 		  (make-array total-size
 			      :element-type element-type
@@ -264,14 +251,13 @@
 			      :element-type element-type))))
     (cond (initial-element-p
 	   (unless (simple-vector-p data)
-	     (unless (typep initial-element element-type)
-	       (error "~S cannot be used to initialize an array of type ~S."
-		      initial-element element-type))
+	     (or (typep initial-element element-type)
+		 (error "~S cannot be used to initialize an array of type ~S."
+			initial-element element-type))
 	     (fill (the vector data) initial-element)))
 	  (initial-contents
 	   (fill-data-vector data dimensions initial-contents)))
     data))
-
 
 (defun fill-data-vector (vector dimensions initial-contents)
   (let ((index 0))
@@ -280,15 +266,15 @@
 		      (setf (aref vector index) contents)
 		      (incf index))
 		     (t
-		      (unless (typep contents 'sequence)
-			(error "Malformed :initial-contents.  ~S is not a ~
-			        sequence, but ~D more layer~:P needed."
-			       contents
-			       (- (length dimensions) axis)))
-		      (unless (= (length contents) (car dims))
-			(error "Malformed :initial-contents.  Dimension of ~
-			        axis ~D is ~D, but ~S is ~D long."
-			       axis (car dims) contents (length contents)))
+		      (or (typep contents 'sequence)
+			  (error "Malformed :initial-contents.  ~S is not a ~
+				  sequence, but ~D more layer~:P needed."
+				 contents
+				 (- (length dimensions) axis)))
+		      (or (= (length contents) (car dims))
+			  (error "Malformed :initial-contents.  Dimension of ~
+				  axis ~D is ~D, but ~S is ~D long."
+				 axis (car dims) contents (length contents)))
 		      (if (listp contents)
 			  (dolist (content contents)
 			    (frob (1+ axis) (cdr dims) content))
@@ -296,16 +282,13 @@
 			    (frob (1+ axis) (cdr dims) (aref contents i))))))))
       (frob 0 dimensions initial-contents))))
 
-
-;;; Some people out there are still calling MAKE-VECTOR:
+;;; Some people out there are still calling MAKE-VECTOR.
 ;;;
 (setf (symbol-function 'make-vector) #'make-array)
-
 
 (defun vector (&rest objects)
   "Constructs a simple-vector from the given objects."
   (coerce (the list objects) 'simple-vector))
-
 
 
 ;;;; Accessor/Setter functions.
@@ -374,8 +357,6 @@
        (complex double-float)
        #+long-float (complex long-float)))))
 
-
-
 (defun %array-row-major-index (array subscripts
 				     &optional (invalid-index-error-p t))
   (declare (array array)
@@ -433,11 +414,10 @@
 	new-value))
 
 (defun row-major-aref (array index)
-  "Returns the element of array corressponding to the row-major index.  This is
-   SETF'able."
+  "Returns the element of array corressponding to the row-major index.
+   This is SETF'able."
   (declare (optimize (safety 1)))
   (row-major-aref array index))
-
 
 (defun %set-row-major-aref (array index new-value)
   (declare (optimize (safety 1)))
@@ -452,12 +432,10 @@
   (declare (optimize (safety 1)))
   (setf (aref simple-vector index) new))
 
-
 (defun bit (bit-array &rest subscripts)
   "Returns the bit from the Bit-Array at the specified Subscripts."
   (declare (type (array bit) bit-array) (optimize (safety 1)))
   (row-major-aref bit-array (%array-row-major-index bit-array subscripts)))
-
 
 (defun %bitset (bit-array &rest stuff)
   (declare (type (array bit) bit-array) (optimize (safety 1)))
@@ -543,7 +521,6 @@
 	  (array-element-type array)))
        (t
 	(error "~S is not an array." array))))))
-
 
 (defun array-rank (array)
   "Returns the number of dimensions of the Array."
@@ -672,7 +649,7 @@
 		    (1- fill-pointer))))))
 
 
-;;;; Adjust-array
+;;;; Adjust-array.
 
 (defun adjust-array (array dimensions &key
 			   (element-type (array-element-type array))
@@ -717,10 +694,10 @@
 	     (when initial-element
 	       (error "The :initial-element option may not be specified ~
 	       with :displaced-to."))
-	     (unless (subtypep element-type (array-element-type displaced-to))
-	       (error "One can't displace an array of type ~S into another of ~
-	               type ~S."
-		      element-type (array-element-type displaced-to)))
+	     (or (subtypep element-type (array-element-type displaced-to))
+		 (error "One can't displace an array of type ~S into another of ~
+			 type ~S."
+			element-type (array-element-type displaced-to)))
 	     (let ((displacement (or displaced-index-offset 0))
 		   (array-size (apply #'* dimensions)))
 	       (declare (fixnum displacement array-size))
@@ -792,19 +769,19 @@
 	 (when (array-has-fill-pointer-p old-array)
 	   (when (> (%array-fill-pointer old-array) new-array-size)
 	     (error "Cannot adjust-array an array (~S) to a size (~S) that is ~
-	            smaller than it's fill pointer (~S)."
+		     smaller than it's fill pointer (~S)."
 		    old-array new-array-size (fill-pointer old-array)))
 	   (%array-fill-pointer old-array)))
 	((not (array-has-fill-pointer-p old-array))
 	 (error "Cannot supply a non-NIL value (~S) for :fill-pointer ~
-		        in adjust-array unless the array (~S) was originally ~
- 			created with a fill pointer."
-		       fill-pointer
-		       old-array))
+		 in adjust-array unless the array (~S) was originally ~
+		 created with a fill pointer."
+		fill-pointer
+		old-array))
 	((numberp fill-pointer)
 	 (when (> fill-pointer new-array-size)
 	   (error "Cannot supply a value for :fill-pointer (~S) that is larger ~
-	          than the new length of the vector (~S)."
+		   than the new length of the vector (~S)."
 		  fill-pointer new-array-size))
 	 fill-pointer)
 	((eq fill-pointer t)
@@ -875,7 +852,6 @@
   (setf (%array-displaced-p array) displacedp)
   array)
 
-
 
 ;;;; ZAP-ARRAY-DATA for ADJUST-ARRAY.
 
@@ -896,7 +872,6 @@
     (fill (the simple-vector *zap-array-data-temp*) initial-element
 	  :end length))
   *zap-array-data-temp*)
-
 
 ;;; ZAP-ARRAY-DATA  --  Internal.
 ;;;
@@ -964,7 +939,6 @@
 				   chunk-size))))
     (setq chunk-size (* chunk-size (the fixnum (car rev-dim-list))))))
 
-
 
 ;;;; Some bit stuff.
 
@@ -994,16 +968,16 @@
   `(defun ,name (bit-array-1 bit-array-2 &optional result-bit-array)
      ,(format nil
 	      "Perform a bit-wise ~A on the elements of BIT-ARRAY-1 and ~
-	      BIT-ARRAY-2,~%  putting the results in RESULT-BIT-ARRAY.  ~
-	      If RESULT-BIT-ARRAY is T,~%  BIT-ARRAY-1 is used.  If ~
-	      RESULT-BIT-ARRAY is NIL or omitted, a new array is~%  created.  ~
-	      All the arrays must have the same rank and dimensions."
+	       BIT-ARRAY-2,~%  putting the results in RESULT-BIT-ARRAY.  ~
+	       If RESULT-BIT-ARRAY is T,~%  BIT-ARRAY-1 is used.  If ~
+	       RESULT-BIT-ARRAY is NIL or omitted, a new array is~%  created.  ~
+	       All the arrays must have the same rank and dimensions."
 	      (symbol-name function))
      (declare (type (array bit) bit-array-1 bit-array-2)
 	      (type (or (array bit) (member t nil)) result-bit-array))
-     (unless (bit-array-same-dimensions-p bit-array-1 bit-array-2)
-       (error "~S and ~S do not have the same dimensions."
-	      bit-array-1 bit-array-2))
+     (or (bit-array-same-dimensions-p bit-array-1 bit-array-2)
+	 (error "~S and ~S do not have the same dimensions."
+		bit-array-1 bit-array-2))
      (let ((result-bit-array (pick-result-array result-bit-array bit-array-1)))
        (if (and (simple-bit-vector-p bit-array-1)
 		(simple-bit-vector-p bit-array-2)
@@ -1037,10 +1011,10 @@
 (def-bit-array-op bit-orc2 logorc2)
 
 (defun bit-not (bit-array &optional result-bit-array)
-  "Performs a bit-wise logical NOT on the elements of BIT-ARRAY,
-  putting the results in RESULT-BIT-ARRAY.  If RESULT-BIT-ARRAY is T,
-  BIT-ARRAY is used.  If RESULT-BIT-ARRAY is NIL or omitted, a new array is
-  created.  Both arrays must have the same rank and dimensions."
+  "Performs a bit-wise logical NOT on the elements of BIT-ARRAY, putting
+   the results in RESULT-BIT-ARRAY.  If RESULT-BIT-ARRAY is T, BIT-ARRAY is
+   used.  If RESULT-BIT-ARRAY is NIL or omitted, a new array is created.
+   Both arrays must have the same rank and dimensions."
   (declare (type (array bit) bit-array)
 	   (type (or (array bit) (member t nil)) result-bit-array))
   (let ((result-bit-array (pick-result-array result-bit-array bit-array)))

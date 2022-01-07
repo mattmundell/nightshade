@@ -1,15 +1,16 @@
 ;;; Functions for changing modes and buffers.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
-(export '(buffer-modified buffer-region buffer-name buffer-pathname
+(export '(*buffer-list*
+	  buffer-modified buffer-region buffer-name buffer-pathname
 	  buffer-major-mode buffer-minor-mode buffer-modeline-fields
 	  buffer-modeline-field-p current-buffer current-point current-line
 	  in-recursive-edit exit-recursive-edit abort-recursive-edit
 	  recursive-edit defmode mode-major-p mode-variables mode-documentation
 	  unique-buffer-name make-unique-buffer
 	  make-buffer delete-buffer copy-buffer with-writable-buffer
-	  buffer-start-mark buffer-end-mark *buffer-list*))
+	  buffer-start-mark buffer-end-mark recursive-edit))
 
 
 
@@ -30,7 +31,7 @@
 ;;;
 (defun buffer-modified (buffer)
   "Return T if Buffer has been modified, NIL otherwise.  Can be set with Setf."
-  (unless (bufferp buffer) (error "~S is not a buffer." buffer))
+  (or (bufferp buffer) (error "~S is not a buffer." buffer))
   (> (buffer-modified-tick buffer) (buffer-unmodified-tick buffer)))
 
 (defun %set-buffer-modified (buffer sense)
@@ -188,7 +189,7 @@
 ;;;
 (defun buffer-major-mode (buffer)
   "Return the name of Buffer's major mode.  To change tha major mode
-  use Setf."
+   use Setf."
   (check-type buffer buffer)
   (car (buffer-modes buffer)))
 
@@ -377,9 +378,9 @@
 ;;; necessary.
 ;;;
 (defun recursive-edit (&optional (handle-abort t))
-  "Call the command interpreter recursively.  If Handle-Abort is true
-  then an abort caused by a control-g or a lisp error does not cause
-  the recursive edit to be aborted."
+  "Call the command interpreter recursively.  If Handle-Abort is true then
+   an abort caused by a control-g or a lisp error does not cause the
+   recursive edit to be aborted."
   (invoke-hook ed::enter-recursive-edit-hook)
   (multiple-value-bind (flag args)
 		       (let ((*in-a-recursive-edit* t))
@@ -400,8 +401,8 @@
 (defun exit-recursive-edit (&optional values)
   "Exit from a recursive edit.  Values is a list of things which are
    to be the return values from Recursive-Edit."
-  (unless *in-a-recursive-edit*
-    (error "Not in a recursive edit!"))
+  (or *in-a-recursive-edit*
+      (error "Not in a recursive edit!"))
   (invoke-hook ed::exit-recursive-edit-hook values)
   (throw 'leave-recursive-edit (values :exit values)))
 
@@ -412,8 +413,8 @@
 (defun abort-recursive-edit (&rest args)
   "Abort a recursive edit, causing an Editor-Error with the args given in
    the calling context."
-  (unless *in-a-recursive-edit*
-    (error "Not in a recursive edit!"))
+  (or *in-a-recursive-edit*
+      (error "Not in a recursive edit!"))
   (invoke-hook ed::abort-recursive-edit-hook args)
   (throw 'leave-recursive-edit (values :abort args)))
 
@@ -531,8 +532,8 @@
    list of functions that take a buffer as the argument."
   (cond ((getstring name *buffer-names*) nil)
 	(t
-	 (unless (listp delete-hook)
-	   (error ":delete-hook is a list of functions -- ~S." delete-hook))
+	 (or (listp delete-hook)
+	     (error ":delete-hook is a list of functions -- ~S." delete-hook))
 	 (let* ((region (make-empty-region))
 		(object (getstring "Fundamental" *mode-names*))
 		(buffer (internal-make-buffer

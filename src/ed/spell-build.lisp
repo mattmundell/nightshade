@@ -1,5 +1,3 @@
-;;; -*- Package: Spell -*-
-;;;
 ;;; This file contains code to build a new binary dictionary file from text
 ;;; in system space.  This code relies on implementation dependent code
 ;;; from spell-rt.lisp.  Also, it is expected that spell-corr.lisp and

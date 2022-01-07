@@ -1,21 +1,7 @@
-;;; -*- Mode: Lisp; Package: Lisp; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/save.lisp,v 1.31.2.5 2000/11/04 17:06:19 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Dump the current lisp image into a core file.  All the real work is done
-;;; be C.  Also contains various high-level initialization stuff: loading init
-;;; files and parsing environment variables.
-;;;
-;;; Written by William Lott.
-;;;
-;;;
+;;; Dump the current lisp image into a core file.  All the real work is
+;;; done be C.  Also contains various high-level initialization stuff:
+;;; loading init files and parsing environment variables.
+
 (in-package "LISP")
 
 (in-package "EXTENSIONS")
@@ -24,14 +10,15 @@
 (in-package "LISP")
 
 (defvar *before-save-initializations* nil
-  "This is a list of functions which are called before creating a saved core
-  image.  These functions are executed in the child process which has no ports,
-  so they cannot do anything that tries to talk to the outside world.")
+  "This is a list of functions which are called before creating a saved
+   core image.  These functions are executed in the child process which has
+   no ports, so they cannot do anything that tries to talk to the outside
+   world.")
 
 (defvar *after-save-initializations* nil
-  "This is a list of functions which are called when a saved core image starts
-  up.  The system itself should be initialized at this point, but applications
-  might not be.")
+  "This is a list of functions which are called when a saved core image
+   starts up.  The system itself should be initialized at this point, but
+   applications might not be.")
 
 (defvar *environment-list* nil
   "An alist mapping environment variables (as keywords) to either values")
@@ -39,11 +26,8 @@
 (defvar *editor-lisp-p* nil
   "This is true if and only if the lisp was started with the -edit switch.")
 
-
-
 ;;; Filled in by the startup code.
 (defvar lisp-environment-list)
-
 
 ;;; PARSE-UNIX-SEARCH-LIST  --  Internal
 ;;;
@@ -67,7 +51,6 @@
 	  (if (string= s "")
 	      (push "default:" pl)
 	      (push (concatenate 'simple-string s "/") pl)))))))
-
 
 ;;; ENVIRONMENT-INIT  --  Internal
 ;;;
@@ -94,7 +77,6 @@
 	    '(#+mach  "/usr/misc/.nightshade/lib/"
 	      #+linux "/usr/lib/nightshade/"
 	      #-(or mach linux) "/usr/local/lib/nightshade/lib/"))))
-
 
 
 ;;;; SAVE-LISP itself.
@@ -141,11 +123,10 @@
 
   :site-init
       If true, then the name of the site init file to load.  The default is
-      library:site-init.  No error if this does not exist.
+  library:site-init.  No error if this does not exist.
 
   :print-herald
       If true (the default), print out the lisp system herald when starting."
-
   #+mp (mp::shutdown-multi-processing)
   (when (fboundp 'eval:flush-interpreted-function-cache)
     (eval:flush-interpreted-function-cache))
@@ -214,7 +195,6 @@
 	(save (unix-namestring core-file-name nil) initial-function))))
   nil)
 
-
 
 ;;;; PRINT-HERALD support.
 
@@ -269,8 +249,8 @@
 ;;;; Random functions used by worldload.
 
 (defun assert-user-package ()
-  (unless (eq *package* (find-package "USER"))
-    (error "Change *PACKAGE* to the USER package and try again.")))
+  (or (eq *package* (find-package "USER"))
+      (error "Change *PACKAGE* to the USER package and try again.")))
 
 ;;; MAYBE-BYTE-LOAD  --  Interface
 ;;;
@@ -286,7 +266,6 @@
 	   (load bname))
 	  (load-native
 	   (load name)))))
-
 
 ;;; BYTE-LOAD-OVER  --  Interface
 ;;;

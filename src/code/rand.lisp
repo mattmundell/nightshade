@@ -1,19 +1,5 @@
-;;; -*- Mode: Lisp; Package: Kernel -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/rand.lisp,v 1.9.2.2 1998/06/23 11:22:23 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Functions to random number functions for Spice Lisp
-;;;
-;;; Originally written by David Adam.  Python tuning, better large integer
-;;; randomness and efficient IEEE float support by Rob MacLachlan.
-;;;
+;;; Functions to generate random numbers.
+
 #-new-random
 (in-package "LISP")
 #-new-random
@@ -27,7 +13,7 @@
 			       random-fixnum-max))
 
 
-;;;; Random state hackery:
+;;;; Random state hackery.
 
 #-new-random
 (progn
@@ -90,15 +76,15 @@
 	(t (error "Argument is not a RANDOM-STATE, T or NIL: ~S" state))))
 
 
-;;;; Random entries:
+;;;; Random entries.
 
 (declaim (start-block random %random-single-float %random-double-float
 		      random-chunk))
 
 ;;; random-chunk  --  Internal
 ;;;
-;;; This function generates fixnums between 0 and random-upper-bound, 
-;;; inclusive.  For the algorithm to work random-upper-bound must be an 
+;;; This function generates fixnums between 0 and random-upper-bound,
+;;; inclusive.  For the algorithm to work random-upper-bound must be an
 ;;; even positive fixnum.  State is the random state to use.
 ;;;
 (declaim (ftype (function (random-state) random-chunk) random-chunk))
@@ -122,9 +108,10 @@
 
 ;;; %RANDOM-SINGLE-FLOAT, %RANDOM-DOUBLE-FLOAT  --  Interface
 ;;;
-;;;    Handle the single or double float case of RANDOM.  We generate a float
-;;; between 0.0 and 1.0 by clobbering the significand of 1.0 with random bits,
-;;; then subtracting 1.0.  This hides the fact that we have a hidden bit.
+;;; Handle the single or double float case of RANDOM.  We generate a float
+;;; between 0.0 and 1.0 by clobbering the significand of 1.0 with random
+;;; bits, then subtracting 1.0.  This hides the fact that we have a hidden
+;;; bit.
 ;;;
 (declaim (inline %random-single-float %random-double-float))
 (defun %random-single-float (arg state)
@@ -156,7 +143,7 @@
 	  1d0))))
 
 
-;;;; Random integers:
+;;;; Random integers.
 
 ;;; Amount we overlap chunks by when building a large integer to make up for
 ;;; the loss of randomness in the low bits.
@@ -172,7 +159,6 @@
 ;;;
 (defconstant random-fixnum-max
   (1- (ash 1 (- random-chunk-length random-integer-extra-bits))))
-
 
 ;;; %RANDOM-INTEGER  --  Internal
 ;;;
@@ -206,29 +192,26 @@
 	   :format-control "Argument is not a positive real number: ~S"
 	   :format-arguments (list arg)))))
 
-)	; end progn
+) ; end progn #-new-random
 
-;;;
 ;;; **********************************************************************
 ;;;
-;;; Functions for generating random numbers for CMU Common Lisp.
+;;; Functions for generating random numbers.
 ;;;
 ;;; Written by Raymond Toy.  This is a replacement of the original
-;;; rand.lisp in CMUCL.  According to tests done by Peter VanEynde,
-;;; the original generator fails some tests of randomness in
-;;; Marsaglia's diehard test suite.  This generator passes those
-;;; tests.
+;;; rand.lisp.  According to tests done by Peter VanEynde, the original
+;;; generator fails some tests of randomness in Marsaglia's diehard test
+;;; suite.  This generator passes those tests.
 ;;;
-;;; Also, the original generator lacks documentation.  This remedies
-;;; that, and includes references for the algorithms used. Hopefully
-;;; better algorithms have been chosen that are at least as good and
-;;; at least as fast as the original.  In fact, the heart of the
-;;; generator is geared towards generating floating point numbers
-;;; which should be faster than the original.  This should also give
-;;; faster integer numbers since longer floating-point random numbers
-;;; are generated.  Tests have shown that this new generator is always
-;;; a 10-20% faster and upto 3 times faster for double-floats.
-;;;
+;;; Also, the original generator lacks documentation.  This remedies that,
+;;; and includes references for the algorithms used. Hopefully better
+;;; algorithms have been chosen that are at least as good and at least as
+;;; fast as the original.  In fact, the heart of the generator is geared
+;;; towards generating floating point numbers which should be faster than
+;;; the original.  This should also give faster integer numbers since
+;;; longer floating-point random numbers are generated.  Tests have shown
+;;; that this new generator is always a 10-20% faster and upto 3 times
+;;; faster for double-floats.
 
 #+new-random
 (in-package "LISP")
@@ -244,13 +227,12 @@
 
 #+new-random
 (progn
-;;;; Random state hackery used to initialize the random state
+;;;; Random state hackery used to initialize the random state.
 (defvar rand-seed 54217137)
 (declaim (type (integer 0 900000000) rand-seed))
 
-;;; This is the function RMARIN, in James' paper.  The routine is
-;;; slightly extended to handle the longer floats that we are using
-;;; here.
+;;; This is the function RMARIN, in James' paper.  The routine is slightly
+;;; extended to handle the longer floats that we are using here.
 
 (defun init-random-state ()
   (flet ((init-aux (y0 y1 y2 z0)
@@ -275,7 +257,7 @@
 		     (setf y2 new-y)
 		     (setf z0 new-z)))
 		 (setf (aref r n) s))))))
-	   
+
     (multiple-value-bind (ij kl)
 	(floor rand-seed 30082)
       (declare (type (integer 0 29918) ij)
@@ -290,7 +272,7 @@
 	  (declare (fixnum k L))
 	  (incf k 1)
 	  (init-aux i j k l))))))
-  
+
 (defstruct (random-state
 	     (:constructor make-random-object)
 	     (:make-load-form-fun :just-dump-it-normally))
@@ -320,10 +302,10 @@
 	    (aref (random-state-cache cur-state) k)))))
 
 (defun make-random-state (&optional state)
-  "Make a random state object.  If State is not supplied, return a copy
-  of the default random state.  If State is a random state, then return a
-  copy of it.  If state is T then return a random state generated from
-  the universal time."
+  "Make a random state object.  If State is not supplied, return a copy of
+   the default random state.  If State is a random state, then return a
+   copy of it.  If state is T then return a random state generated from the
+   universal time."
   (cond ((not state)
 	 (copy-state *random-state*))
 	((random-state-p state)
@@ -334,9 +316,8 @@
 	(t
 	 (error "Argument is not a RANDOM-STATE, T or NIL: ~S" state))))
 
-
 
-;;;; Random entries
+;;;; Random entries.
 
 #+nil ; Not yet as block compiling tickles compiler trouble.
 (declaim (start-block random %random-single-float %random-double-float
@@ -434,7 +415,7 @@
 	     (type (simple-array double-float (32)) z)
 	     (type (mod 32) index))
     ;; Do the subtract-with-borrow generator
-    (setf (random-state-borrow state) 
+    (setf (random-state-borrow state)
 	  (cond ((minusp new-z)
 		 (incf new-z 1.0d0)
 		 double-float-epsilon)
@@ -449,7 +430,7 @@
       (let ((w1 (if (minusp w) (1+ w) w)))
 	(declare (double-float w1))
 	(setf (random-state-weyl state) w1)
-	
+
 	;; Mix them together
 	(decf new-z w1)
 	(when (minusp new-z)
@@ -462,7 +443,6 @@
 ;;;    Handle the single or double float case of RANDOM.  These
 ;;;    functions are required because the compiler will optimize calls
 ;;;    to random to one of the following functions if possible.
-;;;
 
 (declaim (inline %random-single-float %random-double-float))
 (defun %random-double-float (arg state)
@@ -477,17 +457,16 @@
 	  'single-float))
 
 
-;;;; Random integers:
+;;;; Random integers.
 
 ;;; Random integers are created by concatenating a bunch of chunks
-;;; together. Chunks are generated without consing by truncating a
-;;; random float to an integer. With the latest propagate-float-type
-;;; code the compiler can inline truncate (signed-byte 32) allowing 31
-;;; bits, and (unsigned-byte 32) 32 bits on the x86. When not using the
-;;; propagate-float-type feature the best size that can be inlined is
-;;; 29 bits.  Use of sizes greater than 29 bits causes consing in
-;;; argument passing to generic functions, so 29 bits is a good
-;;; default.
+;;; together. Chunks are generated without consing by truncating a random
+;;; float to an integer. With the latest propagate-float-type code the
+;;; compiler can inline truncate (signed-byte 32) allowing 31 bits, and
+;;; (unsigned-byte 32) 32 bits on the x86. When not using the
+;;; propagate-float-type feature the best size that can be inlined is 29
+;;; bits.  Use of sizes greater than 29 bits causes consing in argument
+;;; passing to generic functions, so 29 bits is a good default.
 ;;;
 (defconstant random-chunk-size 29)
 
@@ -513,8 +492,8 @@
 	(declare (fixnum count))))))
 
 (defun random (arg &optional (state *random-state*))
-  "Generate a uniformly distributed pseudo-random number between zero
-  and Arg.  State, if supplied, is the random state to use."
+  "Generate a uniformly distributed pseudo-random number between zero and
+   Arg.  State, if supplied, is the random state to use."
   (declare (inline %random-single-float %random-double-float))
   (cond
     ((<= arg 0)
@@ -539,4 +518,4 @@
 	    :format-control "Argument is not a positive integer or a positive float: ~S"
 	    :format-arguments (list arg)))))
 
-)	; end progn
+) ; end progn #+new-random

@@ -1,16 +1,5 @@
-;;; -*- Package: LOOP -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/old-loop.lisp,v 1.10 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Loop facility, written by William Lott.
-;;;
+;;; Loop facility.
+
 (in-package "LOOP")
 
 (in-package "LISP")
@@ -55,7 +44,6 @@
 (defun maybe-cdr (thing)
   (if (consp thing) (cdr thing) thing))
 
-
 (defmacro loop-keyword-p (thing keyword &rest more-keywords)
   `(let ((thing ,thing))
      (and (symbolp thing)
@@ -68,7 +56,6 @@
   (when (loop-keyword-p (car *remaining-stuff*) prep)
     (pop *remaining-stuff*)
     t))
-
 
 (defun splice-in-subform (form subform)
   (if (eq form *magic-cookie*)
@@ -115,7 +102,6 @@
       (member type-spec '(fixnum float t nil))
       (and (only-simple-types (car type-spec))
 	   (only-simple-types (cdr type-spec)))))
-
 
 (defun build-let-expression (vars)
   (if (null vars)
@@ -191,13 +177,11 @@
 (defun build-declare (var)
   `(type ,(car var) ,(cadr var)))
 
-
 
 ;;;; LOOP itself.
 
 (defmacro loop (&rest stuff)
-  "General iteration facility.  See the manual for details, 'cause it's
-  very confusing."
+  "General iteration facility."
   (if (some #'atom stuff)
       (parse-loop stuff)
       (let ((repeat (gensym "REPEAT-"))
@@ -206,11 +190,9 @@
 	   (tagbody
 	    ,repeat
 	    (macrolet ((loop-finish () '(go ,out-of-here)))
-;	    (macrolet ((loop-finish () `(go ,out-of-here)))
 	      ,@stuff)
 	    (go ,repeat)
 	    ,out-of-here)))))
-
 
 
 ;;;; The parser.
@@ -322,7 +304,6 @@
 	(pop *remaining-stuff*)
 	(error "Loop name ~S is not a symbol." (car *remaining-stuff*)))))
 
-
 (defun parse-expr-list ()
   (let ((results nil))
     (loop
@@ -380,7 +361,6 @@
 	(t
 	 default)))
 
-
 
 ;;;; FOR/AS stuff.
 
@@ -398,7 +378,6 @@
 
 (defvar *for-as-term-tests*)
 (defvar *for-as-sub-term-tests*)
-
 
 (defun parse-for-as ()
   (let ((*for-as-vars* nil)
@@ -654,7 +633,6 @@
 	     PRESENT-SYMBOL PRESENT-SYMBOLS EXTERNAL-SYMBOL EXTERNAL-SYMBOLS"
 	    (symbol-name clause))))))
 
-
 
 ;;;;
 
@@ -670,7 +648,6 @@
 				  (loop-finish)
 				  ,*magic-cookie*)))))
 
-
 (defun maybe-parse-unconditional ()
   (cond ((loop-keyword-p (car *remaining-stuff*) "DO" "DOING")
 	 (pop *remaining-stuff*)
@@ -681,7 +658,6 @@
 	 (setf *body-forms*
 	       (nconc *body-forms* `((return ,(pop *remaining-stuff*)))))
 	 t)))
-
 
 (defun maybe-parse-conditional ()
   (let ((clause (pop *remaining-stuff*)))
@@ -724,10 +700,10 @@
 
 (defun maybe-parse-accumulation ()
   (when (loop-keyword-p (car *remaining-stuff*)
-		       "COLLECT" "COLLECTING"
-		       "APPEND" "APPENDING" "NCONC" "NCONCING"
-		       "COUNT" "COUNTING" "SUM" "SUMMING"
-		       "MAXIMIZE" "MAXIMIZING" "MINIMIZE" "MINIMIZING")
+			"COLLECT" "COLLECTING"
+			"APPEND" "APPENDING" "NCONC" "NCONCING"
+			"COUNT" "COUNTING" "SUM" "SUMMING"
+			"MAXIMIZE" "MAXIMIZING" "MINIMIZE" "MINIMIZING")
     (parse-accumulation)
     t))
 

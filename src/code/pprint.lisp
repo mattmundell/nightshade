@@ -1,18 +1,7 @@
-;;; -*- Package: PRETTY-PRINT -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/pprint.lisp,v 1.22.2.3 2000/05/23 16:36:43 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; CMU Common Lisp pretty printer.
-;;; Written by William Lott.  Algorithm stolen from Richard Waters' XP.
-;;;
+;;; Lisp pretty printer.
+
 (in-package "PRETTY-PRINT")
+
 (use-package "EXT")
 (use-package "KERNEL")
 
@@ -26,14 +15,14 @@
 (in-package "PP")
 
 
-;;;; Pretty streams
+;;;; Pretty streams.
 
 ;;; There are three different units for measuring character positions:
 ;;;  COLUMN - offset (if characters) from the start of the current line.
 ;;;  INDEX - index into the output buffer.
 ;;;  POSN - some position in the stream of characters cycling through
 ;;;             the output buffer.
-;;; 
+;;;
 (deftype column ()
   '(and fixnum unsigned-byte))
 ;;; The INDEX type is picked up from the kernel package.
@@ -53,7 +42,7 @@
 	    (:print-function %print-pretty-stream))
   ;;
   ;; Where the output is going to finally go.
-  ;; 
+  ;;
   (target (required-argument) :type stream)
   ;;
   ;; Line length we should format to.  Cached here so we don't have to keep
@@ -108,8 +97,7 @@
   (queue-head nil :type list)
   ;;
   ;; Block-start queue entries in effect at the queue head.
-  (pending-blocks nil :type list)
-  )
+  (pending-blocks nil :type list))
 
 (defun %print-pretty-stream (pstream stream depth)
   (declare (ignore depth))
@@ -117,7 +105,6 @@
   (print-unreadable-object (pstream stream :type t :identity t))
   (format stream "#<pretty stream {~8,'0X}>"
 	  (kernel:get-lisp-obj-address pstream)))
-
 
 (declaim (inline index-posn posn-index posn-column))
 (defun index-posn (index stream)
@@ -181,7 +168,6 @@
 (defun pretty-misc (stream op &optional arg1 arg2)
   (declare (ignore stream op arg1 arg2)))
 
-
 
 ;;;; Logical blocks.
 
@@ -202,8 +188,8 @@
   ;;
   ;; The overall length of the suffix.
   (suffix-length 0 :type index)
-  ;; 
-  ;; The line number 
+  ;;
+  ;; The line number
   (section-start-line 0 :type index))
 
 (defun really-start-logical-block (stream column prefix suffix)
@@ -276,7 +262,6 @@
       (fill (pretty-stream-prefix stream) #\space
 	    :start old-indent :end new-indent)))
   nil)
-
 
 
 ;;;; The pending operation queue.
@@ -780,7 +765,7 @@
    If the LIST argument to PPRINT-LOGICAL-BLOCK was NIL, then nothing
    is poped, but the *PRINT-LENGTH* testing still happens."
   (error "PPRINT-POP must be lexically inside PPRINT-LOGICAL-BLOCK."))
-  
+
 (defun pprint-newline (kind &optional stream)
   "Output a conditional newline to STREAM (which defaults to
    *STANDARD-OUTPUT*) if it is a pretty-printing stream, and do
@@ -813,8 +798,8 @@
 
 (defun pprint-indent (relative-to n &optional stream)
   "Specify the indentation to use in the current logical block if STREAM
-   (which defaults to *STANDARD-OUTPUT*) is it is a pretty-printing stream
-   and do nothing if not.  (See PPRINT-LOGICAL-BLOCK.)  N is the indention
+   (which defaults to *STANDARD-OUTPUT*) is a pretty-printing stream, else
+   do nothing.  (See PPRINT-LOGICAL-BLOCK.)  N is the indention
    to use (in ems, the width of an ``m'') and RELATIVE-TO can be either:
      :BLOCK - Indent relative to the column the current logical block
         started on.
@@ -985,7 +970,6 @@
 	  (< (pprint-dispatch-entry-priority e1)
 	     (pprint-dispatch-entry-priority e2)))))
 
-
 (macrolet ((frob (x)
 	     `(cons ',x #'(lambda (object) ,x))))
   (defvar *precompiled-pprint-dispatch-funs*
@@ -994,7 +978,6 @@
 		     (and (typep (car object) 'symbol)
 			  (typep (car object) '(satisfies fboundp)))))
 	  (frob (typep object 'cons)))))
-
 
 (defun compute-test-fn (type)
   (let ((was-cons nil))
@@ -1039,7 +1022,6 @@
 	      (t
 	       (let ((ttype (kernel:specifier-type type)))
 		 #'(lambda (object) (kernel:%typep object ttype)))))))))
-
 
 (defun copy-pprint-dispatch (&optional (table *print-pprint-dispatch*))
   (declare (type (or pprint-dispatch-table null) table))
@@ -1148,7 +1130,7 @@
 			       (index index)
 			       (step (reduce #'* dims))
 			       (count 0))
-			  (loop				
+			  (loop
 			   (pprint-pop)
 			   (output-guts stream index dims)
 			   (when (= (incf count) dim)
@@ -1304,13 +1286,13 @@
 	  (write-char #\space stream)
 	  (pprint-newline :linear stream)
 	  (output-object (pprint-pop) stream)))))
-	  
+
 (defmacro pprint-tagbody-guts (stream)
   `(loop
      (pprint-exit-if-list-exhausted)
      (write-char #\space ,stream)
      (let ((form-or-tag (pprint-pop)))
-       (pprint-indent :block 
+       (pprint-indent :block
 		      (if (atom form-or-tag) 0 1)
 		      ,stream)
        (pprint-newline :linear ,stream)
@@ -1436,7 +1418,7 @@
     (throw pprint-block)
     (unwind-protect pprint-block)
     (with-added-methods pprint-flet)
-    
+
     ;; Macros.
     (case pprint-case)
     (ccase pprint-case)
@@ -1512,4 +1494,3 @@
   (setf *print-pprint-dispatch* (copy-pprint-dispatch nil))
   (setf *pretty-printer* #'output-pretty-object)
   (setf *print-pretty* t))
-

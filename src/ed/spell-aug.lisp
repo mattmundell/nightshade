@@ -1,11 +1,8 @@
-;;; -*- Package: Spell -*-
-;;;
 ;;; Code to grow the spelling dictionary in system space by reading a text
 ;;; file of entries or adding one at a time.  This code relies on
 ;;; implementation dependent code found in spell-rt.lisp.
 
 (in-package "SPELL")
-
 
 
 ;;;; Converting Flags to Masks

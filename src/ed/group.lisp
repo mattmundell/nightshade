@@ -13,7 +13,9 @@
 ;;; to change the name of the definition file after a group has been
 ;;; selected, one should call Select Group with a prefix argument.
 
-(in-package "HEMLOCK")
+(in-package "ED")
+
+(export '(*active-file-group*))
 
 (defvar *file-groups* (make-string-table)
   "A string table of file groups.")
@@ -23,7 +25,6 @@
 
 (defvar *active-file-group-name* ()
   "The name of the currently active group.")
-
 
 
 ;;;; Selecting the active group.

@@ -1,23 +1,9 @@
-;;; -*- Log: code.log; Package: Lisp -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/package.lisp,v 1.37.2.6 2000/07/06 06:39:44 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;     Package stuff and stuff like that.
-;;;
-;;; Re-Written by Rob MacLachlan.  Earlier version written by
-;;; Lee Schumacher.  Apropos & iteration macros courtesy of Skef Wholey.
-;;; Defpackage by Dan Zigmond.  With-Package-Iterator by Blaine Burks.
-;;; Defpackage and do-mumble-symbols macros re-written by William Lott.
-;;;
+;;; Package stuff.
+
 (in-package "LISP")
-(export '(package packagep *package* make-package in-package find-package
+
+(export '(package packagep *package* #| FIX current-package |# make-package in-package
+	  find-package
 	  package-name package-nicknames rename-package delete-package
 	  package-use-list package-used-by-list package-shadowing-symbols
 	  list-all-packages intern find-symbol unintern export
@@ -27,7 +13,7 @@
 
 (in-package "EXTENSIONS")
 (export '(*keyword-package* *lisp-package* *default-package-use-list*
-			    map-apropos))
+	  map-apropos))
 
 (in-package "KERNEL")
 (export '(%in-package old-in-package %defpackage))
@@ -63,13 +49,13 @@
   ;; List of nickname strings.
   (%nicknames () :type list)
   ;;
-  ;; List of packages we use.
+  ;; List of packages the package uses.
   (%use-list () :type list)
   ;;
   ;; List of packages that use this package.
   (%used-by-list () :type list)
   ;;
-  ;; Hashtables of internal & external symbols.
+  ;; Hashtables of internal and external symbols.
   (internal-symbols (required-argument) :type package-hashtable)
   (external-symbols (required-argument) :type package-hashtable)
   ;;
@@ -78,7 +64,6 @@
   ;;
   ;; Documentation string for this package
   (doc-string nil :type (or simple-string null)))
-
 
 (defun %print-package (s stream d)
   (declare (ignore d) (stream stream))
@@ -105,17 +90,19 @@
 
 (defvar *package* () "The current package.")
 
+(defun current-package ()
+  "Return the current package."
+  *package*)
+
 ;;; An equal hashtable from package names to packages.
 ;;;
 (defvar *package-names* (make-hash-table :test #'equal))
-
 
 ;;; Lots of people want the keyword package and Lisp package without a lot
 ;;; of fuss, so we give them their own variables.
 ;;;
 (defvar *lisp-package*)
 (defvar *keyword-package*)
-
 
 ;;; This magical variable is T during initialization so Use-Package's of packages
 ;;; that don't yet exist quietly win.  Such packages are thrown onto the list
@@ -220,7 +207,6 @@
   ;; The number of deleted entries.
   (deleted 0 :type index))
 
-
 ;;; The maximum density we allow in a package hashtable.
 ;;;
 (defparameter package-rehash-threshold 3/4)
@@ -267,7 +253,6 @@
        res)
     (declare (fixnum n))))
 
-
 ;;; Internal-Symbol-Count, External-Symbols-Count  --  Internal
 ;;;
 ;;;    Return internal and external symbols.  Used by Genesis and stuff.
@@ -289,7 +274,6 @@
 
   (defun external-symbol-count (package)
     (stuff (package-external-symbols package))))
-
 
 ;;; Add-Symbol  --  Internal
 ;;;
@@ -389,6 +373,7 @@
       (setf (aref (package-hashtable-hash table) index) 1)
       (setf (aref (package-hashtable-table table) index) nil)
       (incf (package-hashtable-deleted table)))))
+
 
 ;;;; Iteration macros.
 
@@ -638,8 +623,9 @@
 					 (t (,',init-macro :inherited)
 					    (setf ,',counter nil)))))))))))))
 	       ,@body)))))))
+
 
-;;;; DEFPACKAGE:
+;;;; DEFPACKAGE.
 
 (defmacro defpackage (package &rest options)
   "Defines a new package called PACKAGE.  Each of OPTIONS should be one of the
@@ -665,10 +651,10 @@
 	(exports nil)
 	(doc nil))
     (dolist (option options)
-      (unless (consp option)
-	(error 'program-error
-	       :format-control "Bogus DEFPACKAGE option: ~S"
-	       :format-arguments (list option)))
+      (or (consp option)
+	  (error 'program-error
+		 :format-control "Bogus DEFPACKAGE option: ~S"
+		 :format-arguments (list option)))
       (case (car option)
 	(:nicknames
 	 (setf nicknames (stringify-names (cdr option) "package")))
@@ -735,7 +721,7 @@
 		    ',shadows ',shadowing-imports ',(if use-p use :default)
 		    ',imports ',interns ',exports ',doc))))
 
-(defun check-disjoint(&rest args)
+(defun check-disjoint (&rest args)
   ;; An arg is (:key . set)
   (do ((list args (cdr list)))
       ((endp list))
@@ -797,17 +783,17 @@
       (when old-shadows
 	(warn "~A also shadows the following symbols:~%  ~S"
 	      name old-shadows)))
-    ;; Use
-    (unless (eq use :default)
-      (let ((old-use-list (package-use-list package))
-	    (new-use-list (mapcar #'package-or-lose use)))
-	(use-package (set-difference new-use-list old-use-list) package)
-	(let ((laterize (set-difference old-use-list new-use-list)))
-	  (when laterize
-	    (unuse-package laterize package)
-	    (warn "~A used to use the following packages:~%  ~S"
-		  name
-		  laterize)))))
+    ;; Use.
+    (or (eq use :default)
+	(let ((old-use-list (package-use-list package))
+	      (new-use-list (mapcar #'package-or-lose use)))
+	  (use-package (set-difference new-use-list old-use-list) package)
+	  (let ((laterize (set-difference old-use-list new-use-list)))
+	    (when laterize
+	      (unuse-package laterize package)
+	      (warn "~A used to use the following packages:~%  ~S"
+		    name
+		    laterize)))))
     ;; Import and Intern.
     (dolist (sym-name interns)
       (intern sym-name package))
@@ -877,7 +863,6 @@
 	     (setf (gethash n *package-names*) package)
 	     (push n (package-%nicknames package)))))))
 
-
 ;;; Make-Package  --  Public
 ;;;
 ;;;    Check for package name conflicts in name and nicknames, then
@@ -887,10 +872,10 @@
 (defun make-package (name &key (use *default-package-use-list*) nicknames
 			  (internal-symbols 10) (external-symbols 10))
   "Makes a new package having the specified Name and Nicknames.  The
-  package will inherit all external symbols from each package in
-  the use list.  :Internal-Symbols and :External-Symbols are
-  estimates for the number of internal and external symbols which
-  will ultimately be present in the package."
+   package will inherit all external symbols from each package in the use
+   list.  :Internal-Symbols and :External-Symbols are estimates for the
+   number of internal and external symbols which will ultimately be present
+   in the package."
   (when (find-package name)
     (cerror "Leave existing package alone."
 	    "A package named ~S already exists" name))
@@ -1198,8 +1183,6 @@
 
 ;;; Export  --  Public
 ;;;
-;;;    Do more stuff.
-;;;
 (defun export (symbols &optional (package *package*))
   "Exports Symbols from Package, checking that no name conflicts result."
   (let ((package (package-or-lose package))
@@ -1210,7 +1193,7 @@
       (multiple-value-bind (s w)
 			   (find-external-symbol (symbol-name sym) package)
 	(declare (ignore s))
-	(unless (or w (member sym syms)) (push sym syms))))
+	(or w (member sym syms) (push sym syms))))
     ;;
     ;; Find symbols and packages with conflicts.
     (let ((used-by (package-%used-by-list package))
@@ -1278,7 +1261,7 @@
 ;;; internal.
 ;;;
 (defun unexport (symbols &optional (package *package*))
-  "Makes Symbols no longer exported from Package."
+  "Makes Symbols internal to Package."
   (let ((package (package-or-lose package))
 	(syms ()))
     (dolist (sym (symbol-listify symbols))
@@ -1303,9 +1286,9 @@
 ;;; shadowing-import if there is.
 ;;;
 (defun import (symbols &optional (package *package*))
-  "Make Symbols accessible as internal symbols in Package.  If a symbol
-  is already accessible then it has no effect.  If a name conflict
-  would result from the importation, then a correctable error is signalled."
+  "Make Symbols accessible as internal symbols in Package.  If a symbol is
+   already accessible then it has no effect.  If a name conflict would
+   result from the importation, then a correctable error is signalled."
   (let ((package (package-or-lose package))
 	(symbols (symbol-listify symbols))
 	(syms ())
@@ -1346,9 +1329,9 @@
 ;;; stick the symbol in.
 ;;;
 (defun shadowing-import (symbols &optional (package *package*))
-  "Import Symbols into package, disregarding any name conflict.  If
-  a symbol of the same name is present, then it is uninterned.
-  The symbols are added to the Package-Shadowing-Symbols."
+  "Import Symbols into package, disregarding any name conflict.  If a
+   symbol of the same name is present, then it is uninterned.  The symbols
+   are added to the Package-Shadowing-Symbols."
   (let* ((package (package-or-lose package))
 	 (internal (package-internal-symbols package)))
     (dolist (sym (symbol-listify symbols))
@@ -1364,16 +1347,15 @@
 	(pushnew sym (package-%shadowing-symbols package)))))
   t)
 
-
 ;;; Shadow  --  Public
 ;;;
 ;;;
 (defun shadow (symbols &optional (package *package*))
   "Make an internal symbol in Package with the same name as each of the
-  specified symbols, adding the new symbols to the Package-Shadowing-Symbols.
-  If a symbol with the given name is already present in Package, then
-  the existing symbol is placed in the shadowing symbols list if it is
-  not already present."
+   specified symbols, adding the new symbols to the
+   Package-Shadowing-Symbols.  If a symbol with the given name is already
+   present in Package, then the existing symbol is placed in the shadowing
+   symbols list if it is not already present."
   (let* ((package (package-or-lose package))
 	 (internal (package-internal-symbols package)))
     (dolist (name (mapcar #'string
@@ -1385,7 +1367,6 @@
 	  (add-symbol internal s))
 	(pushnew s (package-%shadowing-symbols package)))))
   t)
-
 
 
 ;;; Use-Package  --  Public
@@ -1456,7 +1437,6 @@
 
 ;;; Unuse-Package  --  Public
 ;;;
-;;;
 (defun unuse-package (packages-to-unuse &optional (package *package*))
   "Remove Packages-To-Unuse from the use list for Package."
   (let ((package (package-or-lose package)))
@@ -1471,7 +1451,6 @@
     t))
 
 ;;; Find-All-Symbols --  Public
-;;;
 ;;;
 (defun find-all-symbols (string-or-symbol)
   "Return a list of all symbols in the system having the specified name."
@@ -1520,10 +1499,9 @@
 ;;; MAP-APROPOS -- public (extension).
 ;;;
 (defun map-apropos (fun string &optional package external-only)
-  "Call FUN with each symbol that contains STRING.
-  If PACKAGE is supplied then only use symbols present in
-  that package.  If EXTERNAL-ONLY is true then only use
-  symbols exported from the specified package."
+  "Call FUN with each symbol that contains STRING.  If PACKAGE is supplied
+   then only use symbols present in that package.  If EXTERNAL-ONLY is true
+   then only use symbols exported from the specified package."
   (let ((string (string-upcase string)))
     (declare (simple-string string))
     (flet ((apropos-in-package (package)
@@ -1544,24 +1522,23 @@
 ;;; APROPOS -- public.
 ;;;
 (defun apropos (string &optional package external-only)
-  "Briefly describe all symbols which contain the specified String.
-  If Package is supplied then only describe symbols present in
-  that package.  If External-Only is true then only describe
-  external symbols in the specified package."
+  "Briefly describe all symbols which contain the specified String.  If
+   Package is supplied then only describe symbols present in that package.
+   If External-Only is true then only describe external symbols in the
+   specified package."
   (map-apropos #'briefly-describe-symbol string package external-only)
   (values))
 
 ;;; APROPOS-LIST -- public.
 ;;;
 (defun apropos-list (string &optional package external-only)
-  "Identical to Apropos, except that it returns a list of the symbols
-  found instead of describing them."
+  "Identical to Apropos, except that it returns a list of the symbols found
+   instead of describing them."
   (collect ((result))
     (map-apropos #'(lambda (symbol)
 		     (result symbol))
 		 string package external-only)
     (result)))
-
 
 
 ;;; Initialization.
@@ -1601,10 +1578,10 @@
 
     (makunbound '*initial-symbols*) ; So it gets GC'ed.
 
-    ;; Make some other packages that should be around in the cold load:
+    ;; Make some other packages that should be around in the cold load.
     (make-package "COMMON-LISP-USER" :nicknames '("CL-USER" "USER"))
 
-    ;; Now do the *deferred-use-packages*:
+    ;; Now do the *deferred-use-packages*.
     (dolist (args *deferred-use-packages*)
       (apply #'use-package args))
     (makunbound '*deferred-use-packages*)
@@ -1612,5 +1589,6 @@
     (setq *lisp-package* (find-package "LISP"))
     (setq *keyword-package* (find-package "KEYWORD"))
 
-    ;; For the kernel core image wizards, set the package to *Lisp-Package*.
+    ;; For the kernel core image wizards, set the package to
+    ;; *Lisp-Package*.
     (setq *package* *lisp-package*)))

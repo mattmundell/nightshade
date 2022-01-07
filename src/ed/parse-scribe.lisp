@@ -1,6 +1,6 @@
 ;;; Scribe manual parser.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 (eval-when (compile eval load)
 

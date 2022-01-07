@@ -1,7 +1,8 @@
 ;;; Keyboard macros.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
+(export '(interactive))
 
 ;;; We have "Keyboard Macro Transforms" that help in making a keyboard
 ;;; macro.  What they do is turn the sequence of commands into equivalent
@@ -247,15 +248,14 @@
 ;;;    See whether we are in a keyboard macro.
 ;;;
 (defun interactive ()
-  "Return true if we are in a command invoked by the user.
-  This is primarily useful for commands which want to know
-  whether do something when an error happens, or just signal
-  an Editor-Error."
+  "Return true if we are in a command invoked by the user.  This is
+   primarily useful for commands which want to know whether do something
+   when an error happens, or just signal an Editor-Error."
   (not *in-a-keyboard-macro*))
 
 (defvar *kbdmac-done* ()
-  "Setting this causes the keyboard macro being executed to terminate
-  after the current iteration.")
+  "Setting this causes the keyboard macro being executed to terminate after
+   the current iteration.")
 
 (defvar *kbdmac-dont-ask* ()
   "Setting this inhibits \"Keyboard Macro Query\"'s querying.")

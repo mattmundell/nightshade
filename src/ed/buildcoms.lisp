@@ -1,6 +1,6 @@
 ;;; Commands to build the system.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 (defhvar "Source Directory"
   "Source directory for build commands."
@@ -70,7 +70,7 @@
   ;; FIX check if server matches builder-directory
   ;; FIX may need to check if builder still alive
   (or *builder-slave*
-      (hlet ((slave-utility (format nil "~A/lisp/lisp" (get-builder-directory)))
+      (hlet ((slave-utility (format nil "~A/lisp/nightshade" (get-builder-directory)))
 	     (slave-utility-switches
 	      `("-core"
 		,(format nil "~A/lisp/lisp.core" (get-builder-directory))))
@@ -277,7 +277,7 @@
   "Return the buffer for use in Build Core."
   (or (and *build-core-buffer*
 	   (car (memq *build-core-buffer* *buffer-list*)))
-      (setq *build-core-buffer* ( #|FIX|# hi::make-unique-buffer "Build Core"))))
+      (setq *build-core-buffer* ( #|FIX|# edi::make-unique-buffer "Build Core"))))
 
 (defcommand "Build Core" (p)
   "Build final Lisp core."
@@ -292,3 +292,63 @@
 		  (format nil "~A/tools/build-core ~A"
 			  (get-source-directory)
 			  (get-build-directory))))
+
+(defcommand "Build Binary Distribution" (p)
+  "Build binary distribution."
+  "Build binary distribution."
+  (declare (ignore p))
+  (let* ((base (concatenate 'simple-string
+			    ;; FIX ~make-tmp-dir, check if
+			    ;; exists
+			    "/tmp/"
+			    (symbol-name (gensym))
+			    "/"))
+	 (bin (concatenate 'simple-string
+			   base
+			   "usr/local/bin/"))
+	 (lib (concatenate 'simple-string
+			   base
+			   "usr/local/lib/nightshade/"))
+	 (man (concatenate 'simple-string
+			   base
+			   "usr/local/man/man1/"))
+	 (buffer (make-unique-buffer "Build Binary Distribution")))
+    (change-to-buffer buffer)
+    (ensure-directories-exist bin)
+    (ensure-directories-exist lib)
+    (ensure-directories-exist man)
+    (let ((*standard-output* (make-hemlock-output-stream
+			      (current-point))))
+      (dired:copy-file (concatenate 'simple-string
+				    (get-build-directory)
+				    "/lisp/nightshade")
+		       bin)
+      (dired:copy-file (concatenate 'simple-string
+				    (get-build-directory)
+				    "/lisp/lisp.core")
+		       lib)
+      (dired:copy-file (concatenate 'simple-string
+				    (get-source-directory)
+				    "/etc/nightshade.1")
+		       man)
+      (in-directory base
+	(ext::run-program
+	 "/bin/sh" (list "-c"
+			 (format () "tar jcvf ~A/nightshade-bin-~A--~A.tar.bz2 ~A"
+				  (get-build-directory)
+				  (read-line (open (format nil
+							   "~A/VERSION"
+							   (get-source-directory))))
+				  ;; FIX improve format-time
+				  (multiple-value-bind
+				      (secs mins hours day month year)
+				      (decode-universal-time (get-universal-time))
+				    (declare (ignore secs mins hours))
+				    (string-downcase
+				     (format nil "~A-~A-~A"
+					     (short-month-name month)
+					     day year)))
+				  "usr/local/"))
+	 :wait t :input ()
+	 :output *standard-output* :error :output))
+      (format t "Done.~%"))))

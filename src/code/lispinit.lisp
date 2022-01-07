@@ -1,19 +1,6 @@
-;;; -*- Mode: Lisp; Package: Lisp; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/lispinit.lisp,v 1.49.2.5 2000/10/16 17:33:37 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Initialization stuff for CMU Common Lisp, plus some other random functions
-;;; that we don't have any better place for.
-;;;
-;;; Written by Skef Wholey and Rob MacLachlan.
-;;;
+;;; Initialization, plus some other random functions that could do with a
+;;; better place.
+
 (in-package :lisp)
 
 (export '(most-positive-fixnum most-negative-fixnum sleep
@@ -35,12 +22,10 @@
 (defconstant most-negative-fixnum #.vm:target-most-negative-fixnum
   "The fixnum closest in value to negative infinity.")
 
-
 ;;; Random information:
 
 ;; Set in worldload.lisp from target:VERSION.
 (defvar *lisp-implementation-version* "???")
-
 
 ;;; Must be initialized in %INITIAL-FUNCTION before the DEFVAR runs...
 (declaim
@@ -60,7 +45,6 @@
 
 ;;;; Random magic specials.
 
-
 ;;; These are filled in by Genesis.
 
 #-gengc
@@ -76,7 +60,7 @@
 ;;;; Random stuff that needs to be in the cold load which would otherwise be
 ;;;; byte-compiled.
 ;;;;
-(defvar hi::*in-the-editor* nil)
+;(defvar hi::*in-the-editor* nil)
 
 ;;;; Called by defmacro expanders...
 
@@ -223,7 +207,7 @@
 (defun break (&optional (datum "Break") &rest arguments)
   "Prints a message and invokes the debugger without allowing any possibility
    of condition handling occurring."
-  (system:without-hemlock
+  (system:with-screen
    (kernel:infinite-error-protect
     (with-simple-restart (continue "Return from BREAK.")
       (let ((debug:*stack-top-hint*
@@ -458,9 +442,9 @@
 	  (values sec(truncate frac 1e-6))))
     (unix:unix-select 0 0 0 0 sec usec))
   nil)
+
 
 ;;;; SCRUB-CONTROL-STACK
-
 
 (defconstant bytes-per-scrub-unit 2048)
 
@@ -554,7 +538,6 @@
     (cerror "Go on with * set to NIL."
 	    "EVAL returned an unbound marker."))
   (values-list /))
-
 
 (defconstant eofs-before-quit 10)
 

@@ -1,13 +1,9 @@
-;;; More text-manipulation functions.
-;;;
-;;; The code in this file implements the delete and copy functions in the
-;;; "Doing Stuff and Going Places" chapter of the Hemlock Design document.
+;;; Text-manipulation functions: flushing and filtering.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(delete-characters delete-region delete-and-save-region copy-region
 	  filter-region))
-
 
 
 ;;;; DELETE-CHARACTERS.

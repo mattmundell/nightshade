@@ -1,6 +1,6 @@
 ;;; Structures used by constucts in the HEMLOCK package.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 ;;; The server-info structure holds information about the connection to a
 ;;; particular eval server.  For now, we don't separate the background I/O and

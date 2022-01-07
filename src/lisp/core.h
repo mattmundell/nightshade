@@ -3,7 +3,7 @@
 #ifndef _CORE_H_
 #define _CORE_H_
 
-#include "lisp.h"
+#include "nightshade.h"
 
 #define CORE_PAGESIZE OS_VM_DEFAULT_PAGESIZE
 #define CORE_MAGIC (('C' << 24) | ('O' << 16) | ('R' << 8) | 'E')

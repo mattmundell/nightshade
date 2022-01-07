@@ -1,25 +1,13 @@
-;;; -*- Mode: Lisp; Package: VM -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/room.lisp,v 1.25.2.3 2000/07/06 06:18:49 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Heap grovelling memory usage stuff.
-;;; 
+
 (in-package "VM")
 (use-package "SYSTEM")
 (export '(memory-usage count-no-ops descriptor-vs-non-descriptor-storage
-		       instance-usage find-holes print-allocated-objects
-		       code-breakdown uninterned-symbol-count
-		       list-allocated-objects))
+	  instance-usage find-holes print-allocated-objects
+	  code-breakdown uninterned-symbol-count
+	  list-allocated-objects))
 (in-package "LISP")
-(import '(
-	  dynamic-0-space-start dynamic-1-space-start read-only-space-start
+(import '(dynamic-0-space-start dynamic-1-space-start read-only-space-start
 	  static-space-start current-dynamic-space-start
 	  *static-space-free-pointer* *read-only-space-free-pointer*)
 	"VM")
@@ -66,7 +54,7 @@
 	    (make-room-info :name name  :kind :fixed  :length size))))))
 
 (dolist (code (list complex-string-type simple-array-type
-		    complex-bit-vector-type complex-vector-type 
+		    complex-bit-vector-type complex-vector-type
 		    complex-array-type))
   (setf (svref *meta-room-info* code)
 	(make-room-info :name 'array-header  :kind :header)))
@@ -148,7 +136,6 @@
   (declare (fixnum size))
   (logand (the fixnum (+ size lowtag-mask)) (lognot lowtag-mask)))
 
-
 ;;; VECTOR-TOTAL-SIZE  --  Internal
 ;;;
 ;;;    Return the total size of a vector in bytes, including any pad.
@@ -170,7 +157,6 @@
 				       (1- (the fixnum (ash 1 (- shift)))))))
 		      shift)
 		 (ash len shift)))))))
-
 
 ;;; MAP-ALLOCATED-OBJECTS  --  Interface
 ;;;
@@ -262,7 +248,7 @@
 	prev))))
 
 
-;;;; MEMORY-USAGE:
+;;;; MEMORY-USAGE.
 
 ;;; TYPE-BREAKDOWN  --  Interface
 ;;;
@@ -300,7 +286,6 @@
 		 totals)
 	(sort (totals-list) #'> :key #'first)))))
 
-
 ;;; PRINT-SUMMARY  --  Internal
 ;;;
 ;;;    Handle the summary printing for MEMORY-USAGE.  Totals is a list of lists
@@ -323,7 +308,7 @@
 		       (incf sum (first (cdr space-total))))
 		     (summary-totals (cons sum v))))
 	       summary)
-      
+
       (format t "~2&Summary of spaces: ~(~{~A ~}~)~%" spaces)
       (let ((summary-total-bytes 0)
 	    (summary-total-objects 0))
@@ -352,7 +337,6 @@
 	      (incf summary-total-objects total-objects))))
 	(format t "~%Summary total:~%    ~:D bytes, ~:D objects.~%"
 		summary-total-bytes summary-total-objects)))))
-
 
 ;;; REPORT-SPACE-TOTAL  --  Internal
 ;;;
@@ -384,18 +368,17 @@
     (format t "  ~10:D bytes for ~9:D ~(~A~) object~2:*~P (space total.)~%"
 	    total-bytes total-objects (car space-total))))
 
-
 ;;; MEMORY-USAGE  --  Public
 ;;;
 (defun memory-usage (&key print-spaces (count-spaces '(:dynamic))
 			  (print-summary t) cutoff)
-  "Print out information about the heap memory in use.  :Print-Spaces is a list
-  of the spaces to print detailed information for.  :Count-Spaces is a list of
-  the spaces to scan.  For either one, T means all spaces (:Static, :Dyanmic
-  and :Read-Only.)  If :Print-Summary is true, then summary information will be
-  printed.  The defaults print only summary information for dynamic space.
-  If true, Cutoff is a fraction of the usage in a report below which types will
-  be combined as OTHER."
+  "Print out information about the heap memory in use.  :Print-Spaces is a
+   list of the spaces to print detailed information for.  :Count-Spaces is
+   a list of the spaces to scan.  For either one, T means all spaces
+   (:Static, :Dyanmic and :Read-Only.)  If :Print-Summary is true, then
+   summary information will be printed.  The defaults print only summary
+   information for dynamic space.  If true, Cutoff is a fraction of the
+   usage in a report below which types will be combined as OTHER."
   (declare (type (or single-float null) cutoff))
   (let* ((spaces (if (eq count-spaces t)
 		     '(:static :dynamic :read-only)
@@ -437,12 +420,12 @@
 	       (when (zerop (sap-ref-32 sap (* i vm:word-bytes)))
 		 (incf no-ops))))))
      space)
-    
+
     (format t
 	    "~:D code-object bytes, ~:D code words, with ~:D no-ops (~D%).~%"
 	    total-bytes code-words no-ops
 	    (round (* no-ops 100) code-words)))
-  
+
   (values))
 
 
@@ -519,8 +502,8 @@
 (defun instance-usage (space &key (top-n 15))
   (declare (type spaces space) (type (or fixnum null) top-n))
   "Print a breakdown by instance type of all the instances allocated in
-  Space.  If TOP-N is true, print only information for the the TOP-N types with
-  largest usage."
+   Space.  If TOP-N is true, print only information for the the TOP-N types
+   with largest usage."
   (format t "~2&~@[Top ~D ~]~(~A~) instance types:~%" top-n space)
   (let ((totals (make-hash-table :test #'eq))
 	(total-objects 0)
@@ -574,7 +557,7 @@
 
 
 ;;; FIND-HOLES -- Public
-;;; 
+;;;
 (defun find-holes (&rest spaces)
   (dolist (space (or spaces '(:read-only :static :dynamic)))
     (format t "In ~A space:~%" space)
@@ -602,7 +585,7 @@
   (values))
 
 
-;;; Print allocated objects:
+;;;; Print allocated objects.
 
 (defun print-allocated-objects (space &key (percent 0) (pages 5)
 				      type larger smaller count
@@ -637,7 +620,7 @@
 			   (> count-so-far count)
 			   (> pages-so-far pages))
 		   (return-from print-allocated-objects (values)))
-		 
+
 		 (unless count
 		   (let ((this-page (* (the (values (unsigned-byte 32) t)
 					    (truncate addr pagesize))
@@ -649,7 +632,7 @@
 				 pages-so-far addr))
 		       (setq last-page this-page)
 		       (incf pages-so-far))))
-		 
+
 		 (when (and (or (not type) (eql obj-type type))
 			    (or (not smaller) (<= size smaller))
 			    (or (not larger) (>= size larger)))
@@ -747,7 +730,7 @@
     res))
 
 
-;;;; Misc:
+;;;; Misc.
 
 (defun uninterned-symbol-count (space)
   (declare (type spaces space))
@@ -762,7 +745,6 @@
 	     (incf uninterned))))
      space)
     (values uninterned (float (/ uninterned total)))))
-
 
 (defun code-breakdown (space &key (how :package))
   (declare (type spaces space) (type (member :file :package) how))
@@ -813,7 +795,7 @@
 	  (push (cons pkg-count pkg-size) pkg-res)
 	  (push pkg pkg-res)
 	  (push pkg-res res)))
-	    
+
       (loop for (pkg (pkg-count . pkg-size) . files) in
 	    (sort res #'> :key #'(lambda (x) (cdr (second x)))) do
 	(format t "~%Package ~A: ~32T~9:D bytes, ~9:D object~:P.~%"
@@ -864,8 +846,8 @@
 #+nil
 (defun report-histogram (table &key (low 1) (high 20) (bucket-size 1)
 			       (function #'identity))
-  "Given a hashtable, print a histogram of the contents.  Function should give
-  the value to plot when applied to the hashtable values."
+  "Given a hashtable, print a histogram of the contents.  Function should
+   give the value to plot when applied to the hashtable values."
   (let ((function (if (eval:interpreted-function-p function)
 		      (compile nil function)
 		      function)))
@@ -875,7 +857,7 @@
 
 (defun report-top-n (table &key (top-n 20) (function #'identity))
   "Report the Top-N entries in the hashtable Table, when sorted by Function
-  applied to the hash value.  If Top-N is NIL, report all entries."
+   applied to the hash value.  If Top-N is NIL, report all entries."
   (let ((function (if (eval:interpreted-function-p function)
 		      (compile nil function)
 		      function)))
@@ -903,7 +885,6 @@
       (format t "~8:D: Total~%" (total-val))))
   (values))
 
-
 ;;; Given any Lisp object, return the associated code object, or NIL.
 ;;;
 (defun find-code-object (const)
@@ -922,11 +903,10 @@
 	   (frob (symbol-function const))
 	   nil))
       (t nil))))
-	
 
 (defun find-caller-counts (space)
   "Return a hashtable mapping each function in for which a call appears in
-  Space to the number of times such a call appears."
+   Space to the number of times such a call appears."
   (let ((counts (make-hash-table :test #'eq)))
     (map-allocated-objects
      #'(lambda (obj type size)
@@ -940,8 +920,8 @@
     counts))
 
 (defun find-high-callers (space &key (above 10) table (threshold 2))
-  "Return a hashtable translating code objects to function constant counts for
-  all code objects in Space with more than Above function constants."
+  "Return a hashtable translating code objects to function constant counts
+   for all code objects in Space with more than Above function constants."
   (let ((counts (make-hash-table :test #'eq)))
     (map-allocated-objects
      #'(lambda (obj type size)

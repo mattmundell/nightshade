@@ -9,7 +9,7 @@
 
 #define _OS_H_INCLUDED_
 
-#include "lisp.h"
+#include "nightshade.h"
 
 #ifdef MACH
 #include "mach-os.h"

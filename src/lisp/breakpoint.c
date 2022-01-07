@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <signal.h>
 
-#include "lisp.h"
+#include "nightshade.h"
 #include "os.h"
 #include "internals.h"
 #include "interrupt.h"

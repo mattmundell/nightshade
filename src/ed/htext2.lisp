@@ -1,16 +1,12 @@
-;;; More text-manipulation functions.
-;;;
-;;; The code in this file implements the non-insert/delete functions in the
-;;; "Doing Stuff and Going Places" chapter of the Hemlock Design document.
+;;; Text-manipulation functions: regions and movement.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(region-to-string string-to-region line-to-region
 	  previous-character next-character count-lines count-characters
 	  word-start word-end line-start line-end buffer-start
 	  buffer-end move-mark mark-before mark-after character-offset
 	  line-offset region-bounds set-region-bounds *print-region*))
-
 
 
 (defun region-to-string (region)
@@ -239,15 +235,15 @@
   mark)
 
 (defun buffer-start (mark &optional (buffer (line-buffer (mark-line mark))))
-  "Change Mark to point to the beginning of Buffer, which defaults to
-  the buffer Mark is currently in."
-  (unless buffer (error "Mark ~S does not point into a buffer." mark))
+  "Change Mark to point to the beginning of Buffer, which defaults to the
+   buffer Mark is currently in."
+  (or buffer (error "Mark ~S does not point into a buffer." mark))
   (move-mark mark (buffer-start-mark buffer)))
 
 (defun buffer-end (mark &optional (buffer (line-buffer (mark-line mark))))
   "Change Mark to point to the end of Buffer, which defaults to
-  the buffer Mark is currently in."
-  (unless buffer (error "Mark ~S does not point into a buffer." mark))
+   the buffer Mark is currently in."
+  (or buffer (error "Mark ~S does not point into a buffer." mark))
   (move-mark mark (buffer-end-mark buffer)))
 
 (defun move-mark (mark new-position)
@@ -286,6 +282,7 @@
 	   (setf (mark-charpos mark) (1+ charpos))
 	   mark))))
 
+;; FIX alias char-offset?
 (defun character-offset (mark n)
   "Changes the Mark to point N characters after (or -N before if N is negative)
   where it currently points.  If there aren't N characters before (or after)
@@ -322,6 +319,7 @@
 	      (progn (setf (mark-charpos mark) (+ charpos n))
 		     mark))))))
 
+;; FIX (n 1)?  like (character-offset
 (defun line-offset (mark n &optional charpos)
   "Move Mark to point N lines after (-N before if N is negative) where it
    currently points, returning mark.  If there are less than N lines after

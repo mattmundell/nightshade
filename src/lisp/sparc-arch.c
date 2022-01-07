@@ -15,7 +15,7 @@
 #endif
 
 #include "arch.h"
-#include "lisp.h"
+#include "nightshade.h"
 #include "internals.h"
 #include "globals.h"
 #include "validate.h"
@@ -248,7 +248,7 @@ static void sigemt_handler(HANDLER_ARGS)
 	interrupt_handle_now(signal, code, context);
 	return;
     }
-	
+
     /* Extract the parts of the inst. */
     subtract = badinst & (1<<19);
     rs1 = (badinst>>14) & 0x1f;

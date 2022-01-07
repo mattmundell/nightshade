@@ -1,65 +1,20 @@
-;;; -*- Package: Profile -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/profile.lisp,v 1.16.2.2 1998/06/23 11:22:21 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Description: Simple profiling facility.
-;;;
-;;; Author: Skef Wholey, Rob MacLachlan
-;;;
-;;; Compatibility: Runs in any valid Common Lisp.  Three small implementation-
-;;;   dependent changes can be made to improve performance and prettiness.
-;;;
-;;; Dependencies: The macro Quickly-Get-Time and the function
-;;;   Required-Arguments should probably be tailored to the implementation for
-;;;   the best results.  They will default to working, albeit inefficent, forms
-;;;   in non-CMU implementations.  The Total-Consing macro is used to profile
-;;;   consing: in unknown implementations 0 will be used.
-;;;   See the "Implementation Parameters" section.
-;;;
-;;; Note: a timing overhead factor is computed when REPORT-TIME is first
-;;; called.  This will be incorrect if profiling code is run in a different
-;;; environment than the first call to REPORT-TIME.  For example, saving a core
-;;; image on a high performance machine and running it on a low performance one
-;;; will result in use of an erroneously small timing overhead factor.  In CMU
-;;; CL, this cache is invalidated when a core is saved.
-;;;
+;;; Simple profiling facility.
+
 (in-package "PROFILE")
 
 (export '(*timed-functions* profile profile-all unprofile report-time
 	  reset-time))
 
 
-;;;; Implementation dependent interfaces:
+;;;; Implementation dependent interfaces.
 
+(defconstant quick-time-units-per-second internal-time-units-per-second)
 
-(progn
-  #-cmu
-  (eval-when (compile eval)
-    (warn
-     "You may want to supply an implementation-specific ~
-     Quickly-Get-Time function."))
-
-  ;; In CMUCL, get-internal-run-time is good enough, so we just use it.
-
-  (defconstant quick-time-units-per-second internal-time-units-per-second)
-  
-  (defmacro quickly-get-time ()
-    `(the time-type (get-internal-run-time))))
-
+(defmacro quickly-get-time ()
+  `(the time-type (get-internal-run-time)))
 
 ;;; The type of the result from quickly-get-time.
-#+cmu
 (deftype time-type () '(unsigned-byte 29))
-#-cmu
-(deftype time-type () 'unsigned-byte)
-
 
 ;;; To avoid unnecessary consing in the "encapsulation" code, we find out the
 ;;; number of required arguments, and use &rest to capture only non-required
@@ -67,7 +22,6 @@
 ;;; is the number of required arguments, and the second is T iff there are any
 ;;; non-required arguments (e.g. &optional, &rest, &key).
 
-#+cmu 
 (defun required-arguments (name)
   (let ((type (ext:info function type name)))
     (cond ((not (kernel:function-type-p type))
@@ -79,65 +33,31 @@
 			   (kernel:function-type-rest type))
 		       t nil))))))
 
-#-cmu
-(progn
- (eval-when (compile eval)
-   (warn
-    "You may want to add an implementation-specific Required-Arguments function."))
- (eval-when (load eval)
-   (defun required-arguments (name)
-     (declare (ignore name))
-     (values 0 t))))
-
-
-
 ;;; The Total-Consing macro is called to find the total number of bytes consed
 ;;; since the beginning of time.
 
-#+cmu
 (defmacro total-consing () '(the consing-type (ext:get-bytes-consed)))
 
-#-cmu
-(progn
-  (eval-when (compile eval)
-    (warn "No consing will be reported unless a Total-Consing function is ~
-           defined."))
-
-  (defmacro total-consing () '0))
-
-
 ;;; The type of the result of TOTAL-CONSING.
-#+cmu
 (deftype consing-type () '(unsigned-byte 29))
-#-cmu
-(deftype consing-type () 'unsigned-byte)
 
-;;; On the CMUCL x86 port the return address is represented as a SAP
-;;; and to save the costly calculation of the SAPs code object the
-;;; profiler maintains callers as SAPs. These SAPs will become invalid
-;;; if a caller code object moves, so this should be prevented by the
-;;; use of purify or by moving code objects into an older generation
-;;; when using GENCGC.
+;;; On the x86 port the return address is represented as a SAP and to save
+;;; the costly calculation of the SAPs code object the profiler maintains
+;;; callers as SAPs. These SAPs will become invalid if a caller code object
+;;; moves, so this should be prevented by the use of purify or by moving
+;;; code objects into an older generation when using GENCGC.
 ;;;
-#+cmu
-(progn
-  (defmacro get-caller-info ()
-    `(nth-value 1 (kernel:%caller-frame-and-pc)))
-  #-(and cmu x86)
-  (defun print-caller-info (info stream)
-    (prin1 (kernel:lra-code-header info) stream))
-  #+(and cmu x86)
-  (defun print-caller-info (info stream)
-    (prin1 (nth-value 1 (di::compute-lra-data-from-pc info)) stream)))
-
-#-cmu
-(progn
-  (defmacro get-caller-info () 'unknown)
-  (defun print-caller-info (info stream)
-    (prin1 "no caller info" stream)))
+(defmacro get-caller-info ()
+  `(nth-value 1 (kernel:%caller-frame-and-pc)))
+#-(and cmu x86)
+(defun print-caller-info (info stream)
+  (prin1 (kernel:lra-code-header info) stream))
+#+(and cmu x86)
+(defun print-caller-info (info stream)
+  (prin1 (nth-value 1 (di::compute-lra-data-from-pc info)) stream))
 
 
-;;;; Global data structures:
+;;;; Global data structures.
 
 (defvar *timed-functions* ()
   "List of functions that are currently being timed.")
@@ -160,13 +80,11 @@
   (or (gethash name *profile-info*)
       (error "~S is not a profiled function." name)))
 
-
 ;;; We keep around a bunch of functions that make encapsulations, one of each
 ;;; (min-args . optional-p) signature we have encountered so far.  We also
 ;;; precompute a bunch of encapsulation functions.
 ;;;
 (defvar *existing-encapsulations* (make-hash-table :test #'equal))
-
 
 ;;; These variables are used to subtract out the time and consing for recursive
 ;;; and other dynamically nested profiled calls.  The total resource consumed
@@ -179,7 +97,6 @@
 (proclaim '(type time-type *enclosed-time*))
 (proclaim '(type consing-type *enclosed-consing*))
 (proclaim '(fixnum *enclosed-profilings*))
-
 
 ;;; The number of seconds a bare function call takes.  Factored into the other
 ;;; overheads, but not used for itself.
@@ -199,7 +116,7 @@
 			 *total-profile-overhead*))
 
 
-;;;; Profile encapsulations:
+;;;; Profile encapsulations.
 
 (eval-when (compile load eval)
 
@@ -256,7 +173,7 @@
 			     (setf (cdr current) callers)
 			     (setq callers current)
 			     (return))))))
-			       
+
 		   (let ((time-inc 0) (cons-inc 0) (profile-inc 0))
 		     (declare (type time-type time-inc)
 			      (type consing-type cons-inc)
@@ -301,7 +218,7 @@
 		       (incf *enclosed-consing* cons-inc)
 		       (incf *enclosed-profilings*
 			     (the fixnum (1+ profile-inc)))))))
-	 
+
 	 (setf (gethash name *profile-info*)
 	       (make-profile-info
 		:name name
@@ -321,8 +238,7 @@
 
 ); EVAL-WHEN (COMPILE LOAD EVAL)
 
-
-;;; Precompute some encapsulation functions:
+;;; Precompute some encapsulation functions.
 ;;;
 (macrolet ((frob ()
 	     (let ((res ()))
@@ -337,9 +253,8 @@
 	       `(progn ,@res))))
   (frob))
 
-
 
-;;; Interfaces:
+;;;; Interfaces.
 
 ;;; PROFILE-1-FUNCTION  --  Internal
 ;;;
@@ -362,7 +277,6 @@
 		    callers-p)))
 	(t
 	 (warn "Ignoring undefined function ~S." name))))
-
 
 ;;; PROFILE  --  Public
 ;;;
@@ -416,7 +330,6 @@
   `(dolist (name ,(if names `',names '*timed-functions*) (values))
      (unprofile-1-function name)))
 
-
 ;;; UNPROFILE-1-FUNCTION  --  Internal
 ;;;
 (defun unprofile-1-function (name)
@@ -430,12 +343,10 @@
 	(warn "Preserving current definition of redefined function ~S."
 	      name))))
 
-
 (defmacro report-time (&rest names)
   "Reports the time spent in the named functions.  Names defaults to the list of
   all currently profiled functions."
   `(%report-times ,(if names `',names '*timed-functions*)))
-
 
 (defstruct (time-info
 	    (:constructor make-time-info (name calls time consing callers)))
@@ -444,7 +355,6 @@
   time
   consing
   callers)
-
 
 ;;; COMPENSATE-TIME  --  Internal
 ;;;
@@ -467,7 +377,6 @@
 	    (* (- *total-profile-overhead* *internal-profile-overhead*)
 	       (float profile)))))
     (if (minusp compensated) 0.0 compensated)))
-
 
 (defun %report-times (names)
   (declare (optimize (speed 0)))
@@ -493,7 +402,7 @@
 				    (sort (copy-seq callers)
 					  #'>= :key #'cdr))
 		    info)))))
-    
+
     (setq info (sort info #'>= :key #'time-info-time))
 
     (format *trace-output*
@@ -546,7 +455,6 @@
 				    (princ-to-string n)))))))
     (values)))
 
-
 (defmacro reset-time (&rest names)
   "Resets the time counter for the named functions.  Names defaults to the list
   of all currently profiled functions."
@@ -564,7 +472,6 @@
 ;;;
 (defconstant timer-overhead-iterations 5000)
 
-
 ;;; COMPUTE-TIME-OVERHEAD-AUX  --  Internal
 ;;;
 ;;;    Dummy function we profile to find profiling overhead.  Declare
@@ -574,7 +481,6 @@
 (defun compute-time-overhead-aux (x)
   (declare (ext:optimize-interface (debug 2)))
   (declare (ignore x)))
-
 
 ;;; COMPUTE-TIME-OVERHEAD  --  Internal
 ;;;
@@ -591,7 +497,7 @@
 			   (float quick-time-units-per-second)
 			   (float timer-overhead-iterations))))))
     (frob *call-overhead*)
-    
+
     (unwind-protect
 	(progn
 	  (profile compute-time-overhead-aux)

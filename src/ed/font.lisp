@@ -1,6 +1,6 @@
 ;;; Various functions that make up the user interface to fonts.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(font-mark delete-font-mark delete-line-font-marks move-font-mark
 	  window-font))
@@ -17,10 +17,11 @@
 (defun font-mark (line charpos font &optional (kind :right-inserting))
   "Returns a font on line at charpos with font.  Font marks must be permanent
    marks."
-  (unless (or (eq kind :right-inserting) (eq kind :left-inserting))
-    (error "A Font-Mark must be :left-inserting or :right-inserting."))
-  (unless (and (>= font 0) (< font font-map-size))
-    (error "Font number ~S out of range." font))
+  (or (eq kind :right-inserting)
+      (eq kind :left-inserting)
+      (error "A Font-Mark must be :left-inserting or :right-inserting."))
+  (or (and (>= font 0) (< font font-map-size))
+      (error "Font number ~S out of range." font))
   (let ((new (internal-make-font-mark line charpos kind font)))
     (new-font-mark new line)
     (push new (line-marks line))

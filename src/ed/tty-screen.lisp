@@ -1,6 +1,6 @@
 ;;; Terminal device screen management functions.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 
 
@@ -214,7 +214,9 @@
     (let ((colors (termcap :colors termcap))
 	  (original-pair (termcap :original-pair termcap))
 	  (adjust-fg (termcap :adjust-fg termcap))
-	  (adjust-bg (termcap :adjust-bg termcap)))
+	  (adjust-bg (termcap :adjust-bg termcap))
+	  (start-underscore (termcap :start-underscore-mode termcap))
+	  (end-underscore (termcap :end-underscore-mode termcap)))
       (when (and original-pair adjust-fg adjust-bg)
 	(setf (tty-device-colors device) colors)
 	(setf (tty-device-original-pair-string device) original-pair)
@@ -232,7 +234,9 @@
 	  (dotimes (font (max colors) 8)
 	    (define-tty-font font (format nil adjust-fg font) original-pair)
 	    (define-tty-font (+ font 8)
-			     (format nil adjust-bg font) original-pair)))))
+			     (format nil adjust-bg font) original-pair))))
+      (when (and start-underscore end-underscore)
+	(define-tty-font 19 start-underscore end-underscore)))
     ;;
     ;; Screen image initialization.
     (let* ((lines (tty-device-lines device))

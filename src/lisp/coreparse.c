@@ -9,7 +9,7 @@
 #endif
 
 #include "os.h"
-#include "lisp.h"
+#include "nightshade.h"
 #include "globals.h"
 #include "core.h"
 #include "internals.h"
@@ -99,14 +99,14 @@ lispobj load_core_file(char *file)
     if (count < CORE_PAGESIZE) {
 	fprintf(stderr, "Premature EOF.\n");
 	exit(1);
-    }   
+    }
 
     ptr = header;
     val = *ptr++;
 
     if (val != CORE_MAGIC) {
 	fprintf(stderr, "Invalid magic number: 0x%lx should have been 0x%x.\n",
-	val, CORE_MAGIC); 
+	val, CORE_MAGIC);
 	exit(1);
     }
 

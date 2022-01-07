@@ -12,7 +12,7 @@
 ;;;    shift (right)	65506
 ;;;    lock		65509
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 
 ;;; Function keys for the RT.

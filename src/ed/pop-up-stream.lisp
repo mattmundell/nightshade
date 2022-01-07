@@ -1,6 +1,6 @@
 ;;; Stream operations for pop-up-displays.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 
 
@@ -126,9 +126,9 @@
 
 ;;; Tty line-buffered support.
 
-;;; UPDATE-TTY-LINE-BUFFERED-STREAM is called when anything is written to
-;;; a line-buffered-random-typeout-stream on the tty.  It just makes sure
-;;; hemlock doesn't choke on extra-long strings.
+;;; UPDATE-TTY-LINE-BUFFERED-STREAM is called when anything is written to a
+;;; line-buffered-random-typeout-stream on the tty.  It just makes sure the
+;;; editor can handle extra-long strings.
 ;;;
 (defun update-tty-line-buffered-stream (stream newline-count)
   (let ((window (random-typeout-stream-window stream)))

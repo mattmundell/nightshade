@@ -1,14 +1,5 @@
-;;; -*- Package: SYSTEM -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/foreign.lisp,v 1.22.2.4 2000/09/27 11:10:20 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
+;;; Object file loading.
+
 (in-package "SYSTEM")
 
 (in-package "ALIEN")
@@ -27,35 +18,12 @@
 
 #+(and freebsd x86)
 (defconstant foreign-segment-start #x0E000000)
-#+(and freebsd x86) 
+#+(and freebsd x86)
 (defconstant foreign-segment-size  #x02000000)
 
 (defvar *previous-linked-object-file* nil)
 #-(or linux irix)
 (defvar *foreign-segment-free-pointer* foreign-segment-start)
-
-(defun pick-temporary-file-name (&optional (base "/tmp/tmp~D~C"))
-  (let ((code (char-code #\A)))
-    (loop
-      (let ((name (format nil base (unix:unix-getpid) (code-char code))))
-	(multiple-value-bind
-	    (fd errno)
-	    (unix:unix-open name
-			    (logior unix:o_wronly unix:o_creat unix:o_excl)
-			    #o666)
-	  (cond ((not (null fd))
-		 (unix:unix-close fd)
-		 (return name))
-		((not (= errno unix:eexist))
-		 (error "Could not create temporary file ~S: ~A"
-			name (unix:get-unix-error-msg errno)))
-		
-		((= code (char-code #\Z))
-		 (setf code (char-code #\a)))
-		((= code (char-code #\z))
-		 (return nil))
-		(t
-		 (incf code))))))))
 
 #+(or (and FreeBSD (not elf)) (and sparc (not svr4)))
 (alien:def-alien-type exec
@@ -82,12 +50,10 @@
     addr))
 
 
+;;; Elf object file loading for statically linked CMUCL under FreeBSD.
 ;;;
-;;;  Elf object file loading for statically linked CMUCL under
-;;;  FreeBSD.
-;;;
-;;; The following definitions are taken from
-;;; /usr/include/sys/elf_common.h and /usr/include/sys/elf32.h.
+;;; The following definitions are taken from /usr/include/sys/elf_common.h
+;;; and /usr/include/sys/elf32.h.
 ;;;
 #+(and FreeBSD elf)
 (progn
@@ -140,8 +106,8 @@
 (defun elf-p (h)
   "Make sure the header starts with the ELF magic value."
   (dotimes (i 4 t)
-    (unless (= (alien:deref h i) (aref +elf-magic+ i))
-      (return nil))))
+    (or (= (alien:deref h i) (aref +elf-magic+ i))
+	(return nil))))
 
 (defun elf-brand (h)
   "Return the `brand' in the padding of the ELF file."
@@ -173,24 +139,24 @@
 
   (format t ";;; Loading object file...~%")
   (multiple-value-bind (fd errno) (unix:unix-open name unix:o_rdonly 0)
-    (unless fd
-      (error "Could not open ~S: ~A" name (unix:get-unix-error-msg errno)))
+    (or fd
+	(error "Could not open ~S: ~A" name (unix:get-unix-error-msg errno)))
     (unwind-protect
 	(alien:with-alien ((header eheader))
 	  (unix:unix-read fd
 			  (alien:alien-sap header)
 			  (alien:alien-size eheader :bytes))
-	  (unless (elf-p (alien:slot header 'elf-ident))
+	  (or (elf-p (alien:slot header 'elf-ident))
 	      (error (format nil "~A is not an ELF file." name)))
 
 	  (let ((brand (elf-brand (alien:slot header 'elf-ident))))
-	    (unless (string= brand "FreeBSD" :end1 6 :end2 6)
-	      (error (format nil "~A is not a FreeBSD executable. Brand: ~A"
-			     name brand))))
+	    (or (string= brand "FreeBSD" :end1 6 :end2 6)
+		(error (format nil "~A is not a FreeBSD executable. Brand: ~A"
+			       name brand))))
 
-	  (unless (elf-executable-p (alien:slot header 'elf-type))
-	    (error (format nil "~A is not executable." name)))
-	  
+	  (or (elf-executable-p (alien:slot header 'elf-type))
+	      (error (format nil "~A is not executable." name)))
+
 	  (alien:with-alien ((program-header pheader))
 	    (unix:unix-read fd
 			    (alien:alien-sap program-header)
@@ -200,7 +166,7 @@
 	      (unix:unix-lseek
 	       fd (alien:slot program-header 'p-offset) unix:l_set)
 	      (unix:unix-read
-	       fd addr (alien:slot program-header 'p-file-size)))))      
+	       fd addr (alien:slot program-header 'p-file-size)))))
       (unix:unix-close fd))))
 
 (defun parse-symbol-table (name)
@@ -224,7 +190,7 @@ to skip undefined symbols which don't have an address."
 		      symbol old-address address))
 	      (setf (gethash symbol symbol-table) address))))))
     (setf lisp::*foreign-symbols* symbol-table)))
-)
+) ; (and FreeBSD elf)
 
 
 ;;; pw-- This seems to work for FreeBSD. The MAGIC field is not tested
@@ -248,7 +214,6 @@ to skip undefined symbols which don't have an address."
 		 (addr (allocate-space-in-foreign-segment memory-needed)))
 	    (unix:unix-read fd addr len-of-text-and-data)))
       (unix:unix-close fd))))
-
 
 #+pmax
 (alien:def-alien-type filehdr
@@ -464,15 +429,16 @@ to skip undefined symbols which don't have an address."
 					     "path:")
 			    #+hpux "library:cmucl.orig")
 			   (env ext:*environment-list*))
-  "Load-foreign loads a list of C object files into a running Lisp.  The files
-  argument should be a single file or a list of files.  The files may be
-  specified as namestrings or as pathnames.  The libraries argument should be a
-  list of library files as would be specified to ld.  They will be searched in
-  the order given.  The default is just \"-lc\", i.e., the C library.  The
-  base-file argument is used to specify a file to use as the starting place for
-  defined symbols.  The default is the C start up code for Lisp.  The env
-  argument is the Unix environment variable definitions for the invocation of
-  the linker.  The default is the environment passed to Lisp."
+  "Load-foreign loads a list of C object files into a running Lisp.  The
+   files argument should be a single file or a list of files.  The files
+   may be specified as namestrings or as pathnames.  The libraries argument
+   should be a list of library files as would be specified to ld.  They
+   will be searched in the order given.  The default is just \"-lc\", i.e.,
+   the C library.  The base-file argument is used to specify a file to use
+   as the starting place for defined symbols.  The default is the C start
+   up code for Lisp.  The env argument is the Unix environment variable
+   definitions for the invocation of the linker.  The default is the
+   environment passed to Lisp."
   (let ((output-file (pick-temporary-file-name))
 	(symbol-table-file (pick-temporary-file-name))
 	(error-output (make-string-output-stream))
@@ -511,8 +477,8 @@ to skip undefined symbols which don't have an address."
 		 :input nil
 		 :output error-output
 		 :error :output)))
-      (unless proc
-	(error "Could not run library:load-foreign.csh"))
+      (or proc
+	  (error "Could not run library:load-foreign.csh"))
       (unless (zerop (ext:process-exit-code proc))
 	(system:serve-all-events 0)
 	(error "library:load-foreign.csh failed:~%~A"
@@ -547,14 +513,14 @@ to skip undefined symbols which don't have an address."
   "Mask of binding time value")
 
 (defconstant rtld-global #-irix #x100 #+irix 4
-  "If set the symbols of the loaded object and its dependencies are
-   made visible as if the object were linked directly into the program")
+  "If set the symbols of the loaded object and its dependencies are made
+   visible as if the object were linked directly into the program")
 
 (defvar *global-table* nil)
-;;; Dynamically loaded stuff isn't there upon restoring from a
-;;; save--this is primarily for irix, which resolves tzname at
-;;; runtime, resulting in *global-table* being set in the saved core
-;;; image, resulting in havoc upon restart.
+;;; Dynamically loaded stuff isn't there upon restoring from a save--this
+;;; is primarily for irix, which resolves tzname at runtime, resulting in
+;;; *global-table* being set in the saved core image, resulting in havoc
+;;; upon restart.
 (pushnew #'(lambda () (setq *global-table* nil))
 	 ext:*after-save-initializations*)
 
@@ -609,22 +575,23 @@ to skip undefined symbols which don't have an address."
 			   (libraries '("-lc"))
 			   (base-file nil)
 			   (env ext:*environment-list*))
-  "Load-foreign loads a list of C object files into a running Lisp.  The files
-  argument should be a single file or a list of files.  The files may be
-  specified as namestrings or as pathnames.  The libraries argument should be a
-  list of library files as would be specified to ld.  They will be searched in
-  the order given.  The default is just \"-lc\", i.e., the C library.  The
-  base-file argument is used to specify a file to use as the starting place for
-  defined symbols.  The default is the C start up code for Lisp.  The env
-  argument is the Unix environment variable definitions for the invocation of
-  the linker.  The default is the environment passed to Lisp."
+  "Load-foreign loads a list of C object files into a running Lisp.  The
+   files argument should be a single file or a list of files.  The files
+   may be specified as namestrings or as pathnames.  The libraries argument
+   should be a list of library files as would be specified to ld.  They
+   will be searched in the order given.  The default is just \"-lc\", i.e.,
+   the C library.  The base-file argument is used to specify a file to use
+   as the starting place for defined symbols.  The default is the C start
+   up code for Lisp.  The env argument is the Unix environment variable
+   definitions for the invocation of the linker.  The default is the
+   environment passed to Lisp."
   ;; Note: dlopen remembers the name of an object, when dlopenin
   ;; the same name twice, the old objects is reused.
   (declare (ignore base-file))
   (let ((output-file (pick-temporary-file-name
 		      (concatenate 'string "/tmp/~D~C" (string (gensym)))))
 	(error-output (make-string-output-stream)))
- 
+
     (format t ";;; Running ~A...~%" *dso-linker*)
     (force-output)
     (let ((proc (ext:run-program
@@ -643,14 +610,13 @@ to skip undefined symbols which don't have an address."
 		 :input nil
 		 :output error-output
 		 :error :output)))
-      (unless proc
-       (error "Could not run ~A" *dso-linker*))
+      (or proc
+	  (error "Could not run ~A" *dso-linker*))
       (unless (zerop (ext:process-exit-code proc))
 	(system:serve-all-events 0)
         (error "~A failed:~%~A" *dso-linker*
 	       (get-output-stream-string error-output)))
       (load-object-file output-file)
-      (unix:unix-unlink output-file)
-      ))
+      (unix:unix-unlink output-file)))
   (format t ";;; Done.~%"))
-)
+) ; (or linux solaris irix)

@@ -1,30 +1,16 @@
-;;; -*- Log: code.log; Package: Lisp -*-
+;;; Modules.
 ;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/module.lisp,v 1.4.2.1 1998/07/19 01:06:08 dtc Exp $")
-;;;
-;;; **********************************************************************
-
-;;; Code written by Jim Muller.
-;;; Rewritten by Bill Chiles.
-;;;
-;;; Note that this module file is based on the old system, and is being
+;;; FIX Note that this module file is based on the old system, and is being
 ;;; spliced into the current sources to reflect the last minute deprecated
 ;;; addition of modules to the X3J13 ANSI standard.
-;;;
+
 (in-package "LISP")
 
 (export '(*modules* provide require))
 
-
 (in-package "EXTENSIONS")
 (export '(*require-verbose* defmodule))
 (in-package "LISP")
-
 
 
 ;;;; Exported specials.
@@ -51,7 +37,6 @@
 
 (defun module-files (name)
   (gethash name *module-file-translations*))
-
 
 
 ;;;; Provide and Require.
@@ -81,10 +66,10 @@
         (let ((files (module-files module-name)))
           (if files
               (setf pathname files)
-              (setf pathname (list (merge-pathnames "modules:" module-name))))))    (let ((*load-verbose* *require-verbose*))
+              (setf pathname (list (merge-pathnames "modules:" module-name))))))
+    (let ((*load-verbose* *require-verbose*))
       (dolist (ele pathname t)
         (load ele)))))
-
 
 
 ;;;; Misc.

@@ -1,23 +1,11 @@
-;;; -*- Mode: Lisp; Package: Lisp; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/sysmacs.lisp,v 1.17.2.3 2000/08/10 13:16:42 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    Miscellaneous system hacking macros.
-;;;
+;;; Miscellaneous system hacking macros.
+
 (in-package "LISP")
 
 (in-package "SYSTEM")
-(export '(without-gcing without-hemlock))
+(export '(without-gcing with-screen *with-screen-hooks*))
 
 (in-package "LISP")
-
 
 ;;; WITH-ARRAY-DATA  --  Interface
 ;;;
@@ -30,12 +18,12 @@
 			    (start-var &optional (svalue 0))
 			    (end-var &optional (evalue nil)))
 			   &rest forms)
-  "Given any Array, binds Data-Var to the array's data vector and Start-Var and
-  End-Var to the start and end of the designated portion of the data vector.
-  Svalue and Evalue are any start and end specified to the original operation,
-  and are factored into the bindings of Start-Var and End-Var.  Offset-Var is
-  the cumulative offset of all displacements encountered, and does not
-  include Svalue."
+  "Given any Array, binds Data-Var to the array's data vector and Start-Var
+   and End-Var to the start and end of the designated portion of the data
+   vector.  Svalue and Evalue are any start and end specified to the
+   original operation, and are factored into the bindings of Start-Var and
+   End-Var.  Offset-Var is the cumulative offset of all displacements
+   encountered, and does not include Svalue."
   (once-only ((n-array array)
 	      (n-svalue `(the index ,svalue))
 	      (n-evalue `(the (or index null) ,evalue)))
@@ -67,18 +55,18 @@
   "Executes the forms in the body without doing a garbage collection."
   `(without-interrupts ,@body))
 
-(defmacro without-hemlock (&body body)
-  `(progn
-     (when (and hi::*in-the-editor* (null debug::*in-the-debugger*))
-       (let ((device (hi::device-hunk-device
-		      (hi::window-hunk (hi::current-window)))))
-	 (funcall (hi::device-exit device) device)))
-     ,@body
-     (when (and hi::*in-the-editor* (null debug::*in-the-debugger*))
-       (let ((device (hi::device-hunk-device
-		      (hi::window-hunk (hi::current-window)))))
-	 (funcall (hi::device-init device) device)))))
+(defvar *with-screen-hooks* ()
+  "A list of conses (before function, after function) to call before and
+   after the body of with-screen macro calls.  Used by the editor to
+   relinquish the screen during `break' or an interrupt handler.")
 
+(defmacro with-screen (&body body)
+  `(progn
+     (dolist (hook *with-screen-hooks*)
+       (funcall (car hook)))
+     ,@body
+     (dolist (hook (reverse *with-screen-hooks*))
+       (funcall (cdr hook)))))
 
 
 ;;; Eof-Or-Lose is a useful macro that handles EOF.
@@ -122,7 +110,6 @@
 					 `(,function stream ,@args)))))
 	 `(funcall (,lisp-stream-slot stream) stream ,@args))))
 
-
 (defmacro with-out-stream (stream (lisp-stream-slot &rest args)
 			   &optional stream-dispatch)
   `(let ((stream (out-synonym-of ,stream)))
@@ -135,7 +122,7 @@
 	 `(funcall (,lisp-stream-slot stream) stream ,@args))))
 
 
-;;;; These are hacks to make the reader win.
+;;;; Hacks for the reader.
 
 ;;; Prepare-For-Fast-Read-Char  --  Internal
 ;;;
@@ -176,7 +163,8 @@
      (prog1 (code-char (aref %frc-buffer% %frc-index%))
 	    (incf %frc-index%)))))
 
-;;;; And these for the fasloader...
+
+;;;; Hacks for the fasloader.
 
 ;;; Prepare-For-Fast-Read-Byte  --  Internal
 ;;;

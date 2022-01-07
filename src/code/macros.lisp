@@ -1,35 +1,21 @@
-;;; -*- Log: code.log; Package: Lisp -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/macros.lisp,v 1.50.2.9 2000/10/06 15:20:38 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the macros that are part of the standard
-;;; Spice Lisp environment.
-;;;
-;;; Written by Scott Fahlman and Rob MacLachlan.
-;;; Modified by Bill Chiles to adhere to the wall.
-;;;
+;;; Macros.
+
 (in-package "LISP")
-(export '(defvar defparameter defconstant when unless setf
+(export '(defvar defparameter defconstant when fi unless setf
 	  defsetf psetf shiftf rotatef push pushnew pop
 	  incf decf remf case typecase with-open-file
 	  with-open-stream with-input-from-string with-output-to-string
 	  locally etypecase ctypecase ecase ccase
 	  get-setf-expansion define-setf-expander
           define-modify-macro destructuring-bind nth-value
-          otherwise ; Sacred to CASE and related macros.
+          otherwise ; Sacred to CASE and related macros.  FIX?
 	  define-compiler-macro
-	  ;; CLtL1 versions:
+	  number-string
+	  ;; FIX CLtL1 versions:
 	  define-setf-method get-setf-method get-setf-method-multiple-value))
 
 (in-package "EXTENSIONS")
-(export '(do-anonymous collect iterate))
+(export '(do-anonymous collect iterate in-directory do-strings))
 
 (in-package "LISP")
 
@@ -41,13 +27,13 @@
 ;;; into declarations anymore.
 ;;;
 (defun parse-body (body environment &optional (doc-string-allowed t))
-  "This function is to parse the declarations and doc-string out of the body of
-  a defun-like form.  Body is the list of stuff which is to be parsed.
-  Environment is ignored.  If Doc-String-Allowed is true, then a doc string
-  will be parsed out of the body and returned.  If it is false then a string
-  will terminate the search for declarations.  Three values are returned: the
-  tail of Body after the declarations and doc strings, a list of declare forms,
-  and the doc-string, or NIL if none."
+  "This function is to parse the declarations and doc-string out of the
+   body of a defun-like form.  Body is the list of stuff which is to be
+   parsed.  Environment is ignored.  If Doc-String-Allowed is true, then a
+   doc string will be parsed out of the body and returned.  If it is false
+   then a string will terminate the search for declarations.  Three values
+   are returned: the tail of Body after the declarations and doc strings, a
+   list of declare forms, and the doc-string, or NIL if none."
   (declare (ignore environment))
   (let ((decls ())
 	(doc nil))
@@ -87,7 +73,6 @@
 		      ,body))))
 	`(c::%defmacro ',name #',def ',lambda-list ,doc)))))
 
-
 ;;; %Defmacro, %%Defmacro  --  Internal
 ;;;
 ;;;    Defmacro expands into %Defmacro which is a function that is treated
@@ -111,7 +96,6 @@
   (setf (macro-function name) definition)
   (setf (documentation name 'function) doc)
   name)
-
 
 
 ;;;; DEFINE-COMPILER-MACRO
@@ -142,7 +126,6 @@
   (setf (compiler-macro-function name) definition)
   (setf (documentation name 'compiler-macro) doc)
   name)
-
 
 
 ;;;; DEFINE-SYMBOL-MACRO
@@ -177,8 +160,8 @@
 
 (defmacro deftype (name arglist &body body)
   "Syntax like DEFMACRO, but defines a new type."
-  (unless (symbolp name)
-    (error "~S -- Type name not a symbol." name))
+  (or (symbolp name)
+      (error "~S -- Type name not a symbol." name))
 
   (let ((whole (gensym "WHOLE-")))
     (multiple-value-bind (body local-decs doc)
@@ -215,17 +198,17 @@
     (c::%note-type-defined name))
   name)
 
+;;; DEFINE-SETF-EXPANDER is also a lot like DEFMACRO.
 
-;;; And so is DEFINE-SETF-EXPANDER.
-
-(defparameter defsetf-error-string "Setf expander for ~S cannot be called with ~S args.")
+(defparameter defsetf-error-string
+  "Setf expander for ~S cannot be called with ~S args.")
 
 (defmacro define-setf-expander (access-fn lambda-list &body body)
   "Syntax like DEFMACRO, but creates a Setf-Method generator.  The body
-  must be a form that returns the five magical values."
-  (unless (symbolp access-fn)
-    (error "~S -- Access-function name not a symbol in DEFINE-SETF-EXPANDER."
-	   access-fn))
+   must be a form that returns the five magical values."
+  (or (symbolp access-fn)
+      (error "~S -- Access-function name not a symbol in DEFINE-SETF-EXPANDER."
+	     access-fn))
 
   (let ((whole (gensym "WHOLE-"))
 	(environment (gensym "ENV-")))
@@ -245,7 +228,6 @@
 (defmacro define-setf-method (&rest stuff)
   "Obsolete, use define-setf-expander."
   `(define-setf-expander ,@stuff))
-
 
 ;;; %DEFINE-SETF-MACRO  --  Internal
 ;;;
@@ -300,7 +282,6 @@
 		  ,@body))))
     `(c::%defun ',name #',def ,doc ',source)))
 
-
 ;;; %Defun, %%Defun  --  Internal
 ;;;
 ;;;    Similar to %Defmacro, ...
@@ -326,7 +307,6 @@
   (assert (eval:interpreted-function-p def))
   (setf (eval:interpreted-function-name def) name)
   (c::%%defun name def doc))
-
 
 ;;; DEFCONSTANT  --  Public
 ;;;
@@ -358,7 +338,6 @@
   (clear-info variable constant-value name)
   name)
 
-
 (defmacro defvar (var &optional (val nil valp) (doc nil docp))
   "For defining global variables at top level.  Declares the variable
   SPECIAL and, optionally, initializes it.  If the variable already has a
@@ -388,17 +367,22 @@
 
 ;;;; ASSORTED CONTROL STRUCTURES
 
-
 (defmacro when (test &body forms)
   "First arg is a predicate.  If it is non-null, the rest of the forms are
   evaluated as a PROGN."
   `(cond (,test nil ,@forms)))
 
+;; FIX consider allowing (if x) for symmetry  (if x) == (if x t ()) => t?
+(defmacro fi (test &optional (else t) (then ()))
+  "Backward if.  First arg (TEST) is a predicate.  If it is true then the
+   second form (ELSE) is evaluated, else the first form (THEN) is
+   evaluated.  (fi x) == (fi x t ())."
+  `(if ,test ,then ,else))
+
 (defmacro unless (test &rest forms)
   "First arg is a predicate.  If it is null, the rest of the forms are
-  evaluated as a PROGN."
+   evaluated as a PROGN."
   `(cond ((not ,test) nil ,@forms)))
-
 
 (defmacro return (&optional (value nil))
   `(return-from nil ,value))
@@ -415,7 +399,6 @@
        ,@decls
        (tagbody ,@body))))
 
-
 ;;; Prog1, Prog2  --  Public
 ;;;
 ;;;    These just turn into a Let.
@@ -428,7 +411,6 @@
 ;;;
 (defmacro prog2 (form1 result &rest body)
   `(prog1 (progn ,form1 ,result) ,@body))
-
 
 ;;; And, Or  --  Public
 ;;;
@@ -451,7 +433,6 @@
 	      (if ,n-result
 		  ,n-result
 		  (or ,@(rest forms))))))))
-
 
 ;;; Cond  --  Public
 ;;;
@@ -508,7 +489,6 @@
 ;;;
 (defmacro multiple-value-list (value-form)
   `(multiple-value-call #'list ,value-form))
-
 
 (defmacro nth-value (n form)
   "Evaluates FORM and returns the Nth value (zero based).  This involves no
@@ -600,7 +580,6 @@
 	(get-setf-method-inverse form `(funcall #'(setf ,(car form)))
 				 t))))
 
-
 (defun get-setf-method-inverse (form inverse setf-function)
   (let ((new-var (gensym))
 	(vars nil)
@@ -615,7 +594,6 @@
 		`(,@inverse ,@vars ,new-var))
 	    `(,(car form) ,@vars))))
 
-
 (defun get-setf-method (form &optional environment)
   "Obsolete: use GET-SETF-EXPANSION and handle multiple store values."
   (multiple-value-bind
@@ -625,7 +603,6 @@
       (error "GET-SETF-METHOD used for a form with multiple store ~
 	      variables:~%  ~S" form))
     (values temps value-forms store-vars store-form access-form)))
-
 
 (defun defsetter (fn rest)
   (let ((arglist (car rest))
@@ -640,11 +617,10 @@
 	  ,body)
        doc))))
 
-
 (defmacro defsetf (access-fn &rest rest)
-  "Associates a SETF update function or macro with the specified access
-  function or macro.  The format is complex.  See the manual for
-  details."
+  "Associate a SETF update function or macro with the specified access
+   function or macro.  The format is complex.  FIX See the manual for
+   details."
   (cond ((not (listp (car rest)))
 	 `(eval-when (load compile eval)
 	    (%define-setf-macro ',access-fn nil ',(car rest)
@@ -694,7 +670,6 @@
 	    (funcall expander (cons (subforms) (store-vars)))
 	    `(,(car orig-access-form) ,@(subforms)))))
 
-
 ;;; SETF  --  Public
 ;;;
 ;;;    Except for atoms, we always call GET-SETF-METHOD, since it has some
@@ -705,9 +680,9 @@
 ;;;
 (defmacro setf (&rest args &environment env)
   "Takes pairs of arguments like SETQ.  The first is a place and the second
-  is the value that is supposed to go into that place.  Returns the last
-  value.  The place argument may be any of the access forms for which SETF
-  knows a corresponding setting form."
+   is the value that is supposed to go into that place.  Returns the last
+   value.  The place argument may be any of the access forms for which SETF
+   knows a corresponding setting form."
   (let ((nargs (length args)))
     (cond
      ((= nargs 2)
@@ -808,7 +783,6 @@
 	`(let* ,(let*-bindings)
 	   ,@(thunk (mv-bindings) (cdr (getters))))))))
 
-
 (defmacro define-modify-macro (name lambda-list function &optional doc-string)
   "Creates a new read-modify-write macro like PUSH or INCF."
   (let ((other-args nil)
@@ -885,7 +859,6 @@
 		 ,setter))
 	  (push (list (car d) (car v)) let-list)))))
 
-
 (defmacro pop (place &environment env)
   "The argument is a location holding a list.  Pops one item off the front
   of the list and returns it."
@@ -904,16 +877,13 @@
 			,setter)))
 	  (push (list (car d) (car v)) let-list)))))
 
-
 (define-modify-macro incf (&optional (delta 1)) +
   "The first argument is some location holding a number.  This number is
   incremented by the second argument, DELTA, which defaults to 1.")
 
-
 (define-modify-macro decf (&optional (delta 1)) -
   "The first argument is some location holding a number.  This number is
   decremented by the second argument, DELTA, which defaults to 1.")
-
 
 (defmacro remf (place indicator &environment env)
   "Place may be any place expression acceptable to SETF, and is expected
@@ -1085,7 +1055,6 @@
 	    `(apply #'(setf ,function) ,new-var ,@vars)
 	    `(apply #',function ,@vars))))
 
-
 ;;; Special-case a BYTE bytespec so that the compiler can recognize it.
 ;;;
 (define-setf-expander ldb (bytespec place &environment env)
@@ -1116,7 +1085,6 @@
 		     ,gnuval)
 		  `(ldb ,btemp ,getter))))))
 
-
 (define-setf-expander mask-field (bytespec place &environment env)
   "The first argument is a byte specifier.  The second is any place form
   acceptable to SETF.  Replaces the specified byte of the number in this place
@@ -1132,7 +1100,6 @@
 		 ,setter
 		 ,gnuval)
 	      `(mask-field ,btemp ,getter)))))
-
 
 (define-setf-expander the (type place &environment env)
   (multiple-value-bind (dummies vals newval setter getter)
@@ -1252,7 +1219,6 @@
       :interactive read-evaluated-form
       value)))
 
-
 (defmacro case (keyform &body cases)
   "CASE Keyform {({(Key*) | Key} Form*)}*
   Evaluates the Forms in the first clause with a Key EQL to the value of
@@ -1322,7 +1288,6 @@
       :report (lambda (stream) (assert-report places stream))
       nil))))
 
-
 (defun assert-report (names stream)
   (format stream "Retry assertion")
   (if names
@@ -1340,7 +1305,6 @@
 	       (progv (list name) (list value) (read-it))
 	       (read-it))))
 	(t value)))
-
 
 ;;; CHECK-TYPE is written this way, to call CHECK-TYPE-ERROR, because of how
 ;;; closures are compiled.  RESTART-CASE has forms with closures that the
@@ -1392,13 +1356,14 @@
   (list (eval (read *query-io*))))
 
 
-;;;; With-XXX
+;;;; With-*
+
 (defmacro with-open-file ((var &rest open-args) &body (forms decls))
   "Bindspec is of the form (Stream File-Name . Options).  The file whose
    name is File-Name is opened using the Options and bound to the variable
    Stream. If the call to open is unsuccessful, the forms are not
-   evaluated.  The Forms are executed, and when they
-   terminate, normally or otherwise, the file is closed."
+   evaluated.  The Forms are executed, and when they terminate, normally or
+   otherwise, the file is closed."
   (let ((abortp (gensym)))
     `(let ((,var (open ,@open-args))
 	   (,abortp t))
@@ -1409,7 +1374,6 @@
 	     (setq ,abortp nil))
 	 (when ,var
 	   (close ,var :abort ,abortp))))))
-
 
 (defmacro with-open-stream ((var stream) &body (forms decls))
   "The form stream should evaluate to a stream.  VAR is bound
@@ -1425,7 +1389,6 @@
 	  (setq ,abortp nil))
 	 (when ,var
 	   (close ,var :abort ,abortp))))))
-
 
 (defmacro with-input-from-string ((var string &key index start end) &body (forms decls))
   "Binds the Var to an input stream that returns characters from String and
@@ -1446,7 +1409,6 @@
 	   (progn ,@forms)
 	 (close ,var)
 	 ,@(if index `((setf ,index (string-input-stream-current ,var))))))))
-
 
 (defmacro with-output-to-string ((var &optional string) &body (forms decls))
   "If *string* is specified, it must be a string with a fill pointer;
@@ -1480,7 +1442,6 @@
 		(declare (type unsigned-byte ,var))
                 ,@body)))))
 
-
 ;;; We repeatedly bind the var instead of setting it so that we never give the
 ;;; var a random value such as NIL (which might conflict with a declaration).
 ;;; If there is a result form, we introduce a gratitous binding of the variable
@@ -1500,7 +1461,6 @@
        (let ((,var (car ,n-list)))
 	 ,@body))))
 
-
 (defmacro do (varlist endlist &body (body decls))
   "DO ({(Var [Init] [Step])}*) (Test Exit-Form*) Declaration* Form*
   Iteration construct.  Each Var is initialized in parallel to the value of the
@@ -1510,9 +1470,7 @@
   are evaluated as a PROGN, with the result being the value of the DO.  A block
   named NIL is established around the entire expansion, allowing RETURN to be
   used as an laternate exit mechanism."
-
   (do-do-body varlist endlist body decls 'let 'psetq 'do nil))
-
 
 (defmacro do* (varlist endlist &body (body decls))
   "DO* ({(Var [Init] [Step])}*) (Test Exit-Form*) Declaration* Form*
@@ -1539,18 +1497,17 @@
       (push (car pairs) setqs)
       (push gen setqs))))
 
-;;; LAMBDA -- from the ANSI spec.
+;;; LAMBDA -- from the ANSI spec.  FIX
 ;;;
 (defmacro lambda (&whole form &rest bvl-decls-and-body)
   (declare (ignore bvl-decls-and-body))
   `#',form)
 
-
 
 ;;;; With-Compilation-Unit:
 
-;;; True if we are within a With-Compilation-Unit form, which normally causes
-;;; nested uses to be NOOPS.
+;;; True if we are within a With-Compilation-Unit form, which normally
+;;; causes nested uses to be NOOPS.
 ;;;
 (defvar *in-compilation-unit* nil)
 
@@ -1560,7 +1517,6 @@
 (defvar *aborted-compilation-units*)
 
 (declaim (special c::*context-declarations*))
-
 
 ;;; EVALUATE-DECLARATION-CONTEXT  --  Internal
 ;;;
@@ -1611,7 +1567,6 @@
 	  (t
 	   (error "Unknown declaration context: ~S." context))))))
 
-
 ;;; PROCESS-CONTEXT-DECLARATIONS  --  Internal
 ;;;
 ;;;    Given a list of context declaration specs, return a new value for
@@ -1629,7 +1584,6 @@
 	      (rest decl))))
     decls)
    c::*context-declarations*))
-
 
 ;;; With-Compilation-Unit  --  Public
 ;;;
@@ -1751,3 +1705,22 @@
 		   (setq ,n-abort-p nil))
 	       (when ,n-abort-p
 		 (incf *aborted-compilation-units*))))))))
+
+
+;;; Public.
+;;;
+(defmacro in-directory (directory &body forms)
+  (let ((cwd (gensym)))
+    `(let ((,cwd (default-directory)))
+       (unwind-protect
+	   (progn
+	     (setf (ext:default-directory) (directory-namestring ,directory))
+	     ,@forms)
+	 (setf (ext:default-directory) ,cwd)))))
+
+;;; Public.
+;;;
+;;; FIX why macro? (think should use macros only for changes to eval)
+(defmacro number-string (number)  ;; FIX and string-number? parse-integer
+  `(let ((*print-base* 10)) ; FIX
+     (prin1-to-string ,number)))

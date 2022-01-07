@@ -1,6 +1,6 @@
 ;;; Scribe mode.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 

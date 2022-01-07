@@ -9,7 +9,7 @@
 ;;; is mapped in memory.  Such lines are called "buffered".  This stuff
 ;;; links up with the file-reading stuff and the line-image building stuff.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(line linep line-previous line-next line-plist line-signature))
 

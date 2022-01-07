@@ -1,4 +1,4 @@
-(in-package "HI")
+(in-package "EDI")
 
 (defun %sp-byte-blt (src start dest dstart end)
   (%primitive byte-blt src start dest dstart end))

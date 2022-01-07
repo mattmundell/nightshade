@@ -3,7 +3,7 @@
 ;;; This code is VERY similar to that in Pane-Stream.Lisp.  The biggest
 ;;; (if only) difference is in TTY-HUNK-STREAM-NEWLINE.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 
 

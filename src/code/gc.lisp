@@ -1,19 +1,4 @@
-;;; -*- Mode: Lisp; Package: LISP; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/gc.lisp,v 1.21.2.2 2000/05/23 16:36:31 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Garbage collection and allocation related code.
-;;;
-;;; Written by Christopher Hoover, Rob MacLachlan, Dave McDonald, et al.
-;;; New code for MIPS port by Christopher Hoover.
-;;; 
 
 (in-package "EXTENSIONS")
 (export '(*before-gc-hooks* *after-gc-hooks* gc gc-on gc-off
@@ -79,7 +64,7 @@
 	  ((= start (dynamic-1-space-start))
 	   1)
 	  (t
-	   (error "Oh no.  The current dynamic space is missing!")))))
+	   (error "The current dynamic space is missing!")))))
 
 
 ;;;; Room.
@@ -110,12 +95,12 @@
 
 (defun room (&optional (verbosity :default))
   "Prints to *STANDARD-OUTPUT* information about the state of internal
-  storage and its management.  The optional argument controls the
-  verbosity of ROOM.  If it is T, ROOM prints out a maximal amount of
-  information.  If it is NIL, ROOM prints out a minimal amount of
-  information.  If it is :DEFAULT or it is not supplied, ROOM prints out
-  an intermediate amount of information.  See also VM:MEMORY-USAGE and
-  VM:INSTANCE-USAGE for finer report control."
+   storage and its management.  The optional argument controls the
+   verbosity of ROOM.  If it is T, ROOM prints out a maximal amount of
+   information.  If it is NIL, ROOM prints out a minimal amount of
+   information.  If it is :DEFAULT or it is not supplied, ROOM prints out
+   an intermediate amount of information.  See also VM:MEMORY-USAGE and
+   VM:INSTANCE-USAGE for finer report control."
   (fresh-line)
   (if (fboundp 'vm:memory-usage)
       (case verbosity
@@ -126,17 +111,15 @@
 	(:default
 	 (room-intermediate-info))
 	(t
-	 (error "No way man!  The optional argument to ROOM must be T, NIL, ~
-		 or :DEFAULT.~%What do you think you are doing?")))
+	 (error "The optional argument to ROOM must be T, NIL or :DEFAULT.")))
       (room-minimal-info))
   (values))
 
 
 ;;;; GET-BYTES-CONSED.
 
-;;;
 ;;; Internal State
-;;; 
+;;;
 (defvar *last-bytes-in-use* nil)
 (defvar *total-bytes-consed* 0)
 
@@ -144,7 +127,7 @@
 (declaim (type integer *total-bytes-consed*))
 
 ;;; GET-BYTES-CONSED -- Exported
-;;; 
+;;;
 (defun get-bytes-consed ()
   "Returns the number of bytes consed since the first time this function
   was called.  The first time it is called, it returns zero."
@@ -160,16 +143,16 @@
   *total-bytes-consed*)
 
 
-;;;; Variables and Constants.
+;;;; Variables and constants.
 
 ;;; The default value of *BYTES-CONSED-BETWEEN-GCS* and *GC-TRIGGER*.
-;;; 
+;;;
 (defconstant default-bytes-consed-between-gcs 2000000)
 
 ;;; This variable is the user-settable variable that specifices the
 ;;; minimum amount of dynamic space which must be consed before a GC
 ;;; will be triggered.
-;;; 
+;;;
 (defvar *bytes-consed-between-gcs* default-bytes-consed-between-gcs
   "This number specifies the minimum number of bytes of dynamic space
    that must be consed before the next gc will occur.")
@@ -187,7 +170,7 @@
 ;;; amount, the system notes that a garbage collection needs to occur by
 ;;; setting *NEED-TO-COLLECT-GARBAGE* to T.  It starts out as NIL meaning
 ;;; nobody has figured out what it should be yet.
-;;; 
+;;;
 (defvar *gc-trigger* nil)
 
 (declaim (type (or index null) *gc-trigger*))
@@ -200,35 +183,31 @@
 #+(or ibmrt x86)
 (defvar vm::*internal-gc-trigger*)
 
-;;;
 ;;; The following specials are used to control when garbage collection
 ;;; occurs.
-;;; 
+;;;
 
-;;; 
 ;;; *GC-INHIBIT*
 ;;;
 ;;; When non-NIL, inhibits garbage collection.
-;;; 
+;;;
 (defvar *gc-inhibit* nil)
 
-;;;
 ;;; *ALREADY-MAYBE-GCING*
 ;;;
 ;;; This flag is used to prevent recursive entry into the garbage
 ;;; collector.
-;;; 
+;;;
 (defvar *already-maybe-gcing* nil)
 
 ;;; When T, indicates that the dynamic usage has exceeded the value
 ;;; *GC-TRIGGER*.
-;;; 
+;;;
 (defvar *need-to-collect-garbage* nil)
 
 
 ;;;; GC Hooks.
 
-;;;
 ;;; *BEFORE-GC-HOOKS*
 ;;; *AFTER-GC-HOOKS*
 ;;;
@@ -238,14 +217,13 @@
 (defvar *before-gc-hooks* nil
   "A list of functions that are called before garbage collection occurs.
   The functions should take no arguments.")
-;;; 
+;;;
 (defvar *after-gc-hooks* nil
   "A list of functions that are called after garbage collection occurs.
   The functions should take no arguments.")
 
-;;;
 ;;; *GC-INHIBIT-HOOK*
-;;; 
+;;;
 ;;; This hook is invoked whenever SUB-GC intends to GC (unless the GC
 ;;; was explicitly forced by calling EXT:GC).  If the hook function
 ;;; returns NIL then the GC procedes; otherwise, the GC is inhibited and
@@ -258,9 +236,6 @@
   usage.  The function should return NIL if garbage collection should
   continue and non-NIL if it should be inhibited.  Use with caution.")
 
-
-
-;;;
 ;;; *GC-VERBOSE*
 ;;;
 (defvar *gc-verbose* t
@@ -268,7 +243,6 @@
   *GC-NOTIFY-AFTER* to be called before and after a garbage collection
   occurs respectively.  If :BEEP, causes the default notify functions to beep
   annoyingly.")
-
 
 (defun default-gc-notify-before (bytes-in-use)
   (when (eq *gc-verbose* :beep)
@@ -323,37 +297,34 @@
 (defun clear-auto-gc-trigger ()
   (setf rt::*internal-gc-trigger* -1))
 
-;;;
 ;;; *INTERNAL-GC*
 ;;;
 ;;; This variables contains the function that does the real GC.  This is
 ;;; for low-level GC experimentation.  Do not touch it if you do not
 ;;; know what you are doing.
-;;; 
+;;;
 (defvar *internal-gc* #'collect-garbage)
 
 
 ;;;; SUB-GC
 
-;;;
 ;;; CAREFULLY-FUNCALL -- Internal
 ;;;
 ;;; Used to carefully invoke hooks.
-;;; 
+;;;
 (defmacro carefully-funcall (function &rest args)
   `(handler-case (funcall ,function ,@args)
      (error (cond)
        (warn "(FUNCALL ~S~{ ~S~}) lost:~%~A" ',function ',args cond)
        nil)))
 
-;;;
 ;;; SUB-GC -- Internal
 ;;;
 ;;; SUB-GC decides when and if to do a garbage collection.  The
 ;;; VERBOSE-P flag controls whether or not the notify functions are
 ;;; called.  The FORCE-P flags controls if a GC should occur even if the
 ;;; dynamic usage is not greater than *GC-TRIGGER*.
-;;; 
+;;;
 ;;; For GENCGC all generations < GEN will be GC'ed.
 ;;;
 (defun sub-gc (&key (verbose-p *gc-verbose*) force-p #+gencgc (gen 0))
@@ -410,22 +381,20 @@
       (incf *gc-run-time* (- (get-internal-run-time) start-time))))
   nil)
 
-;;;
 ;;; MAYBE-GC -- Internal
-;;; 
+;;;
 ;;; This routine is called by the allocation miscops to decide if a GC
 ;;; should occur.  The argument, object, is the newly allocated object
 ;;; which must be returned to the caller.
-;;; 
+;;;
 (defun maybe-gc (&optional object)
   (sub-gc)
   object)
 
-;;;
 ;;; GC -- Exported
 ;;;
 ;;; This is the user advertised garbage collection function.
-;;; 
+;;;
 #-gencgc
 (defun gc (&optional (verbose-p *gc-verbose*))
   "Initiates a garbage collection.  The optional argument, VERBOSE-P,
@@ -465,7 +434,6 @@
 ;;;
 (defsetf bytes-consed-between-gcs %set-bytes-consed-between-gcs)
 
-
 (defun gc-on ()
   "Enables the garbage collector."
   (setq *gc-inhibit* nil)
@@ -477,7 +445,6 @@
   "Disables the garbage collector."
   (setq *gc-inhibit* t)
   nil)
-
 
 
 ;;;; Initialization stuff.

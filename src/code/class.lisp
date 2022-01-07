@@ -1,54 +1,44 @@
-;;; -*- Package: Kernel -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/class.lisp,v 1.36.2.5 2000/08/08 13:41:46 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains structures and functions for the maintenance of basic
-;;; information about defined types.  Different object systems can be supported
-;;; simultaneously.  Some of the functions here are nominally generic, and are
-;;; overwritten when CLOS is loaded.
-;;;
+;;; This file contains structures and functions for the maintenance of
+;;; basic information about defined types.  More than one object system can
+;;; be supported simultaneously.  FIX Some of the functions here are
+;;; nominally generic, and are overwritten when CLOS is loaded.
+
 (in-package "KERNEL")
 
 (export '(layout layout-hash layout-hash-length layout-hash-max
-		 initialize-layout-hash layout-class layout-invalid
-		 layout-inherits layout-inheritance-depth layout-length
-		 layout-info layout-pure
-		 layout-of structure-class-p
-		 slot-class-print-function
-		 structure-class-make-load-form-fun find-layout
-		 class-proper-name class-layout class-state
-		 class-direct-superclasses class-subclasses
-		 class-pcl-class class-init register-layout
-		 basic-structure-class slot-class funcallable-instance
-		 funcallable-structure-class
-		 make-funcallable-structure-class
-		 funcallable-structure-class-p make-standard-class
-		 random-pcl-class make-random-pcl-class
-		 built-in-class-direct-superclasses
-		 find-class-cell class-cell-name class-cell-class
-		 make-layout make-undefined-class insured-find-class
-		 redefine-layout-warning std-compute-class-precedence-list))
+	  initialize-layout-hash layout-class layout-invalid
+	  layout-inherits layout-inheritance-depth layout-length
+	  layout-info layout-pure
+	  layout-of structure-class-p
+	  slot-class-print-function
+	  structure-class-make-load-form-fun find-layout
+	  class-proper-name class-layout class-state
+	  class-direct-superclasses class-subclasses
+	  class-pcl-class class-init register-layout
+	  basic-structure-class slot-class funcallable-instance
+	  funcallable-structure-class
+	  make-funcallable-structure-class
+	  funcallable-structure-class-p make-standard-class
+	  random-pcl-class make-random-pcl-class
+	  built-in-class-direct-superclasses
+	  find-class-cell class-cell-name class-cell-class
+	  make-layout make-undefined-class insured-find-class
+	  redefine-layout-warning std-compute-class-precedence-list))
 
 (in-package "LISP")
 (export '(class structure-class standard-class class-name find-class class-of
-		built-in-class))
+	  built-in-class))
 
 (in-package "KERNEL")
 
 (with-cold-load-init-forms)
 
-;;; Table mapping class names to layouts for classes we have referenced but not
-;;; yet loaded.  This is initialized from an ALIST created by Genesis
-;;; describing the layouts it created at cold-load time.  *LAYOUT-HASH-INITS*
-;;; is a list of all the layouts whose hash hasn't been initialized.  We delay
-;;; this because the random-number generator needs top-level forms to work.
+;;; Table mapping class names to layouts for classes we have referenced but
+;;; are still to be loaded.  This is initialized from an ALIST created by
+;;; Genesis describing the layouts it created at cold-load time.
+;;; *LAYOUT-HASH-INITS* is a list of all the layouts whose hash hasn't been
+;;; initialized.  We delay this because the random-number generator needs
+;;; top-level forms to work.
 ;;;
 (defvar *forward-referenced-layouts*)
 (defvar lisp::*initial-layouts*)
@@ -110,12 +100,12 @@
   (invalid nil)
   ;;
   ;; Vector of the layouts for all classes we inherit.  If hierarchical
-  ;; these are in order from most general down to (but not including) this
-  ;; class.
+  ;; these are in order from most general down to the direct superclasses
+  ;; of this class.
   (inherits #() :type simple-vector)
   ;;
-  ;; Number of classes this class hierachically inherits
-  ;; (length inherits), or -1 if not hierarchical.
+  ;; Number of classes this class hierachically inherits (length inherits),
+  ;; or -1 if not hierarchical.
   (inheritance-depth -1 :type (or index (integer -1 -1)))
   ;;
   ;; The number of top-level descriptor cells in each instance.
@@ -126,10 +116,10 @@
   (info nil)
   ;;
   ;; True if objects of this class are never modified to contain dynamic
-  ;; pointers in their slots or constant-like substructure (hence can be copied
-  ;; into read-only space by purify.)
+  ;; pointers in their slots or constant-like substructure (hence can be
+  ;; copied into read-only space by purify.)
   ;;
-  ;; ### this slot is known to the C startup code.
+  ;; ### This slot is known to the C startup code.
   (pure nil :type (member t nil 0)))
 
 ;;; MAKE-LAYOUT  --  Interface
@@ -246,12 +236,12 @@
   (direct-superclasses () :type list)
   ;;
   ;; Representation of all of the subclasses (direct or indirect) of this
-  ;; class.  NIL if no subclasses or not initalized yet.  Otherwise, an EQ
-  ;; hash-table mapping class-objects to the subclass layout that was in effect
-  ;; at the time the subclass was created.
+  ;; class.  NIL if leaf or still to be initalized.  Otherwise, an EQ
+  ;; hash-table mapping class-objects to the subclass layout that was in
+  ;; effect at the time the subclass was created.
   (subclasses nil :type (or hash-table null))
   ;;
-  ;; The PCL class object, or NIL if none assigned yet.
+  ;; FIX The PCL class object, or NIL if none assigned yet.
   (pcl-class nil))
 ;;;
 (defun class-make-load-form-fun (class)
@@ -278,7 +268,7 @@
 
 
 ;;; BUILT-IN-CLASS is used to represent the standard classes that aren't
-;;; defined with DEFSTRUCT and other specially implemented primitve types whose
+;;; defined with DEFSTRUCT and other specially implemented primitive types whose
 ;;; only attribute is their name.
 ;;;
 ;;; Some BUILT-IN-CLASSes have a TRANSLATION, which means that they are
@@ -290,8 +280,9 @@
 ;;;
 (defstruct (built-in-class (:include class))
   ;;
-  ;; Type we translate to on parsing.  If NIL, then this class stands on its
-  ;; own.  Only :INITIALIZING during for a period during cold-load.  See below.
+  ;; Type we translate to on parsing.  If NIL, then this class stands on
+  ;; its own.  Only :INITIALIZING for a period during cold-load.  See
+  ;; below.
   (translation nil :type (or ctype (member nil :initializing))))
 
 ;;; Class with print function, but not necessarily a structure class.
@@ -339,7 +330,7 @@
 	    (:print-function
 	     (lambda (s stream d)
 	       (declare (ignore d))
-	       (print-unreadable-object (s stream :type t) 
+	       (print-unreadable-object (s stream :type t)
 		 (prin1 (class-cell-name s) stream))))
 	    (:make-load-form-fun
 	     (lambda (cell)
@@ -465,7 +456,7 @@
 	  (values (res) t))
 	(values *empty-type* t))))
 
-    
+
 ;;; If one is a subclass of the other, then that is the intersection, but we
 ;;; can only be sure the intersection is otherwise empty if they are structure
 ;;; classes, since a subclass of both might be defined.  If either class is
@@ -494,11 +485,11 @@
   (class-proper-name type))
 
 
-;;;; Built-in classes & class-of:
+;;;; Built-in classes and class-of.
 ;;;
 ;;;    The BUILT-IN-CLASSES list is a data structure which configures the
-;;; creation of all the built-in classes.  It contains all the info that we
-;;; need to maintain the mapping between classes, compile-time types and
+;;; creation of all the built-in classes.  It contains all the info that is
+;;; needed to maintain the mapping between classes, compile-time types and
 ;;; run-time type codes.  These options are defined:
 ;;;
 ;;; :TRANSLATION (default none)
@@ -524,13 +515,13 @@
 ;;;     Run-time type codes which should be translated back to this class by
 ;;;     CLASS-OF.  Unspecified for abstract classes.
 ;;;
-;;; :INHERITS (default this class & T)
+;;; :INHERITS (default this class and T)
 ;;;     The class-precedence list for this class, with this class and T
 ;;;     implicit.
 ;;;
-;;; :DIRECT-SUPERCLASSES (default to head of CPL)
+;;; :DIRECT-SUPERCLASSES (default to head of CPL)    ; FIX CPL?
 ;;;     List of the direct superclasses of this class.
-;;; 
+;;;
 
 (defvar built-in-classes)
 (cold-load-init
@@ -539,11 +530,11 @@
 	  (character :enumerable t :translation base-char)
 	  (base-char :enumerable t :inherits (character)
 		     :codes (#.vm:base-char-type))
-	  
+
 	  (symbol :codes (#.vm:symbol-header-type))
-	  
+
 	  (instance :state :read-only)
-	  
+
 	  (system-area-pointer :codes (#.vm:sap-type))
 	  (weak-pointer :codes (#.vm:weak-pointer-type))
 	  (scavenger-hook #+(or gengc gencgc) :codes
@@ -552,7 +543,7 @@
 	  #-gengc (lra :codes (#.vm:return-pc-header-type))
 	  (fdefn :codes (#.vm:fdefn-type))
 	  (random-class) ; Used for unknown type codes.
-	  
+
 	  (function
 	   :codes
 	   (#.vm:byte-code-closure-type
@@ -560,7 +551,7 @@
 	    #.vm:closure-header-type  #.vm:function-header-type)
 	   :state :read-only)
 	  (funcallable-instance :inherits (function)  :state :read-only)
-	  
+
 	  (collection :hierarchical nil  :state :read-only)
 	  (explicit-key-collection :state :read-only  :inherits (collection))
 	  (mutable-collection :state :read-only  :inherits (collection))
@@ -792,7 +783,7 @@
 			    (integer (#.vm:target-most-positive-fixnum) *))
 	   :inherits (integer rational real number generic-number)
 	   :codes (#.vm:bignum-type))
-	  
+
 	  (list :translation (or cons (member nil))
 		:inherits (sequence mutable-sequence mutable-collection
 			   generic-sequence collection))
@@ -830,8 +821,7 @@
 			(mapcar #'find-class direct-superclasses)))))
 	(setf (info type kind name) :primitive)
 	(setf (class-cell-class (find-class-cell name)) class)
-	(unless trans-p
-	  (setf (info type builtin name) class))
+	(or trans-p (setf (info type builtin name) class))
 	(let* ((inheritance-depth (if hierarchical
 				      (or depth (length inherits))
 				      -1))
@@ -847,6 +837,7 @@
 	   (find-layout name 0 inherit-layouts inheritance-depth)
 	   :invalidate nil))))))
 
+;; FIX
 ;;; Define temporary PCL standard-classes; these will be setup
 ;;; correctly and the lisp layout replaced by a PCL wrapper after PCL
 ;;; is loaded and the class defined.
@@ -914,7 +905,7 @@
 (declaim (inline class-of))
 (defun class-of (object)
   "Return the class of the supplied object, which may be any Lisp object, not
-   just a CLOS STANDARD-OBJECT."
+   just a CLOS STANDARD-OBJECT." ;; FIX
   (layout-class (layout-of object)))
 
 
@@ -963,7 +954,7 @@
 ;;; classes.)
 ;;; -- If INVALIDATE, then all the layouts for any old definition
 ;;;    and subclasses are invalidated, and the SUBCLASSES slot is cleared.
-;;  -- If DESTRUCT-LAYOUT, then this is some old layout, and is to be
+;;; -- If DESTRUCT-LAYOUT, then this is some old layout, and is to be
 ;;;    destructively modified to hold the same type information.
 ;;;
 (defun register-layout (layout &key (invalidate t) destruct-layout)
@@ -981,7 +972,7 @@
       (when invalidate
 	(invalidate-layout class-layout)
 	(setf (class-subclasses class) nil)))
-    
+
     (cond (destruct-layout
 	   (setf (layout-invalid destruct-layout) nil)
 	   (setf (layout-inherits destruct-layout) (layout-inherits layout))
@@ -1210,7 +1201,7 @@
       (topological-sort classes constraints #'std-cpl-tie-breaker))))
 
 
-;;; PCL stuff:
+;;; FIX PCL stuff:
 
 (defstruct (std-class (:include class)))
 (defstruct (standard-class (:include std-class)))

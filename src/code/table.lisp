@@ -1,23 +1,23 @@
-;;; This file defines a data structure, analogous to a Common Lisp
-;;; hashtable, which translates strings to values and facilitates
-;;; recognition and completion of these strings.
+;;; This file defines a data structure, analogous to a hashtable, which
+;;; translates strings to values and facilitates recognition and completion
+;;; of these strings.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EXT")
 
 (export '(string-table string-table-p make-string-table
-		       string-table-separator getstring
-		       find-ambiguous complete-string find-containing
-		       delete-string clrstring
-		       do-strings)) ; in macros.lisp
+	  string-table-separator getstring
+	  find-ambiguous complete-string find-containing
+	  delete-string clrstring
+	  do-strings)) ; in macros.lisp
 
 
 ;;;; Implementation Details
 
-;;; String tables are a data structure somewhat analogous to Common Lisp
-;;; hashtables.  String tables are case-insensitive.  Functions are
-;;; provided to quickly look up strings, insert strings, disambiguate or
-;;; complete strings, and to provide a variety of ``help'' when
-;;; disambiguating or completing strings.
+;;; String tables are a data structure somewhat analogous to hashtables.
+;;; String tables are case-insensitive.  Functions are provided to quickly
+;;; look up strings, insert strings, disambiguate or complete strings, and
+;;; to provide a variety of ``help'' when disambiguating or completing
+;;; strings.
 ;;;
 ;;; String tables are represented as a series of word tables which form
 ;;; a tree.  Four structures are used to implement this data structure.
@@ -55,7 +55,7 @@
 (defstruct (string-table
 	    (:constructor %make-string-table (separator))
 	    (:print-function print-string-table))
-  "This structure is used to implement the editor string-table type."
+  "This structure is used to implement the string-table type."
   ;; Character used to
   (separator #\Space :type base-char) ; character used for word separator
   (num-nodes 0 :type fixnum)		   ; number of nodes in string table
@@ -67,20 +67,18 @@
   (format stream "#<String Table>"))
 
 (defun make-string-table (&key (separator #\Space) initial-contents)
-  "Creates and returns an editor string-table.  If Intitial-Contents is
-   supplied in the form of an A-list of string-value pairs, these pairs
-   will be used to initialize the table.  If Separator, which must be a
-   base-char, is specified then it will be used to distinguish word
-   boundaries."
+  "Creates and returns a string-table.  If Initial-Contents is supplied in
+   the form of an A-list of string-value pairs, these pairs will be used to
+   initialize the table.  If Separator, which must be a base-char, is
+   specified then it will be used to distinguish word boundaries."
   (let ((table (%make-string-table separator)))
     (dolist (x initial-contents)
       (setf (getstring (car x) table) (cdr x)))
     table))
 
-
 (defstruct (word-table
 	    (:print-function print-word-table))
-  "This structure is a word-table which is part of an editor string-table."
+  "This structure is a word-table which is part of a string-table."
   (num-words 0 :type fixnum)		   ; Number of words
   (words (make-array initial-word-table-size))) ; Array of WORD-ENTRY's
 
@@ -88,11 +86,10 @@
   (declare (ignore table depth))
   (format stream "#<Word Table>"))
 
-
 (defstruct (word-entry
 	    (:constructor make-word-entry (folded))
 	    (:print-function print-word-entry))
-  "This structure is an entry in a word table which is part of an editor
+  "This structure is an entry in a word table which is part of a
    string-table."
   next-table				   ; Pointer to next WORD-TABLE
   folded				   ; Downcased word
@@ -102,11 +99,10 @@
   (declare (ignore depth))
   (format stream "#<Word Table Entry: \"~A\">" (word-entry-folded entry)))
 
-
 (defstruct (value-node
 	    (:constructor make-value-node (proper folded value))
 	    (:print-function print-value-node))
-  "This structure is a node containing a value in an editor string-table."
+  "This structure is a node containing a value in a string-table."
   folded				   ; Downcased copy of string
   proper				   ; Proper copy of string entry
   value)				   ; Value of entry
@@ -118,14 +114,13 @@
 
 ;;;; Bi-SvPosition, String-Compare, String-Compare*
 
-;;; Much like the CL function POSITION; however, this is a fast binary
-;;; search for simple vectors.  Vector must be a simple vector and Test
-;;; must be a function which returns either :equal, :less, or :greater.
-;;; (The vector must be sorted from lowest index to highest index by the
-;;; Test function.)  Two values are returned: the first is the position
-;;; Item was found or if it was not found, where it should be inserted;
-;;; the second is a boolean flag indicating whether or not Item was
-;;; found.
+;;; Much like the function POSITION; however, this is a fast binary search
+;;; for simple vectors.  Vector must be a simple vector and Test must be a
+;;; function which returns either :equal, :less, or :greater.  (The vector
+;;; must be sorted from lowest index to highest index by the Test
+;;; function.)  Two values are returned: the first is the position Item was
+;;; found or if it was not found, where it should be inserted; the second
+;;; is a boolean flag indicating whether or not Item was found.
 ;;;
 (defun bi-svposition (item vector test &key (start 0) end key)
   (declare (simple-vector vector) (fixnum start))
@@ -160,8 +155,7 @@
 		((char< (schar s1 (the fixnum pos1)) (schar s2 pos2)) :less)
 		(t :greater))))))
 
-;;; Macro to return a closure to call STRING-COMPARE with the given
-;;; keys.
+;;; Macro to return a closure to call STRING-COMPARE with the given keys.
 ;;;
 (defmacro string-compare* (&rest keys)
   `#'(lambda (x y) (string-compare x y ,@keys)))
@@ -242,8 +236,8 @@
   `(let ((,str-var *string-buffer*))
      (declare (simple-string ,str-var))
      ;; make the string simple if it isn't already
-     (unless (simple-string-p ,orig-str)
-       (setq ,orig-str (coerce ,orig-str 'simple-string)))
+     (or (simple-string-p ,orig-str)
+	 (setq ,orig-str (coerce ,orig-str 'simple-string)))
      ;; munge it into *string-buffer* and do the body
      (let ((,len-var (with-folded-munge-string ,orig-str ,separator)))
        ,@decls
@@ -288,10 +282,9 @@
 ;;;; Getstring, Setf Method for Getstring
 
 (defun getstring (string string-table)
-  "Looks up String in String-Table.  Returns two values: the first is
-  the value of String or NIL if it does not exist; the second is a
-  boolean flag indicating whether or not String was found in
-  String-Table."
+  "Looks up String in String-Table.  Returns two values: the first is the
+   value of String or NIL if it does not exist; the second is a boolean
+   flag indicating whether or not String was found in String-Table."
   (with-folded-string (folded len string (string-table-separator string-table))
     (let ((nodes (string-table-value-nodes string-table))
 	  (num-nodes (string-table-num-nodes string-table)))
@@ -305,8 +298,8 @@
 	    (values nil nil))))))
 
 (defun %set-string-table (string table value)
-  "Sets the value of String in Table to Value.  If necessary, creates
-  a new entry in the string table."
+  "Sets the value of String in Table to Value.  If necessary, creates a new
+   entry in the string table."
   (with-folded-string (folded len string (string-table-separator table))
     (when (zerop len)
       (error "An empty string cannot be inserted into a string-table."))
@@ -332,6 +325,9 @@
 		 ;; insert it into the word tree
 		 (%set-insert-words folded word-table node))))))
     value))
+;;
+(defsetf getstring %set-string-table
+  "Sets the value for a string-table entry, making a new one if necessary.")
 
 (defun %set-insert-words (folded first-word-table value-node)
   (declare (simple-string folded))
@@ -390,8 +386,8 @@
 ;;;; Find-Ambiguous
 
 (defun find-ambiguous (string string-table)
-  "Returns a list, in alphabetical order, of all the strings in String-Table
-  which String matches."
+  "Returns a list, in alphabetical order, of all the strings in
+   String-Table which String matches."
   (with-folded-string (folded len string (string-table-separator string-table))
     (find-ambiguous* folded len string-table)))
 
@@ -467,7 +463,7 @@
 
 (defun find-containing (string string-table)
   "Return a list in alphabetical order of all the strings in Table which
-  contain String as a substring."
+   contain String as a substring."
   (with-folded-string (folded len string (string-table-separator string-table))
     (declare (ignore len))
     (let ((word-table (string-table-first-word-table string-table))
@@ -564,7 +560,7 @@
     (loop
       (setf give-pos (position separator given :start give-pos :test #'char=))
       (setf best-pos (position separator best :start best-pos :test #'char=))
-      (unless (and give-pos best-pos) (return best-pos))
+      (or (and give-pos best-pos) (return best-pos))
       (incf (the fixnum give-pos))
       (incf (the fixnum best-pos)))))
 

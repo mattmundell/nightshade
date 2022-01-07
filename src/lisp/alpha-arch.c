@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "lisp.h"
+#include "nightshade.h"
 #include "globals.h"
 #include "validate.h"
 #include "os.h"
@@ -46,7 +46,7 @@ os_vm_address_t arch_get_bad_addr(int sig, int code, struct sigcontext *scp)
   if((scp->sc_pc & 3) != 0) return NULL;
 
   if( (scp->sc_pc < READ_ONLY_SPACE_START ||
-       scp->sc_pc >= READ_ONLY_SPACE_START+READ_ONLY_SPACE_SIZE) && 
+       scp->sc_pc >= READ_ONLY_SPACE_START+READ_ONLY_SPACE_SIZE) &&
       ((lispobj *)scp->sc_pc < current_dynamic_space ||
        (lispobj *)scp->sc_pc >= current_dynamic_space + dynamic_space_size))
     return NULL;
@@ -90,7 +90,7 @@ unsigned long arch_install_breakpoint(void *pc)
   unsigned int *ptr = (unsigned int *)pc;
   unsigned long result = (unsigned long) *ptr;
   *ptr = BREAKPOINT_INST;
-  
+
   os_flush_icache((os_vm_address_t)ptr, sizeof(unsigned long));
 
   return result;
@@ -121,7 +121,7 @@ emulate_branch(struct sigcontext *scp,unsigned long orig_inst)
   int fn = orig_inst & 0xffff;
   int disp = (orig_inst&(1<<20)) ? orig_inst | (-1 << 21) : orig_inst&0x1fffff;
   int next_pc = scp->sc_pc;
-  int branch = NULL;	      
+  int branch = NULL;
 
   switch(op) {
   case 0x1a: /* jmp, jsr, jsr_coroutine, ret */
@@ -190,7 +190,7 @@ void arch_do_displaced_inst(struct sigcontext *scp,
   unsigned int *next_pc;
   unsigned int next_inst;
   int op = orig_inst >> 26;;
-  
+
 #ifdef POSIX_SIGS
 #if !defined(__linux__) || (defined(__linux__) && (__GNU_LIBRARY__ < 6))
   orig_sigmask = context->uc_sigmask;
@@ -202,7 +202,7 @@ void arch_do_displaced_inst(struct sigcontext *scp,
     orig_sigmask.__val[0] = scp->uc_sigmask;
     temp.__val[0] = scp->uc_sigmask;
     FILLBLOCKSET(&temp);
-    
+
     scp->uc_sigmask = temp.__val[0];
   }
 #endif

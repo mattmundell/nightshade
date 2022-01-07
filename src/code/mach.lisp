@@ -1,17 +1,4 @@
-;;; -*- Package: MACH -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/mach.lisp,v 1.4 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the low-level support for MACH features not found
-;;; in UNIX.
-;;;
+;;; Low-level UNIX support for MACH-only features.
 
 (in-package "MACH")
 (use-package "ALIEN")
@@ -31,7 +18,6 @@
 (def-alien-routine ("task_self" mach-task_self) port)
 (def-alien-routine ("thread_reply" mach-task_data) port)
 (def-alien-routine ("task_notify" mach-task_notify) port)
-
 
 
 ;;;; Return codes.
@@ -62,47 +48,46 @@
 ;;;
 (defun gr-error (function gr &optional context)
   "Signal an error indicating that Function returned code GR.  If the code
-  is success, then do nothing."
-  (unless (eql gr kern-success)
-    (error "~S~@[ ~A~], ~(~A~)." function context (get-mach-error-msg gr))))
+   is success, then do nothing."
+  (or (eql gr kern-success)
+      (error "~S~@[ ~A~], ~(~A~)." function context (get-mach-error-msg gr))))
 
 ;;; GR-Call  --  Public
 ;;;
 (defmacro gr-call (fun &rest args)
   "GR-Call Function {Arg}*
-  Call the function with the specified Args and signal an error if the
-  first value returned is not mach:kern-success.  Nil is returned."
+   Call the function with the specified Args and signal an error if the
+   first value returned is not mach:kern-success.  Nil is returned."
   (let ((n-gr (gensym)))
     `(let ((,n-gr (,fun ,@args)))
-       (unless (eql ,n-gr kern-success) (gr-error ',fun ,n-gr)))))
+       (or (eql ,n-gr kern-success) (gr-error ',fun ,n-gr)))))
 
 ;;; GR-Call*  --  Public
 ;;;
 (defmacro gr-call* (fun &rest args)
   "GR-Call* Function {Arg}*
-  Call the function with the specified Args and signal an error if the
-  first value returned is not mach:kern-success.  The second value is
-  returned."
+   Call the function with the specified Args and signal an error if the
+   first value returned is not mach:kern-success.  The second value is
+   returned."
   (let ((n-gr (gensym))
 	(n-res (gensym)))
     `(multiple-value-bind (,n-gr ,n-res) (,fun ,@args)
-       (unless (eql ,n-gr kern-success) (gr-error ',fun ,n-gr))
+       (or (eql ,n-gr kern-success) (gr-error ',fun ,n-gr))
        ,n-res)))
 
 ;;; GR-Bind  --  Public
 ;;;
 (defmacro gr-bind (vars (fun . args) &body (body decls))
   "GR-Bind ({Var}*) (Function {Arg}*) {Form}*
-  Call the function with the specified Args and signal an error if the
-  first value returned is not mach:Kern-Success.  If the call succeeds,
-  the Forms are evaluated with remaining return values bound to the
-  Vars."
+   Call the function with the specified Args and signal an error if the
+   first value returned is not mach:Kern-Success.  If the call succeeds,
+   the Forms are evaluated with remaining return values bound to the
+   Vars."
   (let ((n-gr (gensym)))
     `(multiple-value-bind (,n-gr ,@vars) (,fun ,@args)
        ,@decls
-       (unless (eql ,n-gr kern-success) (gr-error ',fun ,n-gr))
+       (or (eql ,n-gr kern-success) (gr-error ',fun ,n-gr))
        ,@body)))
-
 
 
 ;;;; VM routines.
@@ -125,7 +110,6 @@
   (task port)
   (address system-area-pointer)
   (size unsigned-long))
-
 
 (def-alien-type nil
   (struct vm_statistics

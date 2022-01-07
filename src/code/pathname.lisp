@@ -1,19 +1,4 @@
-;;; -*- Package: LISP -*-
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/pathname.lisp,v 1.31.2.4 2000/07/10 06:31:59 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Machine/filesystem independent pathname functions for CMU Common Lisp.
-;;;
-;;; Written by William Lott, Paul Gleichauf and Rob MacLachlan.
-;;; Earlier version written by Jim Large and Rob MacLachlan
-;;;
-;;; **********************************************************************
+;;; Machine/filesystem independent pathname functions.
 
 (in-package "LISP")
 
@@ -309,7 +294,6 @@
 	  (matches (pattern-pieces pattern) 0 nil nil nil)
 	(values won (reverse subs))))))
 
-
 ;;; DIRECTORY-COMPONENTS-MATCH  --  Internal
 ;;;
 ;;;    Pathname-match-p for directory components. If thing is empty
@@ -337,7 +321,6 @@
 			 (directory-components-match (rest thing)
 						     (rest wild)))))))))
 
-
 ;;; COMPONENTS-MATCH -- Internal
 ;;;
 ;;;   Return true if pathname component Thing is matched by Wild.  Not
@@ -363,7 +346,6 @@
 	 ;; integer.  This branch will actually always be NIL as long is the
 	 ;; version is a fixnum.
 	 (eql thing wild)))))
-
 
 ;;; COMPARE-COMPONENT  -- Internal
 ;;;
@@ -515,7 +497,6 @@
 		 thing))))
       thing))
 
-
 ;;; MERGE-DIRECTORIES -- Internal
 ;;;
 (defun merge-directories (dir1 dir2 diddle-case)
@@ -546,6 +527,8 @@
   (declare (type path-designator pathname)
 	   (type path-designator defaults)
 	   (values pathname))
+  ;; FIX think must special case hidden files
+  ;;       so (rename ".db.TEM" ".db") produces ".db"
   (with-pathname (defaults defaults)
     (let ((pathname (let ((*default-pathname-defaults* defaults))
 		      (pathname pathname))))
@@ -727,6 +710,7 @@ a host-structure or string."
 			    (eq (host-customary-case
 				 (%pathname-host pathname))
 				:lower)))))
+
 ;;; PATHNAME-NAME -- Interface
 ;;;
 (defun pathname-name (pathname &key (case :local))
@@ -781,7 +765,6 @@ a host-structure or string."
    (offset :reader namestring-parse-error-offset :initarg :offset))
   (:report %print-namestring-parse-error))
 
-
 ;;; %PARSE-NAMESTRING -- Internal
 ;;;
 ;;;    Handle the case where parse-namestring is actually parsing a namestring.
@@ -818,7 +801,6 @@ a host-structure or string."
 		     pn-host device directory file type version)
 		    end))))))
 
-
 ;;; EXTRACT-LOGICAL-HOST-PREFIX -- Internal
 ;;;
 ;;;   If namestr begins with a colon-terminated, defined, logical host, then
@@ -833,7 +815,6 @@ a host-structure or string."
 	(values (gethash (nstring-upcase (subseq namestr start colon-pos))
 			 *logical-hosts*))
 	nil)))
-
 
 ;;; PARSE-NAMESTRING -- Interface
 ;;;
@@ -856,17 +837,16 @@ a host-structure or string."
 			  host defaults start end junk-allowed))
       (pathname
        (let ((host (if host host (%pathname-host defaults))))
-	 (unless (eq host (%pathname-host thing))
-	   (error "Hosts do not match: ~S and ~S."
-		  host (%pathname-host thing))))
+	 (or (eq host (%pathname-host thing))
+	     (error "Hosts do not match: ~S and ~S."
+		    host (%pathname-host thing))))
        (values thing start))
       (stream
        (let ((name (file-name thing)))
-	 (unless name
-	   (error "Can't figure out the file associated with stream:~%  ~S"
-		  thing))
+	 (or name
+	     (error "Can't figure out the file associated with stream:~%  ~S"
+		    thing))
 	 (values name nil)))))
-
 
 ;;; NAMESTRING -- Interface
 ;;;
@@ -881,7 +861,6 @@ a host-structure or string."
 	  (error "Cannot determine the namestring for pathnames with no ~
 		  host:~%  ~S" pathname))
 	(funcall (host-unparse host) pathname)))))
-
 
 ;;; HOST-NAMESTRING -- Interface
 ;;;
@@ -969,7 +948,6 @@ a host-structure or string."
 	(:type (frob (%pathname-type pathname)))
 	(:version (frob (%pathname-version pathname)))))))
 
-
 ;;; PATHNAME-MATCH-P -- Interface
 ;;;
 (defun pathname-match-p (in-pathname in-wildname)
@@ -987,7 +965,6 @@ a host-structure or string."
 	     (frob %pathname-name)
 	     (frob %pathname-type)
 	     (frob %pathname-version))))))
-
 
 ;;; SUBSTITUTE-INTO -- Internal
 ;;;
@@ -1043,7 +1020,6 @@ a host-structure or string."
       diddle-case)
      subs)))
 
-
 ;;; DIDNT-MATCH-ERROR  --  Internal
 ;;;
 ;;;    Called when we can't see how source and from matched.
@@ -1052,7 +1028,6 @@ a host-structure or string."
   (error "Pathname components from Source and From args to TRANSLATE-PATHNAME~@
 	  did not match:~%  ~S ~S"
 	 source from))
-
 
 ;;; TRANSLATE-COMPONENT -- Internal
 ;;;
@@ -1089,7 +1064,6 @@ a host-structure or string."
      (if (components-match source from)
 	 to
 	 (didnt-match-error source from)))))
-
 
 ;;; COMPUTE-DIRECTORY-SUBSTITUTIONS  --  Internal
 ;;;
@@ -1148,7 +1122,6 @@ a host-structure or string."
 	    (t
 	     (didnt-match-error orig-source orig-from)))))
       (subs))))
-
 
 ;;; TRANSLATE-DIRECTORIES -- Internal
 ;;;
@@ -1213,7 +1186,6 @@ a host-structure or string."
 		 (res new)))
 	      (t (res to-part)))))
 	(res))))
-
 
 ;;; TRANSLATE-PATHNAME -- Interface
 ;;;
@@ -1457,7 +1429,7 @@ a host-structure or string."
 ;;;;  As logical-pathname translations are loaded they are canonicalized as
 ;;;;  patterns to enable rapid efficent translation into physical pathnames.
 
-;;;; Utilities:
+;;;; Utilities.
 
 ;;; LOGICAL-WORD-OR-LOSE  --  Internal
 ;;;
@@ -1477,7 +1449,6 @@ a host-structure or string."
 		 :namestring word :offset i))))
     word))
 
-
 ;;; FIND-LOGICAL-HOST  --  Internal
 ;;;
 ;;;    Given a logical host or string, return a logical host.  If Error-p is
@@ -1495,7 +1466,6 @@ a host-structure or string."
 		  :format-control "Logical host not yet defined: ~S"
 		  :format-arguments (list thing)))))
     (logical-host thing)))
-
 
 ;;; INTERN-LOGICAL-HOST -- Internal
 ;;;
@@ -1547,7 +1517,6 @@ a host-structure or string."
 		  :wild
 		  x))))))
 
-
 ;;; LOGICAL-CHUNKIFY  --  Internal
 ;;;
 ;;;    Return a list of conses where the cdr is the start position and the car
@@ -1574,7 +1543,6 @@ a host-structure or string."
 		   :offset i))
 	  (chunks (cons ch i)))))
     (chunks)))
-
 
 ;;; PARSE-LOGICAL-NAMESTRING  -- Internal
 ;;;
@@ -1673,7 +1641,6 @@ a host-structure or string."
 	      (and (not (equal (directory)'(:absolute)))(directory))
 	      name type version))))
 
-
 ;;; Can't defvar here because not all host methods are loaded yet.
 (declaim (special *logical-pathname-defaults*))
 
@@ -1716,7 +1683,6 @@ a host-structure or string."
 		(t
 		 (error "Invalid directory component: ~S" dir))))))
     (apply #'concatenate 'simple-string (pieces))))
-
 
 ;;; UNPARSE-LOGICAL-PIECE -- Internal
 ;;;
@@ -1800,7 +1766,6 @@ a host-structure or string."
 		   (pathname (second tr))))))
     (res)))
 
-
 ;;; LOGICAL-PATHNAME-TRANSLATIONS -- Public
 ;;;
 (defun logical-pathname-translations (host)
@@ -1808,7 +1773,6 @@ a host-structure or string."
   (declare (type (or string logical-host) host)
 	   (values list))
   (logical-host-translations (find-logical-host host)))
-
 
 ;;; (SETF LOGICAL-PATHNAME-TRANSLATIONS) -- Public
 ;;;
@@ -1823,7 +1787,6 @@ a host-structure or string."
     (setf (logical-host-canon-transls host)
 	  (canonicalize-logical-pathname-translations translations host))
     (setf (logical-host-translations host) translations)))
-
 
 ;;; The search mechanism for loading pathname translations uses the CMUCL
 ;;; extension of search-lists.  The user can add to the library: search-list
@@ -1849,7 +1812,6 @@ a host-structure or string."
 		  (namestring (truename in-str))))
       (setf (logical-pathname-translations host) (read in-str)))
     t))
-
 
 ;;; TRANSLATE-LOGICAL-PATHNAME  -- Public
 ;;;

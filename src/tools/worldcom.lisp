@@ -3,8 +3,8 @@
 ;;; **********************************************************************
 ;;; This code was written as part of the CMU Common Lisp project at
 ;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
+;;; If you want to use this code or any part of CMU Common Lisp, please
+;;; contact Scott Fahlman or slisp-group@cs.cmu.edu.
 ;;;
 (ext:file-comment
   "$Header: /home/CVS-cmucl/src/tools/worldcom.lisp,v 1.72.2.3 2000/08/12 07:33:09 dtc Exp $")
@@ -41,10 +41,9 @@
 ;;;
 (set '*lisp-implementation-version* (read-line (open "target:VERSION")))
 
-
 ;;; these guys need to be first.
 (comf "target:code/struct") ; For structures.
-(comf "target:code/sysmacs" :byte-compile *byte-compile*)
+(comf "target:code/sysmacs" :byte-compile *byte-compile* #| FIX |# :load t)
 
 ;;; Assembly files.
 
@@ -140,7 +139,7 @@
 (with-compilation-unit
   (:optimize '(optimize (safety 1)))
   (comf "target:code/list")
-  (comf "target:code/seq")) ; seq must come after list
+  (comf "target:code/seq" #|FIX|# :load t)) ; seq must come after list
 
 (comf "target:code/string")
 (comf "target:code/mipsstrops")
@@ -226,7 +225,7 @@
 (comf "target:code/fd-stream")
 (comf "target:code/pathname")
 #-no-runtime (comf "target:code/pathname" :byte-compile t)
-(comf "target:code/filesys")
+(comf "target:code/filesys" :load t) ; FIX load for do-directories
 #-no-runtime (comf "target:code/filesys" :byte-compile t)
 (comf "target:code/load")
 (comf "target:code/module" :byte-compile *byte-compile*)
@@ -270,8 +269,14 @@
 (comf "target:code/internet")
 (comf "target:code/wire")
 (comf "target:code/remote")
+;; FIX
+(if (find-package "INTERNET")
+    (rename-package "INTERNET" "INTERNET" nil)
+    (make-package "INTERNET" :nicknames 'nil :use nil))
+(use-package '("LISP" "EXTENSIONS") "INTERNET")
+(comf "target:code/inet")
 
-;; FIX for first time
+;; FIX
 (if (find-package "FTP")
     (rename-package "FTP" "FTP" nil)
     (make-package "FTP" :nicknames 'nil :use nil))
@@ -282,6 +287,11 @@
 
 (when (c:backend-featurep :mp)
   (comf "target:code/multi-proc"))
+
+(comf "target:code/table")
+(comf "target:code/mh")
+(comf "target:code/doc")
+(comf "target:code/db")
 
 (comf "target:code/setf-funs")
 (comf "target:code/exports" :proceed t)

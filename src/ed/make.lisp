@@ -76,7 +76,8 @@
 		   (cond ((zerop (character-attribute :whitespace
 						      (char (line-string line) 0)))
 			  (setq pos (1+ dollar)))
-			 ((eq (char (line-string line) (1+ dollar)) #\$)
+			 ((and (> (line-length line) (1+ dollar))
+			       (eq (char (line-string line) (1+ dollar)) #\$))
 			  (setq pos (+ dollar 2)))
 			 (t
 			  (chi-mark line dollar variable-name-font chi-info)

@@ -1,18 +1,4 @@
-;;; -*- Log: code.log; Package: wire -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/wire.lisp,v 1.11 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains an interface to internet domain sockets.
-;;;
-;;; Written by William Lott.
-;;;
+;;; An interface to internet domain sockets.
 
 (in-package "WIRE")
 
@@ -26,7 +12,7 @@
 	  *current-wire* wire-get-bignum wire-output-bignum))
 
 
-(eval-when (compile load eval) ;For macros in remote.lisp.
+(eval-when (compile load eval) ; For macros in remote.lisp.
 
 (defconstant buffer-size 2048)
 
@@ -50,7 +36,6 @@
 
 ) ;eval-when
 
-
 (defvar *current-wire* nil
   "The wire the form we are currently evaluating came across.")
 
@@ -65,7 +50,6 @@
   "Hash table mapping remote id's to the curresponding local object.")
 (defvar *next-id* 0
   "Next available id for remote objects.")
-
 
 (defstruct (wire
             (:constructor make-wire (fd))
@@ -122,7 +106,7 @@
 		     (wire-io-error-msg condition)))))
 
 
-;;; Remote Object Randomness
+;;;; Remote Object Randomness.
 
 ;;; REMOTE-OBJECT-LOCAL-P -- public
 ;;;
@@ -159,7 +143,7 @@
 ;;; REMOTE-OBJECT-VALUE --- public
 ;;;
 ;;;   First assure that the remote object is defined locally. If so, look up
-;;; the id in *id-to-objects*. 
+;;; the id in *id-to-objects*.
 ;;; table. This will only happen if FORGET-REMOTE-TRANSLATION has been called
 ;;; on the local object.
 
@@ -218,7 +202,7 @@ object. Passing that remote object to remote-object-value will new return NIL."
   (values))
 
 
-;;; Wire input routeins.
+;;;; Wire input routines.
 
 ;;; WIRE-LISTEN -- public
 ;;;
@@ -241,7 +225,6 @@ object. Passing that remote object to remote-object-value will new return NIL."
 		 :when "listening to"
 		 :msg (unix:get-unix-error-msg error)))
 	(not (zerop number)))))
-
 
 ;;; FILL-INPUT-BUFFER -- Internal
 ;;;
@@ -363,7 +346,7 @@ signed (defaults to T)."
 	       (decf length avail)
 	       (incf (wire-ibuf-offset wire) avail)))))
     result))
-    
+
 ;;; WIRE-GET-OBJECT -- public
 ;;;
 ;;;   First, read a byte to determine the type of the object to read. Then,
@@ -467,7 +450,7 @@ signed (defaults to T)."
 	     (apply function args))))))
 
 
-;;; Wire output routines.
+;;;; Wire output routines.
 
 ;;; WRITE-STUFF -- internal
 ;;;
@@ -546,7 +529,7 @@ harmfull will happen if called when the output buffer is empty."
 ;;; WIRE-OUTPUT-BIGNUM -- public
 ;;;
 ;;; Output an arbitrary integer.
-;;; 
+;;;
 (defun wire-output-bignum (wire number)
   "Outputs an arbitrary integer, but less effeciently than WIRE-OUTPUT-NUMBER."
   (do ((digits 0 (1+ digits))
@@ -663,4 +646,3 @@ object in the cache for future reference."
 		     `(wire-output-object ,wire ,arg))
 		 args)
        (values))))
-

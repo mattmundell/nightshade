@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 
-#include "lisp.h"
+#include "nightshade.h"
 #include "internals.h"
 #include "globals.h"
 

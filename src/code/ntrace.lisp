@@ -1,20 +1,7 @@
 ;;; -*- Package: debug -*-
 ;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/ntrace.lisp,v 1.13.2.1 1998/06/23 11:22:12 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This is a tracing facility based on breakpoints.
-;;;
-;;; Written by Rob MacLachlan and Bill Chiles.
-;;;
-;;; **********************************************************************
-;;;
+;;; A tracing facility based on breakpoints.
+
 (in-package "LISP")
 
 (export '(trace untrace))
@@ -77,7 +64,7 @@
   ;; on each iteration.  Each form is represented by a cons (Form . Function),
   ;; where the Function is the cached result of coercing Form to a function.
   ;; Forms which use the current environment are converted with
-  ;; PREPROCESS-FOR-EVAL, which gives us a one-arg function.  
+  ;; PREPROCESS-FOR-EVAL, which gives us a one-arg function.
   ;; Null environment forms also have one-arg functions, but the argument is
   ;; ignored.  NIL means unspecified (the default.)
   ;;
@@ -207,7 +194,7 @@
 (defun coerce-form-list (forms loc)
   (mapcar #'(lambda (x) (coerce-form x loc)) forms))
 
-	      
+
 ;;; PRINT-TRACE-INDENTATION  --  Internal
 ;;;
 ;;;    Print indentation according to the number of trace entries.  Entries
@@ -293,7 +280,7 @@
 			  (funcall (cdr condition) frame))
 		      (or (not wherein)
 			  (trace-wherein-p frame wherein)))))
-	 
+
 	 (when conditionp
 	   (let ((*print-length* (or *debug-print-length* *print-length*))
 		 (*print-level* (or *debug-print-level* *print-level*))
@@ -316,7 +303,7 @@
 
 
 ;;; TRACE-END-BREAKPOINT-FUN  --  Internal
-;;; 
+;;;
 ;;;    This prints a representation of the return values delivered.  First,
 ;;; this checks to see that cookie is at the top of *traced-entries*; if it is
 ;;; not, then we need to adjust this list to determine the correct indentation
@@ -329,7 +316,7 @@
       (unless (eq cookie (caar *traced-entries*))
 	(setf *traced-entries*
 	      (member cookie *traced-entries* :key #'car)))
-      
+
       (let ((entry (pop *traced-entries*)))
 	(when (and (not (trace-info-untraced info))
 		   (or (cdr entry)
@@ -384,7 +371,7 @@
 ;;; install the breakpoints or encapsulation.
 ;;;
 ;;;    If non-null, Definition is the new definition of a function that we are
-;;; automatically retracing; this 
+;;; automatically retracing; this (FIX ?)
 ;;;
 (defun trace-1 (function-or-name info &optional definition)
   (multiple-value-bind
@@ -396,9 +383,9 @@
     (when (gethash fun *traced-functions*)
       (warn "Function ~S already TRACE'd, retracing it." function-or-name)
       (untrace-1 fun))
-    
+
     (let* ((debug-fun (di:function-debug-function fun))
-	   (encapsulated 
+	   (encapsulated
 	    (if (eq (trace-info-encapsulated info) :default)
 		(ecase kind
 		  (:compiled nil)
@@ -600,7 +587,7 @@
    :PRINT Form
    :PRINT-AFTER Form
    :PRINT-ALL Form
-       In addition to the usual prinout, he result of evaluating Form is
+       In addition to the usual prinout, the result of evaluating Form is
        printed at the start of the function, at the end of the function, or
        both, according to the respective option.  Multiple print options cause
        multiple values to be printed.

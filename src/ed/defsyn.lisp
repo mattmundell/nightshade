@@ -1,6 +1,6 @@
 ;;; This file contains definitions of various character attributes.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 (defattribute "Whitespace"

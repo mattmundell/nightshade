@@ -5,7 +5,7 @@
  */
 
 #include <stdio.h>
-#include "lisp.h"
+#include "nightshade.h"
 #include "os.h"
 #include "globals.h"
 #include "validate.h"

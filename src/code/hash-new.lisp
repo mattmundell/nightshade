@@ -1,20 +1,5 @@
-;;; -*- Package: CL -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/hash-new.lisp,v 1.2.2.6 2000/11/04 17:10:35 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Hashing and hash table functions for Spice Lisp.
-;;; Originally written by Skef Wholey.
-;;; Everything except SXHASH rewritten by William Lott.
-;;; Hash table functions rewritten by Douglas Crosher, 1997.
-;;; Equalp hashing by William Newman, Cadabra Inc, and Douglas Crosher, 2000.
-;;;
+;;; Hashing and hash table functions.
+
 (in-package :common-lisp)
 
 (export '(hash-table hash-table-p make-hash-table
@@ -71,21 +56,22 @@
   ;; The Key-Value pair vector.
   (table (required-argument) :type simple-vector)
   ;;
-  ;; True if this is a weak hash table, meaning that key->value mappings will
-  ;; disappear if there are no other references to the key.  Note: this only
-  ;; matters if the hash function indicates that the hashing is EQ based.
+  ;; True if this is a weak hash table, meaning that key->value mappings
+  ;; will disappear if there are no other references to the key.  Note:
+  ;; this only matters if the hash function indicates that the hashing is
+  ;; EQ based.
   (weak-p nil :type (member t nil))
   ;;
-  ;; Index into the next-vector, chaining together buckets that need
-  ;; to be rehashed because their hashing is EQ based and the key has
-  ;; been moved by the garbage collector.
+  ;; Index into the next-vector, chaining together buckets that need to be
+  ;; rehashed because their hashing is EQ based and the key has been moved
+  ;; by the garbage collector.
   (needing-rehash 0 :type index)
   ;;
   ;; Index into the Next vector chaining together free slots in the KV
   ;; vector.
   (next-free-kv 0 :type index)
   ;;
-  ;; The index vector. This may be larger than the hash size to help
+  ;; The index vector.  This may be larger than the hash size to help
   ;; reduce collisions.
   (index-vector (required-argument)
 		:type (simple-array (unsigned-byte 32) (*)))
@@ -95,11 +81,11 @@
   ;; slot will only ever be in one of these lists.
   (next-vector (required-argument) :type (simple-array (unsigned-byte 32) (*)))
   ;;
-  ;; This table parallels the KV table, and can be used to store the
-  ;; hash associated with the key, saving recalculation. Could be
-  ;; useful for EQL, and EQUAL hash tables. This table is not needed
-  ;; for EQ hash tables, and when present the value of #x8000000
-  ;; represents EQ-based hashing on the respective Key.
+  ;; This table parallels the KV table, and can be used to store the hash
+  ;; associated with the key, saving recalculation.  Could be useful for
+  ;; EQL, and EQUAL hash tables.  This table is not needed for EQ hash
+  ;; tables, and when present the value of #x8000000 represents EQ-based
+  ;; hashing on the respective Key.
   (hash-vector nil :type (or null (simple-array (unsigned-byte 32) (*)))))
 ;;;
 (defun %print-hash-table (ht stream depth)
@@ -144,11 +130,10 @@
   (declare (values hash (member t nil)))
   (values (internal-equalp-hash key 0) nil))
 
-
 (defun almost-primify (num)
   (declare (type index num))
-  "Almost-Primify returns an almost prime number greater than or equal
-   to NUM."
+  "Almost-Primify returns an almost prime number greater than or equal to
+   NUM."
   (if (= (rem num 2) 0)
       (setq num (+ 1 num)))
   (if (= (rem num 3) 0)
@@ -157,12 +142,11 @@
       (setq num (+ 4 num)))
   num)
 
-
 
 ;;;; User defined hash table tests.
 
 ;;; *HASH-TABLE-TESTS* -- Internal.
-;;; 
+;;;
 (defvar *hash-table-tests* nil)
 
 ;;; DEFINE-HASH-TABLE-TEST -- Public.
@@ -180,7 +164,7 @@
 ;;;; Construction and simple accessors.
 
 ;;; MAKE-HASH-TABLE -- public.
-;;; 
+;;;
 (defun make-hash-table (&key (test 'eql) (size 65) (rehash-size 1.5)
 			     (rehash-threshold 1) (weak-p nil))
   "Creates and returns a new hash table.  The keywords are as follows:
@@ -235,7 +219,7 @@
 		(make-array length :element-type '(unsigned-byte 32)
 			    :initial-element 0))
 	       ;; Needs to be the same length as the KV vector
-	       (next-vector 
+	       (next-vector
 		(make-array size+1 :element-type '(unsigned-byte 32)))
 	       (kv-vector (make-array (* 2 size+1) :initial-element :empty))
 	       (table
@@ -264,7 +248,6 @@
 	  (setf (hash-table-needing-rehash table) 0)
 	  (setf (aref kv-vector 0) table)
 	  table)))))
-
 
 (declaim (inline hash-table-count))
 (defun hash-table-count (hash-table)
@@ -344,7 +327,7 @@
     (when old-hash-vector
       (dotimes (i old-size)
 	(setf (aref new-hash-vector i) (aref old-hash-vector i))))
-    
+
     (setf (hash-table-next-free-kv table) 0)
     (setf (hash-table-needing-rehash table) 0)
     ;; Rehash all the entries; last to first so that after the pushes
@@ -410,7 +393,7 @@
 	 (length (length index-vector)))
     (declare (type index size length)
 	     (type (simple-array (unsigned-byte 32) (*))))
-    
+
     ;; Disable GC tricks, they will be re-enabled during the re-hash
     ;; if necesary.
     (set-header-data kv-vector vm:vector-normal-subtype)
@@ -474,7 +457,7 @@
   (undefined-value))
 
 ;;; GETHASH -- Public.
-;;; 
+;;;
 (defun gethash (key hash-table &optional default)
   "Finds the entry in HASH-TABLE whose key is KEY and returns the associated
    value and T as multiple values, or returns DEFAULT and NIL if there is no
@@ -523,7 +506,7 @@
   (%puthash key table new-value))
 
 ;;; %PUTHASH -- public setf method.
-;;; 
+;;;
 (defun %puthash (key hash-table value)
   (declare (type hash-table hash-table))
   (assert (hash-table-index-vector hash-table))
@@ -553,7 +536,7 @@
 	    (hash-vector (hash-table-hash-vector hash-table))
 	    (test-fun (hash-table-test-fun hash-table)))
        (declare (type index index))
-       
+
        (cond ((or eq-based (not hash-vector))
 	      (when eq-based
 		(set-header-data kv-vector vm:vector-valid-hashing-subtype))
@@ -572,12 +555,12 @@
 		  ((zerop next))
 		(declare (type index next))
 		(when (and (= hashing (aref hash-vector next))
-			   (funcall test-fun key 
+			   (funcall test-fun key
 				    (aref kv-vector (* 2 next))))
 		  ;; Found, just replace the value.
 		  (setf (aref kv-vector (1+ (* 2 next))) value)
 		  (return-from %puthash value)))))
-	     
+
        ;; Pop a KV slot off the free list
        (let ((free-kv-slot (hash-table-next-free-kv hash-table)))
 	 ;; Double-check for overflow.
@@ -585,7 +568,7 @@
 	 (setf (hash-table-next-free-kv hash-table)
 	       (aref next-vector free-kv-slot))
 	 (incf (hash-table-number-entries hash-table))
-	 
+
 	 (setf (aref kv-vector (* 2 free-kv-slot)) key)
 	 (setf (aref kv-vector (1+ (* 2 free-kv-slot))) value)
 
@@ -601,7 +584,7 @@
   value)
 
 ;;; REMHASH -- public.
-;;; 
+;;;
 (defun remhash (key hash-table)
   "Remove the entry in HASH-TABLE associated with KEY.  Returns T if there
    was such an entry, and NIL if not."
@@ -692,7 +675,7 @@
 		  (return t)))))))))
 
 ;;; CLRHASH -- public.
-;;; 
+;;;
 (defun clrhash (hash-table)
   "This removes all the entries from HASH-TABLE and returns the hash table
    itself."
@@ -728,7 +711,7 @@
   hash-table)
 
 ;;; CLOBBER-HASH -- public.
-;;; 
+;;;
 (defun clobber-hash (hash-table)
   "This removes all the entries from HASH-TABLE and returns the hash table
    itself, shrinking the size to free memory."
@@ -804,7 +787,7 @@
    provides a method of manually looping over the elements of a hash-table.
    FUNCTION is bound to a generator-macro that, withing the scope of the
    invocation, returns one or three values. The first value tells whether
-   any objects remain in the hash table. When the first value is non-NIL, 
+   any objects remain in the hash table. When the first value is non-NIL,
    the second and third values are the key and the value of the next object."
   (let ((n-function (gensym "WITH-HASH-TABLE-ITERRATOR-")))
     `(let ((,n-function
@@ -827,7 +810,6 @@
 		#',function))))
       (macrolet ((,function () '(funcall ,n-function)))
 	,@body))))
-
 
 
 ;;;; SXHASH and support functions
@@ -893,7 +875,6 @@
        (sxmash hash (bit ,vector index)))))
 
 ); eval-when (compile eval)
-
 
 (defun internal-sxhash (s-expr depth)
   (declare (type index depth) (values hash))
@@ -1003,7 +984,6 @@
 			 (row-major-aref ,array index) ,depth))))))
 
 ); eval-when (compile eval)
-
 
 (defun internal-equalp-hash (s-expr depth)
   (declare (type index depth) (values hash))

@@ -1,20 +1,4 @@
-;;; -*- Mode: Lisp; Package: EXTENSIONS; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/weak.lisp,v 1.4.2.1 2000/05/23 16:36:57 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/code/weak.lisp,v 1.4.2.1 2000/05/23 16:36:57 pw Exp $
-;;;
-;;; Weak Pointer Support.
-;;;
-;;; Written by Christopher Hoover.
-;;; 
+;;; Weak pointer support.
 
 (in-package "EXTENSIONS")
 
@@ -27,9 +11,9 @@
 
 (declaim (inline weak-pointer-value))
 (defun weak-pointer-value (weak-pointer)
-  "If WEAK-POINTER is valid, returns the value of WEAK-POINTER and T.
-   If the referent of WEAK-POINTER has been garbage collected, returns
-   the values NIL and NIL."
+  "If WEAK-POINTER is valid, returns the value of WEAK-POINTER and T.  If
+   the referent of WEAK-POINTER has been garbage collected, returns the
+   values NIL and NIL."
   (declare (type weak-pointer weak-pointer)
 	   (values t (member t nil)))
   ;; We don't need to wrap this with a without-gcing, because once we have
@@ -49,4 +33,3 @@
 (defun c::%weak-pointer-broken (w)
   (declare (type weak-pointer w))
   (c::%weak-pointer-broken w))
-

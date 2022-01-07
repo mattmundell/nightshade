@@ -1,29 +1,16 @@
-;;; "Site dependent" stuff for the editor.        -*- Package: Hemlock-internals -*-
+;;; "Site dependent" stuff for the editor.        -*- Package: EDI -*-
 
-;;; Stuff to set up the packages the editor uses.
-;;;
-(unless (find-package "HEMLOCK-INTERNALS")
-  (make-package "HEMLOCK-INTERNALS"
-		:nicknames '("HI")
-		:use '("LISP" "EXTENSIONS" "SYSTEM")))
-;;;
-(unless (find-package "HEMLOCK")
-  (make-package "HEMLOCK"
-		:nicknames '("ED")
-		:use '("LISP" "HEMLOCK-INTERNALS" "EXTENSIONS" "SYSTEM")))
-;;;
 (in-package "SYSTEM")
-(export '(without-hemlock %sp-byte-blt %sp-find-character
+(export '(%sp-byte-blt %sp-find-character
 	  %sp-find-character-with-attribute
 	  %sp-reverse-find-character-with-attribute))
-;;;
-(in-package "HI")
+
+(in-package "EDI")
 
 (export '(show-mark editor-sleep *input-transcript* fun-defined-from-pathname
 	  editor-describe-function pause store-cut-string
 	  fetch-cut-string schedule-event remove-scheduled-event
-	  enter-window-autoraise directoryp directory-name-p symlinkp
-	  merge-relative-pathnames
+	  enter-window-autoraise
 	  ;;
 	  ;; Export default-font to prevent a name conflict that occurs due
 	  ;; to the editor variable "Default Font" defined in SITE-INIT
@@ -31,25 +18,38 @@
 	  ;;
 	  default-font))
 
-
+
 ;;; SYSTEM:WITHOUT-HEMLOCK -- Public.
 ;;;
 ;;; Code:lispinit.lisp uses this for a couple interrupt handlers, and
 ;;; eval-server.lisp.
 ;;;
-(defmacro system:without-hemlock (&body body)
-  "When in the editor and not in the debugger, call the exit method of the
-   editor's device, so we can type.  Do the same thing on exit but call the
-   init method."
-  `(progn
-     (when (and *in-the-editor* (not debug::*in-the-debugger*))
-       (let ((device (device-hunk-device (window-hunk (current-window)))))
-	 (funcall (device-exit device) device)))
-     ,@body
-     (when (and *in-the-editor* (not debug::*in-the-debugger*))
-       (let ((device (device-hunk-device (window-hunk (current-window)))))
-	 (funcall (device-init device) device)))))
+; (defmacro system:without-hemlock (&body body)
+;   "When in the editor and not in the debugger, call the exit method of the
+;    editor's device, so we can type.  Do the same thing on exit but call the
+;    init method."
+;   `(progn
+;      (when (and *in-the-editor* (not debug::*in-the-debugger*))
+;        (let ((device (device-hunk-device (window-hunk (current-window)))))
+; 	 (funcall (device-exit device) device)))
+;      ,@body
+;      (when (and *in-the-editor* (not debug::*in-the-debugger*))
+;        (let ((device (device-hunk-device (window-hunk (current-window)))))
+; 	 (funcall (device-init device) device)))))
 
+(declaim (special *with-screen-hooks*))
+;; FIX put in site-init below?
+(push (cons #'(lambda ()
+		(when *in-the-editor*
+		  (or debug::*in-the-debugger*
+		      (let ((device (device-hunk-device (window-hunk (current-window)))))
+			(funcall (device-exit device) device)))))
+	    #'(lambda ()
+		(when *in-the-editor*
+		  (or debug::*in-the-debugger*
+		      (let ((device (device-hunk-device (window-hunk (current-window)))))
+			(funcall (device-init device) device))))))
+      system:*with-screen-hooks*)
 
 
 ;;;; SITE-INIT.
@@ -142,52 +142,11 @@
   nil)
 
 
-;;;; Some generally useful file-system functions.
-
-;;; MERGE-RELATIVE-PATHNAMES takes a pathname that is either absolute or
-;;; relative to default-dir, merging it as appropriate and returning a definite
-;;; directory pathname.
-;;;
-;;; This function isn't really needed anymore now that merge-pathnames does
-;;; this, but the semantics are slightly different.  So it's easier to just
-;;; keep this around instead of changing all the uses of it.
-;;;
-(defun merge-relative-pathnames (pathname default-directory)
-  "Merges pathname with default-directory.  If pathname is not absolute, it
-   is assumed to be relative to default-directory.  The result is always a
-   directory."
-  (let ((pathname (merge-pathnames pathname default-directory)))
-    (if (directory-name-p pathname)
-	pathname
-	(pathname (concatenate 'simple-string
-			       (namestring pathname)
-			       "/")))))
-
-(defun directory-name-p (pathname)
-  "Returns whether pathname is a directory name, that is whether the name
-   and type components are ()."
-  (and (eq (pathname-name pathname) ())
-       (eq (pathname-type pathname) ())))
-
-(defun directoryp (pathname)
-  "Returns whether pathname names a directory, that is whether the file
-   named by pathname is a directory."
-  (eq (unix::unix-file-kind (or (unix-namestring pathname)
-				(return-from directoryp nil)))
-      :directory))
-
-(defun symlinkp (pathname)
-  "Returns whether pathname names a symbolic link."
-  (eq (unix:unix-file-kind (namestring pathname) t) :link))
-
-
-
 ;;;; I/O specials and initialization
 
 ;;; File descriptor for the terminal.
 ;;;
 (defvar *editor-file-descriptor*)
-
 
 ;;; This is a hack, so screen can tell how to initialize screen management
 ;;; without re-opening the display.  It is set in INIT-RAW-IO and referenced
@@ -221,7 +180,6 @@
 #+clx
 (defconstant random-typeout-xevents-mask
   (apply #'xlib:make-event-mask random-typeout-xevents))
-
 
 #+clx
 (proclaim '(special ed::*open-paren-highlight-font*
@@ -270,7 +228,7 @@
 (defconstant font-map-size 16
   "The number of possible fonts in a font-map.")
 #-clx
-(defconstant font-map-size 16)
+(defconstant font-map-size 20)
 
 ;;; SETUP-FONT-FAMILY sets *default-font-family*, opening the three font names
 ;;; passed in.  The font family structure is filled in from the first argument.
@@ -325,7 +283,7 @@
      nil)))
 
 
-;;;; HEMLOCK-BEEP.
+;;;; EDITOR-BEEP.
 
 (defvar *editor-bell* (make-string 1 :initial-element #\bell))
 
@@ -414,11 +372,10 @@
       (xlib:draw-rectangle xwin gcontext 0 0 width height t)
       (xlib:display-force-output display))))
 
-(defun hemlock-beep (stream)
+(defun editor-beep (stream)
   "Using the current window, calls the device's beep function on stream."
   (let ((device (device-hunk-device (window-hunk (current-window)))))
     (funcall (device-beep device) device stream)))
-
 
 
 ;;;; GC messages.
@@ -433,7 +390,7 @@
 (defun hemlock-gc-notify-before (bytes-in-use)
   (let ((control "~%[GC threshold exceeded with ~:D bytes in use.  ~
   		  Commencing GC.]~%"))
-    (cond ((not hi::*editor-windowed-input*)
+    (cond ((not edi::*editor-windowed-input*)
 	   (beep)
 	   #|(message control bytes-in-use)|#)
 	  (t
@@ -447,7 +404,7 @@
   (let ((control
 	 "[GC completed with ~:D bytes retained and ~:D bytes freed.]~%~
 	  [GC will next occur when at least ~:D bytes are in use.]~%"))
-    (cond ((not hi::*editor-windowed-input*)
+    (cond ((not edi::*editor-windowed-input*)
 	   (beep)
 	   #|(message control bytes-retained bytes-freed)|#)
 	  (t
@@ -456,7 +413,6 @@
 	   (lisp::default-beep-function *standard-output*)
 	   (format t control bytes-retained bytes-freed trigger)
 	   (finish-output)))))
-
 
 
 ;;;; Site-Wrapper-Macro and standard device init/exit functions.
@@ -475,7 +431,7 @@
        (when *editor-has-been-entered*
 	 (let ((device (device-hunk-device (window-hunk (current-window)))))
 	   (funcall (device-init device) device)))
-       (let ((*beep-function* #'hemlock-beep)
+       (let ((*beep-function* #'editor-beep)
 	     (*gc-notify-before* #'hemlock-gc-notify-before)
 	     (*gc-notify-after* #'hemlock-gc-notify-after)
 	     (*standard-input* *illegal-read-stream*)
@@ -514,7 +470,7 @@
 	     (setf (xlib:window-priority xparent) :below))))
   (xlib:display-force-output display))
 
-(defvar *hemlock-window-mngt* nil;#'default-hemlock-window-mngt
+(defvar *hemlock-window-mngt* nil ;#'default-hemlock-window-mngt
   "This function is called by HEMLOCK-WINDOW, passing its arguments.  This may
    be nil.")
 
@@ -524,7 +480,6 @@
   devices."
   (when (and *hemlock-window-mngt* *current-window*)
     (funcall *hemlock-window-mngt* display on)))
-
 
 
 ;;;; Line Wrap Char.
@@ -536,7 +491,6 @@
 ;;;; Current terminal character translation.
 
 (defvar termcap-file "/etc/termcap")
-
 
 
 ;;;; Event scheduling.
@@ -629,6 +583,8 @@
 (defun schedule-event (time function &optional (repeat t) (absolute nil))
   "Schedule Function to be called at some time.
 
+   `Schedule Event Hook' is run after the event is scheduled.
+
    If Absolute is true then call Function at universal time Time and if
    Repeat is true every Repeat seconds thereafter.  Otherwise call Function
    in Time seconds and if Repeat is true every Time seconds thereafter.
@@ -653,12 +609,12 @@
 				   (if repeat itime)
 				   function))))
     (queue-time-event event)
+;    (invoke-hook ed::schedule-event-hook event)
     event))
 
 (defun remove-scheduled-event (function)
   "Removes function queued with SCHEDULE-EVENT."
   (setf *time-queue* (delete function *time-queue* :key #'tq-event-function)))
-
 
 
 ;;;; Editor sleeping.
@@ -684,7 +640,6 @@
 	(system:serve-event (/ (float left)
 			       (float internal-time-units-per-second)))))
     (when nrw-fun (funcall nrw-fun nil))))
-
 
 
 ;;;; Showing a mark.
@@ -792,12 +747,9 @@
 	  (fresh-line *editor-describe-stream*)
 	  (write-string doc *editor-describe-stream*))))))
 
-
-
 
 ;;;; X Stuff.
 ;;; Setting window cursors ...
-;;;
 
 #+clx
 (proclaim '(special *default-foreground-pixel* *default-background-pixel*))
@@ -823,9 +775,8 @@
 #+clx
 (defun make-black-color () (xlib:make-color :red 0.0 :green 0.0 :blue 0.0))
 
-
 ;;; GET-HEMLOCK-CURSOR is used in INIT-BITMAP-SCREEN-MANAGER to load the
-;;; hemlock cursor for DEFINE-WINDOW-CURSOR.
+;;; cursor for DEFINE-WINDOW-CURSOR.
 ;;;
 #+clx
 (defun get-hemlock-cursor (display)
@@ -858,9 +809,7 @@
     (xlib:free-gcontext gc)
     (values pixmap (xlib:image-x-hot image) (xlib:image-y-hot image))))
 
-
 ;;; Setting up grey borders ...
-;;;
 
 #+clx
 (defparameter hemlock-grey-bitmap-data
@@ -885,9 +834,7 @@
     (xlib:free-gcontext gc)
     pixmap))
 
-
 ;;; Cut Buffer manipulation ...
-;;;
 
 #+clx
 (defun store-cut-string (display string)
@@ -898,9 +845,8 @@
 (defun fetch-cut-string (display)
   (xlib:cut-buffer display))
 
-
 ;;; Window naming ...
-;;;
+
 #+clx
 (defun set-window-name-for-buffer-name (buffer new-name)
   (dolist (ele (buffer-windows buffer))
@@ -928,7 +874,6 @@
 
 (defun get-termcap-env-var ()
   (cdr (assoc :termcap *environment-list* :test #'eq)))
-
 
 ;;; GET-EDITOR-TTY-INPUT reads from stream's Unix file descriptor queuing events
 ;;; in the stream's queue.
@@ -1196,9 +1141,8 @@
 
 (defun pause ()
   "Pause the editor and pop out to the Unix Shell."
-  (system:without-hemlock
+  (system:with-screen
    (unix:unix-kill (unix:unix-getpid) :sigstop))
   t)
-
 
 (provide :hemlock)

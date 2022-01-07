@@ -1,6 +1,6 @@
 ;;; Bitmap redisplay.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(redisplay redisplay-all))
 

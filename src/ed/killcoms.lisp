@@ -1,6 +1,11 @@
 ;;; Killing and reviving things.
 
-(in-package "HEMLOCK")
+(in-package "ED")
+
+(export '(*ephemerally-active-command-types* *kill-ring* activate-region
+	  buffer-mark check-region-active current-mark current-region
+	  deactivate-region kill-characters kill-region pop-buffer-mark
+	  push-buffer-mark region-active-p))
 
 (defvar *kill-ring* (make-ring 1000) "The editor kill ring.")
 
@@ -125,23 +130,34 @@
   (cond ((eq (line-buffer (mark-line mark)) (current-buffer))
 	 (setf (mark-kind mark) :right-inserting)
 	 (ring-push mark (value buffer-mark-ring)))
-	(t (error "Mark not in the current buffer.")))
+	(t (error "Mark must be in the current buffer.")))
   (when activate-region (activate-region))
   mark)
 
 (defcommand "Set/Pop Mark" (p)
   "Set or Pop the mark ring.
-   With no C-U's, pushes point as the mark, activating the current region.
-   With one C-U's, pops the mark into point, de-activating the current region.
-   With two C-U's, pops the mark and throws it away, de-activating the current
+
+   Push point as the mark, activating the current region or if the previous
+   command was a pop-and-goto mark perform another pop-and-goto.
+
+   With one prefix pop-and-goto, i.e. pop the mark into point, de-activating
+   the current region.
+
+   With two prefixes, pops the mark and throws it away, de-activating the current
    region."
   "Set or Pop the mark ring."
-  (cond ((not p)
-	 (push-buffer-mark (copy-mark (current-point)) t)
-	 (when (interactive)
-	   (message "Mark pushed.")))
+  (cond ((fi p)
+	 (if (eq (last-command-type) :pop-and-goto-mark)
+	     (progn
+	       (pop-and-goto-mark-command nil)
+	       (setf (last-command-type) :pop-and-goto-mark))
+	     (progn
+	       (push-buffer-mark (copy-mark (current-point)) t)
+	       (when (interactive)
+		 (message "Mark pushed.")))))
 	((= p (value universal-argument-default))
-	 (pop-and-goto-mark-command nil))
+	 (pop-and-goto-mark-command nil)
+	 (setf (last-command-type) :pop-and-goto-mark))
 	((= p (expt (value universal-argument-default) 2))
 	 (delete-mark (pop-buffer-mark)))
 	(t (editor-error))))

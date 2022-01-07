@@ -1,8 +1,6 @@
-;;; Definitions of various types of streams used in the editor.  They are
-;;; implementation dependant, but should be portable to all implementations
-;;; based on Spice Lisp with little difficulty.
+;;; Definitions of various types of streams used in the editor.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(make-hemlock-output-stream
 	  hemlock-region-stream hemlock-region-stream-p
@@ -17,7 +15,7 @@
 	    (:print-function %print-hemlock-output-stream)
 	    (:constructor internal-make-hemlock-output-stream ()))
   ;;
-  ;; The mark we insert at.
+  ;; The mark at which the stream inserts.
   mark)
 
 (defun %print-hemlock-output-stream (s stream d)
@@ -26,19 +24,19 @@
 
 (defun make-hemlock-output-stream (mark &optional (buffered :line))
   "Returns an output stream whose output will be inserted at the Mark.
-  Buffered, which indicates to what extent the stream may be buffered
-  is one of the following:
+   Buffered, which indicates to what extent the stream may be buffered
+   is one of the following:
    :None  -- The screen is brought up to date after each stream operation.
    :Line  -- The screen is brought up to date when a newline is written.
    :Full  -- The screen is not updated except explicitly via Force-Output."
-  (modify-hemlock-output-stream (internal-make-hemlock-output-stream) mark
+  (modify-hemlock-output-stream (internal-make-hemlock-output-stream)
+				mark
                                 buffered))
 
-
 (defun modify-hemlock-output-stream (stream mark buffered)
-  (unless (and (markp mark)
-	       (memq (mark-kind mark) '(:right-inserting :left-inserting)))
-    (error "~S is not a permanent mark." mark))
+  (or (and (markp mark)
+	   (memq (mark-kind mark) '(:right-inserting :left-inserting)))
+      (error "~S is a temporary mark." mark))
   (setf (hemlock-output-stream-mark stream) mark)
   (case buffered
     (:none
@@ -120,7 +118,7 @@
 	    (:print-function %print-region-stream)
 	    (:constructor internal-make-hemlock-region-stream (region mark)))
   ;;
-  ;; The region we read from.
+  ;; The region read.
   region
   ;;
   ;; The mark pointing to the next character to read.
@@ -132,7 +130,7 @@
 
 (defun make-hemlock-region-stream (region)
   "Returns an input stream that will return successive characters from the
-  given Region when asked for input."
+   given Region when asked for input."
   (internal-make-hemlock-region-stream
    region (copy-mark (region-start region) :right-inserting)))
 

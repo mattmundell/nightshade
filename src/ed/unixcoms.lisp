@@ -1,6 +1,6 @@
 ;;; Commands useful when running on a Unix box.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 ;;;; Region and File printing commands.
@@ -16,7 +16,6 @@
   "Switches to pass to the \"Print Utility\" program.  This should be a list
    of strings."
   :value ())
-
 
 ;;; PRINT-SOMETHING calls RUN-PROGRAM on the utility-name and args.  Output
 ;;; and error output are done to the echo area, and errors are ignored for
@@ -49,7 +48,6 @@
 (defun print-region (region)
   (with-input-from-region (s region)
     (print-something (:input s))))
-
 
 (defcommand "Print Buffer" (p)
   "Prints the current buffer using the program defined by the hvar
@@ -205,7 +203,6 @@
 	(setf lastpos (1+ pos))))
     (nreverse result)))
 
-
 
 ;;;; Environment variables.
 
@@ -323,7 +320,6 @@
   "Move to the previous part of the Manual Page in the current buffer."
   (next-manual-part-command (if p (- p) -1)))
 
-
 
 ;; System process listing
 
@@ -371,7 +367,7 @@
   "Return the name of the buffer used to list system processes."
   (or *sp-list-buffer*
       ;; FIX exported
-      (hi::unique-buffer-name "System Processes")))
+      (edi::unique-buffer-name "System Processes")))
 
 (defun refresh-system-processes (buffer)
   (let ((line-num (1- (count-lines (region (buffer-start-mark buffer)
@@ -387,24 +383,29 @@
     (line-offset (buffer-point buffer) line-num)))
 
 (defcommand "List System Processes" (p)
-  "List system processes.  With a prefix pop up the list."
-  "List system processes.  With a prefix pop up the list."
-  (if p
-      (with-pop-up-display (stream)
-	(execute-header stream)
-	(execute-ps stream (value user)))
-      (let* ((new-buffer (make-buffer (get-sp-list-buffer)
-				      :modes '("Fundamental" "View" "SysProc")))
-	     (buffer (or new-buffer
-			 (getstring (get-sp-list-buffer) *buffer-names*))))
-	(change-to-buffer buffer)
-	(when new-buffer
-	  (setf (value view-return-function) #'(lambda ()))
-	  (defhvar "User"
-	    "User of which to list processes, nil for all."
-	    :value (value list-system-processes-user)
-	    :buffer buffer)
-	  (refresh-system-processes buffer)))))
+  "Pop up a list of system processes."
+  "Pop up a list of system processes."
+  (declare (ignore p))
+  (with-pop-up-display (stream)
+    (execute-header stream)
+    (execute-ps stream (value list-system-processes-user))))
+
+(defcommand "Edit System Processes" (p)
+  "Edit system processes."
+  "Edit system processes."
+  (declare (ignore p))
+  (let* ((new-buffer (make-buffer (get-sp-list-buffer)
+				  :modes '("Fundamental" "View" "SysProc")))
+	 (buffer (or new-buffer
+		     (getstring (get-sp-list-buffer) *buffer-names*))))
+    (change-to-buffer buffer)
+    (when new-buffer
+      (setf (value view-return-function) #'(lambda ()))
+      (defhvar "User"
+	"User of processes to list; nil for all users."
+	:value (value list-system-processes-user)
+	:buffer buffer)
+      (refresh-system-processes buffer))))
 
 (defcommand "Refresh System Processes" (p)
   "Refresh system process list."
@@ -450,7 +451,7 @@
     (refresh-system-processes (current-buffer))))
 
 
-;; System process listing
+;; Dictionary interface.
 
 (defcommand "Describe Word" (p)
   "Describe a prompted word in a pop-up display."

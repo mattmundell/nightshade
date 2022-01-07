@@ -1,6 +1,6 @@
 ;;; Echo area commands.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 (defhvar "Raise Echo Area When Modified"
   "When set, the editor raises the echo area window when output appears

@@ -1,5 +1,3 @@
-;;; -*- Log: code.log; Package: FTP -*-
-;;;
 ;;; File Transfer Protocol client functions.
 
 (in-package "FTP")

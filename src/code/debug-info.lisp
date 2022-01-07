@@ -1,16 +1,5 @@
-;;; -*- Log: code.log; Package: C -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/debug-info.lisp,v 1.27 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains structures used for recording debugger information.
-;;;
+;;; Structures used for recording debugger information.
+
 (in-package "C")
 
 (export '(make-sc-offset sc-offset-scn sc-offset-offset
@@ -19,7 +8,7 @@
 	  read-packed-bit-vector write-packed-bit-vector))
 
 
-;;;; SC-Offsets:
+;;;; SC-Offsets.
 ;;;
 ;;;    We represent the place where some value is stored with a SC-OFFSET,
 ;;; which is the SC number and offset encoded as an integer.
@@ -36,7 +25,7 @@
 (defmacro sc-offset-offset (sco) `(ldb sc-offset-offset-byte ,sco))
 
 
-;;;; Variable length integers:
+;;;; Variable length integers.
 ;;;
 ;;;    The debug info representation makes extensive use of integers encoded in
 ;;; a byte vector using a variable number of bytes:
@@ -67,7 +56,6 @@
 	      		(ash (aref ,vec (+ ,index 4)) 24))
 	      (incf ,index 5))))))
 
-
 ;;; WRITE-VAR-INTEGER  --  Interface
 ;;;
 ;;;    Takes an adjustable vector Vec with a fill pointer and pushes the
@@ -87,13 +75,11 @@
 	     (vector-push-extend (ldb (byte 8 24) int) vec)))))
   (undefined-value))
 
-
 
-;;;; Packed strings:
+;;;; Packed strings.
 ;;;
 ;;;    A packed string is a variable length integer length followed by the
 ;;; character codes.
-
 
 ;;; READ-VAR-STRING  --  Interface
 ;;;
@@ -107,7 +93,6 @@
 	 (%primitive byte-blt ,vec ,index ,res 0 ,len)
 	 (incf ,index ,len)
 	 ,res))))
-
 
 ;;; WRITE-VAR-STRING  --  Interface
 ;;;
@@ -123,8 +108,7 @@
   (undefined-value))
 
 
-;;;; Packed bit vectors:
-;;;
+;;;; Packed bit vectors.
 
 ;;; READ-PACKED-BIT-VECTOR  --  Interface
 ;;;
@@ -138,7 +122,6 @@
 	 (%primitive byte-blt ,vec ,index ,n-res 0 ,n-bytes)
 	 (incf ,index ,n-bytes)
 	 ,n-res))))
-
 
 ;;; WRITE-PACKED-BIT-VECTOR  --  Interface
 ;;;
@@ -174,11 +157,11 @@
 		(frob 0 incf (= shift 8)))
 	       (:big-endian
 		(frob 7 decf (minusp shift))))))))
-  
+
   (undefined-value))
 
 
-;;;; Compiled debug variables:
+;;;; Compiled debug variables.
 ;;;
 ;;;    Compiled debug variables are in a packed binary representation in the
 ;;; DEBUG-FUNCTION-VARIABLES:
@@ -207,7 +190,7 @@
 (defconstant compiled-debug-variable-deleted-p		#b01000000)
 
 
-;;;; Compiled debug blocks:
+;;;; Compiled debug blocks.
 ;;;
 ;;;    Compiled debug blocks are in a packed binary representation in the
 ;;; DEBUG-FUNCTION-BLOCKS:
@@ -223,7 +206,6 @@
 ;;;    ...more <kind, delta, top-level form offset, form-number, live-set>
 ;;;       tuples...
 
-
 (defconstant compiled-debug-block-nsucc-byte (byte 2 0))
 (defconstant compiled-debug-block-elsewhere-p #b00000100)
 
@@ -232,9 +214,8 @@
   '#(:unknown-return :known-return :internal-error :non-local-exit
      :block-start :call-site :single-value-return :non-local-entry))
 
-
 
-;;;; Debug function:
+;;;; Debug function.
 
 (defstruct debug-function)
 
@@ -303,12 +284,12 @@
   (arguments nil :type (or (simple-array * (*)) (member :minimal nil)))
   ;;
   ;; There are three alternatives for this slot:
-  ;; 
+  ;;
   ;; A vector
   ;;    A vector of SC-OFFSETS describing the return locations.  The
   ;;    vector element type is chosen to hold the largest element.
   ;;
-  ;; :Standard 
+  ;; :Standard
   ;;    The function returns using the standard unknown-values convention.
   ;;
   ;; :Fixed
@@ -332,7 +313,7 @@
   (elsewhere-pc (required-argument) :type index))
 
 
-;;;; Minimal debug function:
+;;;; Minimal debug function.
 
 ;;; The minimal debug info format compactly represents debug-info for some
 ;;; cases where the other debug info (variables, blocks) is small enough so
@@ -375,8 +356,8 @@
 ;;;        This encodes the elsewhere code start for this function, as a delta
 ;;;        from the previous function's elsewhere code start. (i.e. the
 ;;;        encoding is the same as for code-start-pc.)
-;;;    
-;;;    
+;;;
+;;;
 
 #|
 ### For functions with XEPs, name could be represented more simply and
@@ -416,7 +397,7 @@ function (which would be useful info anyway).
 (defconstant minimal-debug-function-variables-bit (ash 1 2))
 
 
-;;;; Debug source:
+;;;; Debug source.
 
 (defstruct (debug-source (:pure t))
   ;;
@@ -454,7 +435,7 @@ function (which would be useful info anyway).
   (info nil))
 
 
-;;;; The DEBUG-INFO structure:
+;;;; The DEBUG-INFO structure.
 
 (defstruct debug-info
   ;;
@@ -467,7 +448,6 @@ function (which would be useful info anyway).
   ;; *** NOTE: the offset of this slot is wired into the fasl dumper so that it
   ;; *** can backpatch the source info when compilation is complete.
   (source nil :type list))
-
 
 (defstruct (compiled-debug-info
 	    (:include debug-info)

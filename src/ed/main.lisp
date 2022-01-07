@@ -1,6 +1,6 @@
 ;;; Initialization code and random debugging stuff.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(*global-variable-names* *mode-names* *buffer-names*
 	  *character-attribute-names* *command-names* *buffer-list*
@@ -9,7 +9,7 @@
 
 (in-package "EXTENSIONS")
 (export '(save-all-buffers))
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 
 
@@ -244,8 +244,11 @@
     :hooks (list 'maximum-modeline-pathname-length-hook))
   (defhvar "Quit on Exit"
     "If true then Nightshade exits on editor exit."
-    :value t))
-
+    :value t)
+  ;; FIX depends on rompsite; here for top-level schedule-event calls
+  (defhvar "Schedule Event Hook"
+    "Invoked on the event when an event is scheduled."
+    :value nil))
 
 
 ;;;; ED.
@@ -278,7 +281,7 @@
    not supplied or Nil, the editor is entered in the same state as when
    last exited.  When :init is supplied as t (the default), the file
    \"nightshade-ed.lisp\", or \".nightshade-ed.lisp\" is loaded from the
-   home directory, but the Lisp command line switch -hinit can be used to
+   home directory, but the Lisp command line switch -einit can be used to
    specify a different name.  Any compiled version of the source is
    preferred when choosing the file to load.  If the argument is non-nil
    and not t, then it should be a pathname that will be merged with the
@@ -350,13 +353,15 @@
 		 (loop
 		   (block ed-command-loop
 		     (handler-case
-			 (handler-case
+;			 (handler-case
+			 (handler-bind ((error #'lisp-error-error-handler))
 			     (progn
 			       (invoke-hook ed::abort-hook)  ; control-g
-			       (%command-loop))
-			   (error (condition)
-			     (lisp-error-error-handler
-			      condition :internal)))
+			       (%command-loop)))
+; FIX how to pass :internal to handler-bind
+; 			   (error (condition)
+; 			     (lisp-error-error-handler
+; 			      condition :internal)))
 		       (editor-top-level-catcher ()
 			 (return-from ed-command-loop)))))
 	       (setq continue nil)
@@ -373,7 +378,7 @@
 
 (defun maybe-load-init (init)
   (when init
-    (let* ((switch (find "hinit" *command-line-switches*
+    (let* ((switch (find "einit" *command-line-switches*
 			 :test #'string-equal
 			 :key #'cmd-switch-name))
 	   (spec-name

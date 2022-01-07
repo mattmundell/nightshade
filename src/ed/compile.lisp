@@ -1,6 +1,6 @@
 ;;; Mode and commands for running shell compile commands.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 (defhvar "Compile Command"

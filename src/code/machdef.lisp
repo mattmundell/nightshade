@@ -1,20 +1,9 @@
-;;; -*- Log: code.log; Package: Mach -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/machdef.lisp,v 1.7 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Record definitions needed for the interface to Mach.
-;;;
+
 (in-package "MACH")
 
 (export '(msg-simplemsg msg-msgsize msg-msgtype msg-localport msg-remoteport
-			msg-id sigmask with-trap-arg-block))
+	  msg-id sigmask with-trap-arg-block))
 
 (export '(int-array int-array-ref))
 
@@ -62,7 +51,6 @@
 
 ); eval-when (compile load eval)
 
-
 (defmacro with-trap-arg-block (type var &body forms)
   `(with-stack-alien (,var ,type (record-size ',type))
      ,@forms))
@@ -75,4 +63,3 @@
 	 (mapcar #'(lambda (signal)
 		     (ash 1 (1- (unix-signal-number signal))))
 		 signals)))
-

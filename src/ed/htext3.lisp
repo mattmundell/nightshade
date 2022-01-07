@@ -1,12 +1,8 @@
-;;; More text-manipulation functions.
-;;;
-;;; The code in this file implements the insert functions in the "Doing
-;;; Stuff and Going Places" chapter of the Hemlock Design document.
+;;; Text-manipulation functions: inserting.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(insert-character insert-string insert-region ninsert-region))
-
 
 
 (defun insert-character (mark character)
@@ -47,8 +43,8 @@
 	       (setf (char (the simple-string open-chars) left-open-pos)
 		     character)
 	       (incf left-open-pos))))))))
-
 
+
 (defun insert-string (mark string &optional (start 0) (end (length string)))
   "Inserts the String at the Mark.  Do not use Start and End unless you
   know what you're doing!"

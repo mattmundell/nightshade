@@ -17,7 +17,7 @@
 #endif
 #endif
 
-#include "lisp.h"
+#include "nightshade.h"
 #include "globals.h"
 #include "validate.h"
 #include "os.h"

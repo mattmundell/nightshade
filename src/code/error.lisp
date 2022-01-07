@@ -1,18 +1,4 @@
-;;; -*- Package: conditions; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/error.lisp,v 1.46.2.7 2000/10/25 17:17:28 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This is a condition system for CMU Common Lisp.
-;;; It was originally taken from some prototyping code written by KMP@Symbolics
-;;; and massaged for our uses.
-;;;
+;;; Condition system.
 
 (in-package "CONDITIONS")
 (use-package "EXTENSIONS")
@@ -1030,9 +1016,11 @@
 ;;; in closing over tags.  The previous version sets up unique run-time
 ;;; tags.
 ;;;
+;; FIX seems to be run after stack returned
+;;       (whereas handler-bind runs with the stack at the point of error)
+;;       eg have to handler-bind around %command-loop in ed to get backtrace
 (defmacro handler-case (form &rest cases)
-  "(HANDLER-CASE form
-   { (type ([var]) body) }* )
+  "(HANDLER-CASE form { (type ([var]) body) }* )
    Executes form in a context with handlers established for the condition
    types.  A peculiar property allows type to be :no-error.  If such a clause
    occurs, and form returns normally, all its values are passed to this clause
@@ -1083,8 +1071,8 @@
 			   annotated-cases))))))))
 
 (defmacro ignore-errors (&rest forms)
-  "Executes forms after establishing a handler for all error conditions that
-   returns from this form nil and the condition signalled."
+  "Execute forms after establishing a handler for all error conditions.  On
+   error the handler returns nil and the signalled condition."
   `(handler-case (progn ,@forms)
      (error (condition) (values nil condition))))
 

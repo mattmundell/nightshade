@@ -1,6 +1,6 @@
 ;;; Command level support for processes.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 (defun setup-process-buffer (buffer)
   (let ((mark (copy-mark (buffer-point buffer) :right-inserting)))
@@ -24,14 +24,20 @@
       "Pointer into \"Interactive History\"."
       :buffer buffer
       :value 0)
-    (unless (buffer-modeline-field-p buffer :process-status)
-      (setf (buffer-modeline-fields buffer)
-	    (nconc (buffer-modeline-fields buffer)
-		   (list (modeline-field :space)
-			 (modeline-field :process-status)))))))
+    (fi (buffer-modeline-field-p buffer :process-status)
+	(setf (buffer-modeline-fields buffer)
+	      (nconc (buffer-modeline-fields buffer)
+		     (list (modeline-field :space)
+			   (modeline-field :process-status)))))))
 
 (defmode "Process" :major-p nil :setup-function #'setup-process-buffer)
 
+(defcommand "Process Mode" (p)
+  "Put the current buffer into Process mode.  With a prefix turn off
+   process mode."
+  "Put the current buffer into Process mode.  If P is true turn off process
+   mode."
+  (setf (buffer-minor-mode (current-buffer) "Process") (eq p ())))
 
 
 ;;;; Shell-filter streams.
@@ -89,7 +95,7 @@
 ;;;
 (defun shell-filter-output-misc (stream operation &optional arg1 arg2)
   (let ((hemlock-stream (shell-filter-stream-hemlock-stream stream)))
-    (funcall (hi::hemlock-output-stream-misc hemlock-stream)
+    (funcall (edi::hemlock-output-stream-misc hemlock-stream)
 	     hemlock-stream operation arg1 arg2)))
 
 
@@ -494,8 +500,8 @@
   "Evaluate Process Mode input between the point and last prompt."
   "Evaluate Process Mode input between the point and last prompt."
   (declare (ignore p))
-  (unless (editor-bound-p 'process :buffer (current-buffer))
-    (editor-error "Not in a process buffer."))
+  (or (editor-bound-p 'process :buffer (current-buffer))
+      (editor-error "Must be in a process buffer."))
   (let* ((process (value process))
 	 (stream (ext:process-pty process)))
     (case (ext:process-status process)

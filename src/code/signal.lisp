@@ -1,21 +1,7 @@
-;;; -*- Package: UNIX -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/signal.lisp,v 1.25.2.2 2000/08/24 16:40:14 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;
 ;;; Code for handling UNIX signals.
-;;;
-;;; Written by William Lott.
-;;;
 
 (in-package "UNIX")
+
 (use-package "KERNEL")
 (export '(unix-signal-name unix-signal-description unix-signal-number
 	  sigmask unix-sigblock unix-sigpause unix-sigsetmask unix-kill
@@ -30,37 +16,35 @@
 
 (in-package "UNIX")
 
-;;; These should probably be somewhere, but I don't know where.
+;;; FIX These should be where?
 ;;;
 (defconstant sig_dfl 0)
 (defconstant sig_ign 1)
 
 (proclaim '(special lisp::lisp-command-line-list))
 
-
 
 ;;;; Utilities for dealing with signal names and numbers.
 
 (defstruct (unix-signal
 	    (:constructor make-unix-signal (%name %number %description)))
-  %name				; Signal keyword
+  %name                             ; Signal keyword
   (%number nil :type integer)       ; UNIX signal number
   (%description nil :type string))  ; Documentation
 
 (defvar *unix-signals* nil
   "A list of unix signal structures.")
 
-
 (eval-when (compile eval)
-;(setf *unix-signals* nil) ; pve: sigh or else...
+;(setf *unix-signals* nil) ; pve: sigh or else...   FIX
 (defmacro def-unix-signal (name number description)
   (let ((symbol (intern (symbol-name name))))
     `(progn
        (push (make-unix-signal ,name ,number ,description) *unix-signals*)
        ;;
-       ;; This is to make the new signal lookup stuff compatible with
-       ;; old code which expects the symbol with the same print name as
-       ;; our keywords to be a constant with a value equal to the signal
+       ;; This is to make the new signal lookup stuff compatible with old
+       ;; code which expects the symbol with the same print name as our
+       ;; keywords to be a constant with a value equal to the signal
        ;; number.
        (defconstant ,symbol ,number ,description)
        (export ',symbol))))
@@ -71,23 +55,23 @@
 		      :key (etypecase arg
 			     (symbol #'unix-signal-%name)
 			     (number #'unix-signal-%number)))))
-    (unless signal
-      (error "~S is not a valid signal name or number." arg))
+    (or signal
+	(error "~S is not a valid signal name or number." arg))
     signal))
 
 (defun unix-signal-name (signal)
   "Return the name of the signal as a string.  Signal should be a valid
-  signal number or a keyword of the standard UNIX signal name."
+   signal number or a keyword of the standard UNIX signal name."
   (symbol-name (unix-signal-%name (unix-signal-or-lose signal))))
 
 (defun unix-signal-description (signal)
   "Return a string describing signal.  Signal should be a valid signal
-  number or a keyword of the standard UNIX signal name."
+   number or a keyword of the standard UNIX signal name."
   (unix-signal-%description (unix-signal-or-lose signal)))
 
 (defun unix-signal-number (signal)
-  "Return the number of the given signal.  Signal should be a valid
-  signal number or a keyword of the standard UNIX signal name."
+  "Return the number of the given signal.  Signal should be a valid signal
+   number or a keyword of the standard UNIX signal name."
   (unix-signal-%number (unix-signal-or-lose signal)))
 
 ;;; Known signals
@@ -156,7 +140,6 @@
 #+svr4
 (def-unix-signal :SIGWAITING 32 "Process's lwps are blocked")
 
-
 ;;; SIGMASK -- Public
 ;;;
 (defmacro sigmask (&rest signals)
@@ -176,11 +159,10 @@
   (signal c-call:int))
 
 (defun unix-kill (pid signal)
-  "Unix-kill sends the signal signal to the process with process
-   id pid.  Signal should be a valid signal number or a keyword of the
-   standard UNIX signal name."
+  "Unix-kill sends the signal signal to the process with process id pid.
+   Signal should be a valid signal number or a keyword of the standard UNIX
+   signal name."
   (real-unix-kill pid (unix-signal-number signal)))
-
 
 (proclaim '(inline real-unix-killpg))
 
@@ -190,32 +172,27 @@
 
 (defun unix-killpg (pgrp signal)
   "Unix-killpg sends the signal signal to the all the process in process
-  group PGRP.  Signal should be a valid signal number or a keyword of
-  the standard UNIX signal name."
+   group PGRP.  Signal should be a valid signal number or a keyword of the
+   standard UNIX signal name."
   (real-unix-killpg pgrp (unix-signal-number signal)))
 
-
 (alien:def-alien-routine ("sigblock" unix-sigblock) c-call:unsigned-long
-  "Unix-sigblock cause the signals specified in mask to be
-   added to the set of signals currently being blocked from
-   delivery.  The macro sigmask is provided to create masks."
+  "Unix-sigblock cause the signals specified in mask to be added to the set
+   of signals currently being blocked from delivery.  The macro sigmask is
+   provided to create masks."
   (mask c-call:unsigned-long))
-
 
 (alien:def-alien-routine ("sigpause" unix-sigpause) c-call:void
-  "Unix-sigpause sets the set of masked signals to its argument
-   and then waits for a signal to arrive, restoring the previous
-   mask upon its return."
+  "Unix-sigpause sets the set of masked signals to its argument and then
+   waits for a signal to arrive, restoring the previous mask upon its
+   return."
   (mask c-call:unsigned-long))
-
 
 (alien:def-alien-routine ("sigsetmask" unix-sigsetmask) c-call:unsigned-long
-  "Unix-sigsetmask sets the current set of masked signals (those
-   being blocked from delivery) to the argument.  The macro sigmask
-   can be used to create the mask.  The previous value of the signal
-   mask is returned."
+  "Unix-sigsetmask sets the current set of masked signals (those being
+   blocked from delivery) to the argument.  The macro sigmask can be used
+   to create the mask.  The previous value of the signal mask is returned."
   (mask c-call:unsigned-long))
-
 
 
 ;;;; C routines that actually do all the work of establishing signal handlers.
@@ -224,7 +201,6 @@
 			 c-call:unsigned-long
   (signal c-call:int)
   (handler c-call:unsigned-long))
-
 
 
 ;;;; Interface to enabling and disabling signal handlers.
@@ -248,7 +224,6 @@
 (defun ignore-interrupt (signal)
   (enable-interrupt signal :ignore))
 
-
 
 ;;;; Default LISP signal handlers.
 
@@ -256,7 +231,7 @@
 
 (defmacro define-signal-handler (name what
 				      &optional (function 'error)
-				                (exit-hemlock t))
+				                (get-screen t))
   (let ((call `(,function ,(concatenate 'simple-string what " at #x~x.")
 			  (with-alien ((scp (* sigcontext) scp))
 			    (sap-int (vm:sigcontext-program-counter scp))))))
@@ -264,8 +239,8 @@
        (declare (ignore signal code)
 		(type system-area-pointer scp)
 		(optimize (inhibit-warnings 3)))
-       ,(if exit-hemlock
-	    (cons 'system:without-hemlock call)
+       ,(if get-screen
+	    (cons 'system:with-screen call)
 	    call))))
 
 (define-signal-handler sigint-handler "Interrupted" break nil)
@@ -287,8 +262,8 @@
 
 (defun signal-init ()
   "Enable all the default signals that Lisp knows how to deal with."
-  (unless (member "-monitor" lisp::lisp-command-line-list :test #'string=)
-    (enable-interrupt :sigint #'sigint-handler))
+  (or (member "-monitor" lisp::lisp-command-line-list :test #'string=)
+      (enable-interrupt :sigint #'sigint-handler))
   (enable-interrupt :sigquit #'sigquit-handler)
   (enable-interrupt :sigill #'sigill-handler)
   (enable-interrupt :sigtrap #'sigtrap-handler)
@@ -304,32 +279,32 @@
   (enable-interrupt :sigalrm #'sigalrm-handler)
   nil)
 
-
 
 ;;;; Macros for dynamically enabling and disabling signal handling.
 
 ;;; Notes on how the without-interrupts/with-interrupts stuff works.
 ;;;
 ;;; Before invoking the supplied handler for any of the signals that can be
-;;; blocked, the C interrupt support code checks to see if *interrupts-enabled*
-;;; has been bound to NIL.  If so, it saves the signal number and the value of
-;;; the signal mask (from the sigcontext), sets the signal mask to block all
-;;; blockable signals, sets *interrupt-pending* and returns without handling
-;;; the signal.
+;;; blocked, the C interrupt support code checks to see if
+;;; *interrupts-enabled* has been bound to NIL.  If so, it saves the signal
+;;; number and the value of the signal mask (from the sigcontext), sets the
+;;; signal mask to block all blockable signals, sets *interrupt-pending*
+;;; and returns without handling the signal.
 ;;;
 ;;; When we drop out the without interrupts, we check to see if
 ;;; *interrupt-pending* has been set.  If so, we call do-pending-interrupt,
-;;; which generates a SIGTRAP.  The C code invokes the handler for the saved
-;;; signal instead of the SIGTRAP after replacing the signal mask in the
-;;; sigcontext with the saved value.  When that hander returns, the original
-;;; signal mask is installed, allowing any other pending signals to be handled.
+;;; which generates a SIGTRAP.  The C code invokes the handler for the
+;;; saved signal instead of the SIGTRAP after replacing the signal mask in
+;;; the sigcontext with the saved value.  When that handler returns, the
+;;; original signal mask is installed, allowing any other pending signals
+;;; to be handled.
 ;;;
-;;; This means that the cost of without-interrupts is just a special binding in
-;;; the case when no signals are delivered (the normal case).  It's only when
-;;; a signal is actually delivered that we use any system calls, and by then
-;;; the cost of the extra system calls are lost in the noise when compared
-;;; with the cost of delivering the signal in the first place.
-;;;
+;;; This means that the cost of without-interrupts is just a special
+;;; binding in the case when no signals are delivered (the normal case).
+;;; It's only when a signal is actually delivered that we use any system
+;;; calls, and by then the cost of the extra system calls are lost in the
+;;; noise when compared with the cost of delivering the signal in the first
+;;; place.
 
 ;;; DO-PENDING-INTERRUPT  --  internal
 ;;;
@@ -343,7 +318,7 @@
 (defvar *interrupts-enabled* t)
 (defvar *interrupt-pending* nil)
 
-;;; WITHOUT-INTERRUPTS  --  puiblic
+;;; WITHOUT-INTERRUPTS  --  public
 ;;;
 (defmacro without-interrupts (&body body)
   "Execute BODY in a context impervious to interrupts."
@@ -357,11 +332,11 @@
 	       (do-pending-interrupt)))
 	   (,name)))))
 
-;;; WITH-INTERRUPTS  --  puiblic
+;;; WITH-INTERRUPTS  --  public
 ;;;
 (defmacro with-interrupts (&body body)
-  "Allow interrupts while executing BODY.  As interrupts are normally allowed,
-  this is only useful inside a WITHOUT-INTERRUPTS."
+  "Allow interrupts while executing BODY.  As interrupts are normally
+   allowed, this is only useful inside a WITHOUT-INTERRUPTS."
   (let ((name (gensym)))
     `(flet ((,name () ,@body))
        (if *interrupts-enabled*
@@ -371,15 +346,15 @@
 	       (do-pending-interrupt))
 	     (,name))))))
 
-); #-gengc progn
+) ; #-gengc progn
 
-;;; On the GENGC system, we have to do it slightly differently because of the
-;;; existance of threads.  Each thread has a suspends_disabled_count in its
-;;; mutator structure.  When this value is other then zero, the low level stuff
-;;; will not suspend the thread, but will instead set the suspend_pending flag
-;;; (also in the mutator).  So when we finish the without-interrupts, we just
-;;; check the suspend_pending flag and trigger a do-pending-interrupt if
-;;; necessary.
+;;; On the GENGC system, we have to do it slightly differently because of
+;;; the existance of threads.  Each thread has a suspends_disabled_count in
+;;; its mutator structure.  When this value is other then zero, the low
+;;; level stuff will not suspend the thread, but will instead set the
+;;; suspend_pending flag (also in the mutator).  So when we finish the
+;;; without-interrupts, we just check the suspend_pending flag and trigger
+;;; a do-pending-interrupt if necessary.
 
 #+gengc
 (defmacro without-interrupts (&body body)
@@ -419,4 +394,3 @@
 	     ,@body)
 	 (dolist (,it (nreverse ,il))
 	   (enable-interrupt (car ,it) (cadr ,it)))))))
-

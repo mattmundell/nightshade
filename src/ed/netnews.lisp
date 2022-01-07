@@ -12,14 +12,14 @@
 ;;;             access were not made again and NNTP had timed us out, we
 ;;;             would be making requests on a defunct stream.
 
-(in-package "HEMLOCK")
-
+(in-package "ED")
 
 
 ;;;; Netnews data structures.
 
 (defparameter default-netnews-headers-length 1000
-  "How long the header-cache and message-ids arrays should be made on startup.")
+  "How long the header-cache and message-ids arrays should be made on
+   startup.")
 
 (defstruct (netnews-info
 	    (:conc-name nn-info-)
@@ -290,7 +290,6 @@
 		  :buffer buffer
 		  :value browse-buf)
 		(setup-group (car groups) nn-info buffer from-end-p)))))))))
-
 
 (defun nn-parse-kill-file ()
   (let ((filename (merge-pathnames (value netnews-kill-file)
@@ -1475,7 +1474,7 @@
       (setf (buffer-modified buffer) nil)
       (buffer-start point)
       (change-to-buffer buffer))
-    (unless headers-buffer (close stream))))
+    (fi headers-buffer (close stream))))
 
 (defun nn-new-list-newsgroups-name ()
   (let ((name "Newsgroups List")
@@ -1612,6 +1611,7 @@
 		    (write-line string s :end (1- (length string))))))
       (:message (write-file (buffer-region (current-buffer)) "/tmp/temp.msg"
 			    :keep-backup nil)))
+    ;; FIX
     (mh "inc" `(,folder "-silent" "-file" "/tmp/temp.msg"))
     (message "Done.")))
 
@@ -1998,13 +1998,14 @@
 	    ;; from under us by an NNTP timeout.  The recover method for posting
 	    ;; resets the editor variable.
 	    (stream (post-info-stream (value post-info))))
-	(unless winp (editor-error "Posting prohibited in this group."))
+	(or winp (editor-error "Posting prohibited in this group."))
 	(let ((buffer (current-buffer))
 	      (username (value netnews-reply-address)))
 	  (nn-write-line (format nil "From: ~A"
 				 (if username
 				     username
 				     (string-downcase
+				      ;; FIX should be std way to this
 				      (format nil "~A@~A"
 					      (cdr (assoc :user
 							  ext:*environment-list*))
@@ -2023,7 +2024,7 @@
 	      (with-open-file (istream filename :direction :input)
 		(loop
 		  (let ((line (read-line istream nil nil)))
-		    (unless line (return))
+		    (or line (return))
 		    (nn-write-line line stream))))))
 	  (write-line nntp-eof stream)
 	  (delete-buffer-if-possible buffer)
@@ -2121,8 +2122,8 @@
    \"Netnews Group File\"."
   (declare (ignore p))
   (multiple-value-bind (x y window) (last-key-event-cursorpos)
-    (unless window (editor-error "Couldn't figure out where last click was."))
-    (unless y (editor-error "There is no group in the modeline."))
+    (or window (editor-error "Couldn't figure out where last click was."))
+    (or y (editor-error "There is no group in the modeline."))
     (netnews-browse-add-group-to-file-command
      nil (cursorpos-to-mark x y window))))
 
@@ -2198,8 +2199,8 @@
 						   (string= string1 string2
 							    :end1 3
 							    :end2 3))))))
-	  (unless error-handler
-	    (error "NNTP error -- ~A" (subseq str 4 (1- (length str)))))
+	  (or error-handler
+	      (error "NNTP error -- ~A" (subseq str 4 (1- (length str)))))
 	  (funcall error-handler note))
 	str)))
 

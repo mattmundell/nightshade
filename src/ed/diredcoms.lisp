@@ -1,5 +1,4 @@
-;;; Simple directory editing support.
-;;; This file contains site dependent calls.
+;;; Directory editing support.  This file contains site dependent calls.
 
 (in-package "ED")
 
@@ -555,6 +554,8 @@
 		      point (dired-info-files (value dired-information))))))
       ;; FIX add proper file type handling
       (when (or (string= (string-downcase (pathname-type pathname)) "png")
+		(string= (string-downcase (pathname-type pathname)) "ppm")
+		(string= (string-downcase (pathname-type pathname)) "gif")
 		(string= (string-downcase (pathname-type pathname)) "jpg"))
 	(message "Opening ~A externally ..." pathname)
 	(view pathname)
@@ -645,7 +646,7 @@
   (or (editor-bound-p 'dired-information)
       (editor-error "Must be in a Dired buffer."))
   ;; FIX (decf? ie (- universe universe)
-  (hi::complf (dired-info-backup-files-p (value dired-information)))
+  (edi::complf (dired-info-backup-files-p (value dired-information)))
   (dired-update-buffer-command nil t))
 
 (defcommand "Dired Toggle Hidden Files" (p)
@@ -655,7 +656,18 @@
   (or (editor-bound-p 'dired-information)
       (editor-error "Must be in a Dired buffer."))
   ;; FIX
-  (hi::complf (dired-info-dot-files-p (value dired-information)))
+  (edi::complf (dired-info-dot-files-p (value dired-information)))
+  (dired-update-buffer-command nil t))
+
+(defcommand "Dired Toggle All Files" (p)
+  "Toggle display of hidden and backup files, updating buffer."
+  "Toggle display of hidden and backup files, updating buffer."
+  (declare (ignore p))
+  (or (editor-bound-p 'dired-information)
+      (editor-error "Must be in a Dired buffer."))
+  ;; FIX
+  (edi::complf (dired-info-backup-files-p (value dired-information)))
+  (edi::complf (dired-info-dot-files-p (value dired-information)))
   (dired-update-buffer-command nil t))
 
 
@@ -1851,17 +1863,17 @@
 ; 		       ;; FIX multiple elements in *files* for lines w multiple matches
 ; 		       (character-offset point num)))))
 	(editor-error "FIX display-matches"))
-    (map-files pathname
-	       (lambda (file)
-		 ;; FIX may be better to use a stream for this case
-		 ;; (with-open-file
-		 (or (directoryp file)
-		     (hi::with-temp-buffer (buffer file)
-		       (message "search ~A (~A) for .~A. from ~A with ~A" buffer file rule (buffer-point buffer) *pattern*)
-		       (if (find-pattern (buffer-point buffer) *pattern*)
-			   (setq *files* (append *files* (list file)))))))
+    ;; FIX test (was map-files when last used)
+    (do-files (file pathname
 	       :recurse recurse
 	       :follow-links t)
+      ;; FIX may be better to use a stream for this case
+      ;; (with-open-file
+      (or (directoryp file)
+	  (edi::with-temp-buffer (buffer file)
+	    (message "search ~A (~A) for .~A. from ~A with ~A" buffer file rule (buffer-point buffer) *pattern*)
+	    (if (find-pattern (buffer-point buffer) *pattern*)
+		(setq *files* (append *files* (list file)))))))
     *files*))
 |#
 
@@ -2050,23 +2062,22 @@
 	(all (dired-info-dot-files-p dir-info))
 	(backups (dired-info-backup-files-p dir-info))
 	(recurse (dired-info-recurse dir-info)))
-    (map-files pathname
-	       (lambda (file)
-		 (let ((vc-info (make-vc-info file t)))
-		   (when vc-info
-		     (let ((version (or (vc-info-version vc-info) ""))
-			   (status (string (or (vc-info-status vc-info)
-					       ""))))
-		       (if (> (length version) max-version)
-			   (setq max-version (length version)))
-		       (if (> (length status) max-status)
-			   (setq max-status (length status)))
-		       ;; Empty string dummy line number.
-		       (push (list file "" vc-info version status)
-			     files)))))
+    (do-files (file pathname
 	       :follow-links t
 	       :all all :backups backups
 	       :recurse recurse)
+      (let ((vc-info (make-vc-info file t)))
+	(when vc-info
+	  (let ((version (or (vc-info-version vc-info) ""))
+		(status (string (or (vc-info-status vc-info)
+				    ""))))
+	    (if (> (length version) max-version)
+		(setq max-version (length version)))
+	    (if (> (length status) max-status)
+		(setq max-status (length status)))
+	    ;; Empty string dummy line number.
+	    (push (list file "" vc-info version status)
+		  files)))))
     ;; Normalise string widths.
     (mapcar #'(lambda (list)
 		(rplaca (nthcdr 3 list)

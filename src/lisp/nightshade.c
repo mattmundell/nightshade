@@ -14,7 +14,7 @@
 
 #include "signal.h"
 
-#include "lisp.h"
+#include "nightshade.h"
 #include "internals.h"
 #include "alloc.h"
 #include "vars.h"

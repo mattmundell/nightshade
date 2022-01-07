@@ -1,0 +1,425 @@
+
+;;;; Component: "DEFUN FOO"
+
+
+block start c1
+  2: bind lambda FOO (X)
+  3: entry NIL
+  4: lambda NIL (#:G1)
+  5: local combination c4 <none>
+  6: bind lambda NIL (#:G1)
+  7: KERNEL:SINGLE-FLOAT-P {GLOBAL-FUNCTION}
+  8: X
+  9: known combination c7 c8
+ 10: if c9 c11 c12
+successors c12 c11
+
+block start c12
+ 13: ERROR {GLOBAL-FUNCTION}
+ 14: 'CONDITIONS::CASE-FAILURE
+ 15: ':NAME
+ 16: 'ETYPECASE
+ 17: ':DATUM
+ 18: X
+ 19: ':EXPECTED-TYPE
+ 20: '(OR SINGLE-FLOAT)
+ 21: ':POSSIBILITIES
+ 22: '(SINGLE-FLOAT)
+ 23: known combination c13 c14 c15 c16 c17 c18 c19 c20 c21 c22
+successors c23
+
+block start c23
+ 24: return c23 lambda FOO (X)
+successors c25
+
+block start c11
+ 26: lambda NIL (X)
+ 27: X
+ 28: local combination c26 c27
+ 29: bind lambda NIL (X)
+ 30: + {GLOBAL-FUNCTION}
+ 31: X
+ 32: X
+ 23: known combination c30 c31 c32
+successors c23
+
+block start c33
+ 34: bind lambda NIL (#:G2 #:G3)
+ 35: C::%%PRIMITIVE {GLOBAL-FUNCTION}
+ 36: '#<C::TEMPLATE #x42602E7
+                    NAME= C:VERIFY-ARGUMENT-COUNT
+                    ARG-TYPES= ((:OR
+                                 #<C:PRIMITIVE-TYPE #x41401A7
+                                                    NAME= MIPS::POSITIVE-FIXNUM
+                                                    TYPE= (UNSIGNED-BYTE
+                                                           29)>))
+                    RESULT-TYPES= NIL
+                    POLICY= :FAST
+                    COST= 3
+                    INFO-ARG-COUNT= 1>
+ 37: '(1)
+ 38: #:G2
+ 39: known combination c35 c36 c37 c38
+ 40: lambda FOO (X)
+ 41: #:G3
+ 42: local combination c40 c41
+successors c1
+
+
+;;;; IR2 component: "DEFUN FOO"
+
+Entries:
+    L1: FOO
+
+
+TNs: 39 local, 21 temps, 9 constant, 7 env, 1 comp, 6 global.
+Wired: 53, Unused: 5.  5 blocks, 27 global conflicts.
+
+
+IR2 block start c25
+
+IR2 block start c33
+0: XEP-ALLOCATE-FRAME {#<LABEL 1>} 
+1: SETUP-ENVIRONMENT {#<LABEL 1>} 
+2: MOVE t1[NARGS] => #:G2!2[NARGS] 
+3: MOVE t3[A0] => #:G3!4[A0] 
+4: MOVE t5[OCFP] => t6[OCFP] 
+5: MOVE t7[LRA] => t8[LRA] 
+6: NOTE-ENVIRONMENT-START {#<LABEL 2>} 
+7: VERIFY-ARGUMENT-COUNT #:G2!2[NARGS] {1} 
+8: MOVE #:G3!4[A0] => X!9[LEXENV] 
+9: MOVE t6[OCFP] => t10[CS0]<t11[OCFP] 
+10: MOVE t8[LRA] => t12[LRA] 
+
+IR2 block start c1
+0: MOVE t12[LRA] => t13[CS1]<t14[LRA] 
+1: NOTE-ENVIRONMENT-START {#<LABEL 3>} 
+2: SINGLE-FLOAT-P X!9[LEXENV] {#<LABEL 4> NIL} 
+
+IR2 block start c12
+0: MOVE-OPERAND X!9[LEXENV] {MIPS::STORE-STACK} => t15[CS3] 
+1: ALLOCATE-FULL-CALL-FRAME {9} => t16[NL3] 
+2: MOVE-ARGUMENT 'CONDITIONS::CASE-FAILURE!17[Const4]>t18[A0] t16[NL3] => t19[A0] 
+3: MOVE-ARGUMENT ':NAME!20[Const5]>t21[A1] t16[NL3] => t22[A1] 
+4: MOVE-ARGUMENT 'ETYPECASE!23[Const6]>t24[A2] t16[NL3] => t25[A2] 
+5: MOVE-ARGUMENT ':DATUM!26[Const7]>t27[A3] t16[NL3] => t28[A3] 
+6: MOVE-ARGUMENT X!9[LEXENV] t16[NL3] => t29[A4] 
+7: MOVE-ARGUMENT ':EXPECTED-TYPE!30[Const8]>t31[A5] t16[NL3] => t32[A5] 
+8: MOVE-ARGUMENT '(OR SINGLE-FLOAT)!33[Const9]>t34[CNAME] t16[NL3] => t35[CS6] 
+9: MOVE-ARGUMENT ':POSSIBILITIES!36[Const10]>t37[CNAME] t16[NL3] => t38[CS7] 
+10: MOVE-ARGUMENT '(SINGLE-FLOAT)!39[Const11]>t40[CNAME] t16[NL3] => t41[CS8] 
+11: CALL-NAMED t16[NL3] 'ERROR!42[Const12] t19[A0] t22[A1] t25[A2] t28[A3] t29[A4] t32[A5] t35[CS6] t38[CS7] t41[CS8] {(#<TN t19[A0]>
+                                                                                                                        #<TN t22[A1]>
+                                                                                                                        #<TN t25[A2]>
+                                                                                                                        ...) 9 1} => t43[A0] 
+12: MOVE-OPERAND t15[CS3] {MIPS::LOAD-STACK} => X!9[LEXENV] 
+13: MOVE-TO-SINGLE t43[A0] => t44[F0] 
+
+IR2 block start c23
+L5:
+0: MOVE-FROM-SINGLE t44[F0] => t45[A0] 
+1: RETURN t10[CS0]>t46[NL0] t13[CS1]>t47[CNAME] t45[A0] {1} 
+
+IR2 block start c11
+L4:
+0: MOVE-TO-SINGLE X!9[LEXENV] => t48[F0] 
+1: SINGLE-MOVE t48[F0] => X!49[F0] 
+2: +/SINGLE-FLOAT X!49[F0] X!49[F0] => t44[F0] 
+3: BRANCH {#<LABEL 5>} 
+
+IR2 block start c25
+
+
+Assembly code for #<C:COMPONENT #x608B1AF  NAME= "DEFUN FOO">
+
+L6:
+L7:
+
+VOP XEP-ALLOCATE-FRAME {#<LABEL 1>} 
+       0:       .align 3
+L1:
+       0:       FUNCTION-HEADER-WORD
+       4:       WORD    0
+       8:       WORD    0
+       C:       WORD    0
+      10:       WORD    0
+      14:       WORD    0
+L8:
+      18:       COMPUTE-CODE-FROM-FN-ADDUI      CODE, LIP, L8
+      1C:       ADDU    CSP, CFP, 64
+
+VOP NOTE-ENVIRONMENT-START {#<LABEL 2>} 
+L2:
+
+VOP VERIFY-ARGUMENT-COUNT #:G2!2[NARGS] {1} 
+      20:       OR      NL3, ZERO, 4
+      24:       BNE     NARGS, NL3, L9
+      28:       NOP
+
+VOP MOVE #:G3!4[A0] => X!9[LEXENV] 
+      2C:       MOVE    LEXENV, A0
+
+VOP MOVE t6[OCFP] => t10[CS0]<t11[OCFP] 
+      30:       SW      OCFP, CFP, 0
+L10:
+
+VOP MOVE t12[LRA] => t13[CS1]<t14[LRA] 
+      34:       SW      LRA, CFP, 4
+
+VOP NOTE-ENVIRONMENT-START {#<LABEL 3>} 
+L3:
+
+VOP SINGLE-FLOAT-P X!9[LEXENV] {#<LABEL 4> NIL} 
+      38:       AND     NL3, LEXENV, 7
+      3C:       XOR     NL3, NL3, 7
+      40:       BNE     NL3, ZERO, L11
+      44:       NOP
+      48:       LBU     NL3, LEXENV, -7
+      4C:       NOP
+      50:       XOR     NL3, NL3, 18
+      54:       BEQ     NL3, ZERO, L4
+      58:       NOP
+L11:
+L12:
+
+VOP MOVE-OPERAND X!9[LEXENV] {MIPS::STORE-STACK} => t15[CS3] 
+      5C:       SW      LEXENV, CFP, 12
+
+VOP ALLOCATE-FULL-CALL-FRAME {9} => t16[NL3] 
+      60:       MOVE    NL3, CSP
+      64:       ADDU    CSP, CSP, 36
+
+VOP MOVE-ARGUMENT 'CONDITIONS::CASE-FAILURE!17[Const4]>t18[A0] t16[NL3] => t19[A0] 
+      68:       LW      A0, CODE, 9
+      6C:       NOP
+
+VOP MOVE-ARGUMENT ':NAME!20[Const5]>t21[A1] t16[NL3] => t22[A1] 
+      70:       LW      A1, CODE, 13
+      74:       NOP
+
+VOP MOVE-ARGUMENT 'ETYPECASE!23[Const6]>t24[A2] t16[NL3] => t25[A2] 
+      78:       LW      A2, CODE, 17
+      7C:       NOP
+
+VOP MOVE-ARGUMENT ':DATUM!26[Const7]>t27[A3] t16[NL3] => t28[A3] 
+      80:       LW      A3, CODE, 21
+      84:       NOP
+
+VOP MOVE-ARGUMENT X!9[LEXENV] t16[NL3] => t29[A4] 
+      88:       MOVE    A4, LEXENV
+
+VOP MOVE-ARGUMENT ':EXPECTED-TYPE!30[Const8]>t31[A5] t16[NL3] => t32[A5] 
+      8C:       LW      A5, CODE, 25
+      90:       NOP
+
+VOP MOVE-ARGUMENT '(OR SINGLE-FLOAT)!33[Const9]>t34[CNAME] t16[NL3] => t35[CS6] 
+      94:       LW      CNAME, CODE, 29
+      98:       NOP
+      9C:       SW      CNAME, NL3, 24
+
+VOP MOVE-ARGUMENT ':POSSIBILITIES!36[Const10]>t37[CNAME] t16[NL3] => t38[CS7] 
+      A0:       LW      CNAME, CODE, 33
+      A4:       NOP
+      A8:       SW      CNAME, NL3, 28
+
+VOP MOVE-ARGUMENT '(SINGLE-FLOAT)!39[Const11]>t40[CNAME] t16[NL3] => t41[CS8] 
+      AC:       LW      CNAME, CODE, 37
+      B0:       NOP
+      B4:       SW      CNAME, NL3, 32
+
+VOP CALL-NAMED t16[NL3] 'ERROR!42[Const12] t19[A0] t22[A1] t25[A2] t28[A3] t29[A4] t32[A5] t35[CS6] t38[CS7] t41[CS8] {(#<TN t19[A0]>
+                                                                                                                        #<TN t22[A1]>
+                                                                                                                        #<TN t25[A2]>
+                                                                                                                        ...) 9 1} => t43[A0] 
+      B8:       LW      CNAME, CODE, 41
+      BC:       OR      NARGS, ZERO, 36
+      C0:       LW      LIP, CNAME, 5
+      C4:       COMPUTE-LRA-FROM-CODE-ADDUI     LRA, CODE, L13
+      C8:       MOVE    OCFP, CFP
+      CC:       J       LIP
+      D0:       MOVE    CFP, NL3
+      D4:       .align 3
+L13:
+      D8:       LRA-HEADER-WORD
+L14:
+      DC:       MOVE    CSP, OCFP
+      E0:       NOP
+      E4:       COMPUTE-CODE-FROM-LRA-ADDUI     CODE, CODE, L13
+
+VOP MOVE-OPERAND t15[CS3] {MIPS::LOAD-STACK} => X!9[LEXENV] 
+      E8:       LW      LEXENV, CFP, 12
+      EC:       NOP
+
+VOP MOVE-TO-SINGLE t43[A0] => t44[F0] 
+      F0:       LWC1    F0, A0, -3
+      F4:       NOP
+L5:
+
+VOP MOVE-FROM-SINGLE t44[F0] => t45[A0] 
+      F8:       AND     FLAGS, FLAGS, 65533
+      FC:       OR      FLAGS, FLAGS, 1
+     100:       ADDU    A0, ALLOC, 7
+     104:       ADDU    ALLOC, ALLOC, 8
+     108:       OR      NL3, ZERO, 274
+     10C:       SW      NL3, A0, -7
+     110:       SWC1    F0, A0, -3
+     114:       AND     FLAGS, FLAGS, 65534
+     118:       AND     NL3, FLAGS, 2
+     11C:       BEQ     NL3, ZERO, L15
+     120:       NOP
+     124:       BREAK   9
+L15:
+
+VOP RETURN t10[CS0]>t46[NL0] t13[CS1]>t47[CNAME] t45[A0] {1} 
+     128:       LW      NL0, CFP, 0
+     12C:       NOP
+     130:       LW      CNAME, CFP, 4
+     134:       NOP
+     138:       MOVE    CSP, CFP
+     13C:       MOVE    CFP, NL0
+     140:       ADDU    LIP, CNAME, 5
+     144:       J       LIP
+     148:       MOVE    CODE, CNAME
+L4:
+
+VOP MOVE-TO-SINGLE X!9[LEXENV] => t48[F0] 
+     14C:       LWC1    F0, LEXENV, -3
+     150:       NOP
+
+VOP +/SINGLE-FLOAT X!49[F0] X!49[F0] => t44[F0] 
+L16:
+     154:       FLOAT-OP        +, SINGLE, F0, F0, F0
+
+VOP BRANCH {#<LABEL 5>} 
+     158:       B       L5
+     15C:       NOP
+L17:
+L18:
+
+VOP VERIFY-ARGUMENT-COUNT #:G2!2[NARGS] {1} 
+L9:
+L19:
+     160:       BREAK   10
+     164:       BYTE    2
+     165:       BYTE    25
+     166:       BYTE    240
+     167:       .align 2
+L20:
+
+;;;; Component: "Top-Level Form"
+
+
+block start c1
+  2: bind lambda "Top-Level Form" NIL
+  3: C::%%DEFUN {GLOBAL-FUNCTION}
+  4: 'FOO
+  5: TL-XEP FOO
+  6: 'NIL
+  7: full combination c3 c4 c5 c6
+  8: 'NIL
+  9: return c8 lambda "Top-Level Form" NIL
+successors c10
+
+
+;;;; IR2 component: "Top-Level Form"
+
+Entries:
+    L1: "Top-Level Form"
+
+
+TNs: 25 local, 18 temps, 4 constant, 2 env, 0 comp, 2 global.
+Wired: 29, Unused: 2.  1 block, 4 global conflicts.
+
+
+IR2 block start c10
+
+IR2 block start c1
+0: XEP-ALLOCATE-FRAME {#<LABEL 1>} 
+1: SETUP-ENVIRONMENT {#<LABEL 1>} 
+2: MOVE t1[OCFP] => t2[CS0]<t3[OCFP] 
+3: MOVE t4[LRA] => t5[CS1]<t6[LRA] 
+4: NOTE-ENVIRONMENT-START {#<LABEL 2>} 
+5: ALLOCATE-FULL-CALL-FRAME {3} => t7[NL3] 
+6: MOVE-ARGUMENT 'FOO!8[Const5]>t9[A0] t7[NL3] => t10[A0] 
+7: MOVE-ARGUMENT t11[Const4]>t12[A1] t7[NL3] => t13[A1] 
+8: MOVE-ARGUMENT 'NIL!14>t15[A2] t7[NL3] => t16[A2] 
+9: CALL-NAMED t7[NL3] 'C::%%DEFUN!17[Const6] t10[A0] t13[A1] t16[A2] {(#<TN t10[A0]>
+                                                                       #<TN t13[A1]>
+                                                                       #<TN t16[A2]>) 3 0} 
+10: MOVE 'NIL!14>t18[A0] => t19[A0] 
+11: RETURN t2[CS0]>t20[NL0] t5[CS1]>t21[CNAME] t19[A0] {1} 
+
+IR2 block start c10
+
+
+Assembly code for #<C:COMPONENT #x608B32F  NAME= "Top-Level Form">
+
+L3:
+L4:
+
+VOP XEP-ALLOCATE-FRAME {#<LABEL 1>} 
+       0:       .align 3
+L1:
+       0:       FUNCTION-HEADER-WORD
+       4:       WORD    0
+       8:       WORD    0
+       C:       WORD    0
+      10:       WORD    0
+      14:       WORD    0
+L5:
+      18:       COMPUTE-CODE-FROM-FN-ADDUI      CODE, LIP, L5
+      1C:       ADDU    CSP, CFP, 32
+
+VOP MOVE t1[OCFP] => t2[CS0]<t3[OCFP] 
+      20:       SW      OCFP, CFP, 0
+
+VOP MOVE t4[LRA] => t5[CS1]<t6[LRA] 
+      24:       SW      LRA, CFP, 4
+
+VOP NOTE-ENVIRONMENT-START {#<LABEL 2>} 
+L2:
+
+VOP MOVE-ARGUMENT 'FOO!8[Const5]>t9[A0] t7[NL3] => t10[A0] 
+      28:       LW      A0, CODE, 13
+      2C:       NOP
+
+VOP MOVE-ARGUMENT t11[Const4]>t12[A1] t7[NL3] => t13[A1] 
+      30:       LW      A1, CODE, 9
+      34:       NOP
+
+VOP MOVE-ARGUMENT 'NIL!14>t15[A2] t7[NL3] => t16[A2] 
+      38:       MOVE    A2, NULL
+
+VOP CALL-NAMED t7[NL3] 'C::%%DEFUN!17[Const6] t10[A0] t13[A1] t16[A2] {(#<TN t10[A0]>
+                                                                        #<TN t13[A1]>
+                                                                        #<TN t16[A2]>) 3 0} 
+      3C:       LW      CNAME, CODE, 17
+      40:       OR      NARGS, ZERO, 12
+      44:       LW      LIP, CNAME, 5
+      48:       COMPUTE-LRA-FROM-CODE-ADDUI     LRA, CODE, L6
+      4C:       MOVE    OCFP, CFP
+      50:       J       LIP
+      54:       MOVE    CFP, CSP
+      58:       .align 3
+L6:
+      58:       LRA-HEADER-WORD
+L7:
+      5C:       MOVE    CSP, OCFP
+      60:       NOP
+      64:       COMPUTE-CODE-FROM-LRA-ADDUI     CODE, CODE, L6
+
+VOP MOVE 'NIL!14>t18[A0] => t19[A0] 
+      68:       MOVE    A0, NULL
+
+VOP RETURN t2[CS0]>t20[NL0] t5[CS1]>t21[CNAME] t19[A0] {1} 
+      6C:       LW      NL0, CFP, 0
+      70:       NOP
+      74:       LW      CNAME, CFP, 4
+      78:       NOP
+      7C:       MOVE    CSP, CFP
+      80:       MOVE    CFP, NL0
+      84:       ADDU    LIP, CNAME, 5
+      88:       J       LIP
+      8C:       MOVE    CODE, CNAME
+L8:
+L9:

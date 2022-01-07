@@ -2,7 +2,7 @@
 ;;; and most of the code which defines other aspects of the interface to
 ;;; redisplay.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(current-window window-buffer modeline-field-width
 	  modeline-field-function make-modeline-field update-modeline-fields
@@ -53,8 +53,8 @@
   (window-%buffer window))
 
 (defun %set-window-buffer (window new-buffer)
-  (unless (bufferp new-buffer) (error "~S is not a buffer." new-buffer))
-  (unless (windowp window) (error "~S is not a window." window))
+  (or (bufferp new-buffer) (error "~S is not a buffer." new-buffer))
+  (or (windowp window) (error "~S is not a window." window))
   (unless (eq new-buffer (window-buffer window))
     (invoke-hook ed::window-buffer-hook window new-buffer)
     ;;
@@ -395,11 +395,11 @@
 (defun maximum-modeline-pathname-length-hook (name kind where new-value)
   (declare (ignore name new-value))
   (if (eq kind :buffer)
-      (hi::queue-buffer-change where)
+      (edi::queue-buffer-change where)
       (dolist (buffer *buffer-list*)
 	(when (and (buffer-modeline-field-p buffer :buffer-pathname)
 		   (buffer-windows buffer))
-	  (hi::queue-buffer-change buffer)))))
+	  (edi::queue-buffer-change buffer)))))
 
 (defun buffer-pathname-ml-field-fun (buffer window)
   "Returns the namestring of buffer's pathname if there is one.  When

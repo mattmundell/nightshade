@@ -1,16 +1,5 @@
-;;; -*- Log: code.log; Mode: Lisp; Package: Lisp -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/defmacro.lisp,v 1.20 1997/01/18 14:31:00 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Written by Blaine Burks.
-;;;
+;;; parse-defmacro.
+
 (in-package "LISP")
 
 
@@ -33,7 +22,6 @@
 
 ;; Temps that we introduce and might not reference.
 (defvar *ignorable-vars*)
-  
 
 
 ;;;; Stuff to parse DEFMACRO, MACROLET, DEFINE-SETF-METHOD, and DEFTYPE.
@@ -75,7 +63,6 @@
 	 documentation
 	 minimum
 	 maximum)))))
-
 
 (defun parse-defmacro-lambda-list
        (lambda-list arg-list-name name error-kind error-fun
@@ -328,7 +315,6 @@
 (defun defmacro-error (problem kind name)
   (error "Illegal or ill-formed ~A argument in ~A~@[ ~S~]."
 	 problem kind name))
-
 
 
 ;;;; Conditions signaled at runtime by the resultant body.

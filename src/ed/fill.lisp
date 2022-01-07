@@ -1,16 +1,17 @@
-;;; Auto Fill Mode.  Also, paragraph and region filling.
+;;; Auto Fill mode.  Also, paragraph and region filling.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
+(export '(fill-region fill-region-by-paragraphs))
 
-;;; Fill Mode should be defined with some transparent bindings (linefeed and
-;;; return) but with some that are not (space), so until this is possible, we
-;;; kludge this effect by altering Auto Fill Linefeed and Auto Fill Return.
+;;; Fill Mode should be defined with some transparent bindings (linefeed
+;;; and return) but with some that are not (space), so until this is
+;;; possible, we kludge this effect by altering Auto Fill Linefeed and Auto
+;;; Fill Return.
 (defmode "Fill")
 
-
-
-;;;; -- Variables --
+
+;;;; Variables.
 
 (defhvar "Fill Column"
   "Used to determine at what column to force text to the next line."
@@ -25,15 +26,13 @@
    \"New Line\".  However, if there is a fill prefix, it is still preferred."
   :value nil)
 
-
-
-;;;; -- New Attributes --
+
+;;;; New attributes.
 
 (defattribute "Paragraph Delimiter"
   "is a character that delimits a paragraph by beginning a line."
   '(mod 2)
   0)
-
 
 ;;; (setf (character-attribute :paragraph-delimiter #\@) 1)
 ;;; (setf (character-attribute :paragraph-delimiter #\\) 1)
@@ -51,14 +50,11 @@
 (setf (character-attribute :paragraph-delimiter #\tab) 1)
 (setf (character-attribute :paragraph-delimiter #\newline) 1)
 
-
-
 (defattribute "Sentence Closing Char"
   "is a delimiting character that may follow a sentence terminator
    such as quotation marks and parentheses."
   '(mod 2)
   0)
-
 
 (setf (character-attribute :sentence-closing-char #\") 1)
 (setf (character-attribute :sentence-closing-char #\') 1)
@@ -67,8 +63,8 @@
 (setf (character-attribute :sentence-closing-char #\|) 1)
 (setf (character-attribute :sentence-closing-char #\>) 1)
 
-
-;;;; -- Commands --
+
+;;;; Commands.
 
 (defcommand "Auto Fill Mode" (p)
   "Breaks lines between words at the right margin.
@@ -81,7 +77,6 @@
 	(if p
 	    (plusp p)
 	    (not (buffer-minor-mode (current-buffer) "Fill")))))
-
 
 ;;; This command should not have a transparent binding since it sometimes does
 ;;; not insert a spaces, and transparency would propagate to "Self Insert".
@@ -99,7 +94,6 @@
 	  ((and p (zerop p)) (%auto-fill-space point nil))
 	  (t (%auto-fill-space point t)))))
 
-
 (defcommand "Auto Fill Linefeed" (p)
   "Does an immediate CRLF inserting Fill Prefix if it exists."
   "Does an immediate CRLF inserting Fill Prefix if it exists."
@@ -114,8 +108,6 @@
       (declare (ignore command)) ;command is this one, so don't invoke it
       (dolist (c t-bindings) (funcall *invoke-hook* c p)))
     (indent-new-line-command nil)))
-
-
 
 (defcommand "Auto Fill Return" (p)
   "Does an Auto Fill Space with a prefix argument of 0
@@ -133,8 +125,6 @@
       (declare (ignore command)) ;command is this one, so don't invoke it
       (dolist (c t-bindings) (funcall *invoke-hook* c p)))
     (new-line-command nil)))
-
-
 
 (defcommand "Fill Paragraph" (p)
   "Fill this or next paragraph.
@@ -167,7 +157,6 @@
 	    (fill-region region prefix column)
 	    (make-region-undo :twiddle "Fill Paragraph" region undo-region)))))))
 
-
 (defcommand "Fill Region" (p)
   "Fill text from point to mark."
   "Fill text from point to mark."
@@ -177,8 +166,6 @@
     (check-fill-prefix prefix column (current-point))
     (check-region-query-size region)
     (fill-region-by-paragraphs region prefix column)))
-
-
 
 (defcommand "Set Fill Column" (p)
   "Set Fill Column to current column or argument.
@@ -190,7 +177,6 @@
     (defhvar "Fill Column" "This buffer's fill column"
       :value new-column  :buffer (current-buffer))
     (message "Fill Column = ~D" new-column)))
-
 
 (defcommand "Set Fill Prefix" (p)
   "Define Fill Prefix from the current line.
@@ -210,7 +196,8 @@
 
 (declaim (optimize (speed 2))); turn off byte compilation.
 
-;;;; -- Auto Filling --
+
+;;;; Auto filling.
 
 ;;;      %AUTO-FILL-SPACE takes a point and an argument indicating
 ;;; whether it should insert a space or not.  If point is past Fill
@@ -243,8 +230,6 @@
 		 (delete-region (region mark1 point))
 		 (%filling-set-next-line point nil prefix)))))
       (if insertp (insert-character point #\space))))
-
-
 
 ;;;      %AUTO-FILL-WORD-PAST-COLUMN takes a point, a second mark that is
 ;;; mark= at the end of some word, and an indicator of whether a space
@@ -281,8 +266,6 @@
 	     (%filling-set-next-line point insertp prefix)
 	     (%auto-fill-clean-previous-line mark1 mark2))))))
 
-
-
 ;;; AUTO-FILL-LINE-AS-REGION basically grabs a line as a region and fills
 ;;; it.  However, it knows about comments and makes auto filling a comment
 ;;; line as a region look the same as a typical "back up a word and break
@@ -307,16 +290,12 @@
 	       (line-offset mark 1 0))))
 	  (t (fill-region (region mark (line-end point)) prefix column)))))
 
-
-
 (defun %auto-fill-blank-before-p (point prefix)
   "is true if whitespace only precedes point except for the prefix."
   (or (blank-before-p point)
       (with-mark ((temp point))
 	(reverse-find-attribute temp :whitespace #'zerop)
 	(<= (mark-column temp) (length prefix)))))
-
-
 
 ;;;      %AUTO-FILL-LINE-AS-REGION-P determines if the line point and mark2
 ;;; sit on is so long that it might as well be filled as if it were a
@@ -330,8 +309,6 @@
   (and (same-line-p mark2 point)
        (> (mark-column mark2) column)))
 
-
-
 (defun %auto-fill-clean-previous-line (mark1 mark2)
   (when (line-offset mark1 -1)
     (line-end mark1)
@@ -340,8 +317,6 @@
 		 (same-line-p mark1 mark2))
       (line-start mark1 (mark-line mark2)))
     (delete-region (region mark1 mark2))))
-
-
 
 ;;; %FILLING-SET-NEXT-LINE gets a new blank line and sets it up with the
 ;;; prefix and places the point correctly.  The argument point must alias
@@ -355,10 +330,8 @@
   (if (not (find-attribute point :whitespace)) (line-end point))
   (if insertp (insert-character point #\space)))
 
-
-
-;;;; -- Paragraph Filling --
-
+
+;;;; Paragraph filling.
 
 ;;;      %FILL-PARAGRAPH-START takes a mark that has just been moved
 ;;; forward over some paragraph.  After moving to the beginning of it, we
@@ -371,10 +344,8 @@
       (line-offset mark 1 0)
       (line-start mark)))
 
-
-
-;;;; -- Region Filling --
-
+
+;;;; Region filling.
 
 ;;;      FILL-REGION-BY-PARAGRAPHS finds paragraphs and uses region filling
 ;;; primitives to fill them.  Tmark2 is only used for the first paragraph; we
@@ -419,13 +390,11 @@
 			   (prefix (value fill-prefix))
 			   (column (value fill-column)))
   "Fills a region using the given prefix and column."
-  (let ((prefix (if (and prefix (string= prefix "")) () prefix)))
+  (let ((prefix (fi (and prefix (string= prefix "")) prefix)))
     (with-mark ((start (region-start region) :left-inserting))
       (check-fill-prefix prefix column start)
       (fill-region-aux start (region-end region)
 		       prefix (length prefix) column))))
-
-
 
 ;;;      FILL-REGION-AUX grinds over a region between fill-mark and
 ;;; end-mark deleting blank lines and filling lines.  For each line, the
@@ -476,8 +445,6 @@
 			(setf collapse-p t))))))
     (move-mark fill-mark end-mark)))
 
-
-
 ;;;      FILL-REGION-BREAK-LINE breaks lines as close to the low side
 ;;; column as possible.  The first branch handles a word lying across
 ;;; column while the second takes care of whitespace passing column.  If
@@ -511,8 +478,6 @@
 	     (insert-character fill-mark #\newline)
 	     (if prefix (insert-string fill-mark prefix))))))
 
-
-
 ;;;      FILL-REGION-WORD-PAST-COLUMN takes a point and a second mark that
 ;;; is mark= at the end of some word.  First, point is moved before the
 ;;; previous "word."  If the word is effectively the only word on the line,
@@ -536,8 +501,6 @@
   (insert-character point #\newline)
   (if prefix (insert-string point prefix))
   (if (not (find-attribute point :whitespace)) (line-end point)))
-
-
 
 ;;;      FILL-REGION-GET-NEXT-LINE gets another line when the current one
 ;;; is short of the fill column.  It cleans extraneous whitespace from the
@@ -575,8 +538,6 @@
 	    (t
 	     (mark-after fill-mark))))))
 
-
-
 ;;;      FILL-REGION-FIND-NEXT-LINE finds the next non-blank line, modulo
 ;;; fill prefixes, and deletes the intervening lines.  Fill-mark is left at
 ;;; the beginning of the next line.
@@ -588,8 +549,6 @@
     (if (blank-after-p fill-mark)
 	(fill-region-delete-blank-lines fill-mark end-mark prefix prefix-len)
 	(line-start fill-mark))))
-
-
 
 ;;;      FILL-REGION-DELETE-BLANK-LINES deletes the blank line mark is on
 ;;; and all successive blank lines.  Mark is left at the beginning of the
@@ -612,8 +571,6 @@
 	(delete-region (region mark tmark))
 	(return)))))
 
-
-
 ;;;      FILL-REGION-CLEAR-BOL clears the initial whitespace on a line
 ;;; known to be non-blank.  Note that the fill prefix is not considered, so
 ;;; the mark must have been moved over it already if there is one.
@@ -621,10 +578,8 @@
 (defun fill-region-clear-bol (mark)
   (with-mark ((tmark mark :left-inserting))
     (find-attribute tmark :whitespace #'zerop)
-    (unless (mark= mark tmark)
-      (delete-region (region mark tmark)))))
-
-
+    (fi (mark= mark tmark)
+	(delete-region (region mark tmark)))))
 
 ;;;      FILL-REGION-COLLAPSE-WHITESPACE deletes extra whitespace between
 ;;; blocks of non-whitespace characters from mark1 to mark2.  Tabs are
@@ -659,35 +614,27 @@
 	    (if (mark>= tmark mark2) (move-mark tmark mark2))
 	    (delete-region (region mark1 tmark))))))))
 
-
-
 ;;;      FILL-REGION-CLEAR-EOL must check the result of
 ;;; REVERSE-FIND-ATTRIBUTE because if fill-mark did not move, then we are
 ;;; only whitespace away from the beginning of the buffer.
 
 (defun fill-region-clear-eol (fill-mark)
   (with-mark ((mark1 fill-mark :left-inserting))
-    (unless (and (reverse-find-attribute mark1 :whitespace #'zerop)
-		 (same-line-p mark1 fill-mark))
-      (line-start mark1 (mark-line fill-mark)))
+    (or (and (reverse-find-attribute mark1 :whitespace #'zerop)
+	     (same-line-p mark1 fill-mark))
+	(line-start mark1 (mark-line fill-mark)))
     (delete-region (region mark1 fill-mark))))
-
-
 
 (defun fill-region-prefix-line (fill-mark prefix prefix-length)
   (if (%line-has-prefix-p fill-mark prefix prefix-length)
       (character-offset fill-mark prefix-length)
       (insert-string fill-mark prefix)))
 
-
-
 (defun %line-has-prefix-p (mark prefix prefix-length)
   (declare (simple-string prefix))
   (if (>= (line-length (mark-line mark)) prefix-length)
       (string= prefix (the simple-string (line-string (mark-line mark)))
 	       :end2 prefix-length)))
-
-
 
 ;;;      FILL-REGION-INSERT-TWO-SPACES-P returns true if a sentence
 ;;; terminator is followed by any number of "closing characters" such as
@@ -703,8 +650,6 @@
 	      (character-offset mark n))
 	     (t (character-offset mark n) nil)))
     (mark-before mark)))
-
-
 
 (defun check-fill-prefix (prefix column mark)
   (when prefix

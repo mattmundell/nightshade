@@ -1,7 +1,7 @@
 ;;; This file contains code for connecting to eval servers and some command
 ;;; level stuff too.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 
@@ -74,8 +74,8 @@
 
 (defhvar "Current Package"
   "This variable holds the name of the package currently used for Lisp
-   evaluation and compilation.  If it is Nil, the value of *Package* is used
-   instead."
+   evaluation and compilation.  If it is Nil, the value of *Package* is
+   used instead."
   :value nil)
 
 (defhvar "Slave Utility"
@@ -738,7 +738,7 @@
     (ext:add-oob-handler (wire:wire-fd wire)
 			  #\B
 			  #'(lambda ()
-			      (system:without-hemlock
+			      (system:with-screen
 			       (system:with-interrupts
 				(break "Software Interrupt")))))
     (ext:add-oob-handler (wire:wire-fd wire)

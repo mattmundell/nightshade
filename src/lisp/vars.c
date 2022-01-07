@@ -3,7 +3,7 @@
 #include <sys/types.h>
 #include <stdlib.h>
 
-#include "lisp.h"
+#include "nightshade.h"
 #include "vars.h"
 #include "os.h"
 
@@ -115,13 +115,13 @@ static struct var *make_var(char *name, boolean perm)
     var->clock = 0;
     var->permanent = perm;
     var->map_back = FALSE;
-    
+
     index = hash_name(name);
     var->nnext = NameHash[index];
     NameHash[index] = var;
 
     return var;
-}    
+}
 
 struct var *define_var(char *name, lispobj obj, boolean perm)
 {

@@ -2,7 +2,7 @@
 ;;; streams.  It maintains the stuff that hacks on the typescript buffer
 ;;; and maintains its state.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 (defhvar "Input Wait Alarm"
@@ -40,11 +40,11 @@
 
 ;;; TS-BUFFER-OUTPUT-STRING --- internal interface.
 ;;;
-;;; Called by the slave to output stuff in the typescript.  Can also be called
-;;; by other random parts of hemlock when they want to output stuff to the
-;;; buffer.  Since this is called for value from the slave, we have to be
-;;; careful about what values we return, so the result can be sent back.  It is
-;;; called for value only as a synchronization thing.
+;;; Called by the slave to output stuff in the typescript.  Can also be
+;;; called by other random parts of the editor when they want to output
+;;; stuff to the buffer.  Since this is called for value from the slave, we
+;;; have to be careful about what values we return, so the result can be
+;;; sent back.  It is called for value only as a synchronization thing.
 ;;;
 ;;; Whenever the output is gratuitous, we want it to go behind the prompt.
 ;;; When it's gratuitous, and we're not at the line-start, then we can output
@@ -174,12 +174,12 @@
       :buffer buffer)
 
     (defhvar "Interactive History"
-      "A ring of the regions input to the Hemlock typescript."
+      "A ring of the regions input to the editor typescript."
       :buffer buffer
       :value (make-ring (value interactive-history-length)))
 
     (defhvar "Interactive Pointer"
-      "Pointer into the Hemlock typescript input history."
+      "Pointer into the editor typescript input history."
       :buffer buffer
       :value 0)
 
@@ -196,7 +196,7 @@
 ;;; TYPESCRIPTIFY-BUFFER -- Internal interface.
 ;;;
 ;;; Buffer creation code for eval server connections calls this to setup a
-;;; typescript buffer, tie things together, and make some local Hemlock
+;;; typescript buffer, tie things together, and make some local editor
 ;;; variables.
 ;;;
 (defun typescriptify-buffer (buffer server wire)

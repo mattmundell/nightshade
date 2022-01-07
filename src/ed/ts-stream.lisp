@@ -1,7 +1,6 @@
 ;;; Typescript streams.
 
-(in-package "HEMLOCK")
-
+(in-package "ED")
 
 
 ;;;; Ts-streams.
@@ -40,7 +39,6 @@
   (declare (ignore ts depth))
   (write-string "#<TS Stream>" stream))
 
-
 
 ;;;; Conditions.
 
@@ -50,7 +48,6 @@
 ;   (:report (lambda (condition stream)
 ; 	     (format stream "~&Unexpected stream-command while ~A."
 ; 		     (unexpected-stream-command-context condition)))))
-
 
 
 ;;;; Editor remote calls into slave.
@@ -91,7 +88,6 @@
 (defun ts-stream-set-line-length (remote length)
   (let ((stream (wire:remote-object-value remote)))
     (setf (ts-stream-line-length stream) length)))
-
 
 
 ;;;; Stream methods.

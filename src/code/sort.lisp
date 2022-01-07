@@ -1,28 +1,8 @@
-;;; -*- Log: code.log; Package: Lisp -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/sort.lisp,v 1.4.2.2 2000/05/23 16:36:49 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Sort functions for Spice Lisp 
-;;;   these functions are part of the standard spice lisp environment.  
-;;; 
-;;; Written by Jim Large 
-;;; Hacked on and maintained by Skef Wholey 
-;;; Rewritten by Bill Chiles
-;;;
-;;; *******************************************************************
+;;; Sort functions.
 
 (in-package "LISP")
 
 (export '(sort stable-sort merge))
-
-
 
 (defun sort (sequence predicate &key key)
   "Destructively sorts sequence.  Predicate should returns non-Nil if
@@ -45,20 +25,20 @@
 	    :format-control "~S is not a sequence."
 	    :format-arguments (list sequence)))))
 
-
-
-;;; Sorting Vectors
+
+;;;; Sorting Vectors
 
 ;;; Sorting is done with a heap sort.
 
 (eval-when (compile eval)
 
-;;; HEAPIFY, assuming both sons of root are heaps, percolates the root element
-;;; through the sons to form a heap at root.  Root and max are zero based
-;;; coordinates, but the heap algorithm only works on arrays indexed from 1
-;;; through N (not 0 through N-1); This is because a root at I has sons at 2*I
-;;; and 2*I+1 which does not work for a root at 0.  Because of this, boundaries,
-;;; roots, and termination are computed using 1..N indexes.
+;;; HEAPIFY, assuming both sons of root are heaps, percolates the root
+;;; element through the sons to form a heap at root.  Root and max are zero
+;;; based coordinates, but the heap algorithm only works on arrays indexed
+;;; from 1 through N (not 0 through N-1); This is because a root at I has
+;;; sons at 2*I and 2*I+1 which does not work for a root at 0.  Because of
+;;; this, boundaries, roots, and termination are computed using 1..N
+;;; indexes.
 
 (defmacro heapify (seq vector-ref root max pred key)
   (let ((heap-root (gensym))   (heap-max (gensym))     (root-ele (gensym))
@@ -98,7 +78,6 @@
        ;; now really put percolated value into heap at the appropriate root node.
        (setf (,vector-ref ,seq ,var-root) ,root-ele))))
 
-
 ;;; BUILD-HEAP rearranges seq elements into a heap to start heap sorting.
 (defmacro build-heap (seq type len-1 pred key)
   (let ((i (gensym)))
@@ -108,7 +87,6 @@
        (heapify ,seq ,type ,i ,len-1 ,pred ,key))))
 
 ) ; eval-when
-
 
 ;;; Make simple-vector and miscellaneous vector sorting functions.
 (macrolet ((frob-rob (fun-name vector-ref)
@@ -127,13 +105,12 @@
 
   (frob-rob sort-simple-vector svref))
 
-
-
+
 ;;;; Stable Sorting
 
 (defun stable-sort (sequence predicate &key key)
-  "Destructively sorts sequence.  Predicate should returns non-Nil if
-   Arg1 is to precede Arg2."
+  "Destructively sorts sequence.  Predicate should returns non-Nil if Arg1
+   is to precede Arg2."
   (typecase sequence
     (simple-vector
      (stable-sort-simple-vector sequence predicate key))
@@ -148,9 +125,8 @@
 	    :format-control "~S is not a sequence."
 	    :format-arguments (list sequence)))))
 
-
-;;; Stable Sorting Lists
-
+
+;;;; Stable Sorting Lists
 
 ;;; APPLY-PRED saves us a function call sometimes.
 (eval-when (compile eval)
@@ -160,7 +136,6 @@
 		  (funcall ,key  ,two))
 	 (funcall ,pred ,one ,two)))
 ) ; eval-when
-
 
 ;;; MERGE-LISTS*   originally written by Jim Large.
 ;;; 		   modified to return a pointer to the end of the result
@@ -172,7 +147,7 @@
 			    &optional (merge-lists-header (list :header)))
   (do* ((result merge-lists-header)
 	(P result))                            ; P points to last cell of result
-       ((or (null list-1) (null list-2))       ; done when either list used up	
+       ((or (null list-1) (null list-2))       ; done when either list used up
 	(if (null list-1)                      ; in which case, append the
 	    (rplacd p list-2)                  ;   other list
 	    (rplacd p list-1))
@@ -189,7 +164,6 @@
 	  (T (rplacd p list-1)         ;   stable for list-1
 	     (setq p (cdr p))
 	     (pop list-1)))))
-
 
 ;;; SORT-LIST uses a bottom up merge sort.  First a pass is made over
 ;;; the list grabbing one element at a time and merging it with the next one
@@ -246,14 +220,12 @@
        (if (eq list-1 (cdr head))
 	   (return list-1))))))
 
-
-
-;;; Stable Sort Vectors
+
+;;;; Stable Sort Vectors
 
 ;;; Stable sorting vectors is done with the same algorithm used for lists,
 ;;; using a temporary vector to merge back and forth between it and the
 ;;; given vector to sort.
-
 
 (eval-when (compile eval)
 
@@ -297,7 +269,6 @@
 		 (incf ,i)))
 	(incf ,target-i)))))
 
-
 ;;; VECTOR-MERGE-SORT is the same algorithm used to stable sort lists, but
 ;;; it uses a temporary vector.  Direction determines whether we are merging
 ;;; into the temporary (T) or back into the given vector (NIL).
@@ -315,7 +286,7 @@
 	    (,unsorted 0)  ; unsorted..vector-len are the elements that need
 			   ; to be merged for a given n
 	    (,start-1 0))  ; one n-len subsequence to be merged with the next
-       (declare (fixnum ,vector-len ,n ,unsorted ,start-1)	
+       (declare (fixnum ,vector-len ,n ,unsorted ,start-1)
 		(type simple-vector ,temp-vector))
        (loop
 	;; for each n, we start taking n-runs from the start of the vector
@@ -367,7 +338,6 @@
 
 ) ; eval-when
 
-
 (defun stable-sort-simple-vector (vector pred key)
   (declare (simple-vector vector))
   (vector-merge-sort vector pred key svref))
@@ -375,8 +345,7 @@
 (defun stable-sort-vector (vector pred key)
   (vector-merge-sort vector pred key aref))
 
-
-
+
 ;;;; Merge
 
 (eval-when (compile eval)

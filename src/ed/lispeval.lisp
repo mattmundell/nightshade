@@ -1,7 +1,7 @@
 ;;; Code for sending requests to eval servers and the commands based on
 ;;; that code.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 ;;; The note structure holds everything we need to know about an

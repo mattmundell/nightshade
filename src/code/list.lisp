@@ -1,24 +1,7 @@
-;;; -*- Log: code.log; Package: Lisp -*-
+;;; Functions to implement lists.
 ;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/list.lisp,v 1.19.2.3 2000/11/15 11:37:03 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Functions to implement lists for Spice Lisp.
-;;; Written by Joe Ginder and Carl Ebeling.
-;;; Rewritten and currently maintained by Skef Wholey.
-;;;
-;;; Nsublis, things at the beginning broken.
-;;;
-;;; The list functions are part of the standard Spice Lisp environment.
-;;;
-;;; **********************************************************************
-;;;
+;;; FIX Nsublis, things at the beginning broken.
+
 (in-package "LISP")
 
 (export '(car cdr caar
@@ -37,7 +20,8 @@
 	  acons pairlis
 	  assoc assoc-if assoc-if-not
 	  rassoc rassoc-if rassoc-if-not
-	  complement constantly))
+	  complement constantly
+	  identity t))
 
 (proclaim '(maybe-inline
 	    tree-equal list-length nth %setnth nthcdr last make-list append
@@ -48,12 +32,10 @@
 	    assoc-if assoc-if-not rassoc rassoc-if rassoc-if-not subst subst-if
 	    subst-if-not nsubst nsubst-if nsubst-if-not sublis nsublis))
 
-
 (in-package "EXTENSIONS")
 (export '(assq memq delq))
 (proclaim '(maybe-inline delq))
 (in-package "LISP")
-
 
 ;;; These functions perform basic list operations:
 
@@ -117,10 +99,10 @@
       (tree-equal-test-not x y test-not)
       (tree-equal-test x y test)))
 
-
 (defun endp (object)
-  "The recommended way to test for the end of a list.  True if Object is nil,
-   false if Object is a cons, and an error for any other types of arguments."
+  "The recommended way to test for the end of a list.  True if Object is
+   nil, false if Object is a cons, and an error for any other types of
+   arguments."
   (endp object))
 
 (defun list-length (list)
@@ -220,8 +202,8 @@
 ;;; using splice which cdr's down the end of the new list
 
 (defun append (&rest lists)
-  "Construct a new list by concatenating the list arguments"
-  (do ((top lists (cdr top)))	 ;;Cdr to first non-null list.
+  "Construct a new list by concatenating the list arguments."
+  (do ((top lists (cdr top)))	 ; Cdr to first non-null list.
       ((atom top) '())
     (cond ((null (car top)))				; Nil -> Keep looping
 	  ((not (consp (car top)))			; Non cons
@@ -231,19 +213,19 @@
 	  (t						; Start appending
 	   (return
 	     (if (atom (cdr top))
-		 (car top)    ;;Special case.
+		 (car top)       ; Special case.
 		 (let* ((result (cons (caar top) '()))
 			(splice result))
-		   (do ((x (cdar top) (cdr x)))  ;;Copy first list
+		   (do ((x (cdar top) (cdr x)))  ; Copy first list
 		       ((atom x))
 		     (setq splice
 			   (cdr (rplacd splice (cons (car x) ()) ))) )
-		   (do ((y (cdr top) (cdr y)))	 ;;Copy rest of lists.
+		   (do ((y (cdr top) (cdr y)))	 ; Copy rest of lists.
 		       ((atom (cdr y))
 			(setq splice (rplacd splice (car y)))
 			result)
 		     (if (listp (car y))
-			 (do ((x (car y) (cdr x)))   ;;Inner copy loop.
+			 (do ((x (car y) (cdr x)))   ; Inner copy loop.
 			     ((atom x))
 			   (setq
 			    splice
@@ -446,9 +428,13 @@
        ,element))
 
 (defun identity (thing)
-  "Returns what was passed to it."
+  "Returns what was passed to it."  ;; FIX multiple values?
   thing)
 
+(defun t (&rest args)
+  "Returns t."
+  (declare (ignore args))
+  t)
 
 (defun complement (function)
   "Builds a new function that returns T whenever FUNCTION returns NIL and
@@ -460,7 +446,6 @@
 		 (arg1-p (funcall function arg0 arg1))
 		 (arg0-p (funcall function arg0))
 		 (t (funcall function))))))
-
 
 (defun constantly (value &optional (val1 nil val1-p) (val2 nil val2-p)
 			 &rest more-values)
@@ -499,10 +484,7 @@
 	    (notp (not (funcall test-not ,item ,key-tmp)))
 	    (t (funcall test ,item ,key-tmp))))))
 
-
 ;;; Substitution of expressions
-
-
 
 (defun subst (new old tree &key key (test #'eql testp) (test-not nil notp))
   "Substitutes new for subtrees matching old."
@@ -592,8 +574,6 @@
     (s tree)))
 
 
-
-
 (defun sublis (alist tree &key key (test #'eql) (test-not nil notp))
   "Substitutes from alist into tree nondestructively."
   (declare (inline assoc))
@@ -683,7 +663,6 @@
       list
       (cons item list)))
 
-
 ;;; UNION -- Public.
 ;;;
 ;;; This function assumes list2 is the result, adding to it from list1 as
@@ -723,7 +702,6 @@
 	  (steve-splice list1 res)
 	  (setf list1 (cdr list1))))
     res))
-
 
 (defun intersection (list1 list2 &key key
 			   (test #'eql testp) (test-not nil notp))
@@ -765,7 +743,6 @@
 	      (push elt res)))
 	res)))
 
-
 (defun nset-difference (list1 list2 &key key
 			      (test #'eql testp) (test-not nil notp))
   "Destructively returns the elements of list1 which are not in list2."
@@ -780,7 +757,6 @@
 	  (setq list1 (cdr list1))))
     res))
 
-
 (defun set-exclusive-or (list1 list2 &key key
 			       (test #'eql testp) (test-not nil notp))
   "Returns new list of elements appearing exactly once in list1 and list2."
@@ -793,7 +769,6 @@
       (unless (with-set-keys (member (apply-key key elt) list1))
 	(setq result (cons elt result))))
     result))
-
 
 ;;; The outer loop examines list1 while the inner loop examines list2. If an
 ;;; element is found in list2 "equal" to the element in list1, both are
@@ -839,7 +814,6 @@
     (unless (with-set-keys (member (apply-key key elt) list2))
       (return-from subsetp nil)))
   T)
-
 
 
 ;;; Functions that operate on association lists
@@ -895,7 +869,6 @@
       (assoc-guts (not (funcall predicate (funcall key (caar alist)))))
       (assoc-guts (not (funcall predicate (caar alist))))))
 
-
 (defun rassoc (item alist &key key test test-not)
   (declare (list alist))
   "Returns the cons in alist whose cdr is equal (by a given test or EQL) to
@@ -928,16 +901,14 @@
       (assoc-guts (not (funcall predicate (funcall key (cdar alist)))))
       (assoc-guts (not (funcall predicate (cdar alist))))))
 
-
 
 ;;;; Mapping functions.
 
 (defun map1 (function original-arglists accumulate take-car)
-  "This function is called by mapc, mapcar, mapcan, mapl, maplist, and mapcon.
-  It Maps function over the arglists in the appropriate way. It is done when any
-  of the arglists runs out.  Until then, it CDRs down the arglists calling the
-  function and accumulating results as desired."
-
+  "This function is called by mapc, mapcar, mapcan, mapl, maplist, and
+   mapcon.  It Maps function over the arglists in the appropriate way. It
+   is done when any of the arglists runs out.  Until then, it CDRs down the
+   arglists calling the function and accumulating results as desired."
   (let* ((arglists (copy-list original-arglists))
 	 (ret-list (list nil))
 	 (temp ret-list))
@@ -956,7 +927,6 @@
 	(:nconc (setq temp (last (nconc temp res))))
 	(:list (rplacd temp (list res))
 	       (setq temp (cdr temp)))))))
-
 
 (defun mapc (function list &rest more-lists)
   "Applies fn to successive elements of lists, returns its second argument."
@@ -981,6 +951,20 @@
 (defun mapcon (function list &rest more-lists)
   "Applies fn to successive CDRs of lists, returns NCONC of results."
   (map1 function (cons list more-lists) :nconc nil))
+
+(defun mapconcat (function list &optional (spacer "") spacer-first)
+  "Return the concatenation of the results of applying FUNCTION to
+   succussive CARs of LIST.  Insert SPACER between each result, and if
+   SPACER-FIRST add a leading spacer."
+  (if list
+      (concatenate 'simple-string
+		   (if spacer-first
+		       (concatenate 'simple-string
+				    spacer
+				    (funcall function (car list)))
+		       (funcall function (car list)))
+		   (mapconcat function (cdr list) spacer t))
+      ""))
 
 
 ;;; Functions for compatibility sake:

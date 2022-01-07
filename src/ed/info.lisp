@@ -36,8 +36,8 @@
   (with-open-file (file ":tmp/info" :direction :output
 			:if-does-not-exist :create
 			:if-exists :supersede)
-    (let ((*package* (or (find-package "HEMLOCK")
-			 (editor-error "Failed to find Hemlock package."))))
+    (let ((*package* (or (find-package "ED")
+			 (editor-error "Failed to find ED package."))))
       (write (value info-directory)
 	     :stream file :readably t)
       (terpri file))))
@@ -46,8 +46,8 @@
   (with-open-file (file ":tmp/info2" :direction :output
 			:if-does-not-exist :create
 			:if-exists :supersede)
-    (let ((*package* (or (find-package "HEMLOCK")
-			 (editor-error "Failed to find Hemlock package."))))
+    (let ((*package* (or (find-package "ED")
+			 (editor-error "Failed to find ED package."))))
       (write (value info-directory)
 	     :stream file :readably nil)
       (terpri file))))

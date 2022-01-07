@@ -1,23 +1,7 @@
-;;; -*- Log: code.log; Package: Lisp -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/string.lisp,v 1.8.2.1 1998/06/23 11:22:32 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Functions to implement strings for Spice Lisp
-;;; Written by David Dill
-;;; Rewritten by Skef Wholey, Bill Chiles and Rob MacLachlan.
-;;;
-;;; Runs in the standard Spice Lisp environment.
-;;;
-;;; ****************************************************************
-;;;
+;;; Functions to implement strings.
+
 (in-package "LISP")
+
 (export '(char schar string
 	  string= string-equal string< string> string<= string>= string/=
 	  string-lessp string-greaterp string-not-lessp string-not-greaterp
@@ -26,22 +10,24 @@
 	  string-trim string-left-trim string-right-trim
 	  string-upcase
 	  string-downcase string-capitalize nstring-upcase nstring-downcase
-	  nstring-capitalize))
+	  nstring-capitalize
+	  concat))
 
-
+;; FIX should this kind of conversion be automatic?
 (defun string (X)
   "Coerces X into a string.  If X is a string, X is returned.  If X is a
    symbol, X's pname is returned.  If X is a character then a one element
-   string containing that character is returned.  If X cannot be coerced
-   into a string, an error occurs."
+   string containing that character is returned.  If X is a number or
+   keyword then X is printed to a string (as with prin1).  Otherwise an
+   error occurs."
   (cond ((stringp x) x)
 	((symbolp x) (symbol-name x))
 	((characterp x)
 	 (let ((res (make-string 1)))
 	   (setf (schar res 0) x) res))
+	((or (numberp x) (keywordp x)) (prin1-to-string x))
 	(t
 	 (error "~S cannot be coerced to a string." x))))
-
 
 ;;; With-One-String is used to set up some string hacking things.  The keywords
 ;;; are parsed, and the string is hacked into a simple-string.
@@ -89,11 +75,10 @@
 
 )
 
-
 (defun char (string index)
   "Given a string and a non-negative integer index less than the length of
-  the string, returns the character object representing the character at
-  that position in the string."
+   the string, returns the character object representing the character at
+   that position in the string."
   (declare (optimize (safety 1)))
   (char string index))
 
@@ -114,7 +99,6 @@
 (defun string=* (string1 string2 start1 end1 start2 end2)
   (with-two-strings string1 string2 start1 end1 offset1 start2 end2
     (not (%sp-string-compare string1 start1 end1 string2 start2 end2))))
-
 
 (defun string/=* (string1 string2 start1 end1 start2 end2)
   (with-two-strings string1 string2 start1 end1 offset1 start2 end2
@@ -165,45 +149,41 @@
   (declare (fixnum start1 start2))
   (string<>=*-body nil t))
 
-
-
 (defun string< (string1 string2 &key (start1 0) end1 (start2 0) end2)
   "Given two strings, if the first string is lexicographically less than
-  the second string, returns the longest common prefix (using char=)
-  of the two strings. Otherwise, returns ()."
+   the second string, returns the longest common prefix (using char=) of
+   the two strings.  Otherwise, returns ()."
   (string<* string1 string2 start1 end1 start2 end2))
 
 (defun string> (string1 string2 &key (start1 0) end1 (start2 0) end2)
   "Given two strings, if the first string is lexicographically greater than
-  the second string, returns the longest common prefix (using char=)
-  of the two strings. Otherwise, returns ()."
+   the second string, returns the longest common prefix (using char=) of
+   the two strings. Otherwise, returns ()."
   (string>* string1 string2 start1 end1 start2 end2))
 
-
 (defun string<= (string1 string2 &key (start1 0) end1 (start2 0) end2)
-  "Given two strings, if the first string is lexicographically less than
-  or equal to the second string, returns the longest common prefix
-  (using char=) of the two strings. Otherwise, returns ()."
+  "Given two strings, if the first string is lexicographically less than or
+   equal to the second string, returns the longest common prefix (using
+   char=) of the two strings. Otherwise, returns ()."
   (string<=* string1 string2 start1 end1 start2 end2))
 
 (defun string>= (string1 string2 &key (start1 0) end1 (start2 0) end2)
-  "Given two strings, if the first string is lexicographically greater
-  than or equal to the second string, returns the longest common prefix
-  (using char=) of the two strings. Otherwise, returns ()."
+  "Given two strings, if the first string is lexicographically greater than
+   or equal to the second string, returns the longest common prefix (using
+   char=) of the two strings. Otherwise, returns ()."
   (string>=* string1 string2 start1 end1 start2 end2))
 
 (defun string= (string1 string2 &key (start1 0) end1 (start2 0) end2)
   "Given two strings (string1 and string2), and optional integers start1,
-  start2, end1 and end2, compares characters in string1 to characters in
-  string2 (using char=)."
+   start2, end1 and end2, compares characters in string1 to characters in
+   string2 (using char=)."
   (string=* string1 string2 start1 end1 start2 end2))
 
 (defun string/= (string1 string2 &key (start1 0) end1 (start2 0) end2)
-  "Given two strings, if the first string is not lexicographically equal
-  to the second string, returns the longest common prefix (using char=)
-  of the two strings. Otherwise, returns ()."
+  "Given two strings, if the first string is not lexicographically equal to
+   the second string, returns the longest common prefix (using char=) of
+   the two strings. Otherwise, returns ()."
   (string/=* string1 string2 start1 end1 start2 end2))
-
 
 (eval-when (compile eval)
 
@@ -233,30 +213,30 @@
 
 (defun string-equal (string1 string2 &key (start1 0) end1 (start2 0) end2)
   "Given two strings (string1 and string2), and optional integers start1,
-  start2, end1 and end2, compares characters in string1 to characters in
-  string2 (using char-equal)."
+   start2, end1 and end2, compares characters in string1 to characters in
+   string2 (using char-equal)."
   (declare (fixnum start1 start2))
   (with-two-strings string1 string2 start1 end1 offset1 start2 end2
     (let ((slen1 (- (the fixnum end1) start1))
 	  (slen2 (- (the fixnum end2) start2)))
       (declare (fixnum slen1 slen2))
       (if (or (minusp slen1) (minusp slen2))
-	  ;;prevent endless looping later.
+	  ;; Prevent endless looping later.
 	  (error "Improper bounds for string comparison."))
       (if (= slen1 slen2)
-	  ;;return () immediately if lengths aren't equal.
-	  (string-not-equal-loop 1 t nil))))) 
+	  ;; Return () immediately if lengths aren't equal.
+	  (string-not-equal-loop 1 t nil)))))
 
 (defun string-not-equal (string1 string2 &key (start1 0) end1 (start2 0) end2)
-  "Given two strings, if the first string is not lexicographically equal
-  to the second string, returns the longest common prefix (using char-equal)
-  of the two strings. Otherwise, returns ()."
+  "Given two strings, if the first string is not lexicographically equal to
+   the second string, returns the longest common prefix (using char-equal)
+   of the two strings. Otherwise, returns ()."
   (with-two-strings string1 string2 start1 end1 offset1 start2 end2
     (let ((slen1 (- end1 start1))
 	  (slen2 (- end2 start2)))
       (declare (fixnum slen1 slen2))
       (if (or (minusp slen1) (minusp slen2))
-	  ;;prevent endless looping later.
+	  ;; Prevent endless looping later.
 	  (error "Improper bounds for string comparison."))
       (cond ((or (minusp slen1) (or (minusp slen2)))
 	     (error "Improper substring for comparison."))
@@ -266,14 +246,12 @@
 	     (string-not-equal-loop 1 (- index1 offset1)))
 	    (t
 	     (string-not-equal-loop 2 (- index1 offset1)))))))
- 
-
 
 (eval-when (compile eval)
 
-;;; STRING-LESS-GREATER-EQUAL-TESTS returns a test on the lengths of string1
-;;; and string2 and a test on the current characters from string1 and string2
-;;; for the following macro.
+;;; STRING-LESS-GREATER-EQUAL-TESTS returns a test on the lengths of
+;;; string1 and string2 and a test on the current characters from string1
+;;; and string2 for the following macro.
 (defun string-less-greater-equal-tests (lessp equalp)
   (if lessp
       (if equalp
@@ -331,33 +309,32 @@
 
 (defun string-lessp (string1 string2 &key (start1 0) end1 (start2 0) end2)
   "Given two strings, if the first string is lexicographically less than
-  the second string, returns the longest common prefix (using char-equal)
-  of the two strings. Otherwise, returns ()."
+   the second string, returns the longest common prefix (using char-equal)
+   of the two strings. Otherwise, returns ()."
   (string-lessp* string1 string2 start1 end1 start2 end2))
 
 (defun string-greaterp (string1 string2 &key (start1 0) end1 (start2 0) end2)
   "Given two strings, if the first string is lexicographically greater than
-  the second string, returns the longest common prefix (using char-equal)
-  of the two strings. Otherwise, returns ()."
+   the second string, returns the longest common prefix (using char-equal)
+   of the two strings. Otherwise, returns ()."
   (string-greaterp* string1 string2 start1 end1 start2 end2))
 
 (defun string-not-lessp (string1 string2 &key (start1 0) end1 (start2 0) end2)
-  "Given two strings, if the first string is lexicographically greater
-  than or equal to the second string, returns the longest common prefix
-  (using char-equal) of the two strings. Otherwise, returns ()."
+  "Given two strings, if the first string is lexicographically greater than
+   or equal to the second string, returns the longest common prefix (using
+   char-equal) of the two strings. Otherwise, returns ()."
   (string-not-lessp* string1 string2 start1 end1 start2 end2))
 
 (defun string-not-greaterp (string1 string2 &key (start1 0) end1 (start2 0)
 				    end2)
-  "Given two strings, if the first string is lexicographically less than
-  or equal to the second string, returns the longest common prefix
-  (using char-equal) of the two strings. Otherwise, returns ()."
+  "Given two strings, if the first string is lexicographically less than or
+   equal to the second string, returns the longest common prefix (using
+   char-equal) of the two strings. Otherwise, returns ()."
   (string-not-greaterp* string1 string2 start1 end1 start2 end2))
 
-
 (defun make-string (count &key element-type ((:initial-element fill-char)))
-  "Given a character count and an optional fill character, makes and returns
-   a new string Count long filled with the fill character."
+  "Given a character count and an optional fill character, makes and
+   returns a new string Count long filled with the fill character."
   (declare (fixnum count)
 	   (ignore element-type))
   (if fill-char
@@ -369,8 +346,8 @@
       (make-string count)))
 
 (defun string-upcase (string &key (start 0) end)
-  "Given a string, returns a new string that is a copy of it with
-  all lower case alphabetic characters converted to uppercase."
+  "Given a string, returns a new string that is a copy of it with all lower
+   case alphabetic characters converted to uppercase."
   (declare (fixnum start))
   (let* ((string (if (stringp string) string (string string)))
 	 (slen (length string)))
@@ -398,8 +375,8 @@
 	newstring))))
 
 (defun string-downcase (string &key (start 0) end)
-  "Given a string, returns a new string that is a copy of it with
-  all upper case alphabetic characters converted to lowercase."
+  "Given a string, returns a new string that is a copy of it with all upper
+   case alphabetic characters converted to lowercase."
   (declare (fixnum start))
   (let* ((string (if (stringp string) string (string string)))
 	 (slen (length string)))
@@ -427,11 +404,10 @@
 	newstring))))
 
 (defun string-capitalize (string &key (start 0) end)
-  "Given a string, returns a copy of the string with the first
-  character of each ``word'' converted to upper-case, and remaining
-  chars in the word converted to lower case. A ``word'' is defined
-  to be a string of case-modifiable characters delimited by
-  non-case-modifiable chars."
+  "Given a string, returns a copy of the string with the first character of
+   each ``word'' converted to upper-case, and remaining chars in the word
+   converted to lower case. A ``word'' is defined to be a string of
+   case-modifiable characters delimited by non-case-modifiable chars."
   (declare (fixnum start))
   (let* ((string (if (stringp string) string (string string)))
 	 (slen (length string)))
@@ -470,7 +446,7 @@
 
 (defun nstring-upcase (string &key (start 0) end)
   "Given a string, returns that string with all lower case alphabetic
-  characters converted to uppercase."
+   characters converted to uppercase."
   (declare (fixnum start))
   (let ((save-header string))
     (with-one-string string start end offset
@@ -482,7 +458,7 @@
 
 (defun nstring-downcase (string &key (start 0) end)
   "Given a string, returns that string with all upper case alphabetic
-  characters converted to lowercase."
+   characters converted to lowercase."
   (declare (fixnum start))
   (let ((save-header string))
     (with-one-string string start end offset
@@ -493,11 +469,10 @@
     save-header))
 
 (defun nstring-capitalize (string &key (start 0) end)
-  "Given a string, returns that string with the first
-  character of each ``word'' converted to upper-case, and remaining
-  chars in the word converted to lower case. A ``word'' is defined
-  to be a string of case-modifiable characters delimited by
-  non-case-modifiable chars."
+  "Given a string, returns that string with the first character of each
+   ``word'' converted to upper-case, and remaining chars in the word
+   converted to lower case. A ``word'' is defined to be a string of
+   case-modifiable characters delimited by non-case-modifiable chars."
   (declare (fixnum start))
   (let ((save-header string))
     (with-one-string string start end offset
@@ -518,9 +493,9 @@
     save-header))
 
 (defun string-left-trim (char-bag string)
-  "Given a set of characters (a list or string) and a string, returns
-  a copy of the string with the characters in the set removed from the
-  left end."
+  "Given a set of characters (a list or string) and a string, returns a
+   copy of the string with the characters in the set removed from the left
+   end."
   (with-string string
     (do ((index start (1+ index)))
 	((or (= index (the fixnum end))
@@ -529,9 +504,9 @@
       (declare (fixnum index)))))
 
 (defun string-right-trim (char-bag string)
-  "Given a set of characters (a list or string) and a string, returns
-  a copy of the string with the characters in the set removed from the
-  right end."
+  "Given a set of characters (a list or string) and a string, returns a
+   copy of the string with the characters in the set removed from the right
+   end."
   (with-string string
     (do ((index (1- (the fixnum end)) (1- index)))
 	((or (< index start) (not (find (schar string index) char-bag)))
@@ -540,8 +515,8 @@
 
 (defun string-trim (char-bag string)
   "Given a set of characters (a list or string) and a string, returns a
-  copy of the string with the characters in the set removed from both
-  ends."
+   copy of the string with the characters in the set removed from both
+   ends."
   (with-string string
     (let* ((left-end (do ((index start (1+ index)))
 			 ((or (= index (the fixnum end))
@@ -554,3 +529,7 @@
 			   (1+ index))
 			(declare (fixnum index)))))
       (subseq (the simple-string string) left-end right-end))))
+
+(defun concat (&rest strings)
+  "Return a concatenation of the given Strings."
+  (apply #'concatenate 'simple-string strings))

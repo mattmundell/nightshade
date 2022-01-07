@@ -1,6 +1,6 @@
 ;;; Auto-Save Mode
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 ;;;; Per Buffer State Information

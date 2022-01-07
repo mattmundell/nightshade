@@ -1,17 +1,15 @@
-;;; -*- Package: HEMLOCK; Mode: Editor -*-
-;;;
 ;;; Comma Separated Value (CSV) file parser.
 
 #|
 (defpackage "CSV"
-  (:use    "HEMLOCK" "HEMLOCK-INTERNALS")
+  (:use    "ED" "EDI")
   (:export csv-parse-buffer csv-parse-buffer-into-list
 	   csv-parse-buffer-into-node))
 
 (in-package "CSV")
 |#
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 (eval-when (compile eval load)
 

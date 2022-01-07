@@ -1,17 +1,5 @@
-;;; -*- Mode: Lisp; Package: Lisp; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/hpux-os.lisp,v 1.2 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; OS interface functions for CMU CL under Mach.  From Miles Bader and David
-;;; Axmark.
-;;;
+;;; OS interface functions for running under HPUX.
+
 (in-package "SYSTEM")
 (use-package "EXTENSIONS")
 (export '(get-system-info get-page-size os-init))
@@ -35,11 +23,10 @@
             (subseq version-line 0 (1- (length version-line))))))
   *software-version*)
 
-
 ;;; OS-INIT -- interface.
 ;;;
 ;;; Other OS dependent initializations.
-;;; 
+;;;
 (defun os-init ()
   ;; Decache version on save, because it might not be the same when we restart.
   (setf *software-version* nil))
@@ -58,7 +45,6 @@
 		  (unix:get-unix-error-msg utime)))
 	  (T
 	   (values utime stime majflt)))))
-
 
 ;;; GET-PAGE-SIZE  --  Interface
 ;;;

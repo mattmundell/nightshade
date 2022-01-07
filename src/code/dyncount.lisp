@@ -1,16 +1,7 @@
-;;; -*- Package: C; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/dyncount.lisp,v 1.5 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
+;;; -*- Log: C.Log -*-
 ;;;
 ;;; Runtime support for dynamic VOP statistics collection.
-;;; 
+
 (in-package "C")
 
 #|
@@ -23,8 +14,7 @@ VOP classification.
 
 (eval-when (compile)
   (when *collect-dynamic-statistics*
-    (error "Compiling this file with dynamic stat collection turn on would ~
-    be a very bad idea.")))
+    (error "Attempt to compile dyncount.lisp with dynamic stat collection turned on.")))
 
 ;;;; Hash utilities:
 
@@ -38,8 +28,8 @@ VOP classification.
    also a key in Table2." (declare (type hash-table table1 table2))
   (let ((res (make-hash-table-like table1)))
     (do-hash (k v table1)
-      (unless (nth-value 1 (gethash k table2))
-	(setf (gethash k res) v)))
+      (or (nth-value 1 (gethash k table2))
+	  (setf (gethash k res) v)))
     res))
 
 (defun hash-list (table)
@@ -113,7 +103,7 @@ VOP classification.
     (setf (vop-stats-count res) count)
     (setf (vop-stats-cost res) cost)
     res))
-    
+
 (declaim (freeze-type dyncount-info vop-stats))
 
 
@@ -174,7 +164,7 @@ VOP classification.
   (do-hash (k v (backend-template-names *backend*))
     (declare (ignore v))
     (remprop k 'vop-stats))
-  
+
   (locally
       (declare (optimize (speed 3) (safety 0))
 	       (inline vm::map-allocated-objects))
@@ -212,7 +202,7 @@ VOP classification.
 	       (when clear
 		 (clear-dyncount-info object))))
 	 space))))
-  
+
   (let ((counts (make-hash-table :test #'equal)))
     (do-hash (k v (backend-template-names *backend*))
       (declare (ignore v))
@@ -374,7 +364,7 @@ VOP classification.
   (dolist (class classes nil)
     (when (matches-pattern name (rest class)) (return (first class)))))
 
-    
+
 ;;; CLASSIFY-COSTS  --  Interface
 ;;;
 ;;;    Given a VOP-STATS hash-table, return a new one with VOPs in the same
@@ -415,7 +405,7 @@ VOP classification.
       (incf total-cost (vop-stats-cost v)))
     (values total-count total-cost)))
 
-  
+
 ;;; COMPENSATE-COSTS  --  Internal
 ;;;
 ;;;    Return a hashtable of DYNCOUNT-INFO structures, with cost adjustments
@@ -532,7 +522,7 @@ VOP classification.
 		  (select el)
 		  (reject el))))
 	  (values (append not-cut (select)) (reject))))))
-		  
+
 
 ;;; CUT-OFF-REPORT  --  Internal
 ;;;
@@ -555,7 +545,7 @@ VOP classification.
 	  (setq rest-entry-count
 		(* rest-entry-count (vop-stats-count entry)))
 	  (incf rest-entry-count (vop-stats-count entry))))
-    
+
     (let ((count (if compare
 		     (expt rest-entry-count
 			   (/ (coerce (length other) 'double-float)))
@@ -606,7 +596,7 @@ VOP classification.
 		      (- user (- gc (* system *gc-system-fraction*))))))
     (/ (* adj-time clock) total-cost)))
 
-  
+
 ;;; GENERATE-REPORT  --  Public
 ;;;
 ;;; Generate a report from the specified table.

@@ -1,6 +1,169 @@
 												-*- outline -*-
 
+* CMUCL CVS log up to the end of 2000
+
+src/etc/cmucl-cvs-log-pre-2001.bz2
+
 * Authors noted in the original CMUCL source code.
+
+** src/code/
+
+array.lisp		  Skef Wholey
+				  Worked over for the MIPS port by William Lott.
+backq.lisp		  BACKQUOTE: Code Spice Lispified by Lee Schumacher.
+				     		  (unparsing by Miles Bader)
+bit-bash.lisp	  William Lott
+bsd-os.lisp       Hacked into (Free)bsd-os.lisp by Paul Werkowski. [from mach-os.lisp]
+byte-interp.lisp  William Lott
+char.lisp		  Written by Guy Steele.
+				  Rewritten by David Dill.
+				  Hacked up for speed by Scott Fahlman.
+				  Font support flushed and type hackery rewritten by Rob MacLachlan.
+clx-ext.lisp	  Bill Chiles, Chris Hoover
+commandline.lisp  Bill Chiles
+debug-int.lisp    Bill Chiles, Rob Maclachlan
+				  X86 support by Douglas Crosher 1996,1997,1998.
+				  "Sources" page written by Rob Maclachlan, documented by Bill Chiles.
+debug-vm.lisp	  William Lott
+debug.lisp	      Bill Chiles
+defmacro.lisp	  Blaine Burks
+defstruct.lisp    Rob MacLachlan, William Lott, Skef Wholey
+describe.lisp	  Written by Skef Wholey or Rob MacLachlan originally.
+				  Cleaned up, reorganized, and enhanced by Blaine Burks.
+				  Ported to the new system and cleaned up some more by Rob MacLachlan.
+error.lisp        It was originally taken from some prototyping code written by
+				  KMP@Symbolics and massaged for our uses.
+extensions.lisp   Letf written by Steven Handerson.
+fd-stream.lisp	  Written by William Lott, July 1989 - January 1990.
+				  Some tuning by Rob MacLachlan.
+fdefinition.lisp  Rob MacLachlan
+				  Modified by Bill Chiles (wrote encapsulation stuff)
+				  Modified more by William Lott (added ``fdefn'' objects)
+filesys.lisp	  William Lott
+final.lisp		  Written by William Lott, but the idea really was Chris Hoover's.
+float-trap.lisp   Rob MacLachlan
+float.lisp		  Rob MacLachlan
+				  Long-float support by Douglas Crosher, 1998.
+format-time.lisp  Jim Healy, September 1987
+format.lisp		  Written by William Lott, with lots of stuff stolen from the previous
+				  version by David Adam and later rewritten by Bill Maddox.
+gc.lisp			  Christopher Hoover, Rob MacLachlan, Dave McDonald, et al.
+				  New code for MIPS port by Christopher Hoover.
+gengc.lisp		  William Lott
+globals.lisp	  Rob MacLachlan
+hash-new.lisp     Originally written by Skef Wholey.
+				  Everything except SXHASH rewritten by William Lott.
+				  Hash table functions rewritten by Douglas Crosher, 1997.
+				  Equalp hashing by William Newman, Cadabra Inc, and Douglas Crosher, 2000.
+hash.lisp		  Hashing and hash table functions for Spice Lisp.
+				  Originally written by Skef Wholey.
+				  Everything except SXHASH rewritten by William Lott.
+				  Equalp hashing by William Newman, Cadabra Inc, and Douglas Crosher, 2000.
+hpux-os.lisp	  From Miles Bader and David Axmark.
+internet.lisp	  William Lott
+interr.lisp	      William Lott
+irrat.lisp	      William Lott
+linux-os.lisp     Hacked into Linux-os.lisp /Werkowski   [from mach-os.lisp]
+lispinit.lisp     Skef Wholey, Rob MacLachlan
+list.lisp		  Joe Ginder, Carl Ebeling
+				  Rewritten by Skef Wholey.
+load.lisp         Skef Wholey, Rob MacLachlan
+				  try-default-types
+					  Modified 18-Jan-97/pw for logical-pathname support.
+loop.lisp		  William Lott
+mach-os.lisp      Written and maintained mostly by Skef Wholey and Rob MacLachlan.
+				  Scott Fahlman, Dan Aronson, and Steve Handerson did stuff here, too.
+macros.lisp		  Scott Fahlman, Rob MacLachlan
+				  Modified by Bill Chiles to adhere to the wall.
+mipsstrops.lisp   Rob MacLachlan, Skef Wholey
+misc.lisp		  Written and maintained mostly by Skef Wholey and Rob MacLachlan.
+				  Scott Fahlman, Dan Aronson, and Steve Handerson did stuff here, too.
+module.lisp		  Code written by Jim Muller.
+				  Rewritten by Bill Chiles.
+multi-proc.lisp   Douglas T. Crosher
+ntrace.lisp       Rob MacLachlan, Bill Chiles
+numbers.lisp      Rob MacLachlan
+				  Much code in this file was derived from code written by William Lott, Dave
+				  Mcdonald, Jim Large, Scott Fahlman, etc.
+				  Long-float support by Douglas Crosher, 1998.
+osf1-os.lisp	  (seems copied from mach-os.lisp:)
+				  Written and maintained mostly by Skef Wholey and Rob MacLachlan.
+				  Scott Fahlman, Dan Aronson, and Steve Handerson did stuff here, too.
+package.lisp	  Re-Written by Rob MacLachlan.  Earlier version written by
+				  Lee Schumacher.  Apropos & iteration macros courtesy of Skef Wholey.
+			      Defpackage by Dan Zigmond.  With-Package-Iterator by Blaine Burks.
+				  Defpackage and do-mumble-symbols macros re-written by William Lott.
+parse-time.lisp   Jim Healy, June 1987
+pathname.lisp     William Lott, Paul Gleichauf, Rob MacLachlan
+				  Earlier version written by Jim Large and Rob MacLachlan
+pmax-disassem.lisp  Christopher Hoover
+pprint.lisp       William Lott.  Algorithm stolen from Richard Waters' XP.
+pred.lisp         William Lott
+print.lisp        Neal Feinberg, Bill Maddox, Steven Handerson, Skef Wholey
+				  Modified by various CMU Common Lisp maintainers.
+				  ;;;; Bignum printing
+				  Written by Steven Handerson
+				  (based on Skef's idea)
+				  Rewritten to remove assumptions about the length of fixnums for the
+				  MIPS port by William Lott.
+				  ;;;; Float printing.
+				  Written by Bill Maddox
+profile.lisp      Skef Wholey, Rob MacLachlan
+purify.lisp		  Rob MacLachlan, Skef Wholey [purify.old-sys.lisp]
+				  Rewritten in C by William Lott.
+query.lisp        Walter van Roggen, 27 December 1982
+				  Brought up to date and fixed somewhat by Rob MacLachlan.
+				  Modified by Bill Chiles.
+rand-mt19937.lisp Douglas T. Crosher and Raymond Toy based CMU code.
+				  Support for the Mersenne Twister, MT19937, random number generator
+				  due to Matsumoto and Nishimura. This implementation has been
+  				  placed in the public domain with permission from M. Matsumoto.
+
+				  Makoto Matsumoto and T. Nishimura, "Mersenne twister: A
+				  623-dimensionally equidistributed uniform pseudorandom number
+				  generator.", ACM Transactions on Modeling and Computer Simulation,
+				  1997, to appear.
+rand.lisp         Originally written by David Adam.  Python tuning, better large integer
+				  randomness and efficient IEEE float support by Rob MacLachlan.
+				  New generator added by Raymond Toy.
+reader.lisp       Written by David Dill
+				  Package system interface by Lee Schumacher.
+remote.lisp       William Lott
+run-program.lisp  Written by Jim Healy and Bill Chiles, November 1987, using an earlier
+				  version written by David McDonald.
+				  Completely re-written by William Lott, July 1989 - January 1990.
+save.lisp		  William Lott
+scavhook.lisp     William Lott
+search-list.lisp  Bill Chiles
+seq.lisp		  Skef Wholey
+				  Fixed up by Jim Muller on Friday the 13th, January, 1984.
+				  Gone over again by Bill Chiles.  Next?
+serve-event.lisp  Re-written by William Lott, July 1989 - January 1990.
+sharpm.lisp       David Dill
+signal.lisp		  William Lott
+sort.lisp         Jim Large
+				  Hacked on and maintained by Skef Wholey
+				  Rewritten by Bill Chiles
+stream.lisp		  Skef Wholey, Rob MacLachlan
+				  Gray streams support by Douglas Crosher, 1998.
+string.lisp       David Dill
+				  Rewritten by Skef Wholey, Bill Chiles and Rob MacLachlan.
+sunos-os.lisp     From Miles Bader and David Axmark.
+				  ("OS interface functions for CMU CL under Mach." so may
+				   refer to original.)
+symbol.lisp		  Scott Fahlman
+				  Hacked on and maintained by Skef Wholey.
+tty-inspect.lisp  Blaine Burks
+type-init.lisp    Rob MacLachlan
+type.lisp		  Rob MacLachlan
+typedefs.lisp     Rob MacLachlan
+unix-glibc2.lisp  Based on unix.lisp 1.56, converted for glibc2 by Peter
+				  Van Eynde (1998).
+				  Alpha support by Julian Dolby, 1999.
+weak.lisp		  Christopher Hoover
+wire.lisp         William Lott
+x86-vm.lisp       Code movement fixups by Douglas T. Crosher, 1997.
+				  Thread support by Douglas T. Crosher, 1999.
 
 ** src/ed/  (previously src/hemlock)
 
@@ -17,7 +180,6 @@ completion.lisp   Skef Wholey, Blaine Burks
 		  		  General idea stolen from Jim Salem's TMC LISPM
 		  		  completion code.
 cursor.lisp       Rob MacLachlan
-dabbrev.lisp      Luke Gorrie <luke@bluetail.com>, February 2002
 debug.lisp        Bill Chiles
 dired.lisp	  	  Bill Chiles
 diredcoms.lisp    Blaine Burks, Bill Chiles
@@ -114,6 +276,9 @@ xcoms.lisp        Bill Chiles
 ;; and Stewart M. Clamen, Software---Practice & Experience,
 ;; vol. 23, no. 4 (April, 1993), pp. 383--404.
 
+;; This code is in the public domain, but any use of it
+;; should publically acknowledge its source.
+
 Downloaded from http://emr.cs.iit.edu/~reingold/calendar.l
 
 ** src/code/base64.lisp
@@ -125,3 +290,53 @@ Downloaded from http://emr.cs.iit.edu/~reingold/calendar.l
 ;;;; domain. Input is welcome.
 
 Downloaded from http://www.iki.fi/~juri/store/dl/base64.lisp
+
+** src/ed/dabbrev.lisp, a list of editor exports, c-w in src/ed/searchcoms.lisp
+
+Luke confirmed that these are public domain, Dec 05 2006.
+
+;;; **********************************************************************
+;;; Dynamic abbreviation (dabbrev) command, knocked off from GNU Emacs.
+;;;
+;;; Written by Luke Gorrie <luke@bluetail.com> in February 2002,
+;;; updated March 2002.
+
+** format-iso8601-time in src/ed/format-time.lisp and
+   parse-iso8601-time in src/ed/parse-time.lisp;
+
+;;  Author:  Thomas Russ
+;;  Date:    October 29, 2004
+;;  Copyright:  This code is placed in the  public domain
+
+Downloaded from http://common-lisp.net/cgi-bin/viewcvs.cgi/*checkout*/iso8601-date/iso8601.lisp?rev=1.1&root=iso8601
+
+** src/code/mh.lisp
+
+This code was translated from the MH written in C at the Rand Corporation
+and extended at the University of California.  From the man page:
+
+     Although the _M_H system was originally developed by the RAND
+     Corporation, and is now in the public domain, the RAND Cor-
+     poration assumes no responsibility for _M_H or this particular
+     modification of _M_H.
+
+     In addition, the Regents of the University of California
+     issue the following disclaimer in regard to the UCI version
+     of _M_H:
+          "Although each program has been tested by its contribu-
+          tor, no warranty, express or implied, is made by the
+          contributor or the University of California, as to the
+          accuracy and functioning of the program and related
+          program material, nor shall the fact of distribution
+          constitute any such warranty, and no responsibility is
+          assumed by the contributor or the University of Cali-
+          fornia in connection herewith."
+
+     This version of _M_H is in the public domain, and as such,
+     there are no real restrictions on its use.  The _M_H source
+     code and documentation have no licensing restrictions what-
+     soever.  As a courtesy, the authors ask only that you pro-
+     vide appropriate credit to the RAND Corporation and the
+     University of California for having developed the software.
+
+Downloaded from ftp://ftp.ics.uci.edu/pub/mh/tar/mh-6.8.3.tar.Z

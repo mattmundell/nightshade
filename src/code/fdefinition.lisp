@@ -1,40 +1,21 @@
-;;; -*- Package: Lisp; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/fdefinition.lisp,v 1.15.2.1 1998/07/19 01:06:04 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Functions that hack on the global function namespace (primarily
-;;; concerned with SETF functions here).  Also, function encapsulation
-;;; and routines that set and return definitions disregarding whether
-;;; they might be encapsulated.
-;;;
-;;; Written by Rob MacLachlan
-;;; Modified by Bill Chiles (wrote encapsulation stuff) 
-;;; Modified more by William Lott (added ``fdefn'' objects)
-;;;
+;;; concerned with SETF functions here).  Also, function encapsulation and
+;;; routines that set and return definitions disregarding whether they
+;;; might be encapsulated.
 
 (in-package "EXTENSIONS")
 
 (export '(encapsulate unencapsulate encapsulated-p
 	  basic-definition argument-list *setf-fdefinition-hook*))
 
-
 (in-package "KERNEL")
 
 (export '(fdefn make-fdefn fdefn-p fdefn-name fdefn-function fdefn-makunbound
 	  %coerce-to-function raw-definition))
 
-
 (in-package "LISP")
 
 (export '(fdefinition fboundp fmakunbound))
-
 
 
 ;;;; Fdefinition (fdefn) objects.
@@ -61,7 +42,6 @@
   (declare (type fdefn fdefn))
   (fdefn-makunbound fdefn))
 
-
 ;;; FDEFN-INIT -- internal interface.
 ;;;
 ;;; This function is called by %INITIAL-FUNCTION after the globaldb has been
@@ -80,8 +60,8 @@
 ;;; FDEFINITION-OBJECT -- internal interface.
 ;;;
 (defun fdefinition-object (name create)
-  "Return the fdefn object for NAME.  If it doesn't already exist and CREATE
-   it non-NIL, create a new (unbound) one."
+  "Return the fdefn object for NAME.  If it doesn't already exist and
+   CREATE it non-NIL, create a new (unbound) one."
   (declare (values (or fdefn null)))
   (unless (or (symbolp name)
 	      (and (consp name)
@@ -114,7 +94,7 @@
 ;;; RAW-DEFINITION -- public.
 ;;;
 ;;; Just another name for %coerce-to-function.
-;;; 
+;;;
 (declaim (inline raw-definition))
 (defun raw-definition (name)
   (declare (optimize (inhibit-warnings 3)))
@@ -125,7 +105,6 @@
 (defun (setf raw-definition) (function name)
   (let ((fdefn (fdefinition-object name t)))
     (setf (fdefn-function fdefn) function)))
-
 
 
 ;;;; Definition Encapsulation.
@@ -147,7 +126,6 @@
   (format str "#<Encapsulation-Info  Definition: ~S  Type: ~S>"
 	  (%function-name (encapsulation-info-definition obj))
 	  (encapsulation-info-type obj)))
-
 
 ;;; ENCAPSULATE -- Public.
 ;;;
@@ -180,7 +158,7 @@
 ;;; ENCAPSULATION-INFO -- internal.
 ;;;
 ;;; Finds the encapsulation info that has been closed over.
-;;; 
+;;;
 (defun encapsulation-info (fun)
   (and (functionp fun)
        (= (get-type fun) vm:closure-header-type)
@@ -229,7 +207,8 @@
 ;;; ENCAPSULATED-P -- Public.
 ;;;
 (defun encapsulated-p (name type)
-  "Returns t if name has an encapsulation of the given type, otherwise nil."
+  "Returns t if name has an encapsulation of the given type, otherwise
+   nil."
   (let ((fdefn (fdefinition-object name nil)))
     (do ((encap-info (encapsulation-info (fdefn-function fdefn))
 		     (encapsulation-info
@@ -261,9 +240,8 @@
   "Set name's global function definition."
   (declare (type function new-value) (optimize (safety 1)))
   (let ((fdefn (fdefinition-object name t)))
-    ;; *setf-fdefinition-hook* won't be bound when
-    ;; initially running top-level forms in the kernel
-    ;; core startup.
+    ;; *setf-fdefinition-hook* won't be bound when initially running
+    ;; top-level forms in the kernel core startup.
     (when (boundp '*setf-fdefinition-hook*)
       (dolist (f *setf-fdefinition-hook*)
 	(funcall f name new-value)))
@@ -283,7 +261,6 @@
 	     (setf (fdefn-function fdefn) new-value))))))
 ;;;
 (defsetf fdefinition %set-fdefinition)
-
 
 
 ;;;; FBOUNDP and FMAKUNBOUND.

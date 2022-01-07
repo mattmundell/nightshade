@@ -1,23 +1,7 @@
-;;; This file loads the editor.
+;;; Function load-ed, which loads the editor.
 
-;;; Stuff to set up the packages the editor uses.
-;;;
-(in-package "HEMLOCK-INTERNALS"
-	    :nicknames '("HI")
-	    :use '("LISP" "EXTENSIONS" "SYSTEM"))
-;;;
-(in-package "HEMLOCK"
-	    :nicknames '("ED")
-	    :use '("LISP" "HEMLOCK-INTERNALS" "EXTENSIONS" "SYSTEM"))
-;;;
-(in-package "SYSTEM")
-(export '(%sp-byte-blt %sp-find-character %sp-find-character-with-attribute
-		       %sp-reverse-find-character-with-attribute))
-;;;
-(in-package "HI")
-
-
-(defun build-ed ()
+(defun load-ed ()
+  (load "ed:exports")
   (load "ed:struct")
 ;  (load "ed:struct-ed")
   (load "ed:charmacs")
@@ -101,6 +85,8 @@
   (load "ed:python")
   (load "ed:make")
   (load "ed:m4")
+  (load "ed:tex")
+  (load "ed:roff")
   (load "ed:edit-defs")
   (load "ed:auto-save")
   (load "ed:register")
@@ -114,12 +100,14 @@
   (load "ed:lisp-lib")
   (load "ed:completion")
   (load "ed:shell")
+  (load "ed:telnet")
   (load "ed:debug")
   (load "ed:netnews")
   (load "ed:compile")
   (load "ed:debug")
   (load "ed:netnews")
   (load "ed:parse-scribe")
+  (load "ed:parse-css")
   (load "ed:info")
   (ed::get-info-directory)
   (load "ed:ginfo")
@@ -131,4 +119,5 @@
   (load "ed:outline")
   (load "ed:buildtools")
   (load "ed:break")
+  (load "ed:enriched")
   (load "ed:bindings"))

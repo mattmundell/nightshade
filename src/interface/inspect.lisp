@@ -23,7 +23,6 @@
 ;;; You can add new display mechanisms by defining new methods for these
 ;;; generic functions.  Specific functions for aiding in the construction
 ;;; of inspection panes are given below.
-;;;
 
 (in-package "INTERFACE")
 
@@ -458,18 +457,18 @@
 	       (rc (create-row-column view "sequenceView"
 				      :spacing 0))
 	       (widgets))
-	  
+
 	  (manage-children slabel start clabel count)
 	  (manage-children flabel fexp apply unapply)
-	  
+
 	  (dotimes (i (min length *inspector-sequence-initial-display*))
 	    (let ((item (elt v i)))
 	      (push (create-value-box rc (format nil "~a:" i) item
 				      :callback #'inspect-object-callback)
 		    widgets)))
-	  
+
 	  (apply #'manage-children widgets)
-	  
+
 	  (add-callback start :activate-callback 'sequence-redisplay-callback
 			v start count rc pane)
 	  (add-callback count :activate-callback 'sequence-redisplay-callback
@@ -483,7 +482,7 @@
 			    (declare (ignore widget call-data))
 			    (sequence-redisplay-callback
 			     nil nil v start count rc pane)))
-	  
+
 	  (manage-children view controls filter)
 	  (manage-child rc)))))
 
@@ -521,7 +520,7 @@
 	   (instance-slots ())
 	   (class-slots ())
 	   (other-slots ()))
-      
+
       (dolist (slotd slotds)
 	(with-slots ((slot pcl::name) (allocation pcl::allocation))
 	  slotd
@@ -529,7 +528,7 @@
 	    (:instance (push slotd instance-slots))
 	    (:class (push slotd class-slots))
 	    (otherwise (push slotd other-slots)))))
-      
+
       (when instance-slots
 	(show-slot-list object instance-slots view t
 			"Slots with Instance allocation:"))

@@ -1,7 +1,9 @@
 ;;; Even more commands...
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
+(export '(check-region-query-size display-page-directory goto-page
+	  page-directory page-offset supply-generic-pointer-up-function))
 
 (defhvar "Region Query Size"
   "A number-of-lines threshold that destructive, undoable region commands
@@ -19,8 +21,6 @@
 		   :prompt "Region size exceeds \"Region Query Size\".  Confirm: "
 		   :must-exist t)))
 	(editor-error))))
-
-
 
 ;;;; Casing commands...
 
@@ -100,7 +100,6 @@
       (check-region-query-size region)
       (filter-region function region)
       (make-region-undo :twiddle name region undo-region))))
-
 
 
 ;;;; More stuff.
@@ -336,7 +335,7 @@
     (if new-buffer
 	(let ((mark (current-point)))
 	  (with-writable-buffer (buffer)
-	    (dotimes (font hi::font-map-size)
+	    (dotimes (font edi::font-map-size)
 	      (insert-string mark (format nil "~A " font))
 	      (font-mark (mark-line mark) (mark-charpos mark) font)
 	      (insert-string mark (format nil "Font number ~A~%" font))
@@ -490,7 +489,6 @@
 	  (editor-error "Too few characters in buffer."))
 	(move-mark point m)))))
 
-
 
 ;;;; Mouse Commands.
 
@@ -507,7 +505,7 @@
 	      (eq (current-window) *echo-area-window*)
 	      (member window *random-typeout-buffers*
 		      :key #'(lambda (cons)
-			       (hi::random-typeout-stream-window (cdr cons)))))
+			       (edi::random-typeout-stream-window (cdr cons)))))
       (supply-generic-pointer-up-function #'lisp::do-nothing)
       (editor-error "I'm afraid I can't let you do that Dave."))
     (setf (current-window) window)
@@ -638,7 +636,6 @@
 	  (un-kill-command nil))
 	(editor-error "Can't insert kill buffer in modeline."))))
 
-
 
 ;;;; Page commands & stuff.
 
@@ -695,12 +692,11 @@
       (editor-error "No page numbered ~D." i))
     (move-mark mark m)))
 
-
 (defcommand "View Page Directory" (p)
-  "Print a listing of the first non-blank line after each page mark
-   in a pop-up window."
-  "Print a listing of the first non-blank line after each page mark
-   in a pop-up window."
+  "Print a listing of the first line with after each page mark in a pop-up
+   window."
+  "Print a listing of the first line with text after each page mark in a
+   pop-up window."
   (declare (ignore p))
   (let ((dir (page-directory (current-buffer))))
     (declare (list dir))
@@ -708,12 +704,12 @@
       (display-page-directory s dir))))
 
 (defcommand "Insert Page Directory" (p)
-  "Insert a listing of the first non-blank line after each page mark at
-   the beginning of the buffer.  A mark is dropped before going to the
+  "Insert a listing of the first line with text after each page mark at the
+   beginning of the buffer.  A mark is dropped before going to the
    beginning of the buffer.  If an argument is supplied, insert the page
    directory at point."
-  "Insert a listing of the first non-blank line after each page mark at
-   the beginning of the buffer."
+  "Insert a listing of the first line with text after each page mark at the
+   beginning of the buffer."
   (let ((point (current-point)))
     (unless p
       (push-buffer-mark (copy-mark point))
@@ -728,7 +724,7 @@
    in a field of three characters.  The number and string are separated by
    two spaces, and the first line contains headings for the numbers and
    strings columns."
-  (write-line "Page    First Non-blank Line" stream)
+  (write-line "Page    First Line With Text" stream)
   (do ((dir directory (cdr dir))
        (count 1 (1+ count)))
       ((null dir))
@@ -737,13 +733,13 @@
     (write-line (car dir) stream)))
 
 (defun page-directory (buffer)
-  "Return a list of strings where each is the first non-blank line
+  "Return a list of strings where each is the first line with text
    following a :page-delimiter in buffer."
   (with-mark ((m (buffer-point buffer)))
     (buffer-start m)
     (let ((end-of-buffer (buffer-end-mark buffer)) result)
-      (loop ;over pages.
-	(loop ;for first non-blank line.
+      (loop ; Over pages.
+	(loop ; For first line with text.
 	  (cond ((not (blank-after-p m))
 		 (let* ((str (line-string (mark-line m)))
 			(len (length str)))
@@ -774,8 +770,8 @@
   With prefix argument move that many pages."
   "Move backward P pages."
   (let ((point (current-point)))
-    (unless (page-offset point (- (or p 1)))
-      (editor-error "No such page."))
+    (or (page-offset point (- (or p 1)))
+	(editor-error "No such page."))
     (line-start (move-mark (window-display-start (current-window)) point))))
 
 (defcommand "Next Page" (p)
@@ -783,8 +779,8 @@
   With prefix argument move that many pages."
   "Move forward P pages."
   (let ((point (current-point)))
-    (unless (page-offset point (or p 1))
-      (editor-error "No such page."))
+    (or (page-offset point (or p 1))
+	(editor-error "No such page."))
     (line-start (move-mark (window-display-start (current-window)) point))))
 
 (defcommand "Mark Page" (p)
@@ -793,11 +789,11 @@
   "Mark the P'th page after the current one."
   (let ((point (current-point)))
     (if p
-	(unless (page-offset point (1+ p)) (editor-error "No such page."))
+	(or (page-offset point (1+ p)) (editor-error "No such page."))
 	(page-offset point 1)) ;If this loses, we're at buffer-end.
     (with-mark ((m point))
-      (unless (page-offset point -1)
-	(editor-error "No such page."))
+      (or (page-offset point -1)
+	  (editor-error "No such page."))
       (push-buffer-mark (copy-mark m) t)
       (line-start (move-mark (window-display-start (current-window)) point)))))
 
@@ -808,27 +804,26 @@
   (cond ((plusp n)
 	 (find-attribute mark :page-delimiter #'zerop)
 	 (dotimes (i n mark)
-	   (unless (next-character mark) (return nil))
+	   (or (next-character mark) (return nil))
 	   (loop
-	     (unless (find-attribute mark :page-delimiter)
-	       (return-from page-offset nil))
-	     (unless (mark-after mark)
-	       (return (if (= i (1- n)) mark)))
+	     (or (find-attribute mark :page-delimiter)
+		 (return-from page-offset nil))
+	     (or (mark-after mark) (return (if (= i (1- n)) mark)))
 	     (when (= (mark-charpos mark) 1) (return)))))
 	(t
 	 (reverse-find-attribute mark :page-delimiter #'zerop)
 	 (prog1
 	  (dotimes (i (- n) mark)
-	    (unless (previous-character mark) (return nil))
+	    (or (previous-character mark) (return nil))
 	    (loop
-	      (unless (reverse-find-attribute mark :page-delimiter)
-		(return-from page-offset nil))
+	      (or (reverse-find-attribute mark :page-delimiter)
+		  (return-from page-offset nil))
 	      (mark-before mark)
 	      (when (= (mark-charpos mark) 0) (return))))
 	  (let ((buffer (line-buffer (mark-line mark))))
-	    (unless (or (not buffer) (mark= mark (buffer-start-mark buffer)))
-	      (mark-after mark)))))))
-
+	    (if buffer
+		(or (mark= mark (buffer-start-mark buffer))
+		    (mark-after mark))))))))
 
 
 ;;;; Counting some stuff
@@ -940,7 +935,7 @@
    The numbers must line up where the decimal point is or would be."
   (declare (ignore p))
   (let ((point (current-point)))
-    (or (hi::number-at-mark point)(editor-error "Point must be on a number."))
+    (or (edi::number-at-mark point)(editor-error "Point must be on a number."))
     (message "~A" (tally-column))))
 
 ;; 3           .10
@@ -953,11 +948,11 @@
 (defun tally-column (&optional (point (current-point)))
   "Print the sum of the column of numbers at Point.
    The numbers must line up where the decimal point is or would be."
-    (let ((total (hi::number-at-mark point)))
+    (let ((total (edi::number-at-mark point)))
       (when total
 	(let ((mark (copy-mark point)) start-col)
 	  ;; Move point to before the decimal point.
-	  (hi::word-start mark)
+	  (edi::word-start mark)
 	  (if (eq (previous-character mark) #\.)
 	      (mark-before mark)
 	      (word-offset mark 1))
@@ -965,7 +960,7 @@
 	  ;; Tally downwards.
 	  (let ((mark2 (copy-mark mark)))
 	    (line-offset mark2 1)
-	    (loop for n = (hi::number-at-mark mark2)
+	    (loop for n = (edi::number-at-mark mark2)
 	      while (and n (eq start-col (mark-column mark2)))
 	      do
 	      (incf total n)
@@ -973,7 +968,7 @@
 	    (move-mark mark2 mark)
 	    ;; Tally upwards.
 	    (line-offset mark2 -1)
-	    (loop for n = (hi::number-at-mark mark2)
+	    (loop for n = (edi::number-at-mark mark2)
 	      while (and n (eq start-col (mark-column mark2)))
 	      do
 	      (incf total n)
@@ -989,10 +984,8 @@
   (declare (ignore p))
   (setf (buffer-major-mode (current-buffer)) "Fundamental"))
 
-;;;
 ;;; Text mode.
 ;;;
-
 (defmode "Text" :major-p t)
 
 (defcommand "Text Mode" (p)
@@ -1001,10 +994,8 @@
   (declare (ignore p))
   (setf (buffer-major-mode (current-buffer)) "Text"))
 
-;;;
 ;;; Caps-lock mode.
 ;;;
-
 (defmode "CAPS-LOCK")
 
 (defcommand "Caps Lock Mode" (p)
@@ -1030,7 +1021,6 @@
     (if (and p (> p 1))
 	(insert-string (current-point) (make-string p :initial-element char))
 	(insert-character (current-point) char))))
-
 
 
 ;;;; File type handling.

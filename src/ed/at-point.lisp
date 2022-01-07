@@ -1,6 +1,6 @@
 ;;; Functions that return various entities from point or a mark.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(word-at-point number-at-point symbol-at-point
 	  pathname-at-point url-at-point manual-name-at-point))

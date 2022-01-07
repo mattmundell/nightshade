@@ -1,6 +1,6 @@
 ;;; w3m interface.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 ;;; Structure.
@@ -27,7 +27,7 @@
 
 (eval-when (compile eval load)
 
-  (defparser `((:html-element        #\< (or :html-space "")
+  (defparser `((:html-element        #\< "" ;(or :html-space "")?
 				     (or :html-mark :html-name-anchor :html-tag))
 
 	       ;; FIX
@@ -49,6 +49,7 @@
 	       (:html-tag            (or :html-bold
 					 :html-anchor
 					 :html-_symbol
+					 :html-u
 					 :html-pre-int
 					 :html-nobr
 					 :html-img-alt)
@@ -62,6 +63,7 @@
 				     (or :html-bold
 					 :html-anchor
 					 :html-_symbol
+					 :html-u
 					 :html-pre-int
 					 :html-nobr
 					 :html-img-alt)
@@ -88,6 +90,7 @@
 	       (:html-text-char   (cond (if (or (eq ch #\<)) nil t)))
 
 	       (:html-bold        (or #\B #\b))
+	       (:html-u           (or #\U #\u))
 	       (:html-br          "BR")
 	       (:html-_id         "_id")
 	       (:html-pre-int     "pre_int")
@@ -285,6 +288,15 @@
 	     (delete-characters ,mark 4) ; </b>
 	     (font-mark (mark-line ,mark) (mark-charpos ,mark) 0))
 
+	    (html-u-node
+	     (font-mark (mark-line ,mark) (mark-charpos ,mark)
+			*underline-font*)
+	     (delete-characters ,mark 2) ; u>
+	     (www-render-nodes ,mark (node-content text-node))
+	     (delete-characters ,mark 4) ; </u>
+	     (font-mark (mark-line ,mark) (mark-charpos ,mark)
+			original-font))
+
 	    (html-anchor-node
 	     (delete-characters ,mark 1) ; a
 	     (let ((url-region))
@@ -330,13 +342,19 @@
 					   (+ 10
 					      (attribute-length-and-value
 					       attrib))))
-		       ; Link type of dest.
+		       ;; Target frame for link.
+		       ((string= attrib-name "TARGET")
+			(delete-characters ,mark
+					   (+ 7
+					      (attribute-length-and-value
+					       attrib))))
+		       ;; Link type of dest.
 		       ((string= attrib-name "REL")
 			(delete-characters ,mark
 					   (+ 4
 					      (attribute-length-and-value
 					       attrib))))
-		       ; Link type this doc w.r.t. dest.
+		       ;; Link type of this doc w.r.t. dest.
 		       ((string= attrib-name "REV")
 			(delete-characters ,mark
 					   (+ 4
@@ -460,10 +478,16 @@
 	(pos (copy-mark *mark*)))
     (replace-pattern *mark* *www-a0-pattern-forward* " ")
     ;; FIX a guess, to what should this translate?
+    ;               this should translate to what?
 ;    (replace-pattern *mark* *www-82-c1-pattern-forward* (string #\newline))
     (loop
-      (or (find-pattern *mark* *www-&-pattern-forward*)
-	  (return))
+      (let ((node (node-next (node-content (or (search-for-html-element *mark* pos)
+					       (return-from nil))))))
+	(www-render-html-element-node-macro *mark*))
+      (move-mark pos *mark*))
+    (buffer-start *mark*)
+    (loop
+      (or (find-pattern *mark* *www-&-pattern-forward*) (return))
       (mark-after *mark*)
       (case (next-character *mark*)
 	(#\a
@@ -537,11 +561,6 @@
 	      (delete-characters *mark* -6)
 	      (setf (next-character *mark*) #\")))))
 	))
-    (loop
-      (let ((node (node-next (node-content (or (search-for-html-element *mark* pos)
-					       (return-from nil))))))
-	(www-render-html-element-node-macro *mark*))
-      (move-mark pos *mark*))
     (delete-mark pos))
   (when (value www-hrefs)
     (setv www-hrefs (nreverse (value www-hrefs)))))

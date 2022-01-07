@@ -11,7 +11,7 @@
 #endif
 #endif
 
-#include "lisp.h"
+#include "nightshade.h"
 #include "arch.h"
 #include "internals.h"
 #include "os.h"
@@ -56,7 +56,7 @@ static boolean maybe_gc_pending = FALSE;
 * Utility routines used by various signal handlers.              *
 \****************************************************************/
 
-void 
+void
 fake_foreign_function_call(struct sigcontext *context)
 {
     int context_index;
@@ -77,7 +77,7 @@ fake_foreign_function_call(struct sigcontext *context)
 #ifdef reg_BSP
     current_binding_stack_pointer = (lispobj *)SC_REG(context, reg_BSP);
 #endif
-    
+
 #ifndef i386
     /* Build a fake stack frame */
     current_control_frame_pointer = (lispobj *)SC_REG(context, reg_CSP);
@@ -105,35 +105,35 @@ fake_foreign_function_call(struct sigcontext *context)
     else
         /* Normal case. */
         oldcont = (lispobj)SC_REG(context, reg_CFP);
-    
+
     current_control_stack_pointer = current_control_frame_pointer + 8;
 
     current_control_frame_pointer[0] = oldcont;
     current_control_frame_pointer[1] = NIL;
     current_control_frame_pointer[2] = (lispobj)SC_REG(context, reg_CODE);
 #endif
-    
+
     /* Do dynamic binding of the active interrupt context index
        and save the context in the context array. */
     context_index = SymbolValue(FREE_INTERRUPT_CONTEXT_INDEX)>>2;
-    
+
     if (context_index >= MAX_INTERRUPTS) {
         fprintf(stderr,
 		"Maximum number (%d) of interrupts exceeded.  Exiting.\n",
                 MAX_INTERRUPTS);
         exit(1);
     }
-    
+
     bind_variable(FREE_INTERRUPT_CONTEXT_INDEX,
 		  make_fixnum(context_index + 1));
-    
+
     lisp_interrupt_contexts[context_index] = context;
-    
+
     /* No longer in Lisp now. */
     foreign_function_call_active = 1;
 }
 
-void 
+void
 undo_fake_foreign_function_call(struct sigcontext *context)
 {
     /* Block all blockable signals */
@@ -145,14 +145,14 @@ undo_fake_foreign_function_call(struct sigcontext *context)
 #else
     sigblock(BLOCKABLE);
 #endif
-    
+
     /* Going back into lisp. */
     foreign_function_call_active = 0;
-    
+
     /* Undo dynamic binding. */
     /* ### Do I really need to unbind_to_here()? */
     unbind();
-    
+
 #ifdef reg_ALLOC
     /* Put the dynamic space free pointer back into the context. */
     SC_REG(context, reg_ALLOC) =
@@ -160,7 +160,7 @@ undo_fake_foreign_function_call(struct sigcontext *context)
 #endif
 }
 
-void 
+void
 interrupt_internal_error(HANDLER_ARGS, boolean continuable)
 {
     lispobj context_sap;
@@ -199,7 +199,7 @@ interrupt_internal_error(HANDLER_ARGS, boolean continuable)
 	arch_skip_instruction(context);
 }
 
-void 
+void
 interrupt_handle_pending(struct sigcontext *context)
 {
     boolean were_in_lisp = !foreign_function_call_active;
@@ -256,7 +256,7 @@ interrupt_handle_pending(struct sigcontext *context)
 *    the two main signal handlers.                               *
 \****************************************************************/
 
-void 
+void
 interrupt_handle_now(HANDLER_ARGS)
 {
 #if defined(__linux__) && defined(i386)
@@ -287,7 +287,7 @@ interrupt_handle_now(HANDLER_ARGS)
     if (were_in_lisp)
 #endif
         fake_foreign_function_call(context);
-    
+
     if (handler.c == (void (*)(HANDLER_ARGS)) SIG_DFL)
 	/* This can happen if someone tries to ignore or default on of the */
 	/* signals we need for runtime support, and the runtime support */
@@ -313,7 +313,7 @@ interrupt_handle_now(HANDLER_ARGS)
 #else
         sigsetmask(context->sc_mask);
 #endif /* POSIX_SIGS */
-      
+
 #if 1
         funcall3(handler.lisp, make_fixnum(signal), make_fixnum(CODE(code)),
 		 context_sap);
@@ -337,21 +337,21 @@ interrupt_handle_now(HANDLER_ARGS)
 #else
         sigsetmask(context->sc_mask);
 #endif /* POSIX_SIGS */
-      
+
 #if ( defined( __linux__ ) && defined( i386 ) )
         (*handler.c)(signal, contextstruct);
 #else
         (*handler.c)(signal, code, context);
 #endif
     }
-    
+
 #ifndef i386
     if (were_in_lisp)
 #endif
         undo_fake_foreign_function_call(context);
 }
 
-static void 
+static void
 maybe_now_maybe_later(HANDLER_ARGS)
 {
 #if defined(__linux__) && defined(i386)
@@ -374,7 +374,7 @@ maybe_now_maybe_later(HANDLER_ARGS)
 	  pending_mask.__val[0] = context->uc_sigmask;
 	  temp.__val[0] = context->uc_sigmask;
 	  FILLBLOCKSET(&temp);
-	  
+
 	  context->uc_sigmask = temp.__val[0];
 	}
 #endif
@@ -521,7 +521,7 @@ void interrupt_install_low_level_handler
     sv.sv_mask = BLOCKABLE;
     sv.sv_flags = 0;
     sigvec(signal, &sv, NULL);
-#endif    
+#endif
     interrupt_low_level_handlers[signal] =
       (handler == (void (*)(HANDLER_ARGS)) SIG_DFL) ? 0 : handler;
 }

@@ -1,6 +1,6 @@
 ;;; The code that handles input to the editor.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(get-key-event unget-key-event clear-editor-input listen-editor-input
 	  *last-key-event-typed* *key-event-history* *editor-input*
@@ -128,7 +128,7 @@
 
 (defvar *input-transcript* ()
   "If this variable is non-null then it should contain an adjustable vector
-  with a fill pointer into which all keyboard input will be pushed.")
+   with a fill pointer into which all keyboard input will be pushed.")
 
 ;;; INPUT-WAITING  --  Internal
 ;;;
@@ -409,8 +409,8 @@
   (let* ((window (random-typeout-stream-window stream))
 	 (buffer (window-buffer window))
 	 (start (buffer-start-mark buffer)))
-    (when (typep (hi::device-hunk-device (hi::window-hunk window))
-		 'hi::bitmap-device)
+    (when (typep (edi::device-hunk-device (edi::window-hunk window))
+		 'edi::bitmap-device)
       (let ((*more-prompt-action* :normal))
 	(update-modeline-field buffer window :more-prompt)
 	(random-typeout-redisplay window))

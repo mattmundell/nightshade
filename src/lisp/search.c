@@ -8,7 +8,7 @@
 */
 
 
-#include "lisp.h"
+#include "nightshade.h"
 #include "internals.h"
 #include "os.h"
 #include "search.h"

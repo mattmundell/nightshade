@@ -10,8 +10,9 @@
 ;;;
 ;;; **********************************************************************
 ;;;
-;;; This file loads the parts of the system that aren't cold loaded and saves
-;;; the resulting core image.  It writes "lisp.core" in the DEFAULT-DIRECTORY.
+;;; This file loads the parts of the system that aren't cold loaded and
+;;; saves the resulting core image.  It writes "lisp.core" in the
+;;; DEFAULT-DIRECTORY.
 
 (in-package "LISP")
 
@@ -38,11 +39,9 @@
 (maybe-byte-load "target:code/backq")
 (setq std-lisp-readtable (copy-readtable *readtable*))
 
-;;; The pretty printer is part of the kernel core, but we don't turn it in
-;;; until now.
+;;; Turn on the pretty printer.
 ;;;
 (pp::pprint-init)
-
 
 (maybe-byte-load "target:code/extensions")
 (maybe-byte-load "target:code/defmacro")
@@ -68,6 +67,7 @@
 	#+x86 "target:assembly/x86/"
 	#+alpha "target:assembly/alpha/"
 	"target:assembly/"))
+(setf (ext:search-list "e:") '("target:ed/"))
 (setf (ext:search-list "ed:") '("target:ed/"))
 (setf (ext:search-list "clx:") '("target:clx/"))
 (setf (ext:search-list "pcl:") '("target:pcl/"))
@@ -100,6 +100,7 @@
 #-runtime (maybe-byte-load "code:internet")
 #-runtime (maybe-byte-load "code:wire")
 #-runtime (maybe-byte-load "code:remote")
+#-runtime (maybe-byte-load "code:inet")
 #-runtime (maybe-byte-load "code:ftp")
 (maybe-byte-load "code:foreign")
 (maybe-byte-load "code:setf-funs")
@@ -107,18 +108,22 @@
 (maybe-byte-load "code:loop")
 #-(or gengc runtime) (maybe-byte-load "code:room")
 #-runtime (maybe-byte-load "code:base64")
+#-runtime (maybe-byte-load "code:table")
+#-runtime (maybe-byte-load "code:mh")
+#-runtime (maybe-byte-load "code:doc")
+#-runtime (maybe-byte-load "code:db")
 
 ;;; Overwrite some cold-loaded stuff with byte-compiled versions, if any.
 #-(or gengc cgc)	; x86/cgc has stuff in static space.
 (progn
-  (byte-load-over "target:code/debug")
-  (byte-load-over "target:code/error")
-  (maybe-byte-load "target:code/pprint" nil)
-  (maybe-byte-load "target:code/format" nil)
-  (maybe-byte-load "target:code/reader" nil)
-  (maybe-byte-load "target:code/pathname" nil)
-  (maybe-byte-load "target:code/filesys" nil)
-  (maybe-byte-load "target:code/macros" nil))
+  (byte-load-over "code:debug")
+  (byte-load-over "code:error")
+  (maybe-byte-load "code:pprint" nil)
+  (maybe-byte-load "code:format" nil)
+  (maybe-byte-load "code:reader" nil)
+  (maybe-byte-load "code:pathname" nil)
+  (maybe-byte-load "code:filesys" nil)
+  (maybe-byte-load "code:macros" nil))
 
 (purify :root-structures
 	`(lisp::%top-level extensions:save-lisp ,lisp::fop-codes)
@@ -148,15 +153,15 @@
 ;;; Editor.
 ;;;
 #-(or no-hemlock runtime)
-(maybe-byte-load "target:ed/ed-library")
-
+(maybe-byte-load "ed:ed-library")
 
 (defvar *target-sl*)
 (setq *target-sl* (search-list "target:"))
 
+; FIX
 ;;; Don't include the search lists used for loading in the resultant core.
 ;;;
-(lisp::clear-all-search-lists)
+;(lisp::clear-all-search-lists)
 
 ;;; Set up a default for modules and target:
 ;;;

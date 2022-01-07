@@ -1,6 +1,6 @@
 ;;; Screen painting routines for the IBM RT running X.
 ;;;
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 
 (defparameter hunk-height-limit 80 "Maximum possible height for any hunk.")

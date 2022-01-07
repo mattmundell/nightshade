@@ -1,6 +1,6 @@
 ;;; Completion mode.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 ;;;; The Completion Database.
@@ -71,11 +71,11 @@
 	     (completion-char-p (char string 2)))
     (let ((index (mod (logxor (ash
 			       (logxor
-				(ash (hi::search-hash-code (schar string 0))
+				(ash (edi::search-hash-code (schar string 0))
 				     5)
-				(hi::search-hash-code (schar string 1)))
+				(edi::search-hash-code (schar string 1)))
 			       3)
-			      (hi::search-hash-code (schar string 2)))
+			      (edi::search-hash-code (schar string 2)))
 		      completion-table-size)))
       (declare (fixnum index))
       (if value-p

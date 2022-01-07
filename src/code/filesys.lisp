@@ -1,33 +1,22 @@
-;;; -*- Log: code.log; Package: Lisp -*-
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;; If you want to use this code or any part of CMU Common Lisp, please contact
-;;; Scott Fahlman or slisp-group@cs.cmu.edu.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/filesys.lisp,v 1.43.2.5 2000/08/24 14:24:01 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; File system interface functions.  This file is pretty UNIX specific.
-;;;
-;;; Written by William Lott
-;;;
-;;; **********************************************************************
 
 (in-package "LISP")
 
 (export '(truename probe-file user-homedir-pathname directory
-          rename-file delete-file file-write-date file-author
-	  file-mode))
+          rename-file #|FIX|# fs-copy-file truncate-file delete-file delete-dir
+	  file-write-date file-author file-mode file-size
+	  directoryp directory-name-p symlinkp))
 
 (use-package "EXTENSIONS")
 
 (in-package "EXTENSIONS")
+
 (export '(print-directory print-files complete-file ambiguous-files
 	  default-directory file-writable unix-namestring
-	  map-files list-files))
+	  map-files do-files list-files
+	  map-dirs #| map-directories |# do-directories in-directory
+	  pick-temporary-file-name))
+
 (in-package "LISP")
 
 
@@ -69,7 +58,6 @@
 ;;;
 ;;; Any of these special characters can be preceeded by a backslash to
 ;;; cause it to be treated as a regular character.
-;;;
 
 (defun remove-backslashes (namestr start end)
   "Remove and occurences of \\ from the string because we've already
@@ -212,7 +200,7 @@
 		   version)))))
 
 ;;; Take a string and return a list of cons cells that mark the char
-;;; separated subseq. The first value t if absolute directories location.
+;;; separated subseq.  The first value t if absolute directories location.
 ;;;
 (defun split-at-slashes (namestr start end)
   (declare (type simple-base-string namestr)
@@ -226,8 +214,7 @@
       (loop
 	(let ((slash (position #\/ namestr :start start :end end)))
 	  (pieces (cons start (or slash end)))
-	  (unless slash
-	    (return))
+	  (or slash (return))
 	  (setf start (1+ slash))))
       (values absolute (pieces)))))
 
@@ -478,7 +465,6 @@
 	     (lose)))))
       (apply #'concatenate 'simple-string (strings)))))
 
-
 (defstruct (unix-host
 	    (:include host
 		      (:parse #'parse-unix-namestring)
@@ -488,8 +474,7 @@
 		      (:unparse-file #'unparse-unix-file)
 		      (:unparse-enough #'unparse-unix-enough)
 		      (:customary-case :lower))
-	    (:make-load-form-fun make-unix-host-load-form))
-  )
+	    (:make-load-form-fun make-unix-host-load-form)))
 
 (defvar *unix-host* (make-unix-host))
 
@@ -514,8 +499,8 @@
 
 (defun %enumerate-matches (pathname verify-existance follow-links function)
   (when (pathname-type pathname)
-    (unless (pathname-name pathname)
-      (error "Cannot supply a type without a name:~%  ~S" pathname)))
+    (or (pathname-name pathname)
+	(error "Cannot supply a type without a name:~%  ~S" pathname)))
   (let ((directory (pathname-directory pathname)))
     (if directory
 	(ecase (car directory)
@@ -531,8 +516,9 @@
 
 ;;; %enumerate-directories  --   Internal
 ;;;
-;;; The directory node and device numbers are maintained for the current path
-;;; during the search for the detection of paths loops upon :wild-inferiors.
+;;; The directory node and device numbers are maintained for the current
+;;; path during the search for the detection of paths loops upon
+;;; :wild-inferiors.
 ;;;
 (defun %enumerate-directories (head tail pathname verify-existance
 			       follow-links nodes function)
@@ -724,9 +710,9 @@
 ;;; Another silly file function trivially different from another function.
 ;;;
 (defun truename (pathname)
-  "Return the pathname for the actual file described by pathname.
-  An error of type file-error is signalled if no such file exists,
-  or the pathname is wild."
+  "Return the pathname for the actual file described by pathname.  An error
+   of type file-error is signalled if no such file exists, or the pathname
+   is wild."
   (if (wild-pathname-p pathname)
       (error 'simple-file-error
 	     :format-control "Bad place for a wild pathname."
@@ -765,29 +751,80 @@
 ;;; Rename-File  --  Public
 ;;;
 (defun rename-file (file new-name)
-  "Rename File to have the specified New-Name.  If file is a stream open to a
-  file, then the associated file is renamed."
+  "Rename File to have the specified New-Name.  If file is a stream open to
+   a file, then the associated file is renamed."
   (let* ((original (truename file))
 	 (original-namestring (unix-namestring original t))
 	 (new-name (merge-pathnames new-name original))
 	 (new-namestring (unix-namestring new-name nil)))
-    (unless new-namestring
-      (error 'simple-file-error
-	     :pathname new-name
-	     :format-control "~S can't be created."
-	     :format-arguments (list new-name)))
+    (or new-namestring
+	(error 'simple-file-error
+	       :pathname new-name
+	       :format-control "~S can't be created."
+	       :format-arguments (list new-name)))
     (multiple-value-bind (res error)
 			 (unix:unix-rename original-namestring
 					   new-namestring)
-      (unless res
-	(error 'simple-file-error
-	       :pathname new-name
-	       :format-control "Failed to rename ~A to ~A: ~A"
-	       :format-arguments (list original new-name
-				       (unix:get-unix-error-msg error))))
-      (when (streamp file)
-	(file-name file new-namestring))
+      (or res
+	  (error 'simple-file-error
+		 :pathname new-name
+		 :format-control "Failed to rename ~A to ~A: ~A"
+		 :format-arguments (list original new-name
+					 (unix:get-unix-error-msg error))))
+      (if (streamp file)
+	  (file-name file new-namestring))
       (values new-name original (truename new-name)))))
+
+;;; FIX next two from filesys.lisp, changed to error
+
+(defun fs-read-file (fd ses-name)
+  (multiple-value-bind (winp dev-or-err ino mode nlink uid gid rdev size)
+		       (unix:unix-fstat fd)
+    (declare (ignore ino nlink uid gid rdev))
+    (or winp
+	(error "Opening ~S failed: ~A."  ses-name dev-or-err))
+    (let ((storage (system:allocate-system-memory size)))
+      (multiple-value-bind (read-bytes err)
+			   (unix:unix-read fd storage size)
+	(when (or (null read-bytes) (not (= size read-bytes)))
+	  (system:deallocate-system-memory storage size)
+	  (error "Reading file ~S failed: ~A." ses-name err)))
+      (values storage size mode))))
+
+(defun fs-write-file (ses-name data byte-count mode)
+  (multiple-value-bind (fd err) (unix:unix-creat ses-name #o644)
+    (or fd
+	(error "Couldn't create file ~S: ~A"
+	       ses-name (unix:get-unix-error-msg err)))
+    (multiple-value-bind (winp err) (unix:unix-write fd data 0 byte-count)
+      (or winp
+	  (error "Writing file ~S failed: ~A"
+		 ses-name
+		 (unix:get-unix-error-msg err))))
+    (unix:unix-fchmod fd (logand mode #o777))
+    (unix:unix-close fd)))
+
+;;; Copy-File  --  Public
+;;;
+(defun fs-copy-file (file new-file)
+  "Copy FILE to NEW-FILE."
+  (multiple-value-bind (fd err)
+		       (unix:unix-open (unix-namestring file)
+				       unix:o_rdonly 0)
+    (or fd (error "Opening ~S failed: ~A." file err))
+    (unwind-protect
+	(multiple-value-bind (data byte-count mode)
+			     (fs-read-file fd file)
+	  (unwind-protect (fs-write-file (unix-namestring new-file)
+					 data byte-count mode)
+	    (system:deallocate-system-memory data byte-count)))
+      (unix:unix-close fd))))
+
+;;; Truncate-File  --  Public
+;;;
+(defun truncate-file (file)
+  "Truncate the specified file."
+  (with-open-file (stream file :direction :io :if-exists :supersede)))
 
 ;;; Delete-File  --  Public
 ;;;
@@ -796,19 +833,40 @@
   (let ((namestring (unix-namestring file t)))
     (when (streamp file)
       (close file :abort t))
-    (unless namestring
-      (error 'simple-file-error
-	     :pathname file
-	     :format-control "~S doesn't exist."
-	     :format-arguments (list file)))
+    (or namestring
+	(error 'simple-file-error
+	       :pathname file
+	       :format-control "~S doesn't exist."
+	       :format-arguments (list file)))
 
     (multiple-value-bind (res err) (unix:unix-unlink namestring)
-      (unless res
+      (or res
+	  (error 'simple-file-error
+		 :pathname namestring
+		 :format-control "Could not delete ~A: ~A."
+		 :format-arguments (list namestring
+					 (unix:get-unix-error-msg err))))))
+  t)
+
+;; FIX delete-directory clashed w similar fun in dired
+;;; Delete-Dir  --  Public
+;;;
+(defun delete-dir (file)
+  "Delete the specified directory."
+  (let ((namestring (unix-namestring file t)))
+    (or namestring
 	(error 'simple-file-error
-	       :pathname namestring
-	       :format-control "Could not delete ~A: ~A."
-	       :format-arguments (list namestring
-				       (unix:get-unix-error-msg err))))))
+	       :pathname file
+	       :format-control "~S doesn't exist."
+	       :format-arguments (list file)))
+
+    (multiple-value-bind (res err) (unix:unix-rmdir namestring)
+      (or res
+	  (error 'simple-file-error
+		 :pathname namestring
+		 :format-control "Could not delete ~A: ~A."
+		 :format-arguments (list namestring
+					 (unix:get-unix-error-msg err))))))
   t)
 
 
@@ -862,9 +920,6 @@
 	  (declare (ignore dev ino mode nlink))
 	  (if winp (lookup-login-name uid))))))
 
-
-;;;; DIRECTORY.
-
 ;;; File-Mode  --  Public
 ;;;
 (defun file-mode (file)
@@ -875,15 +930,35 @@
 	     :pathname file
 	     "Bad place for a wild pathname.")
       (let ((name (unix-namestring (pathname file) t)))
-	(unless name
-	  (error 'simple-file-error
-		 :pathname file
-		 :format-control "~S doesn't exist."
-		 :format-arguments (list file)))
+	(or name
+	    (error 'simple-file-error
+		   :pathname file
+		   :format-control "~S doesn't exist."
+		   :format-arguments (list file)))
 	(multiple-value-bind (res dev ino mode)
 			     (unix:unix-stat name)
 	  (declare (ignore dev ino))
 	  (if res mode)))))
+
+;;; File-Size  --  Public
+;;;
+(defun file-size (file)
+  "Returns the file size of FILE, or nil on failure.  Signals an error of
+   type file-error if file doesn't exist, or file is a wild pathname."
+  (if (wild-pathname-p file)
+      (error 'simple-file-error
+	     :pathname file
+	     "Bad place for a wild pathname.")
+      (let ((name (unix-namestring (pathname file) t)))
+	(or name
+	    (error 'simple-file-error
+		   :pathname file
+		   :format-control "~S doesn't exist."
+		   :format-arguments (list file)))
+	(multiple-value-bind (res dev ino mode nlink uid gid rdev size)
+			     (unix:unix-stat name)
+	  (declare (ignore dev ino mode nlink uid gid rdev))
+	  (if res size)))))
 
 
 ;;;; DIRECTORY.
@@ -954,7 +1029,9 @@
       all           if true include hidden files (files starting with a .)
       follow-links  if true follow symbolic links
       backups       if true include backup files (files ending in: ~ BAK CKP)
-      recurse       if true recurse into subdirectories."
+      recurse       if true recurse into subdirectories.
+
+   The macro `do-files' is a much faster mechanism."
   (enumerate-search-list
    (pathname (merge-pathnames (directory-namestring pathname)
 			      (make-pathname :name :wild
@@ -977,6 +1054,145 @@
 	 (map-files (concatenate 'string name "/") function
 		    :all all :follow-links follow-links
 		    :backups backups :recurse t)))))
+
+;;; Public
+;;;
+;;; FIX check for cycles when follow-links and recurse
+;;;
+(defmacro do-files ((name dir-pathname
+		     &key (all t) follow-links (backups t) recurse)
+		    &body body)
+  "Evaluate BODY with NAME bound to each file in DIR-PATHNAME.
+   Keys:
+      all           if true include hidden files (files starting with a .)
+      follow-links  if true follow symbolic links
+      backups       if true include backup files (files ending in: ~ BAK CKP)
+      recurse       if true recurse into subdirectories (FIX can cycle)."
+  (let* ((pn (gensym))
+	 (slash (gensym))
+	 (dir (gensym)))
+    ;; FIX perhaps enumerate-x should have a recurse option
+    `(iterate do-dir ((,dir ,dir-pathname))
+       (enumerate-search-list
+	(,pn (merge-pathnames (directory-namestring ,dir)
+			      (make-pathname :name :wild
+					     :type :wild
+					     :version :wild)))
+	(enumerate-matches (,name ,pn nil :follow-links ,follow-links)
+          ,(cond
+	    ((and backups all)
+	     `(progn ,@body))
+	    (backups
+	     `(let ((,slash (position #\/ ,name :from-end t)))
+		(when (if ,slash
+			  (or (= (1+ ,slash) (length ,name))
+			      (fi (char= (schar ,name (1+ ,slash)) #\.) t))
+			  (fi (char= (schar ,name 0) #\.) t))
+		  ,@body)))
+	    (all
+	     `(or (char= (schar ,name (1- (length ,name))) #\~)
+		  (string= (pathname-type ,name) "BAK")
+		  (string= (pathname-type ,name) "CKP")
+		  (progn
+		    ,@body)))
+	    (t
+	     `(or (char= (schar ,name (1- (length ,name))) #\~)
+		  (string= (pathname-type ,name) "BAK")
+		  (string= (pathname-type ,name) "CKP")
+		  (let ((,slash (position #\/ ,name :from-end t)))
+		    (when (if ,slash
+			      (or (= (1+ ,slash) (length ,name))
+				  (fi (char= (schar ,name (1+ ,slash)) #\.) t))
+			      (fi (char= (schar ,name 0) #\.) t))
+		      ,@body)))))
+	  (if (and ,recurse (eq (unix:unix-file-kind ,name) :directory))
+	      (do-dir (concatenate 'string ,name "/"))))))))
+
+(defun map-dirs (pathname function
+			  &key (all t) follow-links (backups t) recurse)
+  "Call Function on each file and directory in Pathname.
+   Keys:
+      all           if true include hidden files (files starting with a .)
+      follow-links  if true follow symbolic links
+      backups       if true include backup files (files ending in: ~ BAK CKP)
+      recurse       if true recurse into subdirectories.
+
+   The macro `do-directories' is a much faster mechanism."
+  (enumerate-search-list
+   (pathname (merge-pathnames (directory-namestring pathname)
+			      (make-pathname :name :wild
+					     :type :wild
+					     :version :wild)))
+   (enumerate-matches (name pathname nil :follow-links follow-links)
+     (when (eq (unix:unix-file-kind name) :directory)
+       (when (and (or backups
+		      (if (or (char= (schar name (1- (length name))) #\~)
+			      (string= (pathname-type name) "BAK")
+			      (string= (pathname-type name) "CKP"))
+			  nil
+			  t))
+		  (or all
+		      (let ((slash (position #\/ name :from-end t)))
+			(or (null slash)
+			    (= (1+ slash) (length name))
+			    (if (char= (schar name (1+ slash)) #\.) nil t)))))
+	 (funcall function name))
+       (if recurse
+	   (map-files (concatenate 'string name "/") function
+		      :all all :follow-links follow-links
+		      :backups backups :recurse t))))))
+
+;;; Public
+;;;
+;;; FIX check for cycles when follow-links and recurse
+;;;
+(defmacro do-directories ((name dir-pathname
+			   &key (all #| hidden? |# t) follow-links (backups t) recurse)
+			  &body body)
+  "Evaluate BODY with NAME bound to each directory in DIR-PATHNAME.
+   Keys:
+      all           if true include hidden files (files starting with a .)
+      follow-links  if true follow symbolic links
+      backups       if true include backup files (files ending in: ~ BAK CKP)
+      recurse       if true recurse into subdirectories (FIX can cycle)."
+  (let ((pn (gensym))
+	(slash (gensym))
+	(dir (gensym)))
+    `(iterate do-dir ((,dir ,dir-pathname))
+       (enumerate-search-list
+	(,pn (merge-pathnames (directory-namestring ,dir)
+			      (make-pathname :name :wild
+					     :type :wild
+					     :version :wild)))
+	(enumerate-matches (,name ,pn nil :follow-links ,follow-links)
+	  (when (eq (unix:unix-file-kind ,name) :directory)
+	    ,(cond
+	      ((and backups all)
+	       `(progn ,@body))
+	      (backups
+	       `(let ((,slash (position #\/ ,name :from-end t)))
+		  (when (if ,slash
+			    (or (= (1+ ,slash) (length ,name))
+				(fi (char= (schar ,name (1+ ,slash)) #\.) t))
+			    (fi (char= (schar ,name 0) #\.) t))
+		    ,@body)))
+	      (all
+	       `(or (char= (schar ,name (1- (length ,name))) #\~)
+		    (string= (pathname-type ,name) "BAK")
+		    (string= (pathname-type ,name) "CKP")
+		    (progn
+		      ,@body)))
+	      (t
+	       `(or (char= (schar ,name (1- (length ,name))) #\~)
+		    (string= (pathname-type ,name) "BAK")
+		    (string= (pathname-type ,name) "CKP")
+		    (let ((,slash (position #\/ ,name :from-end t)))
+		      (when (if ,slash
+				(or (= (1+ ,slash) (length ,name))
+				    (fi (char= (schar ,name (1+ ,slash)) #\.) t))
+				(fi (char= (schar ,name 0) #\.) t))
+			,@body)))))
+	    (if ,recurse (do-dir (concatenate 'string ,name "/")))))))))
 
 (defun list-files (pathname &optional (predicate #'identity)
 			    &key (all t) follow-links (backups t) recurse)
@@ -1269,7 +1485,6 @@
     (when return-list
       result)))
 
-
 
 ;;;; Translating uid's and gid's.
 
@@ -1304,7 +1519,6 @@
 	group-name
 	(setf (gethash gid *gid-hash-table*)
 	      (get-group-or-user-name :group gid)))))
-
 
 ;;; GET-GROUP-OR-USER-NAME first tries "/etc/passwd" ("/etc/group") since it is
 ;;; a much smaller file, contains all the local id's, and most uses probably
@@ -1425,7 +1639,6 @@
 	     :truenamep nil
 	     :check-for-subdirs nil))
 
-
 
 ;;; File-writable -- exported from extensions.
 ;;;
@@ -1482,8 +1695,7 @@
 ;;;
 (defun %set-default-directory (new-val)
   (let ((namestring (unix-namestring new-val t)))
-    (unless namestring
-      (error "~S doesn't exist." new-val))
+    (or namestring (error "~S doesn't exist." new-val))
     (multiple-value-bind (gr error)
 			 (unix:unix-chdir namestring)
       (if gr
@@ -1498,13 +1710,14 @@
 	(%make-pathname *unix-host* nil nil nil nil :newest))
   (setf (search-list "default:") (default-directory))
   nil)
+
 
 ;;; Ensure-Directories-Exist  --  Public
 ;;;
 (defun ensure-directories-exist (pathspec &key verbose (mode #o777))
-  "Tests whether the directories containing the specified file
-  actually exist, and attempts to create them if they do not.
-  Portable programs should avoid using the :MODE keyword argument."
+  "Tests whether the directories containing the specified file actually
+   exist, and attempts to create them if they do not.  Portable programs
+   should avoid using the :MODE keyword argument."
   (let* ((pathname (pathname pathspec))
 	 (pathname (if (logical-pathname-p pathname)
 		       (translate-logical-pathname pathname)
@@ -1535,3 +1748,52 @@
 			(setf created-p t)))))
 	 ;; Only the first path in a search-list is considered.
 	 (return (values pathname created-p))))))
+
+
+;;; Public
+;;;
+(defun directory-name-p (pathname)
+  "Returns whether pathname is a directory name, that is whether the name
+   and type components are ()."
+  (and (eq (pathname-name pathname) ())
+       (eq (pathname-type pathname) ())))
+
+;;; Public
+;;;
+(defun directoryp (pathname)
+  "Returns whether pathname names a directory, that is whether the file
+   named by pathname is a directory."
+  (eq (unix::unix-file-kind (or (unix-namestring pathname)
+				(return-from directoryp nil)))
+      :directory))
+
+;;; Public
+;;;
+(defun symlinkp (pathname)
+  "Returns whether pathname names a symbolic link."
+  (eq (unix:unix-file-kind (namestring pathname) t) :link))
+
+
+;;; Public
+;;;
+(defun pick-temporary-file-name (&optional (base "/tmp/tmp~D~C"))
+  (let ((code (char-code #\A)))
+    (loop
+      (let ((name (format nil base (unix:unix-getpid) (code-char code))))
+	(multiple-value-bind
+	    (fd errno)
+	    (unix:unix-open name
+			    (logior unix:o_wronly unix:o_creat unix:o_excl)
+			    #o666)
+	  (cond ((not (null fd))
+		 (unix:unix-close fd)
+		 (return name))
+		((not (= errno unix:eexist))
+		 (error "Could not create temporary file ~S: ~A"
+			name (unix:get-unix-error-msg errno)))
+		((= code (char-code #\Z))
+		 (setf code (char-code #\a)))
+		((= code (char-code #\z))
+		 (return nil))
+		(t
+		 (incf code))))))))

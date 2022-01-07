@@ -1,7 +1,7 @@
 ;;; Implementation independant functions that build window images from the
 ;;; buffer structure.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 
 (defvar the-sentinel

@@ -1,6 +1,6 @@
 ;;; Registers for holding text and positions.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 

@@ -1,6 +1,6 @@
 ;;; Hack to check a buffer's integrity.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (defun checkit (&optional (buffer (current-buffer)))
   "Returns NIL if the buffer's region is OK, or a losing line if it ain't.

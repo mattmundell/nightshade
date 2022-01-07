@@ -1,18 +1,4 @@
-;;; -*- Package: Extensions; Log: code.log; Mode: Lisp -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/clx-ext.lisp,v 1.12.2.3 1998/06/23 11:21:37 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains code to extend CLX in the CMU Common Lisp environment.
-;;;
-;;; Written by Bill Chiles and Chris Hoover.
-;;;
+;;; CLX extensions.
 
 (in-package "EXTENSIONS")
 
@@ -23,7 +9,7 @@
 
 	  serve-key-press serve-key-release serve-button-press
 	  serve-button-release serve-motion-notify serve-enter-notify
-	  serve-leave-notify serve-focus-in serve-focus-out 
+	  serve-leave-notify serve-focus-in serve-focus-out
 	  serve-exposure serve-graphics-exposure serve-no-exposure
 	  serve-visibility-notify serve-create-notify serve-destroy-notify
 	  serve-unmap-notify serve-map-notify serve-map-request
@@ -32,7 +18,6 @@
 	  serve-circulate-request serve-property-notify serve-selection-clear
 	  serve-selection-request serve-selection-notify serve-colormap-notify
 	  serve-client-message))
-
 
 
 ;;;; OPEN-CLX-DISPLAY.
@@ -213,7 +198,6 @@
     (remhash fd *clx-fds-to-displays*)
     (system:invalidate-descriptor fd)))
 
-
 
 ;;;; Object set event handling.
 
@@ -380,7 +364,6 @@
   (xlib:event-case (display :discard-p t :timeout 0)
     (t () nil)))
 
-
 
 ;;;; Key and button service.
 
@@ -412,7 +395,6 @@
    send-event-p."
   (setf (gethash :button-release (lisp::object-set-table object-set)) fun))
 
-
 
 ;;;; Mouse service.
 
@@ -437,7 +419,6 @@
    and send-event-p."
   (setf (gethash :leave-notify (lisp::object-set-table object-set)) fun))
 
-
 
 ;;;; Keyboard service.
 
@@ -447,12 +428,11 @@
    kind, and send-event-p."
   (setf (gethash :focus-in (lisp::object-set-table object-set)) fun))
 
-(defun serve-focus-out (object-set fun) 
+(defun serve-focus-out (object-set fun)
   "Associate a method in the object-set with :focus-out events.  The method
    is called on the object the event occurred, event key, event window, mode,
    kind, and send-event-p."
   (setf (gethash :focus-out (lisp::object-set-table object-set)) fun))
-
 
 
 ;;;; Exposure service.
@@ -474,7 +454,6 @@
    is called on the object the event occurred, event key, event window, major,
    minor, and send-event-p."
   (setf (gethash :no-exposure (lisp::object-set-table object-set)) fun))
-  
 
 
 ;;;; Structure service.
@@ -559,7 +538,6 @@
    method is called on the object the event occurred, event key, event window,
    window, place, and send-event-p."
   (setf (gethash :circulate-request (lisp::object-set-table object-set)) fun))
-
 
 
 ;;;; Misc. service.

@@ -1,6 +1,6 @@
 ;;; Shell script mode.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 (defmode "Shell" :major-p t)
 

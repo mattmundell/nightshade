@@ -1,6 +1,6 @@
 ;;; Overwrite mode.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 (defmode "Overwrite")

@@ -1,10 +1,17 @@
 ;;; File and buffer manipulating commands.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
+(export '(buffer-default-pathname *buffer-history* change-to-buffer
+	  delete-buffer-if-possible find-file-buffer
+	  pathname-to-buffer-name previous-buffer process-file-options
+	  read-buffer-file write-buffer-file))
 
 
 ;;;; process-file-options.
+
+(defvar *content-type-handlers* ()
+  "Content type handlers.  Modify with Define-Content-Type.")
 
 (defvar *mode-option-handlers* ()
   "File option handlers.  Modify with Define-File-Option.")
@@ -25,7 +32,8 @@
   "Hooks to run according to file loader directive on reading a file.
    Modify with Define-Loader-Directive-Handlers.")
 
-(defun trim-subseq (string start end)
+;; FIX mv to code:
+(defun trim-subseq (string start &optional end)
   (declare (simple-string string))
   (string-trim '(#\Space #\Tab) (subseq string start end)))
 
@@ -48,7 +56,7 @@
   (let* ((string
 	  (line-string (mark-line (buffer-start-mark buffer))))
 	 (found (search "-*-" string))
-	 (no-major-mode t)
+	 (major-mode ())
 	 (type (if pathname (pathname-type pathname))))
     (declare (simple-string string))
     (when found
@@ -77,53 +85,67 @@
 		  (let ((result (funcall (cdr handler) buffer
 					 (trim-subseq string (1+ colon) semi))))
 		    (when (string= option "mode")
-		      (setq no-major-mode (not result)))))
+		      (setq major-mode result))))
 		 (t (message "Unknown file option: ~S" option)))
 		(when (= semi end) (return nil)))))
 	   (t
 	    ;; Old style mode comment.
-	    (setq no-major-mode nil)
+	    (setq major-mode t)
 	    (funcall (cdr (assoc "mode" *mode-option-handlers*
 				 :test #'string=))
 		     buffer (trim-subseq string start end)))))))
-    (when no-major-mode
-      (let ((hook))
-	(when type
-	  ;; Try type hooks.
-	  (setq hook (assoc (string-downcase type) *file-type-hooks*
-			    :test #'string=))
-	  (when hook (funcall (cdr hook) buffer type)))
-	(or hook
-	    ;; Try name hooks.
-	    (progn
-	      (setq hook (assoc (pathname-name pathname)
-				*file-name-hooks* :test #'string=))
-	      (when hook (funcall (cdr hook) buffer type))))
-	(or hook
-	    ;; Try pathname hooks.
-	    (progn
-	      (setq hook (assoc (namestring (truename pathname))
-				*file-pathname-hooks* :test #'string=))
-	      (when hook (funcall (cdr hook) buffer type))))
-	(or hook
-	    ;; Look for loader directive.
-	    (with-mark ((mark (buffer-start-mark buffer)))
-	      (when (find-attribute mark :whitespace #'zerop)
-		(when (eq (next-character mark) #\#)
-		  (mark-after mark)
-		  (when (eq (next-character mark) #\!)
+    (or major-mode
+	;; Look for "Content-Type: <mime-type>" directive at buffer
+	;; beginning.
+	(with-mark ((mark (buffer-start-mark buffer)))
+	  (let ((string (line-string (mark-line mark))))
+	    (when (and (> (length string) 14)
+		       (string= string "Content-Type: " :end1 14))
+	      (msg "sub ~A" (trim-subseq string 14))
+	      (let ((hook (assoc (trim-subseq string 14)
+				 *content-type-handlers*
+				 :test #'string=)))
+		(when hook
+		  (msg "call")
+		  (funcall (cdr hook) buffer type)
+		  t)))))
+	(let ((hook))
+	  (when type
+	    ;; Try type hooks.
+	    (setq hook (assoc (string-downcase type) *file-type-hooks*
+			      :test #'string=))
+	    (when hook (funcall (cdr hook) buffer type)))
+	  (or hook
+	      ;; Try name hooks.
+	      (progn
+		(setq hook (assoc (pathname-name pathname)
+				  *file-name-hooks* :test #'string=))
+		(when hook (funcall (cdr hook) buffer type))))
+	  (or hook
+	      ;; Try pathname hooks.
+	      (progn
+		(setq hook (assoc (namestring (truename pathname))
+				  *file-pathname-hooks* :test #'string=))
+		(when hook (funcall (cdr hook) buffer type))))
+	  (or hook
+	      ;; Look for shell loader directive (e.g. #!/bin/lisp).
+	      (with-mark ((mark (buffer-start-mark buffer)))
+		(when (find-attribute mark :whitespace #'zerop)
+		  (when (eq (next-character mark) #\#)
 		    (mark-after mark)
-		    (find-attribute mark :whitespace #'zerop)
-		    (with-mark ((tem mark))
-		      (find-attribute tem :whitespace)
-		      (let* ((name (region-to-string (region mark tem)))
-			     (hook (assoc (pathname-name name)
-					  *loader-directive-handlers*
-					  :test #'string=)))
-			(when hook
-			  (funcall (cdr hook)
-				   buffer
-				   (pathname-name name))))))))))))))
+		    (when (eq (next-character mark) #\!)
+		      (mark-after mark)
+		      (find-attribute mark :whitespace #'zerop)
+		      (with-mark ((tem mark))
+			(find-attribute tem :whitespace)
+			(let* ((name (region-to-string (region mark tem)))
+			       (hook (assoc (pathname-name name)
+					    *loader-directive-handlers*
+					    :test #'string=)))
+			  (when hook
+			    (funcall (cdr hook)
+				     buffer
+				     (pathname-name name))))))))))))))
 
 
 
@@ -163,6 +185,7 @@
 
 ;; FIX Consider generic var-setting fallback.
 (define-file-option "Flush-Trailing-Whitespace" (buffer str)
+  (declare (ignore buffer))
   ;; FIX set in buffer
   (setv flush-trailing-whitespace
 	(if (eq (string-downcase str) "nil") nil str)))
@@ -183,6 +206,11 @@
   (declare (ignore type))
   (setf (buffer-major-mode buffer) "Text"))
 
+; (define-file-type-hook ("enr")
+; 		       (buffer type)
+;   (declare (ignore type))
+;   (setf (buffer-major-mode buffer) "Enriched"))
+
 (define-file-type-hook ("lisp" "slisp" "l" "lsp" "mcl"
 			"el"  ; Emacs Lisp
 			"scm" ; Scheme
@@ -191,9 +219,13 @@
   (declare (ignore type))
   (setf (buffer-major-mode buffer) "Lisp"))
 
-(define-file-type-hook ("c" "c++" "cpp" "cc" "hh" "h") (buffer type)
+(define-file-type-hook ("c" "h") (buffer type)
   (declare (ignore type))
   (setf (buffer-major-mode buffer) "C"))
+
+(define-file-type-hook ("c++" "cpp" "cc" "hh") (buffer type)
+  (declare (ignore type))
+  (setf (buffer-major-mode buffer) "C++"))
 
 ;; Perl has same the extension as Prolog.
 (define-file-type-hook ("pl") (buffer type)
@@ -217,13 +249,17 @@
   (declare (ignore type))
   (setf (buffer-major-mode buffer) "Shell"))
 
-(define-file-type-hook ("m4") (buffer type)
-  (declare (ignore type))
-  (setf (buffer-major-mode buffer) "M4"))
-
-(define-file-type-hook ("tex") (buffer type)
+(define-file-type-hook ("tex" "sty") (buffer type)
   (declare (ignore type))
   (setf (buffer-major-mode buffer) "Tex"))
+
+(define-file-type-hook ("roff") (buffer type)
+  (declare (ignore type))
+  (setf (buffer-major-mode buffer) "Roff"))
+
+(define-file-type-hook ("1" "2" "3" "4" "5" "6" "7" "8" "9") (buffer type)
+  (declare (ignore type))
+  (setf (buffer-major-mode buffer) "Roff"))
 
 
 (defmacro define-file-pathname-hook (name-list (buffer name) &body body)
@@ -278,6 +314,25 @@
   (declare (ignore interp))
   (setf (buffer-major-mode buffer) "Perl"))
 
+
+
+;;;; Content types.
+
+(defmacro define-content-type (type lambda-list &body body)
+  "Define-Content-Type Name (Buffer Value) {Form}*
+   Defines a new content type.
+   The body is evaluated with Buffer bound to the buffer the file has been read
+   into and Value to the string argument to the option."
+  (let ((type (string-downcase type)))
+    ;; FIX use [string] table?
+    `(setf (cdr (or (assoc ,type *content-type-handlers*  :test #'string=)
+		    (car (push (cons ,type nil) *content-type-handlers*))))
+	   #'(lambda ,lambda-list ,@body))))
+
+(define-content-type "text/enriched" (buffer type)
+  (declare (ignore type))
+  (msg "setf")
+  (setf (buffer-major-mode buffer) "Enriched"))
 
 
 ;;;; Support for file hacking commands:
@@ -475,8 +530,8 @@
    If the file is already in some buffer, select that buffer,
    otherwise make a new buffer with the same name as the file and
    read the file into it."
-  "Make a buffer containing the file Pathname current, creating a buffer
-   if necessary.  The buffer is returned."
+  "Make a buffer containing the file Pathname current, creating a buffer if
+   necessary.  The buffer is returned."
   (declare (ignore p))
   (let* ((pn (or pathname
 		 (prompt-for-file
@@ -488,7 +543,25 @@
     (change-to-buffer buffer)
     buffer))
 
-(defun find-file-buffer (pathname)
+(defcommand "Find File Literally" (p &optional pathname)
+  "Visit a file in its own buffer literally.
+   If the file is already in some buffer, select that buffer,
+   otherwise make a new buffer with the same name as the file and
+   read the file into it."
+  "Make a buffer containing the text of file Pathname current, creating
+   a buffer if necessary returning the buffer."
+  (declare (ignore p))
+  (let* ((pn (or pathname
+		 (prompt-for-file
+		  :prompt "Find File Literally: "
+		  :must-exist nil
+		  :help "Name of file to read into its own buffer."
+		  :default (buffer-default-pathname (current-buffer)))))
+	 (buffer (find-file-buffer pn t)))
+    (change-to-buffer buffer)
+    buffer))
+
+(defun find-file-buffer (pathname &optional literally)
   "Return a buffer associated with the file Pathname, reading the file into a
    new buffer if necessary.  The second value is T if we created a buffer, NIL
    otherwise.  If the file has already been read, we check to see if the file
@@ -514,12 +587,13 @@
 			(prompt-for-y-or-n :prompt
 					   "Buffer is modified, save it? "))
 	       (save-file-command () buffer))
-	     (read-buffer-file pathname buffer)
+	     (read-buffer-file pathname buffer literally)
 	     (values buffer (stringp use))))
+	  ;; FIX need to revert if literally and was translated, and vice versa.
 	  ((check-disk-version-consistent pathname found)
 	   (values found nil))
 	  (t
-	   (read-buffer-file pathname found)
+	   (read-buffer-file pathname found literally)
 	   (values found nil)))))
 
 ;;; Check-Disk-Version-Consistent  --  Internal
@@ -579,7 +653,7 @@
    must take two arguments -- the buffer the file was read into and whether the
    file existed (non-nil) or not (nil).")
 
-(defun read-buffer-file (pathname buffer)
+(defun read-buffer-file (pathname buffer &optional literally)
   "Delete the buffer's region, and use READ-FILE to read pathname into it.
    If the file exists, set the buffer's write date to the file's; otherwise,
    MESSAGE that this is a new file and set the buffer's write date to nil.
@@ -603,10 +677,11 @@
 			       (merge-pathnames pathname (default-directory)))))
       (setf (buffer-pathname buffer) stored-pathname)
       (setf (value pathname-defaults) stored-pathname)
-      (when probed-pathname
-	(process-file-options buffer stored-pathname)
-	;; FIX may need create-buffer-hook
-	(invoke-hook read-file-hook buffer probed-pathname)))))
+      (or literally
+	  (when probed-pathname
+	    (process-file-options buffer stored-pathname)
+	    ;; FIX may need create-buffer-hook
+	    (invoke-hook read-file-hook buffer probed-pathname))))))
 
 
 
@@ -831,8 +906,8 @@
 			  (or (eq b buffer) (eq b *echo-area-buffer*))))
 		   (or (find-if-not #'frob (the list *buffer-history*))
 		       (find-if-not #'frob (the list *buffer-list*))))))
-    (unless new-buf
-      (error "Cannot delete only buffer ~S." buffer))
+    (or new-buf
+	(error "Cannot delete only buffer ~S." buffer))
     (dolist (w (buffer-windows buffer))
       (setf (window-buffer w) new-buf))
     (when (eq buffer (current-buffer))
@@ -1070,6 +1145,10 @@
    file associated with the buffer."
   :value nil)
 
+(defun kill-current-buffer ()
+  "Kill the current buffer.  For recovery from an error."
+  (kill-buffer-command () (buffer-name (current-buffer))))
+
 (defcommand "Kill Buffer" (p &optional buffer-name)
   "Prompts for a buffer to delete.
   If the buffer is modified, then let the user save the file before doing so.
@@ -1128,6 +1207,13 @@
 	     (setf (buffer-name buf) new))
 	    (t (editor-error "Name ~S already in use." new))))))
 
+(defcommand "Rename Buffer Uniquely" (p)
+  "Change the current buffer's name, appending a number to the current
+   name to make it unique."
+  "Change the name of the current buffer uniquely."
+  (declare (ignore p))
+  (let ((buf (current-buffer)))
+    (setf (buffer-name buf) (unique-buffer-name (buffer-name buf)))))
 
 (defcommand "Insert Buffer" (p)
   "Insert the contents of a buffer.
@@ -1344,13 +1430,16 @@
 
 ;;;; Window hacking commands:
 
+;; FIX if 1 win split p times
 (defcommand "Next Window" (p)
   "Move to the next window.  If the next window is the bottom window then
    wrap around to the top window.  With a prefix move that many windows,
-   moving through the previous windows if the prefix is negative."
+   moving through the previous windows if the prefix is negative.  If there
+   is only one window split the window and move to the new window."
   "Move to the next window.  If the next window is the bottom window then
    wrap around to the top window.  If P then move that many windows, moving
-   through the previous windows if P is negative."
+   through the previous windows if P is negative.  If there is only one
+   window split the window and move to the new window."
   (or p (setq p 1))
   (or (zerop p)
       (let* ((next (loop
@@ -1361,6 +1450,9 @@
 				  (previous-window window))
 		     finally return window))
 	     (buffer (window-buffer next)))
+	(or (eq (current-window) *echo-area-window*)
+	    (if (eq next (current-window))
+		(setq next (split-window-command nil))))
 	(setf (current-buffer) buffer  (current-window) next))))
 
 (defcommand "Previous Window" (p)
@@ -1376,7 +1468,7 @@
   "Make a new window by splitting the current window.
    The new window is made the current window and displays starting at
    the same place as the current window."
-  "Create a new window which displays starting at the same place
+  "Create and return a new window which displays starting at the same place
    as the current window."
   (declare (ignore p))
   (let ((new (make-window (window-display-start (current-window)))))

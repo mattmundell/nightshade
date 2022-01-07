@@ -1,32 +1,20 @@
-;;;  -*- Mode: Lisp; Package: Extensions; Log: code.log -*-
-
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/parse-time.lisp,v 1.6.2.1 2000/06/07 12:49:28 dtc Exp $")
-;;;
-;;; **********************************************************************
-
-;;; Parsing routines for time and date strings. Parse-time returns the
-;;; universal time integer for the time and/or date given in the string.
-
-;;; Written by Jim Healy, June 1987.
-
-;;; **********************************************************************
+;;; Parsing routines for time and date strings.
 
 (in-package "EXTENSIONS")
 
-(export 'parse-time)
+(export '(parse-time parse-iso8601-time
+	  *default-date-time-patterns* *http-date-time-patterns*))
 
-(defconstant whitespace-chars '(#\space #\tab #\newline #\, #\' #\`))
+(defconstant whitespace-chars '(#\space #\tab #\newline #\, #\' #\` #\"))
 (defconstant time-dividers '(#\: #\.))
 (defconstant date-dividers '(#\\ #\/ #\-))
+(defconstant timezone-prefixes '(#\+ #\-))
+(defconstant open-brackets '(#\())
+(defconstant close-brackets '(#\)))
 
 (defvar *error-on-mismatch* nil
-  "If t, an error will be signalled if parse-time is unable
-   to determine the time/date format of the string.")
+  "If t, an error will be signalled if parse-time is unable to determine
+   the time/date format of the string.")
 
 ;;; Set up hash tables for month, weekday, zone, and special strings.
 ;;; Provides quick, easy access to associated information for these items.
@@ -41,7 +29,7 @@
 
 (defparameter weekday-table-size 23)
 (defparameter month-table-size 31)
-(defparameter zone-table-size 11)
+(defparameter zone-table-size 23)
 (defparameter special-table-size 11)
 
 (defvar *weekday-strings* (make-hash-table :test #'equal
@@ -81,11 +69,20 @@
 	    ("december" . 12) ("dec" . 12))
 	  *month-strings*)
 
-(hashlist '(("gmt" . 0) ("est" . 5)
-	    ("edt" . 4) ("cst" . 6)
-	    ("cdt" . 5) ("mst" . 7)
-	    ("mdt" . 6)	("pst" . 8)
-	    ("pdt" . 7))
+(hashlist '(("brst" . -2) ("brdt" . -2)
+	    ("art" . -3) ("brt" . -3) ("clst" . -3)
+	    ("ast" . -4)
+	    ("gmt" . 0) ("ut" . 0) ("utc" . 0)
+	    ("lcl" . 0)  ;; Possibly for local, from an old mail.
+	    ("bst" . 1) ("cet" . 1) ("met" . 1)
+	    ("cest" . 2) ("eet" . 2) ("ist" . 2) ("sast" . 2)
+	    ("edt" . 4)
+	    ("cdt" . 5) ("est" . 5) ("yekt" . 5)
+	    ("cst" . 6) ("mdt" . 6) ("yekst" . 6)
+	    ("ict" . 7) ("mst" . 7) ("pdt" . 7)
+	    ("myt" . 8) ("pst" . 8) ("hkt" . 8)
+	    ("jst" . 9) ("kst" . 9)
+	    ("nzdt" . 13))
 	  *zone-strings*)
 
 (hashlist '(("yesterday" . yesterday)  ("today" . today)
@@ -93,17 +90,17 @@
 	  *special-strings*)
 
 ;;; Time/date format patterns are specified as lists of symbols repre-
-;;; senting the elements.  Optional elements can be specified by
-;;; enclosing them in parentheses.  Note that the order in which the
-;;; patterns are specified below determines the order of search.
+;;; senting the elements.  Optional elements can be specified by enclosing
+;;; them in parentheses.  Note that the order in which the patterns are
+;;; specified below determines the order of search.
 
-;;; Choices of pattern symbols are: second, minute, hour, day, month,
-;;; year, time-divider, date-divider, am-pm, zone, izone, weekday,
-;;; noon-midn, and any special symbol.
+;;; Choices of pattern symbols are: second, minute, hour, day, month, year,
+;;; time-divider, date-divider, am-pm, zone, izone, weekday, noon-midn, and
+;;; any special symbol.
 
 (defparameter *default-date-time-patterns*
   '(
-     ;; Date formats.
+    ;; Date formats.
     ((weekday) month (date-divider) day (date-divider) year (noon-midn))
     ((weekday) day (date-divider) month (date-divider) year (noon-midn))
     ((weekday) month (date-divider) day (noon-midn))
@@ -118,13 +115,13 @@
     ((noon-midn) month (date-divider) year)
     ((noon-midn) year (date-divider) month)
 
-     ;; Time formats.
+    ;; Time formats.
     (hour (time-divider) (minute) (time-divider) (secondp) (am-pm)
 	  (date-divider) (zone))
     (noon-midn)
     (hour (noon-midn))
 
-     ;; Time/date combined formats.
+    ;; Time/date combined formats.
     ((weekday) month (date-divider) day (date-divider) year
 	   hour (time-divider) (minute) (time-divider) (secondp)
 	   (am-pm) (date-divider) (zone))
@@ -144,6 +141,19 @@
 	  hour (time-divider) (minute) (time-divider) (secondp)
 	  (am-pm) (date-divider) (zone))
 
+    ;; FIX from mail messages
+    ;; FIX check that these produce the correct times
+    ; Mon, 11 Dec 2006 18:44:08 +0100 (CET)
+    ; Mon, 06 Sep 1999 08:04:30 "GMT"
+    ((weekday) day (date-divider) month (date-divider) year
+         hour (time-divider) (minute) (time-divider) (secondp)
+	 (am-pm) (date-divider) (timezone-prefix) (zone)
+         (open-bracket) (zone) (close-bracket))
+    ; Fri, 16 Jul 1999 15:20:35 GMT+0200
+    ((weekday) day (date-divider) month (date-divider) year
+	 hour (time-divider) (minute) (time-divider) (secondp)
+	 (am-pm) (date-divider) (zone) (timezone-prefix) (izone))
+
     (hour (time-divider) (minute) (time-divider) (secondp) (am-pm)
 	  (date-divider) (zone) (weekday) month (date-divider)
 	  day (date-divider) year)
@@ -161,7 +171,7 @@
     (hour (time-divider) (minute) (time-divider) (secondp) (am-pm)
 	  (date-divider) (zone) year (date-divider) month)
 
-     ;; Weird, non-standard formats.
+    ;; Weird, non-standard formats.
     (weekday month day hour (time-divider) minute (time-divider)
 	     secondp (am-pm)
 	     (zone) year)
@@ -191,13 +201,14 @@
 ;;; HTTP header style date/time patterns: RFC1123/RFC822, RFC850, ANSI-C.
 (defparameter *http-date-time-patterns*
   '(
-     ;; RFC1123/RFC822 and RFC850.
+    ;; RFC1123/RFC822 and RFC850.
     ((weekday) day (date-divider) month (date-divider) year
-     hour time-divider minute (time-divider) (secondp) izone)
+     hour time-divider minute (time-divider) (secondp) (timezone-prefix)
+     izone)
     ((weekday) day (date-divider) month (date-divider) year
      hour time-divider minute (time-divider) (secondp) (zone))
 
-     ;; ANSI-C.
+    ;; ANSI-C.
     ((weekday) month day
      hour time-divider minute (time-divider) (secondp) year)))
 
@@ -211,7 +222,7 @@
 (defstruct decoded-time
   (second 0    :type integer)    ; Value between 0 and 59.
   (minute 0    :type integer)    ; Value between 0 and 59.
-  (hour   0    :type integer)    ; Value between 0 and 23.
+  (hour   0    :type integer)    ; Value between 0 and 24.
   (day    1    :type integer)    ; Value between 1 and 31.
   (month  1    :type integer)    ; Value between 1 and 12.
   (year   1900 :type integer)    ; Value above 1899 or between 0 and 99.
@@ -219,8 +230,8 @@
   (dotw   0    :type integer))   ; Value between 0 and 6.
 
 ;;; Make-default-time returns a decoded-time structure with the default
-;;; time values already set.  The default time is currently 00:00 on
-;;; the current day, current month, current year, and current time-zone.
+;;; time values already set.  The default time is currently 00:00 on the
+;;; current day, current month, current year, and current time-zone.
 
 (defun make-default-time (def-sec def-min def-hour def-day
 			   def-mon def-year def-zone def-dotw)
@@ -364,11 +375,21 @@
 	    (and (integerp zone) (<= -24 zone 24))))))
 
 ;;; Internet numerical time zone, e.g. RFC1123, in hours and minutes.
+; (defun izone (thing)
+;   (ed::msg "t ~A" thing)
+;   (if (integerp thing)
+;       (multiple-value-bind (hours mins)
+; 	  (truncate thing 100)
+; 	(and (<= -24 hours 24) (<= -59 mins 59)))))
+
 (defun izone (thing)
-  (if (integerp thing)
+  (if (or (integerp thing)
+	  (and (stringp thing)
+	       (eq (char thing 0) #\+)
+	       (setq thing (parse-integer (subseq thing 1) :errorp ()))))
       (multiple-value-bind (hours mins)
 	  (truncate thing 100)
-	(and (<= -24 hours 24) (<= -59 mins 59)))))
+	(<= -24 hours 24))))
 
 (defun special-string-p (string)
   (and (simple-string-p string) (gethash string *special-strings*)))
@@ -380,7 +401,7 @@
   (and (integerp number) (<= 0 number 59)))
 
 (defun hour (number)
-  (and (integerp number) (<= 0 number 23)))
+  (and (integerp number) (<= 0 number 24)))
 
 (defun day (number)
   (and (integerp number) (<= 1 number 31)))
@@ -397,6 +418,19 @@
 (defun date-divider (character)
   (and (characterp character)
        (member character date-dividers :test #'char=)))
+
+(defun timezone-prefix (character)
+  (and (characterp character)
+       (member character timezone-prefixes :test #'char=)))
+
+(defun open-bracket (character)
+  (and (characterp character)
+       (member character open-brackets :test #'char=)))
+
+(defun close-bracket (character)
+  (and (characterp character)
+       (member character close-brackets :test #'char=)))
+
 
 ;;; Match-substring takes a string argument and tries to match it with
 ;;; the strings in one of the four hash tables: *weekday-strings*, *month-
@@ -478,6 +512,18 @@
 	     ;; Date-divider - add it to the parts-list with symbol.
 	     (push (cons 'date-divider next-char) parts-list)
 	     (incf string-index))
+	    ((member next-char timezone-prefixes :test #'char=)
+	     ;; Timezone-prefix - add it to the parts-list with symbol.
+	     (push (cons 'timezone-prefix next-char) parts-list)
+	     (incf string-index))
+	    ((member next-char open-brackets :test #'char=)
+	     ;; Open-bracket - add it to the parts-list with symbol.
+	     (push (cons 'open-bracket next-char) parts-list)
+	     (incf string-index))
+	    ((member next-char close-brackets :test #'char=)
+	     ;; Close-bracket - add it to the parts-list with symbol.
+	     (push (cons 'close-bracket next-char) parts-list)
+	     (incf string-index))
 	    ((member next-char whitespace-chars :test #'char=)
 	     ;; Whitespace character - ignore it completely.
 	     (incf string-index))
@@ -533,9 +579,12 @@
 						      pattern-element)
 						  datum-element)))
 	    (cond (matching (let ((form-type (car matching)))
-			      (unless (or (eq form-type 'time-divider)
-					  (eq form-type 'date-divider))
-				(push matching form-list))))
+			      (or (eq form-type 'time-divider)
+				  (eq form-type 'date-divider)
+				  (eq form-type 'open-bracket)
+				  (eq form-type 'close-bracket)
+				  (eq form-type 'timezone-prefix)
+				  (push matching form-list))))
 		  (optional (push datum-element datum))
 		  (t (return-from match-pattern nil))))))))
 
@@ -563,7 +612,7 @@
 		  (setf (decoded-time-hour parsed-values) 0))
 		 ((not (<= 0 hour 12))
 		  (if *error-on-mismatch*
-		      (error "~D is not an AM hour, dummy." hour)))))
+		      (error "~D is not an AM hour." hour)))))
 	  ((eq form-value 'pm)
 	   (if (<= 0 hour 11)
 	       (setf (decoded-time-hour parsed-values)
@@ -571,10 +620,20 @@
 	  (t (error "~A isn't AM/PM - this shouldn't happen.")))))
 
 ;;; Internet numerical time zone, e.g. RFC1123, in hours and minutes.
+; (defun deal-with-izone (form-value parsed-values)
+;   (ed::msg "f ~A" form-value)
+;   (multiple-value-bind (hours mins)
+; 		       (truncate form-value 100)
+;     (setf (decoded-time-zone parsed-values) (- (+ hours (/ mins 60))))))
+
 (defun deal-with-izone (form-value parsed-values)
-  (multiple-value-bind (hours mins)
-      (truncate form-value 100)
-    (setf (decoded-time-zone parsed-values) (- (+ hours (/ mins 60))))))
+  (if (or (integerp form-value)
+	  (and (stringp form-value)
+	       (eq (char form-value 0) #\+)
+	       (setq form-value (parse-integer (subseq form-value 1) :errorp ()))))
+      (multiple-value-bind (hours mins)
+			   (truncate form-value 100)
+	(setf (decoded-time-zone parsed-values) (- (+ hours (/ mins 60)))))))
 
 ;;; Deal-with-dow sets the decoded-time values to match the day of week.
 
@@ -590,7 +649,6 @@
 		 form-value)
 	     dotw))))
 
-
 ;;; Set-time-values uses the association list of symbols and values
 ;;; to set the time in the decoded-time structure.
 
@@ -601,11 +659,12 @@
       (case form-type
 	(secondp (setf (decoded-time-second parsed-values) form-value))
 	(minute (setf (decoded-time-minute parsed-values) form-value))
-	(hour (setf (decoded-time-hour parsed-values) form-value))
+	(hour (setf (decoded-time-hour parsed-values) (mod form-value 24)))
 	(day (setf (decoded-time-day parsed-values) form-value))
 	(month (setf (decoded-time-month parsed-values) form-value))
 	(year (setf (decoded-time-year parsed-values) form-value))
 	(zone (setf (decoded-time-zone parsed-values) form-value))
+	(izone (deal-with-izone form-value parsed-values))
 	(izone (deal-with-izone form-value parsed-values))
 	(weekday (deal-with-dow form-value parsed-values))
 	(am-pm (deal-with-am-pm form-value parsed-values))
@@ -621,14 +680,14 @@
 			       (default-month nil) (default-year nil)
 			       (default-zone nil) (default-weekday nil))
   "Tries very hard to make sense out of the argument time-string and
-   returns a single integer representing the universal time if
-   successful.  If not, it returns nil.  If the :error-on-mismatch
-   keyword is true, parse-time will signal an error instead of
-   returning nil.  Default values for each part of the time/date
-   can be specified by the appropriate :default- keyword.  These
-   keywords can be given a numeric value or the keyword :current
-   to set them to the current value.  The default-default values
-   are 00:00:00 on the current date, current time-zone."
+   returns a single integer representing the universal time if successful.
+   If not, it returns nil.  If the :error-on-mismatch keyword is true,
+   parse-time will signal an error instead of returning nil.  Default
+   values for each part of the time/date can be specified by the
+   appropriate :default- keyword.  These keywords can be given a numeric
+   value or the keyword :current to set them to the current value.  The
+   default-default values are 00:00:00 on the current date, current
+   time-zone."
   (setq *error-on-mismatch* error-on-mismatch)
   (let* ((string-parts (decompose-string time-string :start start :end end))
 	 (parts-length (length string-parts))
@@ -645,5 +704,69 @@
 	  (set-time-values string-form parsed-values)
 	  (convert-to-unitime parsed-values))
 	(if *error-on-mismatch*
-	  (error "\"~A\" is not a recognized time/date format." time-string)
-	  nil))))
+	    (error "\"~A\" is not a recognized time/date format." time-string)))))
+
+
+;; FIX integrate into parse-time
+(defun parse-iso8601-time (time-string)
+  "Parse an ISO 8601 format string and return the universal time."
+  (flet ((parse-delimited-string (string delimiter n)
+           ;; Parses a delimited string and returns a list of n integers found in that string.
+           (let ((answer (make-list n :initial-element 0)))
+             (when (> (length string) 0)
+               (loop for i upfrom 0
+                     for start = 0 then (1+ end)
+                     for end = (position delimiter string :start (1+ start))
+                     do (setf (nth i answer)
+                              (parse-integer (subseq string start end)))
+                     when (null end) return t))
+             (values-list answer)))
+         (parse-fixed-field-string (string field-sizes)
+           ;; Parses a string with fixed length fields and returns a list of integers found in that string.
+           (let ((answer (make-list (length field-sizes) :initial-element 0)))
+             (loop with len = (length string)
+                   for start = 0 then (+ start field-size)
+                   for field-size in field-sizes
+                   for i upfrom 0
+                   while (< start len)
+                   do (setf (nth i answer)
+                            (parse-integer (subseq string start (+ start field-size)))))
+             (values-list answer))))
+    (flet ((parse-iso8601-date (date-string)
+             (let ((hyphen-pos (position #\- date-string)))
+               (if hyphen-pos
+                 (parse-delimited-string date-string #\- 3)
+                 (parse-fixed-field-string date-string '(4 2 2)))))
+           (parse-iso8601-timeonly (time-string)
+             (let* ((colon-pos (position #\: time-string))
+                    (zone-pos (or (position #\- time-string)
+                                  (position #\+ time-string)
+                                  (position #\Z time-string)))
+                    (timeonly-string (subseq time-string 0 zone-pos))
+                    (zone-string (when zone-pos (subseq time-string (1+ zone-pos))))
+                    (time-zone nil))
+               (when zone-pos
+                 (multiple-value-bind (zone-h zone-m)
+                                      (parse-delimited-string zone-string #\: 2)
+                   (setq time-zone (+ zone-h (/ zone-m 60)))
+                   (when (char= (char time-string zone-pos) #\-)
+                     (setq time-zone (- time-zone)))))
+               (multiple-value-bind (hh mm ss)
+                                    (if colon-pos
+                                      (parse-delimited-string timeonly-string #\: 3)
+                                      (parse-fixed-field-string timeonly-string '(2 2 2)))
+                   (values hh mm ss time-zone)))))
+    (let ((time-separator (position #\T time-string)))
+      (multiple-value-bind (year month date)
+                           (parse-iso8601-date
+                            (subseq time-string 0 time-separator))
+        (if time-separator
+          (multiple-value-bind (hh mm ss zone)
+                               (parse-iso8601-timeonly
+                                (subseq time-string (1+ time-separator)))
+            (if zone
+              ;; Tricky:  Sign of time zone is reversed in ISO 8601
+              ;; relative to Common Lisp convention!
+              (encode-universal-time ss mm hh date month year (- zone))
+              (encode-universal-time ss mm hh date month year)))
+          (encode-universal-time 0 0 0 date month year)))))))

@@ -1,7 +1,7 @@
 ;;; More searching function: stuff to implement the various kinds of
 ;;; character searches.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(find-character reverse-find-character))
 
@@ -66,8 +66,8 @@
 ;;; character set searches.
 
 (defvar *free-character-sets* ()
-  "A list of unused character-set objects for use by the Hemlock searching
-  primitives.")
+  "A list of unused character-set objects for use by the editor searching
+   primitives.")
 
 ;;; Create-Character-Set  --  Internal
 ;;;

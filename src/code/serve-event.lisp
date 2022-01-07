@@ -1,19 +1,4 @@
-;;; -*- Log: code.log; Package: LISP -*-
-
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/serve-event.lisp,v 1.22.2.2 2000/07/06 06:18:49 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; SYSTEM:SERVE-EVENT, now in it's own file.
-;;;
-;;; Re-written by William Lott, July 1989 - January 1990.
-;;; 
-;;; **********************************************************************
+;;; Port and X event handling.
 
 (in-package "SYSTEM")
 
@@ -28,11 +13,9 @@
 
 (in-package "LISP")
 
-
 
 ;;;; Object set stuff.
 
-;;;
 ;;;    Hashtable from ports to objects.  Each entry is a cons (object . set).
 ;;;
 ;(defvar *port-table* (make-hash-table :test #'eql))
@@ -40,7 +23,6 @@
 ;;; Hashtable from windows to objects.  Each entry is a cons (object . set).
 ;;;
 (defvar *xwindow-table* (make-hash-table :test #'eql))
-
 
 (defstruct (object-set
 	    (:constructor make-object-set
@@ -56,7 +38,7 @@
 
 (setf (documentation 'make-object-set 'function)
       "Make an object set for use by a RPC/xevent server.  Name is for
-      descriptive purposes only.")
+       descriptive purposes only.")
 
 ;;; Default-Default-Handler  --  Internal
 ;;;
@@ -65,11 +47,10 @@
 (defun default-default-handler (object)
   (error "You lose, object: ~S" object))
 
-
 ;;; MAP-XWINDOW and MAP-PORT return as multiple values the object and
 ;;; object set mapped to by a xwindow or port in *xwindow-table* or
 ;;; *port-table*.
-;;; 
+;;;
 (macrolet ((defmapper (name table)
 	      `(defun ,(intern (concatenate 'simple-string
 					    "MAP-" (symbol-name name)))
@@ -84,10 +65,9 @@
   ;(defmapper port *port-table*)
   (defmapper xwindow *xwindow-table*))
 
-
 ;;; ADD-PORT-OBJECT and ADD-XWINDOW-OBJECT store an object/object-set pair
 ;;; mapped to by a port or xwindow in either *port-table* or *xwindow-table*.
-;;; 
+;;;
 (macrolet ((def-add-object (name table)
 	      `(defun ,(intern (concatenate 'simple-string
 					    "ADD-" (symbol-name name)
@@ -101,10 +81,9 @@
   ;(def-add-object port *port-table*)
   (def-add-object xwindow *xwindow-table*))
 
-
 ;;; REMOVE-PORT-OBJECT and REMOVE-XWINDOW-OBJECT remove a port or xwindow and
 ;;; its associated object/object-set pair from *port-table* or *xwindow-table*.
-;;; 
+;;;
 (macrolet ((def-remove-object (name table)
 	      `(defun ,(intern (concatenate 'simple-string
 					    "REMOVE-" (symbol-name name)
@@ -116,7 +95,6 @@
 		 (remhash ,name ,table))))
   ;(def-remove-object port *port-table*)
   (def-remove-object xwindow *xwindow-table*))
-
 
 ;;; Object-Set-Operation  --  Public
 ;;;
@@ -141,7 +119,6 @@
 (defsetf object-set-operation %set-object-set-operation
   "Sets the handler function for an object set operation.")
 
-
 
 ;;;; File descriptor IO noise.
 
@@ -153,10 +130,10 @@
   ;;
   ;; File descriptor this handler is tied to.
   (descriptor 0 :type (mod #.unix:fd-setsize))
-  
+
   active		      ; T iff this handler is running.
   (function nil :type function) ; Function to call.
-  bogus			      ; T if this descriptor is bogus. 
+  bogus			      ; T if this descriptor is bogus.
   )
 
 (defun %print-handler (handler stream depth)
@@ -198,7 +175,7 @@
 ;;; INVALIDATE-DESCRIPTOR -- public
 ;;;
 ;;;   Search *descriptor-handlers* for any reference to fd, and nuke 'em.
-;;; 
+;;;
 (defun invalidate-descriptor (fd)
   "Remove any handers refering to fd. This should only be used when attempting
   to recover from a detected inconsistancy."
@@ -223,7 +200,6 @@
 	 (when ,handler
 	   (remove-fd-handler ,handler))))))
 
-
 ;;; HANDLER-DESCRIPTORS-ERROR -- Internal.
 ;;;
 ;;; First, get a list and mark bad file descriptors.  Then signal an error
@@ -245,7 +221,6 @@
        (dolist (handler bogus-handlers)
 	 (setf (handler-bogus handler) nil)))
       (continue () :report "Go on, leaving handlers marked as bogus."))))
-
 
 
 ;;;; Serve-all-events, serve-event, and friends.
@@ -269,18 +244,17 @@
     (t
      (error "Timeout is not a real number or NIL: ~S" timeout))))
 
-
 ;;; WAIT-UNTIL-FD-USABLE -- Public.
 ;;;
-;;; Wait until FD is usable for DIRECTION. The timeout given to serve-event is
-;;; recalculated each time through the loop so that WAIT-UNTIL-FD-USABLE will
-;;; timeout at the correct time irrespective of how many events are handled in
-;;; the meantime.
+;;; Wait until FD is usable for DIRECTION. The timeout given to serve-event
+;;; is recalculated each time through the loop so that WAIT-UNTIL-FD-USABLE
+;;; will timeout at the correct time irrespective of how many events are
+;;; handled in the meantime.
 ;;;
 (defun wait-until-fd-usable (fd direction &optional timeout)
-  "Wait until FD is usable for DIRECTION. DIRECTION should be either :INPUT or
-  :OUTPUT. TIMEOUT, if supplied, is the number of seconds to wait before giving
-  up."
+  "Wait until FD is usable for DIRECTION. DIRECTION should be either :INPUT
+   or :OUTPUT. TIMEOUT, if supplied, is the number of seconds to wait
+   before giving up."
   (declare (type (or real null) timeout))
   (let (usable)
     (multiple-value-bind (to-sec to-usec)
@@ -305,10 +279,10 @@
 					   (setf usable t)))
 	  (loop
 	    (sub-serve-event to-sec to-usec)
-	    
+
 	    (when usable
 	      (return t))
-	    
+
 	    (when timeout
 	      (multiple-value-bind (okay sec usec)
 				   (unix:unix-gettimeofday)
@@ -323,7 +297,6 @@
 		      (t
 		       (setq to-usec (- stop-usec usec))))))))))))
 
-
 (defvar *display-event-handlers* nil
   "This is an alist mapping displays to user functions to be called when
    SYSTEM:SERVE-EVENT notices input on a display connection.  Do not modify
@@ -337,14 +310,13 @@
 ;;;
 (defun serve-all-events (&optional timeout)
   "SERVE-ALL-EVENTS calls SERVE-EVENT with the specified timeout.  If
-  SERVE-EVENT does something (returns T) it loops over SERVE-EVENT with timeout
-  0 until all events have been served.  SERVE-ALL-EVENTS returns T if
-  SERVE-EVENT did something and NIL if not."
+   SERVE-EVENT does something (returns T) it loops over SERVE-EVENT with
+   timeout 0 until all events have been served.  SERVE-ALL-EVENTS returns T
+   if SERVE-EVENT did something and NIL if not."
   (do ((res nil)
        (sval (serve-event timeout) (serve-event 0)))
       ((null sval) res)
     (setq res t)))
-
 
 ;;; SERVE-EVENT -- public
 ;;;
@@ -352,13 +324,12 @@
 ;;;
 (defun serve-event (&optional timeout)
   "Receive on all ports and Xevents and dispatch to the appropriate handler
-  function.  If timeout is specified, server will wait the specified time (in
-  seconds) and then return, otherwise it will wait until something happens.
-  Server returns T if something happened and NIL otherwise."
+   function.  If timeout is specified, server will wait the specified time
+   (in seconds) and then return, otherwise it will wait until something
+   happens.  Server returns T if something happened and NIL otherwise."
   (multiple-value-bind (to-sec to-usec)
 		       (decode-timeout timeout)
     (sub-serve-event to-sec to-usec)))
-
 
 ;;; Check for any X displays with pending events.
 ;;;
@@ -385,7 +356,6 @@
 		   d/h)))
 	(return-from handle-queued-clx-event t)))))
 
-
 ;;; These macros are chunks of code from SUB-SERVE-EVENT.  They randomly
 ;;; reference the READ-FDS and WRITE-FDS Alien variables (which wold be consed
 ;;; if passed as function arguments.)
@@ -398,7 +368,7 @@
 ;;; count.
 ;;;
 (defmacro calc-masks ()
-  '(progn 
+  '(progn
      (unix:fd-zero read-fds)
      (unix:fd-zero write-fds)
      (let ((count 0))
@@ -413,7 +383,6 @@
 	     (when (> fd count)
 	       (setf count fd)))))
        (1+ count))))
-
 
 ;;; Call file descriptor handlers according to the readable and writable masks
 ;;; returned by select.
@@ -437,7 +406,7 @@
 	   (setf result t)))
        result)))
 
-); eval-when (compile eval)
+) ; eval-when (compile eval)
 
 ;;; When a *periodic-polling-function* is defined the server will not
 ;;; block for more than the maximum event timeout and will call the
@@ -481,7 +450,7 @@
 	     count
 	     (alien:addr read-fds) (alien:addr write-fds)
 	     nil to-sec to-usec)
-	
+
 	  ;; Now see what it was (if anything)
 	  (cond (value
 		 (cond ((zerop value)
@@ -497,4 +466,3 @@
 		 ;; One of the file descriptors is bad.
 		 (handler-descriptors-error)
 		 nil)))))))
-

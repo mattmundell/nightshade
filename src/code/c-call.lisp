@@ -1,17 +1,6 @@
-;;; -*- Package: C-CALL -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/c-call.lisp,v 1.15 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains some extensions to the Alien facility to simplify
-;;; importing C interfaces.
-;;;
+;;; Some extensions to the Alien facility to simplify importing C
+;;; interfaces.
+
 (in-package "C-CALL")
 (use-package "ALIEN")
 (use-package "ALIEN-INTERNALS")
@@ -19,7 +8,7 @@
 
 (export '(char short int long unsigned-char unsigned-short unsigned-int
 	  unsigned-long float double c-string void))
-	       
+
 
 ;;;; Extra types.
 

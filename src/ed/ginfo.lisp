@@ -10,7 +10,7 @@
 ;;       Goto Node (g).
 ;;       FIXes below.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 ;;; Mode.

@@ -1,5 +1,3 @@
-;;; -*- Package: Spell -*-
-;;;
 ;;;      This is the file that deals with checking and correcting words
 ;;; using a dictionary read in from a binary file.  It has been written
 ;;; from the basic ideas used in Ispell (on DEC-20's) which originated as

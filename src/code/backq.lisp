@@ -1,19 +1,4 @@
-;;; -*- Log: code.log; Mode: Lisp; Package: Lisp -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/backq.lisp,v 1.10 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    BACKQUOTE: Code Spice Lispified by Lee Schumacher.
-;;;   		  (unparsing by Miles Bader)
-;;;
 (in-package "LISP")
-
 
 ;;; The flags passed back by BACKQUOTIFY can be interpreted as follows:
 ;;;
@@ -22,7 +7,7 @@
 ;;;      T: [a] => a		;the T flag is used when a is self-evaluating
 ;;;  QUOTE: [a] => (QUOTE a)
 ;;; APPEND: [a] => (APPEND . a)
-;;;  NCONC: [a] => (NCONC . a) 
+;;;  NCONC: [a] => (NCONC . a)
 ;;;   LIST: [a] => (LIST . a)
 ;;;  LIST*: [a] => (LIST* . a)
 ;;;
@@ -30,7 +15,7 @@
 ;;;  ([a] means that a should be converted according to the previous table)
 ;;;
 ;;;   \ car  ||    otherwise    |    QUOTE or     |     |`,@|      |     |`,.|
-;;;cdr \     ||                 |    T or NIL     |                |		 
+;;;cdr \     ||                 |    T or NIL     |                |
 ;;;================================================================================
 ;;;  |`,|    || LIST* ([a] [d]) | LIST* ([a] [d]) | APPEND (a [d]) | NCONC  (a [d])
 ;;;  NIL     || LIST    ([a])   | QUOTE    (a)    | <hair>    a    | <hair>    a
@@ -132,7 +117,7 @@
 		       (values 'list*
 			       (list a (backquotify-1 dflag d)))))))))))
 
-;;; This handles the <hair> cases 
+;;; This handles the <hair> cases
 (defun comma (code)
   (cond ((atom code)
 	 (cond ((null code)
@@ -288,7 +273,7 @@
   (set-pprint-dispatch '(cons (eql backq-nconc)) #'pprint-backquote)
   (set-pprint-dispatch '(cons (eql backq-cons)) #'pprint-backquote)
   (set-pprint-dispatch '(cons (eql backq-vector)) #'pprint-backquote)
-  
+
   (set-pprint-dispatch '(cons (eql backq-comma)) #'pprint-backq-comma)
   (set-pprint-dispatch '(cons (eql backq-comma-at)) #'pprint-backq-comma)
   (set-pprint-dispatch '(cons (eql backq-comma-dot)) #'pprint-backq-comma))

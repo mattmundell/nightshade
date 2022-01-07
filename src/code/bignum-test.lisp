@@ -1,17 +1,6 @@
-;;;; -*- Package: Bignum -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/bignum-test.lisp,v 1.4 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    Some stuff to check that bignum operations are retuning the correct
+;;; Some stuff to check that bignum operations are retuning the correct
 ;;; results.
-;;; 
+
 (in-package "BIGNUM")
 
 (defvar *in-bignum-wrapper* nil)

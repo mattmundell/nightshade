@@ -3,7 +3,7 @@
 #ifndef _PRINT_H_
 #define _PRINT_H_
 
-#include "lisp.h"
+#include "nightshade.h"
 
 extern char *lowtag_Names[], *subtype_Names[];
 

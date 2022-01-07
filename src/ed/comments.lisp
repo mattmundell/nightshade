@@ -1,6 +1,6 @@
 ;;; Comment commands.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 ;;;; Variables

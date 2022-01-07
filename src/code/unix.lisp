@@ -1,24 +1,13 @@
-;;; -*- Package: UNIX -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/unix.lisp,v 1.48.2.7 2000/08/25 10:00:13 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; This file contains the UNIX low-level support.
-;;;
+
 (in-package "UNIX")
+
 (use-package "ALIEN")
 (use-package "C-CALL")
 (use-package "SYSTEM")
 (use-package "EXT")
 
-(export '(
-	  daddr-t caddr-t ino-t swblk-t size-t time-t dev-t off-t uid-t gid-t
+(export '(daddr-t caddr-t ino-t swblk-t size-t time-t dev-t off-t uid-t gid-t
 	  timeval tv-sec tv-usec timezone tz-minuteswest tz-dsttime
 	  itimerval it-interval it-value tchars t-intrc t-quitc t-startc
 	  t-stopc t-eofc t-brkc ltchars t-suspc t-dsuspc t-rprntc t-flushc
@@ -173,7 +162,7 @@
 #+bsd
 (def-alien-type quad-t (array unsigned-long 2))
 
-;;; From sys/types.h
+;;;; From sys/types.h
 
 (def-alien-type daddr-t #-(or linux alpha) long #+(or linux alpha) int)
 (def-alien-type caddr-t (* char))
@@ -297,7 +286,6 @@
     #-linux (t-werasc char)			; word erase
     (t-lnextc char)))			; literal next character
 
-
 (def-alien-type nil
   (struct sgttyb
     #+linux (sg-flags #+mach short #-mach int) ; mode flags
@@ -316,7 +304,6 @@
     (ws-col unsigned-short)		; columns, in characters
     (ws-xpixel unsigned-short)		; horizontal size, pixels
     (ws-ypixel unsigned-short)))	; veritical size, pixels
-
 
 ;;; From sys/termios.h
 
@@ -366,6 +353,7 @@
     #+(or bsd osf1) (c-ospeed unsigned-int)))
 
 ;;; From sys/dir.h
+
 #-bsd
 (def-alien-type nil
   (struct direct
@@ -505,7 +493,6 @@
   (struct rlimit
     (rlim-cur #-(or linux alpha) int #+linux long #+alpha unsigned-int)	 ; current (soft) limit
     (rlim-max #-(or linux alpha) int #+linux long #+alpha unsigned-int))); maximum value for rlim-cur
-
 
 
 ;;;; Errno stuff.
@@ -810,7 +797,6 @@
 (def-unix-error  EDQUOT          122    "Quota exceeded")
 )
 
-;;;
 ;;; And now for something completely different ...
 (emit-unix-errors)
 
@@ -825,7 +811,6 @@
   (if (array-in-bounds-p *unix-errors* error-number)
       (svref *unix-errors* error-number)
       (format nil "Unknown error [~d]" error-number)))
-
 
 
 ;;;; Lisp types used by syscalls.
@@ -850,7 +835,6 @@
 
 ;;;; System calls.
 
-
 (defmacro syscall ((name &rest arg-types) success-form &rest args)
   `(let ((result (alien-funcall (extern-alien ,name (function int ,@arg-types))
 				,@args)))
@@ -858,9 +842,9 @@
 	 (values nil unix-errno)
 	 ,success-form)))
 
-;;; Like syscall, but if it fails, signal an error instead of returing error
-;;; codes.  Should only be used for syscalls that will never really get an
-;;; error.
+;;; Like syscall, but if it fails, signal an error instead of returing
+;;; error codes.  Should only be used for syscalls that will never really
+;;; get an error.
 ;;;
 (defmacro syscall* ((name &rest arg-types) success-form &rest args)
   `(let ((result (alien-funcall (extern-alien ,name (function int ,@arg-types))
@@ -875,10 +859,9 @@
 (defmacro int-syscall ((name &rest arg-types) &rest args)
   `(syscall (,name ,@arg-types) (values result 0) ,@args))
 
-
-;;; Unix-access accepts a path and a mode.  It returns two values the
-;;; first is T if the file is accessible and NIL otherwise.  The second
-;;; only has meaning in the second case and is the unix errno value.
+;;; Unix-access accepts a path and a mode.  It returns two values the first
+;;; is T if the file is accessible and NIL otherwise.  The second only has
+;;; meaning in the second case and is the unix errno value.
 
 (defconstant r_ok 4 "Test for read permission")
 (defconstant w_ok 2 "Test for write permission")
@@ -900,8 +883,8 @@
 	   (type (mod 8) mode))
   (void-syscall ("access" c-string int) path mode))
 
-;;; Unix-chdir accepts a directory name and makes that the
-;;; current working directory.
+;;; Unix-chdir accepts a directory name and makes that the current working
+;;; directory.
 
 (defun unix-chdir (path)
   "Given a file path string, unix-chdir changes the current working
@@ -909,7 +892,8 @@
   (declare (type unix-pathname path))
   (void-syscall ("chdir" c-string) path))
 
-;;; Unix-chmod accepts a path and a mode and changes the mode to the new mode.
+;;; Unix-chmod accepts a path and a mode and changes the mode to the new
+;;; mode.
 
 (defconstant setuidexec #o4000 "Set user ID on execution")
 (defconstant setgidexec #o2000 "Set group ID on execution")
@@ -972,8 +956,8 @@
 	   (type (or unix-gid (integer -1 -1)) gid))
   (void-syscall ("chown" c-string int int) path uid gid))
 
-;;; Unix-fchown is exactly the same as unix-chown except that the file
-;;; is specified by a file-descriptor ("fd") instead of a pathname.
+;;; Unix-fchown is exactly the same as unix-chown except that the file is
+;;; specified by a file-descriptor ("fd") instead of a pathname.
 
 (defun unix-fchown (fd uid gid)
   "Unix-fchown is like unix-chown, except that it accepts an integer
@@ -983,8 +967,8 @@
 	   (type (or unix-gid (integer -1 -1)) gid))
   (void-syscall ("fchown" int int int) fd uid gid))
 
-;;; Returns the maximum size (i.e. the number of array elements
-;;; of the file descriptor table.
+;;; Returns the maximum size (i.e. the number of array elements of the file
+;;; descriptor table.
 
 (defun unix-getdtablesize ()
   "Unix-getdtablesize returns the maximum size of the file descriptor
@@ -1002,8 +986,8 @@
   (declare (type unix-fd fd))
   (void-syscall ("close" int) fd))
 
-;;; Unix-creat accepts a file name and a mode.  It creates a new file
-;;; with name and sets it mode to mode (as for chmod).
+;;; Unix-creat accepts a file name and a mode.  It creates a new file with
+;;; name and sets it mode to mode (as for chmod).
 
 (defun unix-creat (name mode)
   "Unix-creat accepts a file name and a mode (same as those for
@@ -1027,10 +1011,10 @@
   (declare (type unix-fd fd))
   (int-syscall ("dup" int) fd))
 
-;;; Unix-dup2 makes the second file-descriptor describe the same file
-;;; as the first. If the second file-descriptor points to an open
-;;; file, it is first closed. In any case, the second should have a
-;;; value which is a valid file-descriptor.
+;;; Unix-dup2 makes the second file-descriptor describe the same file as
+;;; the first. If the second file-descriptor points to an open file, it is
+;;; first closed. In any case, the second should have a value which is a
+;;; valid file-descriptor.
 
 (defun unix-dup2 (fd1 fd2)
   "Unix-dup2 duplicates an existing file descriptor just as unix-dup
@@ -1041,10 +1025,9 @@
   (declare (type unix-fd fd1 fd2))
   (void-syscall ("dup2" int int) fd1 fd2))
 
-;;; Unix-fcntl takes a file descriptor, an integer command
-;;; number, and optional command arguments.  It performs
-;;; operations on the associated file and/or returns inform-
-;;; ation about the file.
+;;; Unix-fcntl takes a file descriptor, an integer command number, and
+;;; optional command arguments.  It performs operations on the associated
+;;; file and/or returns inform- ation about the file.
 
 ;;; Operations performed on file descriptors:
 
@@ -1282,7 +1265,6 @@
   (declare (type unix-pathname name))
   (void-syscall ("rmdir" c-string) name))
 
-
 ;;; UNIX-FAST-SELECT -- public.
 ;;;
 (defmacro unix-fast-select (num-descriptors
@@ -1305,9 +1287,8 @@
 		    ,num-descriptors ,read-fds ,write-fds ,exception-fds
 		    (if timeout-secs (alien-sap (addr tv)) (int-sap 0))))))
 
-
-;;; Unix-select accepts sets of file descriptors and waits for an event
-;;; to happen on one of them or to time out.
+;;; Unix-select accepts sets of file descriptors and waits for an event to
+;;; happen on one of them or to time out.
 
 (defmacro num-to-fd-set (fdset num)
   `(if (fixnump ,num)
@@ -1358,7 +1339,6 @@
 		       (fd-set-to-num nfds xpf))
 	       nfds (frob rdfds rdf) (frob wrfds wrf) (frob xpfds xpf)
 	       (if to-secs (alien-sap (addr tv)) (int-sap 0))))))
-
 
 ;;; Unix-sync writes all information in core memory which has been modified
 ;;; to permanent storage (i.e. disk).
@@ -1435,7 +1415,6 @@
 
 ;;; Unix-ioctl is used to change parameters of devices in a device
 ;;; dependent way.
-
 
 (defconstant terminal-speeds
   '#(0 50 75 110 134 150 200 300 600 #+hpux 900 1200 1800 2400 #+hpux 3600
@@ -1634,7 +1613,6 @@
 ;;; File ioctl commands.
 (define-ioctl-command FIONREAD #\f #-linux 127 #+linux #x1B int :out)
 
-
 (defun unix-ioctl (fd cmd arg)
   "Unix-ioctl performs a variety of operations on open i/o
    descriptors.  See the UNIX Programmer's Manual for more
@@ -1786,7 +1764,6 @@
   supplied, FD defaults to /dev/tty."
   `(%set-tty-process-group ,pgrp ,fd))
 
-
 ;;; Socket options.
 
 #+(or hpux freebsd)
@@ -1850,7 +1827,6 @@
 	     (extract-stat-results buf)
 	     name (addr buf))))
 
-
 (defun unix-lstat (name)
   "Unix-lstat is similar to unix-stat except the specified
    file must be a symbolic link."
@@ -1869,14 +1845,13 @@
 	     (extract-stat-results buf)
 	     fd (addr buf))))
 
-
 (defconstant rusage_self 0 "The calling process.")
 (defconstant rusage_children -1 "Terminated child processes.")
 
 (declaim (inline unix-fast-getrusage))
 (defun unix-fast-getrusage (who)
-  "Like call getrusage, but return only the system and user time, and returns
-   the seconds and microseconds as separate values."
+  "Like call getrusage, but return only the system and user time, and
+   returns the seconds and microseconds as separate values."
   (declare (values (member t)
 		   (unsigned-byte 31) (mod 1000000)
 		   (unsigned-byte 31) (mod 1000000)))
@@ -1919,8 +1894,7 @@
 	      who (addr usage))))
 
 ;;; Getrusage is not provided in the C library on Solaris 2.4, and is
-;;; rather slow on later versions so the "times" system call is
-;;; provided.
+;;; rather slow on later versions so the "times" system call is provided.
 #+(and sparc svr4)
 (progn
 (def-alien-type nil
@@ -1948,34 +1922,39 @@
 ;; Don't use this now: we (FIX ?)
 #+(or linux svr4)
 (progn
-    (def-alien-variable ("daylight" unix-daylight) int)
-    (def-alien-variable ("timezone" unix-timezone) time-t)
-    (def-alien-variable ("altzone" unix-altzone) time-t)
-    #-irix (def-alien-variable ("tzname" unix-tzname) (array c-string 2))
-    #+irix (defvar unix-tzname-addr nil)
-    #+irix (pushnew #'(lambda () (setq unix-tzname-addr nil))
-                    ext:*after-save-initializations*)
-    #+irix (declaim (notinline fakeout-compiler))
-    #+irix (defun fakeout-compiler (name dst)
-             (unless unix-tzname-addr
-               (setf unix-tzname-addr (system:foreign-symbol-address name)))
-              (deref (sap-alien unix-tzname-addr (array c-string 2)) dst))
-    (def-alien-routine get-timezone c-call:void
-		       (when c-call:long :in)
-		       (minutes-west c-call:int :out)
-		       (daylight-savings-p alien:boolean :out))
-    (defun unix-get-minutes-west (secs)
-	   (multiple-value-bind (ignore minutes dst) (get-timezone secs)
-				(declare (ignore ignore) (ignore dst))
-				(values minutes))
-	    )
-    (defun unix-get-timezone (secs)
-	   (multiple-value-bind (ignore minutes dst) (get-timezone secs)
-				(declare (ignore ignore) (ignore minutes))
-                                (values #-irix (deref unix-tzname (if dst 1 0))
-                                        #+irix (fakeout-compiler "tzname" (if dst 1 0)))
-	    ) )
-)
+  (def-alien-variable ("daylight" unix-daylight) int)
+  (def-alien-variable ("timezone" unix-timezone) time-t)
+  (def-alien-variable ("altzone" unix-altzone) time-t)
+
+  #-irix (def-alien-variable ("tzname" unix-tzname) (array c-string 2))
+
+  #+irix (defvar unix-tzname-addr nil)
+
+  #+irix (pushnew #'(lambda () (setq unix-tzname-addr nil))
+		  ext:*after-save-initializations*)
+
+  #+irix (declaim (notinline fakeout-compiler))
+  #+irix (defun fakeout-compiler (name dst)
+	   (unless unix-tzname-addr
+	     (setf unix-tzname-addr (system:foreign-symbol-address name)))
+	   (deref (sap-alien unix-tzname-addr (array c-string 2)) dst))
+
+  (def-alien-routine get-timezone c-call:void
+    (when c-call:long :in)
+    (minutes-west c-call:int :out)
+    (daylight-savings-p alien:boolean :out))
+
+  (defun unix-get-minutes-west (secs)
+    (multiple-value-bind (ignore minutes dst) (get-timezone secs)
+      (declare (ignore ignore) (ignore dst))
+      (values minutes)))
+
+  (defun unix-get-timezone (secs)
+    (multiple-value-bind (ignore minutes dst) (get-timezone secs)
+      (declare (ignore ignore) (ignore minutes))
+      (values #-irix (deref unix-tzname (if dst 1 0))
+	      #+irix (fakeout-compiler "tzname" (if dst 1 0))))))
+
 (declaim (inline unix-gettimeofday))
 (defun unix-gettimeofday ()
   "If it works, unix-gettimeofday returns 5 values: T, the seconds and
@@ -2027,8 +2006,8 @@
 #-(or svr4 hpux)
 (defun unix-setreuid (ruid euid)
   "Unix-setreuid sets the real and effective user-id's of the current
-   process to the specified ones.  NIL and an error number is returned
-   if the call fails."
+   process to the specified ones.  NIL and an error number is returned if
+   the call fails."
   (void-syscall ("setreuid" int int) ruid euid))
 
 ;;; Unix-setregid sets the real and effective group-id's of the current
@@ -2047,7 +2026,8 @@
   "Unix-getpid returns the process-id of the current process.")
 
 (def-alien-routine ("getppid" unix-getppid) int
-  "Unix-getppid returns the process-id of the parent of the current process.")
+  "Unix-getppid returns the process-id of the parent of the current
+   process.")
 
 (def-alien-routine ("getgid" unix-getgid) int
   "Unix-getgid returns the real group-id of the current process.")
@@ -2055,20 +2035,19 @@
 (def-alien-routine ("getegid" unix-getegid) int
   "Unix-getegid returns the effective group-id of the current process.")
 
-;;; Unix-getpgrp returns the group-id associated with the
-;;; current process.
+;;; Unix-getpgrp returns the group-id associated with the current process.
 
 (defun unix-getpgrp ()
   "Unix-getpgrp returns the group-id of the calling process."
   (int-syscall ("getpgrp")))
 
-;;; Unix-setpgid sets the group-id of the process specified by
-;;; "pid" to the value of "pgrp".  The process must either have
-;;; the same effective user-id or be a super-user process.
+;;; Unix-setpgid sets the group-id of the process specified by "pid" to the
+;;; value of "pgrp".  The process must either have the same effective
+;;; user-id or be a super-user process.
 
-;;; setpgrp(int int)[freebsd] is identical to setpgid and is retained
-;;; for backward compatibility. setpgrp(void)[solaris] is being phased
-;;; out in favor of setsid().
+;;; setpgrp(int int)[freebsd] is identical to setpgid and is retained for
+;;; backward compatibility. setpgrp(void)[solaris] is being phased out in
+;;; favor of setsid().
 
 (defun unix-setpgrp (pid pgrp)
   "Unix-setpgrp sets the process group on the process pid to
@@ -2107,7 +2086,6 @@
    of the child in the parent if it works, or NIL and an error number if it
    doesn't work."
   (int-syscall ("fork")))
-
 
 
 ;;; Operations on Unix Directories.
@@ -2189,7 +2167,6 @@
 	       (* nlen vm:byte-bits))
 	      (values string fino)))))))
 
-
 (defun close-dir (dir)
   (declare (type directory dir))
   (alien-funcall (extern-alien "closedir"
@@ -2197,14 +2174,12 @@
 		 (directory-dir-struct dir))
   nil)
 
-
 (defun unix-current-directory ()
   (with-alien ((buf (array char 1024)))
     (values (not (zerop (alien-funcall (extern-alien "getwd"
 						     (function int (* char)))
 				       (cast buf (* char)))))
 	    (cast buf c-string))))
-
 
 
 ;;;; Support routines for dealing with unix pathnames.
@@ -2397,8 +2372,6 @@
 (def-alien-routine ("ttyname" unix-ttyname) c-string
   (fd int))
 
-
-
 
 ;;;; UNIX-EXECVE
 
@@ -2426,7 +2399,6 @@
 (defmacro round-bytes-to-words (n)
   `(logand (the fixnum (+ (the fixnum ,n) 3)) (lognot 3)))
 
-;;;
 ;;; STRING-LIST-TO-C-STRVEC	-- Internal
 ;;;
 ;;; STRING-LIST-TO-C-STRVEC is a function which takes a list of
@@ -2502,7 +2474,6 @@
 	(system:deallocate-system-memory envp envp-bytes)))
     (values result error-code)))
 
-
 
 ;;;; Socket support.
 
@@ -2567,10 +2538,7 @@
   (optlen unsigned))
 
 
-;;;
 ;;; Support for the Interval Timer (experimental)
-;;;
-
 
 (defconstant ITIMER-REAL 0)
 (defconstant ITIMER-VIRTUAL 1)
@@ -2630,4 +2598,3 @@
 			(slot (slot itvo 'it-value) 'tv-sec)
 			(slot (slot itvo 'it-value) 'tv-usec))
 		which (alien-sap (addr itvn))(alien-sap (addr itvo))))))
-

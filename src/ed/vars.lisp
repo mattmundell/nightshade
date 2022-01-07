@@ -1,6 +1,6 @@
 ;;; The file contains the routines which define editor variables.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(variable-value variable-hooks variable-documentation variable-name
 	  editor-bound-p defhvar delete-variable))
@@ -19,12 +19,12 @@
 
 ;;; UNDEFINED-VARIABLE-ERROR  --  Internal
 ;;;
-;;;    Complain about an undefined Hemlock variable in a helpful fashion.
+;;;    Complain about an undefined editor variable in a helpful fashion.
 ;;;
 (defun undefined-variable-error (name)
-  (if (eq (symbol-package name) (find-package "HEMLOCK"))
-      (error "Undefined Hemlock variable ~A." name)
-      (error "Hemlock variables must be in the \"HEMLOCK\" package, but~%~
+  (if (eq (symbol-package name) (find-package "ED"))
+      (error "Undefined editor variable ~A." name)
+      (error "Editor variables must be in the \"ED\" package,~%~
 	     ~S is in the ~S package."
 	     name (package-name (symbol-package name)))))
 
@@ -62,7 +62,7 @@
      (check-type where buffer)
      (let ((binding (find-binding name (buffer-var-values where))))
        (unless binding
-	 (error "~S is not a defined Hemlock variable in buffer ~S." name where))
+	 (error "~S is not a defined editor variable in buffer ~S." name where))
        (binding-object binding)))
     (:global
      (do ((obj (get name 'hemlock-variable-value)
@@ -71,23 +71,23 @@
 	 ((symbolp obj)
 	  (unless prev (undefined-variable-error name))
 	  (unless (eq obj :global)
-	    (error "Hemlock variable ~S is not globally defined." name))
+	    (error "Editor variable ~S is not globally defined." name))
 	  prev)))
     (:mode
      (let ((binding (find-binding name (mode-object-var-values
 					(get-mode-object where)))))
        (unless binding
-	 (error "~S is not a defined Hemlock variable in mode ~S." name where))
+	 (error "~S is not a defined editor variable in mode ~S." name where))
        (binding-object binding)))
     (t
      (error "~S is not a defined value for Kind." kind))))
 
 ;;; VARIABLE-VALUE  --  Public
 ;;;
-;;;    Get the value of the Hemlock variable "name".
+;;;    Get the value of the editor variable "name".
 ;;;
 (defun variable-value (name &optional (kind :current) where)
-  "Return the value of the Hemlock variable given."
+  "Return the value of the editor variable given."
   (variable-object-value (get-variable-object name kind where)))
 
 ;;; %VALUE  --  Internal
@@ -123,12 +123,12 @@
 ;;;    Return the list of hooks for "name".
 ;;;
 (defun variable-hooks (name &optional (kind :current) where)
-  "Return the list of hook functions for the Hemlock variable given."
+  "Return the list of hook functions for the editor variable given."
   (variable-object-hooks (get-variable-object name kind where)))
 
 ;;; %SET-VARIABLE-HOOKS --  Internal
 ;;;
-;;;    Set the hook-list for Hemlock variable Name.
+;;;    Set the hook-list for editor variable Name.
 ;;;
 (defun %set-variable-hooks (name kind where new-value)
   (setf (variable-object-hooks (get-variable-object name kind where)) new-value))
@@ -138,7 +138,7 @@
 ;;;    Return the documentation for "name".
 ;;;
 (defun variable-documentation (name &optional (kind :current) where)
-  "Return the documentation for the Hemlock variable given."
+  "Return the documentation for the editor variable given."
   (variable-object-documentation (get-variable-object name kind where)))
 
 ;;; %SET-VARIABLE-DOCUMENTATION  --  Internal
@@ -151,17 +151,17 @@
 
 ;;; VARIABLE-NAME  --  Public
 ;;;
-;;;    Return the String Name for a Hemlock variable.
+;;;    Return the String Name for an editor variable.
 ;;;
 (defun variable-name (name &optional (kind :current) where)
-   "Return the string name of a Hemlock variable."
+   "Return the string name of an editor variable."
   (variable-object-name (get-variable-object name kind where)))
 
 ;;; EDITOR-BOUND-P  --  Public
 ;;;
 (defun editor-bound-p (name &optional (kind :current) where)
-  "Returns T if Name is a Hemlock variable defined in the specifed place, or
-  NIL otherwise."
+  "Returns T if Name is an editor variable defined in the specifed place,
+   or NIL otherwise."
   (case kind
     (:current (not (null (get name 'hemlock-variable-value))))
     (:buffer
@@ -176,16 +176,16 @@
 				    (get-mode-object where))))))))
 
 (defun string-to-variable (string)
-  "Returns the symbol name of a Hemlock variable from the corresponding string
-   name."
+  "Returns the symbol name of an editor variable from the corresponding
+   string name."
   (intern (nsubstitute #\- #\space (the simple-string (string-upcase string)))
-	  (find-package "HEMLOCK")))
+	  (find-package "ED")))
 
 (proclaim '(special *global-variable-names*))
 
 ;;; DEFHVAR  --  Public
 ;;;
-;;;    Define a Hemlock variable somewhere.
+;;;    Define an editor variable somewhere.
 ;;;
 (defun defhvar (name documentation &key mode buffer (hooks nil hook-p)
 		     (value nil value-p))
@@ -251,11 +251,11 @@
 
 ;;; DELETE-VARIABLE  --  Public
 ;;;
-;;; Make a Hemlock variable no longer bound, fixing up the saved
-;;;binding values as necessary.
+;;; Make an editor variable no longer bound, fixing up the saved binding
+;;; values as necessary.
 ;;;
 (defun delete-variable (name &optional (kind :global) where)
-  "Delete a Hemlock variable somewhere."
+  "Delete an editor variable somewhere."
   (let* ((obj (get-variable-object name kind where))
 	 (sname (variable-object-name obj)))
     (case kind

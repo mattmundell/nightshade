@@ -1,22 +1,8 @@
-;;; -*- Mode: Lisp; Package: LISP; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/pred.lisp,v 1.39.2.2 2000/05/23 16:36:44 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Predicate functions for CMU Common Lisp.
-;;;
-;;; Written by William Lott.
-;;;
+;;; Predicate functions.
 
 (in-package "KERNEL")
 (export '(%instancep instance fixnump bignump bitp ratiop weak-pointer-p
-		     %typep class-cell-typep))
+	  %typep class-cell-typep))
 
 (in-package "SYSTEM")
 (export '(system-area-pointer system-area-pointer-p))
@@ -36,7 +22,6 @@
 	  simple-array simple-bit-vector simple-string simple-vector
 	  single-float standard-char base-char string symbol t
 	  unsigned-byte vector satisfies))
-
 
 
 ;;;; Primitive predicates.  These must be supported by the compiler.
@@ -127,7 +112,7 @@
 ;;; (type-specifier (ctype-of object)) because ctype-of has different goals
 ;;; than type-of.  In particular, speed is more important than precision, and
 ;;; it is not permitted to return member types.
-;;; 
+;;;
 (defun type-of (object)
   "Return the type of OBJECT."
   (if (typep object '(or function array complex))
@@ -157,12 +142,12 @@
 ;;;; SUBTYPEP -- public.
 ;;;
 ;;; Just parse the type specifiers and call csubtype.
-;;; 
+;;;
 (defun subtypep (type1 type2)
   "Return two values indicating the relationship between type1 and type2:
-  T and T: type1 definitely is a subtype of type2.
-  NIL and T: type1 definitely is not a subtype of type2.
-  NIL and NIL: who knows?"
+   T and T: type1 definitely is a subtype of type2.
+   NIL and T: type1 definitely is not a subtype of type2.
+   NIL and NIL: who knows?"
   (csubtypep (specifier-type type1) (specifier-type type2)))
 
 
@@ -172,18 +157,17 @@
 
 ;;; TYPEP -- public.
 ;;;
-;;; Just call %typep
-;;; 
+;;; Just call %typep.
+;;;
 (defun typep (object type)
   "Return T iff OBJECT is of type TYPE."
   (%typep object type))
 
-  
 ;;; %TYPEP -- internal.
 ;;;
 ;;; The actual typep engine.  The compiler only generates calls to this
 ;;; function when it can't figure out anything more intelligent to do.
-;;; 
+;;;
 (defun %typep (object specifier)
   (%%typep object
 	   (if (ctype-p specifier)
@@ -329,7 +313,6 @@
      (error "Function types are not a legal argument to TYPEP:~%  ~S"
 	    (type-specifier type)))))
 
-
 ;;; CLASS-CELL-TYPEP  --  Interface
 ;;;
 ;;;    Do type test from a class cell, allowing forward reference and
@@ -340,7 +323,6 @@
     (unless class
       (error "Class has not yet been defined: ~S" (class-cell-name cell)))
     (class-typep obj-layout class object)))
-
 
 ;;; CLASS-TYPEP  --  Internal
 ;;;
@@ -369,21 +351,17 @@
 
 ;;; EQ -- public.
 ;;;
-;;; Real simple, 'cause the compiler takes care of it.
-;;; 
-
 (defun eq (obj1 obj2)
   "Return T if OBJ1 and OBJ2 are the same object, otherwise NIL."
   (eq obj1 obj2))
 
-
 ;;; EQUAL -- public.
 ;;;
 (defun equal (x y)
-  "Returns T if X and Y are EQL or if they are structured components
-  whose elements are EQUAL.  Strings and bit-vectors are EQUAL if they
-  are the same length and have indentical components.  Other arrays must be
-  EQ to be EQUAL."
+  "Returns T if X and Y are EQL or if they are structured components whose
+   elements are EQUAL.  Strings and bit-vectors are EQUAL if they are the
+   same length and have indentical components.  Other arrays must be EQ to
+   be EQUAL."
   (cond ((eql x y) t)
 	((consp x)
 	 (and (consp y)
@@ -407,13 +385,13 @@
 	(t nil)))
 
 ;;; EQUALP -- public.
-;;; 
+;;;
 (defun equalp (x y)
   "Just like EQUAL, but more liberal in several respects.
-  Numbers may be of different types, as long as the values are identical
-  after coercion.  Characters may differ in alphabetic case.  Vectors and
-  arrays must have identical dimensions and EQUALP elements, but may differ
-  in their type restriction."
+   Numbers may be of different types, as long as the values are identical
+   after coercion.  Characters may differ in alphabetic case.  Vectors and
+   arrays must have identical dimensions and EQUALP elements, but may differ
+   in their type restriction."
   (cond ((eq x y) t)
 	((characterp x) (and (characterp y) (char-equal x y)))
 	((numberp x) (and (numberp y) (= x y)))

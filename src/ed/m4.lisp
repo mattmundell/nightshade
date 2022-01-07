@@ -5,8 +5,8 @@
 (defmode "M4" :major-p t)
 
 (defcommand "M4 Mode" (p)
-  "Put the current buffer into M4 script mode."
-  "Put the current buffer into M4 script mode."
+  "Put the current buffer into M4 mode."
+  "Put the current buffer into M4 mode."
   (declare (ignore p))
   (setf (buffer-major-mode (current-buffer)) "M4"))
 

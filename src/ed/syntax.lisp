@@ -1,6 +1,6 @@
 ;;; Syntax table routines.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(character-attribute-name
 	  defattribute character-attribute-documentation character-attribute
@@ -177,7 +177,7 @@
 
 (defun %print-attribute-descriptor (object stream depth)
   (declare (ignore depth))
-  (format stream "#<Hemlock Attribute-Descriptor ~S>"
+  (format stream "#<Editor Attribute-Descriptor ~S>"
 	  (attribute-descriptor-name object)))
 
 ;;; DEFATTRIBUTE  --  Public
@@ -186,9 +186,9 @@
 ;;;
 (defun defattribute (name documentation &optional (type '(mod 2))
 			  (initial-value 0))
-  "Define a new Hemlock character attribute with named Name with
-  the supplied Documentation, Type and Initial-Value.  Type
-  defaults to (mod 2) and Initial-Value defaults to 0."
+  "Define a new editor character attribute with named Name with the
+   supplied Documentation, Type and Initial-Value.  Type defaults to (mod
+   2) and Initial-Value defaults to 0."
   (setq name (coerce name 'simple-string))
   (let* ((attribute (string-to-keyword name))
 	 (new (make-attribute-descriptor
@@ -229,8 +229,8 @@
     (attribute-descriptor-documentation obj)))
 
 (defun character-attribute-hooks (attribute)
-  "Return the hook-list for the character-attribute Attribute.  This can
-  be set with Setf."
+  "Return the hook-list for the character-attribute Attribute.  This can be
+   set with Setf."
   (with-attribute attribute
     (attribute-descriptor-hooks obj)))
 

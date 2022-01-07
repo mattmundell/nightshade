@@ -1,16 +1,16 @@
 ;;; Some stuff to make streams that write out on bitmap hunks.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 
 ;;; These streams have an associated bitmap-hunk that is used for its
 ;;; font-family, foreground and background color, and X window pointer.
-;;; The hunk need not be associated with any Hemlock window, and the low
+;;; The hunk need not be associated with any editor window, and the low
 ;;; level painting routines that use hunk dimensions are not used for
 ;;; output.  Only BITMAP-HUNK-WRITE-STRING is used.  The hunk is not
 ;;; registered for any event service, so resizing the associated X window
-;;; does not invoke the exposed/changed handler in Bit-Screen.Lisp; also, the
-;;; hunk's input and changed handler slots are not set.
+;;; does not invoke the exposed/changed handler in Bit-Screen.Lisp; also,
+;;; the hunk's input and changed handler slots are not set.
 ;;;
 (defstruct (bitmap-hunk-output-stream (:include sys:lisp-stream
 						(out #'bitmap-hunk-out)

@@ -13,7 +13,7 @@
 
 #include <stdio.h>
 #include <signal.h>
-#include "lisp.h"
+#include "nightshade.h"
 #include "internals.h"
 #include "os.h"
 #include "globals.h"
@@ -753,7 +753,7 @@ static void add_new_area(int first_page, int offset, int size)
    */
   for (i = new_areas_index - 1, c = 0; i >= 0 && c < 8; i--, c++) {
     unsigned area_end = PAGE_SIZE * (*new_areas)[i].page
-      + (*new_areas)[i].offset + (*new_areas)[i].size; 
+      + (*new_areas)[i].offset + (*new_areas)[i].size;
 #if 0
     fprintf(stderr, "*S1 %d %d %d %d\n", i, c, new_area_start, area_end);
 #endif
@@ -830,7 +830,7 @@ void gc_alloc_update_page_tables(int unboxed,
 
     /* Update the first page. */
 
-#if 0    
+#if 0
     fprintf(stderr, "0");
 #endif
 
@@ -1055,7 +1055,7 @@ static void *gc_alloc_large(int  nbytes, int unboxed,
 
     gc_assert(bytes_found == region_size);
 
-#if 0    
+#if 0
     fprintf(stderr, "  last_page=%d bytes_found=%d num_pages=%d\n",
 	    last_page, bytes_found, num_pages);
 #endif
@@ -1071,7 +1071,7 @@ static void *gc_alloc_large(int  nbytes, int unboxed,
     exit(1);
   }
 
-#if 0  
+#if 0
   if (large)
     fprintf(stderr, "gc_alloc_large gen %d: %d of %d bytes: from pages %d to %d: addr=%x\n",
 	    gc_alloc_generation, nbytes, bytes_found,
@@ -2087,7 +2087,7 @@ void sniff_code_object(struct code *code, unsigned displacement)
 	fprintf(stderr, "***  Mov 0x%.8x,eax\n", data);
       }
 
-      /* Cmp m32,imm32 */		
+      /* Cmp m32,imm32 */
       if (d1 == 0x3d && d2 == 0x81) {
 	fixup_found = 1;
 	fprintf(stderr, "Abs. const. ref. @ %x: %.2x %.2x %.2x %.2x %.2x %.2x (%.8x)\n",
@@ -2625,7 +2625,7 @@ static lispobj trans_list(lispobj object)
   cons->car = 0x01;
   cons->cdr = new_list_pointer;
 
-  /* Try to linearize the list in the cdr direction to help reduce paging. */  
+  /* Try to linearize the list in the cdr direction to help reduce paging. */
   while (1) {
     lispobj  new_cdr;
     struct cons *cdr_cons, *new_cdr_cons;
@@ -3694,7 +3694,7 @@ static int scav_weak_pointer(lispobj *where, lispobj object)
     if (wp->next != weak_pointers)
       wp->next = weak_pointers;
 #if 0
-    else 
+    else
       fprintf(stderr, "Avoided write to weak pointer.\n");
 #endif
     weak_pointers = wp;
@@ -3752,7 +3752,7 @@ void scan_weak_pointers(void)
 
     first_pointer = (lispobj *) PTR(value);
 
-#if 0    
+#if 0
     fprintf(stderr, "Weak pointer at 0x%08x\n", (unsigned long) wp);
     fprintf(stderr, "Value: 0x%08x\n", (unsigned long) value);
 #endif
@@ -4714,7 +4714,7 @@ static void scavenge_thread_stacks(void)
     int length, i;
     if (TypeOf(vector->header) != type_SimpleVector)
       return;
-    length = fixnum_value(vector->length);    
+    length = fixnum_value(vector->length);
     for (i = 0; i < length; i++) {
       lispobj stack_obj = vector->data[i];
       if (LowtagOf(stack_obj) == type_OtherPointer) {
@@ -5042,7 +5042,7 @@ static void scavenge_newspace_generation_one_scan(int generation)
 	    break;
 	  }
 #if !SC_NS_GEN_CK
-	if (all_wp == 0) 
+	if (all_wp == 0)
 #endif
 	  {
 	    int size;
@@ -5059,7 +5059,7 @@ static void scavenge_newspace_generation_one_scan(int generation)
 	    {
 #if SC_NS_GEN_CK
 	      int a1 = bytes_allocated;
-#endif		    
+#endif
 #if 0
 	      fprintf(stderr, "scavenge(%x,%d)\n",
 		      page_address(i) + page_table[i].first_object_offset,
@@ -5206,7 +5206,7 @@ static void scavenge_newspace_generation(int generation)
 	int size = (*previous_new_areas)[i].size / 4;
 	gc_assert((*previous_new_areas)[i].size % 4 == 0);
 
-#if 0	
+#if 0
 	fprintf(stderr, "*S page %d offset %d size %d\n",page,offset,size*4);
 #endif
 	scavenge(page_address(page)+offset, size);
@@ -5860,7 +5860,7 @@ static void	garbage_collect_generation(int generation, int raise)
   scavenge_newspace_generation(new_space);
 
 #define RESCAN_CHECK 0
-#if RESCAN_CHECK  
+#if RESCAN_CHECK
   /*
    * As a check re-scavenge the newspace once; on new objects should
    * be found.
@@ -5998,7 +5998,7 @@ void	collect_garbage(unsigned last_gen)
     /* Never raise the oldest generation. */
     if (gen >= gencgc_oldest_gen_to_gc)
       raise = 0;
-    else 
+    else
       /* Raise if: gen < last_gen */
       if (gen < last_gen)
 	raise = 1;
@@ -6276,7 +6276,7 @@ void gc_init(void)
  * Pickup the dynamic space from after a core load.
  *
  * The ALLOCATION_POINTER points to the end of the dynamic space.
- *  
+ *
  * XX A scan is needed to identify the closest first objects for pages.
  */
 
@@ -6317,7 +6317,7 @@ void do_pending_interrupt(void);
  * collector as it's only external uses that need the check for heap
  * size (GC trigger) and to disable the interrupts (interrupts are
  * always disabled during a GC).
- * 
+ *
  * It is assumed by the vops that the returned space is zero
  * filled. E.g. the MS word of a 2 word bignum in move-from-unsigned.
  *
@@ -6394,7 +6394,7 @@ char *alloc(int nbytes)
     sigprocmask(0, NULL, &mask);
     if (!sigismember(&mask, SIGINT) || !sigismember(&mask, SIGALRM))
       fprintf(stderr, "* Alloc non-atomic %x\n", mask);
-#endif      
+#endif
 
   retry2:
     /* At least wrap this allocation in a pseudo atomic to prevent

@@ -1,146 +1,168 @@
-;;; Dynamic abbreviation (dabbrev) command.
+;; -*- Package: ED -*-
 
-(in-package "HEMLOCK")
+(defpackage "DABBREV"
+  (:use "COMMON-LISP" "ED")
+  (:export "DABBREV-EXPAND")
+  (:documentation
+   "Completion of the word at point according to the current context."))
 
+(in-package "ED")
 
-
-;;; Internal state for continuing expansions. This is only maintained
-;;; between consecutive calls to Dabbrev Expand, and all gets reset when a
-;;; new expansion is staretd.
-
-(defvar *expanded-suffix-length* nil
-  "Length of the previously expanded suffix, or Nil if no expansion has
-   been made. This length is needed to undo an expansion.")
-
-(defvar *seen-dabbrevs* nil
-  "List of abbreviations that have already been offered, and will be
-   skipped in future.")
-
-(defvar *dabbrev-continuation* nil
-  "Closure which, when called with no arguments, continues from the
-   previous expansion.")
-
-(defcommand "Dabbrev Expand" (p)
+(defcommand "Dabbrev Expand" (&optional p)
   "Expand previous word \"dynamically\".
-
    Expands to the most recent, preceding word for which this is a prefix.
    If no suitable preceding word is found, words following point are
    considered.
-
-  Repeated calls continue by finding new expansions."
-  "See command docstring. I mean, really."
+   Repeated calls continue by finding new expansions."
+  "Expand previous word \"dynamically\".
+   Expands to the most recent, preceding word for which this is a prefix.
+   If no suitable preceding word is found, words following point are
+   considered.
+   Repeated calls continue by finding new expansions."
   (declare (ignore p))
+  (dabbrev:dabbrev-expand))
+
+(in-package "DABBREV")
+
+
+;;;; Internal state for continuing expansions.
+
+(defvar *expanded-suffix-length* nil
+  "Length of previous expanded suffix, if an expansion has been made.  This
+   is needed to undo old expansions.")
+
+(defvar *seen-expansions* nil
+  "List of expansions that have already been offered.  These will be
+   skipped in future.")
+
+(defvar *continuation* nil
+  "No-args closure to replace the current match with a new one.")
+
+(defvar *buffers* ()
+  "List of buffers to search for expansions.")
+
+(defun dabbrev-expand ()
+  "Main entry function.  Try to dynamically expand the word at point."
   (if (eq (last-command-type) :dabbrev-expand)
-      (continue-dabbrev-search)
-      (new-dabbrev-search)))
+      (funcall *continuation*)
+      (new-search)))
 
-(defun continue-dabbrev-search ()
-  "Replace the previous expansion with the next new one."
-  (funcall *dabbrev-continuation*))
-
-(defun new-dabbrev-search ()
-  "Start a new search for an expansion."
-  (reset-dabbrev-state)
+(defun new-search ()
   (let ((mark (copy-mark (current-point) :temporary)))
-    (when (start-of-dabbrev-prefix mark)
+    (when (move-to-prefix-start mark)
       (let ((prefix (region-to-string (region mark (current-point)))))
 	(if (string= prefix "")
 	    (editor-error "No possible abbreviation preceding point")
-	    (dabbrev-find-expansion mark :backward prefix))))))
+	    (progn
+	      (setq *buffers* (mapcar #'window-buffer *window-list*))
+	      (setq *buffers*
+		    (append *buffers*
+			    (set-difference *buffer-list* *buffers*)))
+	      (expand mark :backward prefix)))))))
 
-(defun reset-dabbrev-state ()
-  (setq *expanded-suffix-length* nil
-	*seen-dabbrevs* nil
-	*dabbrev-continuation* nil))
-
-(defun start-of-dabbrev-prefix (mark)
-  "Move Mark to the beginning of the word containing it. Returns NIL if
+(defun move-to-prefix-start (mark)
+  "Move Mark to the beginning of the word containing it.  Returns Nil if
    there is no matching word."
   (or (reverse-find-attribute mark :lisp-syntax #'not-constituent-p)
-      (or (start-line-p mark)
-	  (line-start mark))))
+      (line-start mark)))
 
 
-;;; Main searching engine
+;;;; Main searching engine.
 
-(defun dabbrev-find-expansion (start-mark direction string)
-  "Try to find an expansion of STRING in DIRECTION, starting from
-   START-MARK. The expansion suffix is returned if found, otherwise NIL."
-  (let ((searchm (copy-mark start-mark :temporary)))
-    (if (find-pattern searchm
-		      (new-search-pattern :string-sensitive
-					  direction
-					  string))
-	;; Marks to be placed for the region of the new suffix.
-	(let ((start (copy-mark searchm :temporary))
-	      (end   (copy-mark searchm :temporary)))
-	  (character-offset start (length string))
-	  (move-mark end start)
-	  (or (find-attribute end :lisp-syntax #'not-constituent-p)
-	      (line-end end))
-	  (let ((match-region (region start end)))
-	    (cond ((and (> (count-characters match-region) 0)
-			(at-beginning-of-word-p searchm)
-			(not (member (region-to-string match-region)
-				     *seen-dabbrevs*
-				     :test #'string=)))
-		   (dabbrev-apply-expansion searchm match-region direction string))
-		  ((and (eq direction :forward)
-			(next-character end))
-		   (dabbrev-find-expansion end direction string))
-		  ((and (eq direction :backward)
-			(previous-character searchm))
-		   (dabbrev-find-expansion searchm direction string))
-		  (t
-		   (continue-failed-expansion direction string)))))
-	(continue-failed-expansion direction string))))
-
-(defun continue-failed-expansion (direction string)
-  "Continue (or not) the search, after one avenue has failed."
-  (cond ((eq direction :backward)
-	 ;; Turn around -- now try forwards from Point
-	 (dabbrev-find-expansion (current-point) :forward string))
+(defun expand (mark direction string)
+  "Find and insert an expansion of String.  Searches from Mark for the
+   match, starting in Direction."
+  (cond ((find-pattern mark
+		       (new-search-pattern :string-sensitive direction string))
+	 (let* ((suffix (extract-suffix mark string))
+		(match-pos (copy-mark mark :temporary)))
+	   (advance-search-pos mark direction string)
+	   (if (good-suffix-p match-pos suffix)
+	       (apply-expansion mark direction string suffix)
+	       (expand mark direction string))))
 	(t
-	 ;; We've tried both directions, so just give up.
-	 ;; Alternatively we could try other sources of abbreviations next.
-	 (undo-previous-expansion)
-	 (editor-error (if *seen-dabbrevs*
-			   "No more expansions of `~A'"
-			   "No expansion for `~A'")
-		       string))))
+	 (continue-failed-expansion mark direction string))))
 
-(defun dabbrev-apply-expansion (match region direction prefix)
-  "Apply the expansion found at Match to the buffer by inserting the
-   suffix in Region after the original prefix."
+(defun advance-search-pos (mark dir string)
+  "Advance Mark, so the next search won't match the same place.  Mark
+   points to the beginning of a match for String."
+  (when (eq dir :forward)
+    (character-offset mark (length string))))
+
+(defun good-suffix-p (mark suffix)
+  "Is the Suffix of the match at Mark usable?"
+  (and (> (length suffix) 0)
+       (at-beginning-of-word-p mark)
+       (not (member suffix *seen-expansions* :test #'string=))))
+
+(defun extract-suffix (match-mark string)
+  "Get the suffix after String at Match-Mark.
+   Example: if Match-Mark is \"quux /\\foobar baz\" and String is
+   \"foo\", then the result is \"bar\"."
+  (let ((start (copy-mark match-mark :temporary))
+	(end   (copy-mark match-mark :temporary)))
+    (character-offset start (length string))
+    (move-mark end start)
+    (or (find-attribute end :lisp-syntax #'not-constituent-p)
+	(line-end end))
+    (region-to-string (region start end))))
+
+(defun continue-failed-expansion (mark dir string)
+  "Continue or end the search, after one avenue has failed."
+  (cond ((eq dir :backward)
+	 ;; Turn around -- now try forwards from Point
+	 (expand (copy-mark (buffer-point (line-buffer (mark-line mark)))
+			    :temporary)
+		 :forward string))
+	(t
+	 ;; Try next buffer.
+	 (expand (copy-mark
+		  (buffer-point
+		   (or (pop *buffers*)
+		       (progn
+			 (undo-previous-expansion)
+			 (editor-error (if *seen-expansions*
+					   "Expanding `~A' wrapped"
+					   "Failed to expand `~A'")
+				       string))))
+		  :temporary)
+		 :backward string))))
+
+
+(defun apply-expansion (mark dir string suffix)
+  "Apply the expansion Suffix to the buffer.  Sets up a continuation to
+   search for the next expansion of String in Direction, starting from
+   Mark."
   (undo-previous-expansion)
-  (setq *expanded-suffix-length* (count-characters region))
-  (let ((suffix (region-to-string region))
-	(search-continue-pos (if (eq direction :forward)
-				 (region-end region)
-			       match)))
-    (push suffix *seen-dabbrevs*)
-    (insert-string (current-point) suffix)
-    (dabbrev-install-continuation
-     (lambda ()
-       (dabbrev-find-expansion search-continue-pos direction prefix)))))
+  (insert-string (current-point) suffix)
+  (setup-continuation mark dir string suffix))
 
 (defun undo-previous-expansion ()
   (when *expanded-suffix-length*
     (delete-characters (current-point) (- *expanded-suffix-length*))))
 
-(defun dabbrev-install-continuation (k)
+(defun setup-continuation (mark dir string suffix)
+  "Setup a continuation for the next call to Dabbrev Expand.  The
+   continuation is a closure that will undo the current match and apply the
+   next one."
   (setf (last-command-type) :dabbrev-expand)
-  (setq *dabbrev-continuation* k))
+  (let ((len (length suffix))
+	(seen (cons suffix *seen-expansions*)))
+    (setq *continuation*
+	  (lambda ()
+	    (let ((*expanded-suffix-length* len)
+		  (*seen-expansions* seen))
+	      (expand mark dir string))))))
 
 
-;;; Little helpers
+;;;; Little helpers.
 
 (defun at-beginning-of-word-p (mark)
   (or (start-line-p mark)
-      (not (eq (character-attribute
-		:lisp-syntax
-		(previous-character mark))
-	       :constituent))))
+      (eq (character-attribute
+	   :word-delimiter
+	   (previous-character mark))
+	  1)))
 
 (defun not-constituent-p (property)
   (not (eq property :constituent)))

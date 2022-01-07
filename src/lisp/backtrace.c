@@ -5,7 +5,7 @@
 
 #include <stdio.h>
 #include <signal.h>
-#include "lisp.h"
+#include "nightshade.h"
 #include "internals.h"
 #include "globals.h"
 #include "os.h"
@@ -178,13 +178,13 @@ void
 backtrace(int nframes)
 {
     struct call_info info;
-	
+
     info_from_lisp_state(&info);
 
     do {
         printf("<Frame 0x%08x%s, ", (unsigned long) info.frame,
                 info.interrupted ? " [interrupted]" : "");
-        
+
         if (info.code != (struct code *) 0) {
             lispobj function;
 

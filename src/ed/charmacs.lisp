@@ -11,10 +11,9 @@
 ;;; char-code-limit for the syntax functions is independant of that for the
 ;;; searching functions.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(syntax-char-code-limit search-char-code-limit do-alpha-chars))
-
 
 
 ;;;; Stuff for the Syntax table functions (syntax)
@@ -25,7 +24,6 @@
 
 (defmacro syntax-char-code (char)
   `(char-code ,char))
-
 
 ;;;; Stuff used by the searching primitives (search)
 ;;;
@@ -47,7 +45,6 @@
 ;;; checking type and whatnot.
 (defmacro search-char-upcase (ch)
   `(char-upcase (the base-char ,ch)))
-
 
 
 ;;;; DO-ALPHA-CHARS.

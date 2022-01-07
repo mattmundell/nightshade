@@ -5,30 +5,14 @@
 #+bootstrap
 (progn
   (when (ext:get-command-line-switch "slave")
-    (error "Cannot compile the editor in a slave due to its clobbering needed
-    typescript routines by renaming the package."))
-
-  ;;; Blast the old packages in case they are around.  We do this solely to
-  ;;; prove the editor can compile cleanly without its having to exist
-  ;;; already.
+    (error "Cannot compile the editor in a slave due to its clobbering
+	    needed typescript routines by renaming the package."))
+  ;;; Blast the old packages in case they are around.  This is solely to
+  ;;; prove the editor can compile cleanly from scratch.
   ;;;
   (copy-packages '("ED" "HI")))
 
-
-;;; Stuff to set up the packages the editor uses.
-;;;
-(unless (find-package "HEMLOCK-INTERNALS")
-  (make-package "HEMLOCK-INTERNALS"
-		:nicknames '("HI")
-		:use '("LISP" "EXTENSIONS" "SYSTEM")))
-
-(unless (find-package "HEMLOCK")
-  (make-package "HEMLOCK"
-		:nicknames '("ED")
-		:use '("LISP" "HEMLOCK-INTERNALS" "EXTENSIONS" "SYSTEM")))
-;;;
-(export 'c::compile-from-stream (find-package "C"))
-
+(load "target:ed/exports.lisp")
 
 (in-package "EXTENSIONS")
 
@@ -57,8 +41,11 @@
 		 (optimize-interface (debug 1))))
        (:macro (declare (optimize (speed 0))))))
 
+(load "code:mh")
+
 (comf "target:code/globals")
 (comf "target:code/struct" :load t)
+(comf "target:ed/exports" :load t)
 (comf "target:ed/charmacs")
 (comf "target:ed/key-event" :load t)
 (comf "target:ed/struct")
@@ -78,7 +65,6 @@
 (comf "target:ed/macros" :byte-compile t :load t)
 (comf "target:ed/line")
 (comf "target:ed/ring")
-(comf "target:ed/table")
 (comf "target:ed/htext1")
 (comf "target:ed/htext2")
 (comf "target:ed/htext3")
@@ -139,6 +125,7 @@
 (comf "target:ed/fill")
 (comf "target:ed/parse" :load t)
 (comf "target:ed/parse-scribe")
+(comf "target:ed/parse-css")
 (comf "target:ed/info" :byte-compile t)
 (comf "target:ed/ginfo" :byte-compile t)
 (comf "target:ed/text" :byte-compile t)
@@ -162,6 +149,8 @@
 (comf "target:ed/python" :byte-compile t)
 (comf "target:ed/make" :byte-compile t)
 (comf "target:ed/m4" :byte-compile t)
+(comf "target:ed/tex" :byte-compile t)
+(comf "target:ed/roff" :byte-compile t)
 (comf "target:ed/edit-defs" :byte-compile t)
 (comf "target:ed/auto-save" :byte-compile t)
 (comf "target:ed/register" :byte-compile t)
@@ -172,18 +161,17 @@
 (comf "target:ed/mh")
 (comf "target:ed/compile" :byte-compile t)
 (comf "target:ed/diredcoms" :byte-compile t)
+(comf "target:ed/packed" :byte-compile t)
 (comf "target:ed/bufed" :byte-compile t)
+(comf "target:ed/evented" :byte-compile t)
 (comf "target:ed/lisp-lib" :byte-compile t)
 (comf "target:ed/completion" :byte-compile t)
-;; FIX results in make-new-shell arg 1 nil when passed as t via "s c l i b" via .h "saving s c l i b"
 (comf "target:ed/shell" :byte-compile t)
-;(comf "target:ed/shell")
+(comf "target:ed/telnet" :byte-compile t)
 (comf "target:ed/debug" :byte-compile t)
 (comf "target:ed/netnews" :byte-compile t)
 (comf "target:ed/rcs" :byte-compile t)
-;; FIX results in type error when kill descr-buffer in cvs-commit recurse edit of descr-buffer
 (comf "target:ed/vc" :byte-compile t)
-;(comf "target:ed/vc")
 (comf "target:ed/dabbrev" :byte-compile t)
 (comf "target:ed/calendar")
 (comf "target:ed/sort" :byte-compile t)
@@ -192,6 +180,7 @@
 (comf "target:ed/outline" :byte-compile t)
 (comf "target:ed/buildcoms" :byte-compile t)
 (comf "target:ed/break" :byte-compile t)
+(comf "target:ed/enriched" :byte-compile t)
 
 ) ;WITH-COMPILATION-UNIT for commands
 
@@ -220,6 +209,7 @@
 
 (cat-if-anything-changed
  "target:ed/ed-library"
+ "target:ed/exports"
  "target:ed/rompsite"
  "target:ed/struct"
  ;"target:ed/struct-ed"
@@ -243,7 +233,6 @@
  "target:ed/files"
  "target:ed/search1"
  "target:ed/search2"
- "target:ed/table"
  #+clx "target:ed/hunk-draw"
  "target:ed/window"
  "target:ed/screen"
@@ -272,6 +261,7 @@
  "target:ed/killcoms"
  "target:ed/parse"
  "target:ed/parse-scribe"
+ "target:ed/parse-css"
  "target:ed/searchcoms"
  "target:ed/filecoms"
  "target:ed/info"
@@ -305,6 +295,8 @@
  "target:ed/python"
  "target:ed/make"
  "target:ed/m4"
+ "target:ed/tex"
+ "target:ed/roff"
  "target:ed/edit-defs"
  "target:ed/auto-save"
  "target:ed/register"
@@ -314,10 +306,13 @@
  "target:ed/compile"
  "target:ed/dired"
  "target:ed/diredcoms"
+ "target:ed/packed"
  "target:ed/bufed"
+ "target:ed/evented"
  "target:ed/lisp-lib"
  "target:ed/completion"
  "target:ed/shell"
+ "target:ed/telnet"
  "target:ed/debug"
  "target:ed/netnews"
  "target:ed/rcs"
@@ -331,4 +326,5 @@
  "target:ed/outline"
  "target:ed/buildcoms"
  "target:ed/break"
+ "target:ed/enriched"
  "target:ed/bindings")

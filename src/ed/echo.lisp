@@ -1,12 +1,13 @@
 ;;; Echo Area stuff.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(*echo-area-buffer* *echo-area-stream* *echo-area-window*
 	  *parse-starting-mark* *parse-input-region* *last-parse-input-string*
 	  *parse-verification-function* *parse-string-tables*
 	  *parse-value-must-exist* *parse-default* *parse-default-string*
 	  *parse-prompt* *parse-help* *parse-history* *parse-history-pointer*
+	  *parse-initial-string*
 	  *echo-area-history* *echo-area-history-pointer*
 	  clear-echo-area message msg loud-message
 	  prompt-for-buffer prompt-for-file prompt-for-integer
@@ -74,16 +75,19 @@
   "String tables being used in the current parse.")
 
 (defvar *parse-value-must-exist* ()
-  "You know.")
+  "True if a value must be entered at the prompt..")
 
 (defvar *parse-default* ()
   "When the user attempts to default a parse, we call the verification function
-  on this string.  This is not the :Default argument to the prompting function,
-  but rather a string representation of it.")
+   on this string.  This is not the :Default argument to the prompting function,
+   but rather a string representation of it.")
 
 (defvar *parse-default-string* ()
   "String that we show the user to inform him of the default.  If this
-  is NIL then we just use *Parse-Default*.")
+   is NIL then we just use *Parse-Default*.")
+
+(defvar *parse-initial-string* ()
+  "String inserted at the prompt initially.")
 
 (defvar *parse-prompt* ()
   "Prompt for the current parse.")
@@ -147,9 +151,9 @@
 ;;;
 (defun message (string &rest args)
   "Nicely display a message in the echo-area.
-  Put the message on a fresh line and wait for \"Message Pause\" seconds
-  to make the message more noticeable.  String and Args are a format
-  control string and format arguments, respectively."
+   Put the message on a fresh line and wait for \"Message Pause\" seconds
+   to make the message more noticeable.  String and Args are a format
+   control string and format arguments, respectively."
   (maybe-wait)
   (cond ((eq *current-window* *echo-area-window*)
 	 (let ((point (buffer-point *echo-area-buffer*)))
@@ -230,11 +234,13 @@
       (insert-string point default)
       (insert-string point "] "))))
 
-(defun parse-for-something ()
+(defun parse-for-something (&optional (initial (or *parse-initial-string*
+						   "")))
   (setq *last-parse-input-string* nil)
   (display-prompt-nicely)
   (let ((start-window (current-window)))
     (move-mark *parse-starting-mark* (buffer-point *echo-area-buffer*))
+    (if initial (insert-string (buffer-point *echo-area-buffer*) initial))
     (setf (current-window) *echo-area-window*)
     (unwind-protect
      (use-buffer *echo-area-buffer*
@@ -327,6 +333,8 @@
   "Prompts for a filename."
   (let ((*parse-verification-function* #'file-verification-function)
 	(*parse-default* (if default (namestring default) #|FIX|# ""))
+;; FIX Problem is "Find: [/a/b/c] /a/b/" initial string in way for input "e:"
+;;	(*parse-initial-string* (if default (directory-namestring default) #|FIX|# ""))
 	(*parse-type* :file)
 	(*parse-input-region* *echo-parse-input-region*)
 	(*parse-starting-mark* *echo-parse-starting-mark*))
@@ -490,7 +498,6 @@
 	(*parse-input-region* *echo-parse-input-region*)
 	(*parse-starting-mark* *echo-parse-starting-mark*))
       (parse-for-something)))
-
 
 (defun prompt-for-string (&key ((:default *parse-default*))
 			       ((:default-string *parse-default-string*))
@@ -777,7 +784,7 @@
 ;;;
 (defun define-logical-key-event (name documentation)
   "Define a logical key-event having the specified Name and Documentation.
-  See LOGICAL-KEY-EVENT-P and COMMAND-CASE."
+   See LOGICAL-KEY-EVENT-P and COMMAND-CASE."
   (check-type name string)
   (check-type documentation (or string function))
   (let* ((keyword (string-to-keyword name))

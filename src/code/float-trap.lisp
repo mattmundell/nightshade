@@ -1,20 +1,7 @@
-;;; -*- Package: VM -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/float-trap.lisp,v 1.9.2.6 2000/05/23 16:36:28 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains stuff for controlling floating point traps.  It is
-;;; IEEE float specific, but should work for pretty much any FPU where the
-;;; state fits in one word and exceptions are represented by bits being set.
-;;;
-;;; Author: Rob MacLachlan
-;;; 
+;;; Stuff for controlling floating point traps.  It is IEEE float specific,
+;;; but should work for pretty much any FPU where the state fits in one
+;;; word and exceptions are represented by bits being set.
+
 (in-package "VM")
 (export '(current-float-trap floating-point-modes sigfpe-handler))
 (in-package "EXTENSIONS")
@@ -48,15 +35,13 @@
 	(cons :zero float-round-to-zero)
 	(cons :positive-infinity float-round-to-positive)
 	(cons :negative-infinity float-round-to-negative)))
-  
-); Eval-When (Compile Load Eval)
 
+) ; eval-when (compile load eval)
 
 ;;; Interpreter stubs.
 ;;;
 (defun floating-point-modes () (floating-point-modes))
 (defun (setf floating-point-modes) (new) (setf (floating-point-modes) new))
-
 
 ;;; SET-FLOATING-POINT-MODES  --  Public
 ;;;
@@ -72,7 +57,7 @@
    :TRAPS
        A list of the exception conditions that should cause traps.  Possible
        exceptions are :UNDERFLOW, :OVERFLOW, :INEXACT, :INVALID,
-       :DIVIDE-BY-ZERO, and on the X86 :DENORMALIZED-OPERAND. Initially
+       :DIVIDE-BY-ZERO, and on the X86 :DENORMALIZED-OPERAND.  Initially
        all traps except :INEXACT are enabled.
 
    :ROUNDING-MODE
@@ -110,19 +95,18 @@
 	  (setq modes (logior float-fast-bit modes))
 	  (setq modes (logand (lognot float-fast-bit) modes))))
     (setf (floating-point-modes) modes))
-    
-  (values))
 
+  (values))
 
 ;;; GET-FLOATING-POINT-MODES  --  Public
 ;;;
 (defun get-floating-point-modes ()
   "This function returns a list representing the state of the floating point
-  modes.  The list is in the same format as the keyword arguments to
-  SET-FLOATING-POINT-MODES, i.e. 
-      (apply #'set-floating-point-modes (get-floating-point-modes))
+   modes.  The list is in the same format as the keyword arguments to
+   SET-FLOATING-POINT-MODES, i.e.
+       (apply #'set-floating-point-modes (get-floating-point-modes))
 
-  sets the floating point modes to their current values (and thus is a no-op)."
+   sets the floating point modes to their current values (and thus is a no-op)."
   (flet ((exc-keys (bits)
 	   (macrolet ((frob ()
 			`(collect ((res))
@@ -132,7 +116,7 @@
 				     float-trap-alist)
 			   (res))))
 	     (frob))))
-    (let ((modes (floating-point-modes))) 
+    (let ((modes (floating-point-modes)))
       `(:traps ,(exc-keys (ldb float-traps-byte modes))
 	:rounding-mode ,(car (rassoc (ldb float-rounding-mode modes)
 				     rounding-mode-alist))
@@ -140,21 +124,18 @@
 	:accrued-exceptions ,(exc-keys (ldb float-sticky-bits modes))
 	:fast-mode ,(logtest float-fast-bit modes)))))
 
-  
 ;;; CURRENT-FLOAT-TRAP  --  Interface
 ;;;
 (defmacro current-float-trap (&rest traps)
   "Current-Float-Trap Trap-Name*
-  Return true if any of the named traps are currently trapped, false
-  otherwise."
+   Return true if any of the named traps are currently trapped, false
+   otherwise."
   `(not (zerop (logand ,(dpb (float-trap-mask traps) float-traps-byte 0)
 		       (floating-point-modes)))))
-
 
 ;;; SIGFPE-HANDLER  --  Interface
 ;;;
 ;;;    Signal the appropriate condition when we get a floating-point error.
-;;;
 
 #+FreeBSD
 (define-condition floating-point-exception (arithmetic-error)
@@ -169,7 +150,7 @@
 			   "Trapping conditions are: ~%~{ ~s~^~}~%"
 			   traps)
 		   (write-line
-		    "No traps are enabled? How can this be?"
+		    "No traps are enabled?  How can this be?"
 		    stream))))))
 
 (defun sigfpe-handler (signal code scp)
@@ -201,11 +182,11 @@
 ;;;
 (defmacro with-float-traps-masked (traps &body body)
   "Execute BODY with the floating point exceptions listed in TRAPS
-  masked (disabled).  TRAPS should be a list of possible exceptions
-  which includes :UNDERFLOW, :OVERFLOW, :INEXACT, :INVALID and
-  :DIVIDE-BY-ZERO and on the X86 :DENORMALIZED-OPERAND. The respective
-  accrued exceptions are cleared at the start of the body to support
-  their testing within, and restored on exit."
+   masked (disabled).  TRAPS should be a list of possible exceptions
+   which includes :UNDERFLOW, :OVERFLOW, :INEXACT, :INVALID and
+   :DIVIDE-BY-ZERO and on the X86 :DENORMALIZED-OPERAND. The respective
+   accrued exceptions are cleared at the start of the body to support
+   their testing within, and restored on exit."
   (let ((traps (dpb (float-trap-mask traps) float-traps-byte 0))
 	(exceptions (dpb (float-trap-mask traps) float-sticky-bits 0))
 	(trap-mask (dpb (lognot (float-trap-mask traps))

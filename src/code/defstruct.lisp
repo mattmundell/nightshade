@@ -1,17 +1,5 @@
-;;; -*- Mode: Lisp; Package: KERNEL -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/defstruct.lisp,v 1.58.2.2 2000/05/23 16:36:20 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Defstruct structure definition package (Mark III).
-;;; Written by Rob MacLachlan, William Lott and Skef Wholey.
-;;;
+
 (in-package "LISP")
 (export '(defstruct copy-structure structure-object))
 (in-package "KERNEL")
@@ -363,7 +351,7 @@
 (defmacro defstruct (name-and-options &rest slot-descriptions)
   "DEFSTRUCT {Name | (Name Option*)} {Slot | (Slot [Default] {Key Value}*)}
    Define the structure type Name.  Instances are created by MAKE-<name>, which
-   takes keyword arguments allowing initial slot values to the specified.
+   takes keyword arguments allowing initial slot values to be specified.
    A SETF'able function <name>-<slot> is defined for each slot to read&write
    slot values.  <name>-p is a type predicate.
 
@@ -667,7 +655,6 @@
 			     `(,iname))))
 	  (parse-1-dsd defstruct modified
 		       (copy-defstruct-slot-description islot)))))))
-
 
 
 ;;;; Constructors:

@@ -1,19 +1,5 @@
-;;; -*- Mode: Lisp; Package: KERNEL; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/irrat.lisp,v 1.19.2.4 2000/05/23 16:36:34 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains all the irrational functions.  Actually, most of the
-;;; work is done by calling out to C...
-;;;
-;;; Author: William Lott.
-;;; 
+;;; All the irrational functions.  Actually, most of the work is done by
+;;; calling out to C...
 
 (in-package "KERNEL")
 
@@ -191,7 +177,6 @@
 	   (setq base (* base base))
 	   (setq power nextn)))))
 
-
 ;;; EXPT  --  Public
 ;;;
 ;;;    If an integer power of a rational, use INTEXP above.  Otherwise, do
@@ -302,7 +287,7 @@
 				    ;; (x<0)**odd = -(|x|**odd)
 				    (setq z (- z)))))
 			   (return-from real-expt (coerce z rtype))))
-		       
+
 		       (if (>= x-hi 0)
 			   ;; x>0
 			   (coerce (kernel::%pow x y) rtype)
@@ -409,9 +394,9 @@
 
 (defun phase (number)
   "Returns the angle part of the polar representation of a complex number.
-  For complex numbers, this is (atan (imagpart number) (realpart number)).
-  For non-complex positive numbers, this is 0.  For non-complex negative
-  numbers this is PI."
+   For complex numbers, this is (atan (imagpart number) (realpart number)).
+   For non-complex positive numbers, this is 0.  For non-complex negative
+   numbers this is PI."
   (etypecase number
     (rational
      (if (minusp number)
@@ -428,9 +413,9 @@
     (complex
      (atan (imagpart number) (realpart number)))))
 
-
-(defun sin (number)  
-  "Return the sine of NUMBER."
+(defun sin (number)
+  "Return the sine of NUMBER in radians.
+(sin number) => opposite / hypotenuse."
   (number-dispatch ((number number))
     (handle-reals %sin number)
     ((complex)
@@ -440,7 +425,8 @@
 		(* (cos x) (sinh y)))))))
 
 (defun cos (number)
-  "Return the cosine of NUMBER."
+  "Return the cosine of NUMBER in radians.
+(cos number) => adjacent / hypotenuse."
   (number-dispatch ((number number))
     (handle-reals %cos number)
     ((complex)
@@ -450,7 +436,8 @@
 		(- (* (sin x) (sinh y))))))))
 
 (defun tan (number)
-  "Return the tangent of NUMBER."
+  "Return the tangent of NUMBER in radians.
+(tan number) => opposite / adjacent."
   (number-dispatch ((number number))
     (handle-reals %tan number)
     ((complex)
@@ -493,7 +480,6 @@
 		 '(dispatch-type number))))
     ((complex)
      (complex-acos number))))
-
 
 (defun atan (y &optional (x nil xp))
   "Return the arc tangent of Y if X is omitted or Y/X if X is supplied."
@@ -607,7 +593,7 @@
     ((complex)
      (complex-atanh number))))
 
-;;; HP-UX does not supply a C version of log1p, so 
+;;; HP-UX does not supply a C version of log1p, so
 ;;; use the definition.
 
 #+hpux
@@ -624,7 +610,7 @@
 ;;; Here are the old definitions of the special functions, for
 ;;; complex-valued arguments.  Some of these functions suffer from
 ;;; severe round-off error or unnecessary overflow.
-  
+
 (proclaim '(inline mult-by-i))
 (defun mult-by-i (number)
   (complex (- (imagpart number))
@@ -789,7 +775,7 @@ and Y are coerced to single-float."
 (defun cssqs (z)
   ;; Compute |(x+i*y)/2^k|^2 scaled to avoid over/underflow. The
   ;; result is r + i*k, where k is an integer.
-  
+
   ;; Save all FP flags
   (let ((x (float (realpart z) 1d0))
 	(y (float (imagpart z) 1d0))
@@ -859,7 +845,7 @@ Z may be any number, but the result is always a complex."
 		  (setf eta (abs nu))
 		  (setf nu (float-sign y rho))))
       (coerce-to-complex-type eta nu z))))
-    
+
 (defun complex-log-scaled (z j)
   "Compute log(2^j*z).
 
@@ -903,7 +889,7 @@ This is for use with J /= 0 only when |z| is huge."
 Z may be any number, but the result is always a complex."
   (declare (number z))
   (complex-log-scaled z 0))
-	       
+
 ;; Let us note the following "strange" behavior.  atanh 1.0d0 is
 ;; +infinity, but the following code returns approx 176 + i*pi/4. The
 ;; reason for the imaginary part is caused by the fact that arg i*y is
@@ -1072,7 +1058,7 @@ Z may be any number, but the result is always a complex."
 	 (result (complex-asin iz)))
     (complex (imagpart result)
 	     (- (realpart result)))))
-	 
+
 (defun complex-atan (z)
   "Compute atan z = atanh (i*z) / i
 

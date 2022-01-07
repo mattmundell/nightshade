@@ -1,45 +1,51 @@
-;;; -*- Mode: Lisp; Package: Extensions; Log: code.log -*-
-
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/format-time.lisp,v 1.5.2.2 2000/06/07 12:48:39 dtc Exp $")
-;;;
-;;; **********************************************************************
-
-;;; Really slick time printing routines built upon the Common Lisp
-;;; format function.
-
-;;; Written by Jim Healy, September 1987.
-
-;;; **********************************************************************
+;;; Time printing routines built upon the format function.
 
 (in-package :extensions)
 
-(export '(format-universal-time format-decoded-time))
+(export '(format-universal-time format-decoded-time format-time))
 
-;;; Valid-Destination-P ensures the destination stream is okay
-;;; for the Format function.
+
+;;; Valid-Destination-P ensures the destination stream is okay for the
+;;; Format function.
 
 (defun valid-destination-p (destination)
-  (or (not destination)
-      (eq destination 't)
-      (streamp destination)
-      (and (stringp destination)
-	   (array-has-fill-pointer-p destination))))
+  (if destination
+      (or (eq destination 't)
+	  (streamp destination)
+	  (and (stringp destination)
+	       (array-has-fill-pointer-p destination)))
+      t))
+
+(defun format-iso8601-time (destination time-value &optional include-timezone-p)
+    "Formats to DESTINATION a universal time TIME-VALUE in ISO 8601 format,
+     with the time zone included if INCLUDE-TIMEZONE-P is non-NIL"
+    (flet ((format-iso8601-timezone (zone dst)
+	     (when dst (decf zone))
+	     (if (zerop zone)
+		 "Z"
+		 (multiple-value-bind (h m) (truncate (abs zone) 1.0)
+		   ;; Tricky.  Sign of time zone is reversed in ISO 8601
+		   ;; relative to Common Lisp convention!
+		   (format nil "~:[+~;-~]~2,'0D:~2,'0D"
+			   (> zone 0) h (round m))))))
+      (multiple-value-bind (second minute hour day month year dow dst zone)
+			   (decode-universal-time time-value)
+	(declare (ignore dow))
+	(format destination
+		"~4,'0D-~2,'0D-~2,'0DT~2,'0D:~2,'0D:~2,'0D~:[~*~;~A~]"
+		year month day hour minute second
+		include-timezone-p (format-iso8601-timezone zone dst)))))
 
 ;;; Format-Universal-Time - External.
 
 (defun format-universal-time (destination universal-time
-					  &key (timezone nil)
-					  (style :short)
-					  (date-first t)
-					  (print-seconds t)
-					  (print-meridian t)
-					  (print-timezone t)
-					  (print-weekday t))
+			      &key (timezone nil)
+			           (style :short)
+				   (date-first t)
+				   (print-seconds t)
+				   (print-meridian t)
+				   (print-timezone t)
+				   (print-weekday t))
   "Format-Universal-Time formats a string containing the time and date
    given by universal-time in a common manner.  The destination is any
    destination which can be accepted by the Format function.  The
@@ -51,79 +57,84 @@
    The keyword date-first, if nil, will print the time first instead of
    the date (the default).  The print- keywords, if nil, inhibit the
    printing of the obvious part of the time/date."
-  (unless (valid-destination-p destination)
-    (error "~A: Not a valid format destination." destination))
-  (unless (integerp universal-time)
-    (error "~A: Universal-Time should be an integer." universal-time))
+  (or (valid-destination-p destination)
+      (error "~A: Not a valid format destination." destination))
+  (or (integerp universal-time)
+      (error "~A: Universal-Time should be an integer." universal-time))
   (when timezone
-    (unless (and (rationalp timezone) (<= -24 timezone 24))
-      (error "~A: Timezone should be a rational between -24 and 24." timezone))
-    (unless (zerop (rem timezone 1/3600))
-      (error "~A: Timezone is not a second (1/3600) multiple." timezone)))
+    (or (and (rationalp timezone) (<= -24 timezone 24))
+	(error "~A: Timezone should be a rational between -24 and 24." timezone))
+    (or (zerop (rem timezone 1/3600))
+	(error "~A: Timezone is not a second (1/3600) multiple." timezone)))
 
-  (multiple-value-bind (secs mins hours day month year dow dst tz)
-		       (if timezone
-			   (decode-universal-time universal-time timezone)
-			   (decode-universal-time universal-time))
-    (declare (fixnum secs mins hours day month year dow))
-    (let ((time-string "~2,'0D:~2,'0D")
-	  (date-string
-	   (case style
-	     (:short "~D/~D/~2,'0D")			;;  MM/DD/YY
-	     ((:abbreviated :long) "~A ~D, ~D")		;;  Month DD, YYYY
-	     (:rfc1123 "~2,'0D ~A ~4,'0D")		;;  DD Mon YYYY
-	     (:government "~2,'0D ~:@(~A~) ~2,'0D")	;;  DD MON YY
-	     (t
-	      (error "~A: Unrecognized :style keyword value." style))))
-	  (time-args
-	   (if (eq style :rfc1123)
-	       (list mins hours)
-	       (list mins (max (mod hours 12) (1+ (mod (1- hours) 12))))))
-	  (date-args (case style
-		       (:short
-			(list month day (mod year 100)))
-		       (:abbreviated
-			(list (svref abbrev-month-table (1- month)) day year))
-		       (:long
-			(list (svref long-month-table (1- month)) day year))
-		       (:rfc1123
-			(list day (svref abbrev-month-table (1- month)) year))
-		       (:government
-			(list day (svref abbrev-month-table (1- month))
-			      (mod year 100)))))
-	  (timezone-name (if (eq style :rfc1123)
-			     (timezone-rfc1123-name dst tz)
-			     (timezone-name dst tz))))
-      (declare (simple-string time-string date-string timezone-name))
-      (when print-weekday
-	(push (case style
-		((:short :long) (svref long-weekday-table dow))
-		((:abbreviated :rfc1123 :government)
-		 (svref abbrev-weekday-table dow)))
-	      date-args)
-	(setq date-string
-	      (concatenate 'simple-string "~A, " date-string)))
-      (when (or print-seconds (eq style :government))
-	(push secs time-args)
-	(setq time-string
-	      (concatenate 'simple-string time-string ":~2,'0D")))
-      (when (and print-meridian (not (eq style :rfc1123)))
-	(push (signum (floor hours 12)) time-args)
-	(setq time-string
-	      (concatenate 'simple-string time-string " ~[am~;pm~]")))
-      (apply #'format destination
-	     (if date-first
-		 (concatenate 'simple-string date-string " " time-string
-			      (if print-timezone " ~A"))
-		 (concatenate 'simple-string time-string " " date-string
-			      (if print-timezone " ~A")))
-	     (if date-first
-		 (nconc date-args (nreverse time-args)
-			(if print-timezone
-			    (list timezone-name)))
-		 (nconc (nreverse time-args) date-args
-			(if print-timezone
-			    (list timezone-name))))))))
+  (case style
+    (:iso8601
+     (if timezone (error "FIX timezone with iso8601 style"))
+     (format-iso8601-time destination universal-time))
+    (t
+     (multiple-value-bind (secs mins hours day month year dow dst tz)
+			  (if timezone
+			      (decode-universal-time universal-time timezone)
+			      (decode-universal-time universal-time))
+       (declare (fixnum secs mins hours day month year dow))
+       (let ((time-string "~2,'0D:~2,'0D")
+	     (date-string
+	      (case style
+		(:short "~D/~D/~2,'0D")                 ;;  MM/DD/YY
+		((:abbreviated :long) "~A ~D, ~D")      ;;  Month DD, YYYY
+		(:rfc1123 "~2,'0D ~A ~4,'0D")           ;;  DD Mon YYYY
+		(:government "~2,'0D ~:@(~A~) ~D")	;;  DD MON YY
+		(t
+		 (error "~A: Unrecognized :style keyword value." style))))
+	     (time-args
+	      (if (eq style :rfc1123)
+		  (list mins hours)
+		  (list mins (max (mod hours 12) (1+ (mod (1- hours) 12))))))
+	     (date-args (case style
+			  (:short
+			   (list month day (mod year 100)))
+			  (:abbreviated
+			   (list (svref abbrev-month-table (1- month)) day year))
+			  (:long
+			   (list (svref long-month-table (1- month)) day year))
+			  (:rfc1123
+			   (list day (svref abbrev-month-table (1- month)) year))
+			  (:government
+			   (list day (svref abbrev-month-table (1- month))
+				 (mod year 100)))))
+	     (timezone-name (if (eq style :rfc1123)
+				(timezone-rfc1123-name dst tz)
+				(timezone-name dst tz))))
+	 (declare (simple-string time-string date-string timezone-name))
+	 (when print-weekday
+	   (push (case style
+		   ((:short :long) (svref long-weekday-table dow))
+		   ((:abbreviated :rfc1123 :government)
+		    (svref abbrev-weekday-table dow)))
+		 date-args)
+	   (setq date-string
+		 (concatenate 'simple-string "~A, " date-string)))
+	 (when (or print-seconds (eq style :government))
+	   (push secs time-args)
+	   (setq time-string
+		 (concatenate 'simple-string time-string ":~2,'0D")))
+	 (when (and print-meridian (not (eq style :rfc1123)))
+	   (push (signum (floor hours 12)) time-args)
+	   (setq time-string
+		 (concatenate 'simple-string time-string " ~[am~;pm~]")))
+	 (apply #'format destination
+		(if date-first
+		    (concatenate 'simple-string date-string " " time-string
+				 (if print-timezone " ~A"))
+		    (concatenate 'simple-string time-string " " date-string
+				 (if print-timezone " ~A")))
+		(if date-first
+		    (nconc date-args (nreverse time-args)
+			   (if print-timezone
+			       (list timezone-name)))
+		    (nconc (nreverse time-args) date-args
+			   (if print-timezone
+			       (list timezone-name))))))))))
 
 (defun timezone-name (dst tz)
   (if (and (integerp tz)
@@ -161,18 +172,17 @@
 		  (abs hours)
 		  (abs (truncate (* minutes 60))))))))
 
-
 ;;; Format-Decoded-Time - External.
 
 (defun format-decoded-time (destination seconds minutes hours
-					  day month year
-					  &key (timezone nil)
-					  (style :short)
-					  (date-first t)
-					  (print-seconds t)
-					  (print-meridian t)
-					  (print-timezone t)
-					  (print-weekday t))
+			    day month year
+			    &key (timezone nil)
+			         (style :short)
+				 (date-first t)
+				 (print-seconds t)
+				 (print-meridian t)
+				 (print-timezone t)
+				 (print-weekday t))
   "Format-Decoded-Time formats a string containing decoded-time
    expressed in a humanly-readable manner.  The destination is any
    destination which can be accepted by the Format function.  The
@@ -183,28 +193,46 @@
    to be printed first instead of the date (the default).  The print-
    keywords, if nil, inhibit the printing of certain semi-obvious
    parts of the string."
-  (unless (valid-destination-p destination)
-    (error "~A: Not a valid format destination." destination))
-  (unless (and (integerp seconds) (<= 0 seconds 59))
-    (error "~A: Seconds should be an integer between 0 and 59." seconds))
-  (unless (and (integerp minutes) (<= 0 minutes 59))
-    (error "~A: Minutes should be an integer between 0 and 59." minutes))
-  (unless (and (integerp hours) (<= 0 hours 23))
-    (error "~A: Hours should be an integer between 0 and 23." hours))
-  (unless (and (integerp day) (<= 1 day 31))
-    (error "~A: Day should be an integer between 1 and 31." day))
-  (unless (and (integerp month) (<= 1 month 12))
-    (error "~A: Month should be an integer between 1 and 12." month))
-  (unless (and (integerp year) (plusp year))
-    (error "~A: Hours should be an non-negative integer." year))
+  (or (valid-destination-p destination)
+      (error "~A: Not a valid format destination." destination))
+  (or (and (integerp seconds) (<= 0 seconds 59))
+      (error "~A: Seconds should be an integer between 0 and 59." seconds))
+  (or (and (integerp minutes) (<= 0 minutes 59))
+      (error "~A: Minutes should be an integer between 0 and 59." minutes))
+  (or (and (integerp hours) (<= 0 hours 23))
+      (error "~A: Hours should be an integer between 0 and 23." hours))
+  (or (and (integerp day) (<= 1 day 31))
+      (error "~A: Day should be an integer between 1 and 31." day))
+  (or (and (integerp month) (<= 1 month 12))
+      (error "~A: Month should be an integer between 1 and 12." month))
+  (or (and (integerp year) (plusp year))
+      (error "~A: Hours should be an non-negative integer." year))
   (when timezone
-    (unless (and (integerp timezone) (<= 0 timezone 32))
-      (error "~A: Timezone should be an integer between 0 and 32."
-	     timezone)))
+    (or (and (integerp timezone) (<= 0 timezone 32))
+	(error "~A: Timezone should be an integer between 0 and 32."
+	       timezone)))
   (format-universal-time destination
    (encode-universal-time seconds minutes hours day month year)
    :timezone timezone :style style :date-first date-first
    :print-seconds print-seconds :print-meridian print-meridian
    :print-timezone print-timezone :print-weekday print-weekday))
 
+;;; Format-Time - External.
 
+(defun format-time (destination
+		    &key (timezone nil)
+		         (style :short)
+			 (date-first t)
+			 (print-seconds t)
+			 (print-meridian t)
+			 (print-timezone t)
+			 (print-weekday t))
+  "Format the current time to DESTINATION, as by `format-universal-time'."
+  (format-universal-time destination
+			 (get-universal-time)
+			 :timezone timezone :style style
+			 :date-first date-first
+			 :print-seconds print-seconds
+			 :print-meridian print-meridian
+			 :print-timezone print-timezone
+			 :print-weekday print-weekday))

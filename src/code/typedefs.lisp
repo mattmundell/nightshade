@@ -1,26 +1,15 @@
-;;; -*- Package: KERNEL; Log: C.Log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/typedefs.lisp,v 1.10.2.1 1998/06/23 11:22:37 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the definition of the CTYPE (Compiler TYPE) structure
-;;; and related macros used for manipulating it.  This is sort of a mini object
-;;; system with rather odd dispatching rules.  Other compile-time definitions
-;;; needed by multiple files are also here.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+;;; The definition of the CTYPE (Compiler TYPE) structure and macros used
+;;; for manipulating it.  This is sort of a mini object system with rather
+;;; odd dispatching rules.  Other compile-time definitions needed by
+;;; multiple files are also here.
+
 (in-package "KERNEL")
+
 (export '(ctype typedef-init))
 
-;;; These are the Common Lisp defined type specifier symbols.  These are the
-;;; things which can be used as declarations without requiring the use of TYPE.
+;;; These are the Lisp defined type specifier symbols.  These are the
+;;; things which can be used as declarations without requiring the use of
+;;; TYPE.
 (defconstant type-specifier-symbols
   '(array atom bignum bit bit-vector character compiled-function
     complex cons double-float extended-char fixnum float function
@@ -28,7 +17,6 @@
     pathname random-state ratio rational real readtable sequence
     short-float simple-array simple-bit-vector simple-string simple-vector
     single-float standard-char stream string base-char symbol t vector))
-
 
 ;;; Def-Type-Translator  --  Interface
 ;;;
@@ -47,7 +35,6 @@
 	   (setf (info type translator ',name)
 		 #'(lambda (,whole) ,@local-decs (block ,name ,body))))
 	 ',name))))
-
 
 ;;; Defvars for these come later, after we have enough stuff defined.
 (proclaim '(special *wild-type* *universal-type* *empty-type*))
@@ -106,11 +93,11 @@
   `(progn ,@forms))
 
 
-;;;; Type classes:
+;;;; Type classes.
 ;;;
 ;;;    The TYPE-CLASS structure represents the "kind" of a type.  It mainly
-;;; contains functions which are methods on that kind of type, but is also use
-;;; in EQ comparisons to determined if two types have the "same kind".
+;;; contains functions which are methods on that kind of type, but is also
+;;; used in EQ comparisons to determined if two types have the "same kind".
 
 (defvar *type-classes*)
 (cold-load-init
@@ -128,13 +115,11 @@
 (defun must-supply-this (&rest foo)
   (error "Missing type method for ~S" foo))
 
-
 (defstruct (type-class
 	    (:print-function
 	     (lambda (s stream d)
 	       (declare (ignore d))
 	       (format stream "#<TYPE-CLASS ~S>" (type-class-name s)))))
-			     
   ;;
   ;; Name of this type class, used to resolve references at load time.
   (name nil :type symbol)
@@ -172,10 +157,9 @@
   (simple-= #'must-supply-this :type function)
   (complex-= nil :type (or function null))
   ;;
-  ;; Function which returns a Common Lisp type specifier representing this
-  ;; type.
+  ;; Function which returns a Lisp type specifier representing this type.
   (unparse #'must-supply-this :type function)
-  
+
   #|
   Not used, and not really right.  Probably we want a TYPE= alist for the
   unary operations, since there are lots of interesting unary predicates that
@@ -196,7 +180,6 @@
   |#
   )
 
-
 (eval-when (compile load eval)
 
 (defconstant type-class-function-slots
@@ -216,7 +199,6 @@
     (:typep . type-class-typep)
     (:unary-coerce . type-class-unary-coerce)
     (:coerce . type-class-coerce)))
-  
 
 ;;; CLASS-FUNCTION-SLOT-OR-LOSE  --  Interface
 ;;;
@@ -224,8 +206,7 @@
   (or (cdr (assoc name type-class-function-slots))
       (error "~S is not a defined type class method." name)))
 
-); Eval-When (Compile Load Eval)
-
+) ; Eval-When (Compile Load Eval)
 
 ;;; DEFINE-TYPE-METHOD  --  Interface
 ;;;
@@ -243,7 +224,6 @@
 		   (cons method more-methods)))
        (undefined-value))))
 
-
 ;;; DEFINE-TYPE-CLASS  --  Interface
 ;;;
 (defmacro define-type-class (name &optional inherits)
@@ -257,13 +237,13 @@
 	   (setf (gethash ',name *type-classes*) ,n-class)
 	   (undefined-value)))))
 
-
 ;;; INVOKE-TYPE-METHOD  --  Interface
 ;;;
-;;;    Invoke a type method on TYPE1 and TYPE2.  If the two types have the same
-;;; class, invoke the simple method.  Otherwise, invoke any complex method.  If
-;;; there isn't a distinct complex-arg1 method, then swap the arguments when
-;;; calling type1's method.  If no applicable method, return DEFAULT.
+;;;    Invoke a type method on TYPE1 and TYPE2.  If the two types have the
+;;; same class, invoke the simple method.  Otherwise, invoke any complex
+;;; method.  If there isn't a distinct complex-arg1 method, then swap the
+;;; arguments when calling type1's method.  If no applicable method, return
+;;; DEFAULT.
 ;;;
 (defmacro invoke-type-method (simple complex-arg2 type1 type2 &key
 				     (default '(values nil t))
@@ -319,7 +299,7 @@
   `(specifier-type ',(type-specifier type)))
 
 
-;;;; Utilities:
+;;;; Utilities.
 
 ;;; ANY-TYPE-OP, EVERY-TYPE-OP  --  Interface
 ;;;
@@ -363,8 +343,6 @@
 	   (unless ,n-win (return-from PUNT ,default))
 	   (unless ,n-val (return nil)))))))
 
-
-  
 ;;; VANILLA-INTERSECTION  --  Interface
 ;;;
 ;;;    Compute the intersection for types that intersect only when one is a
@@ -381,14 +359,12 @@
 	    (t
 	     (values type1 nil))))))
 
-
 ;;; VANILLA-UNION  --  Interface
 ;;;
 (defun vanilla-union (type1 type2)
   (cond ((csubtypep type1 type2) type2)
 	((csubtypep type2 type1) type1)
 	(t nil)))
-
 
 ;;; TYPE-CACHE-HASH  --  Interface
 ;;;
@@ -406,4 +382,3 @@
 ;;;; Cold loading initializations.
 
 (emit-cold-load-defuns "TYPEDEF")
-

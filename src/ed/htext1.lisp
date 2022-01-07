@@ -1,10 +1,6 @@
-;;; Text-Manipulation functions.
-;;;
-;;; The code in this file implements the functions in the "Representation
-;;; of Text," "Buffers," and "Predicates" chapters of the Hemlock design
-;;; document.
+;;; Text-Manipulation functions for lines and marks.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(line-length line-buffer line-string line-character mark mark-kind
 	  copy-mark delete-mark move-to-position region make-empty-region
@@ -12,7 +8,6 @@
 	  blank-after-p same-line-p mark< mark<= mark> mark>= mark= mark/=
 	  line< line<= line> line>= first-line-p last-line-p buffer-signature
 	  lines-related))
-
 
 
 ;;;; Representation of Text:
@@ -125,7 +120,6 @@
 			 line-cache-length)))))
 
 ;;;; Some macros for Text hacking:
-
 
 (defmacro modifying-line (line mark)
   "Checks to see if the Line is already opened at the Mark, and calls Open-Line
@@ -410,6 +404,7 @@
   (change-line mark line)
   (setf (mark-charpos mark) charpos)
   mark)
+
 
 ;;;; Regions.
 
@@ -487,7 +482,6 @@
 	      (renumber-region-containing line)
 	      (setf (line-number line) new))))))
 
-
 
 ;;;; Buffers.
 
@@ -503,10 +497,8 @@
     (error "~S is not a buffer." buffer))
   (buffer-modified-tick buffer))
 
-
 
 ;;;; Predicates:
-
 
 (defun start-line-p (mark)
   "Returns T if the Mark points before the first character in a line, Nil

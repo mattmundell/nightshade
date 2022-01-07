@@ -1,27 +1,49 @@
--*- Mode: Text; Package: Hemlock -*-
+-*- Mode: Text; Package: ed -*-
 
 revert rest of sys to public domain  ../etc/TODO
+create online release plan (quick, for better direction)  ../etc/TODO
+c-o  w 1 win  mv pnt to same posn in new that was display on line in old
+  ie screen shows same text, split in two windows
+reeval defvar on Ed Ev Defun (c-x e)
+   warn if keep same val?
+.db saving
+locate  c-g before cmd finishes
 hyper
 flush-t-w option buffer,mode
+dired versions  eg :src/mh/mh-6.8.3
+revert always revert to orig
+rename font vars *xx*
 mail
-	speed up finding folder names
-		convert all to lisp?
+	split
+	complet
+		with pnt directly after "To:"
+		hard to just write a space, maybe tab / alt-spce / alt-enter to complet
+	o on head open other win  instd of changing layout
     base64 text attachments
     when refresh and empty must clear old msgs (~?  eg send last draft)
-		could rotate buffers
-    list of mail folders, perhaps merged w nntp
+		could rotate buffers or show empty buf
+    list of mail folders
 		count of new msgs
     some way to handle mail check hanging
-	check for new mail in slave/thread/bg?
-        maybe also auto set pop-server (eg set if on net)
+		check for new mail in slave/thread/bg?
+        	maybe also auto set pop-server (eg set if on net)
     edit draft, open another, edits gone
 		ok if save, buffer still gone (~reused?) save save (?)
 			prompt to save old one?
     c-g during send  draft gone
 Auto Inflate Files
+	similar Content-Type: text/enriched
+		eg /home/matt/doc/retrospect/year-level-overview
+	maybe read,write filters according to content type
+		File Type Handlers  (where the translation is before read and after write)
+			;; similar list already in dired bound to z
+			(("Z" compress-read compress-write)
+			 ("gz" gz-read gz-write))
+		Content Handlers  (where the translation is after read and before write)
+			(("text/enriched"  ;; mime name, as in mh attach handling
+			  . convert-enriched))
 www
-	add attrib TARGET
-    forms, check more pages
+    forms
 info readers
     err when call next ref in leaf node buffer
     index, goto node, searching, menu
@@ -29,6 +51,7 @@ info readers
 many lang modes  asm (src/lisp/linux-stubs.S), forth, shell, sg,x,html
     indent
     context highlighting
+	fill
 backup to isp  prhps tramp-like
     pd ftp info/sw
     ftp://user@x.domain/
@@ -37,16 +60,33 @@ backup to isp  prhps tramp-like
 vc
 	very slow eg dir of many files
 	err on entering subdir
-	under vc or stay in dir list
-name conflicts on export
+	or  under vc   stay in dir list
 
-=================== ok for everyday work  (nightshade 1)
+=================== ok for everyday work  (nightshade 2)
 
+set b pkg  completion
+Search Buffers
+(setq *error-output*
+      (make-hemlock-output-stream (buffer-end-mark edi::*message-buffer*)))
+naming
+	edit sys procs
+	edit dir
+	find file		   edit file
+	edit packages
+	find-object        edit-value?
+	browse folders
+consider optnl generic cmd complete msg
+spell  i insert into personal dict permanently
+c-uc-f /home/matt/src/nightshade/build/lisp/lisp:
+dired +  sometimes makes dir elsewhere
 rotate buffers  sometimes seems to rotate forward when should be back
 					maybe after find file
 sometimes "bad address" on build
-isearch history
+isearch
+	history
+	c-l during stays in search
 ~ Copy Remote File   dir, recurse    ftp, http
+	Copy File [Recursively]       ftp://..  http://..
 bufed  flag if process
        ~ improve layout ~ long lines
        keep posn on refresh
@@ -58,10 +98,15 @@ cmp  finish dir cmp
 	 slow for big file
 	 split into function
 	 add tests, styles
-string indenting on m-q
-list processes  enter goes to process
+font  keep underlining when next font (how to end?)
+m-q  (fill para)
+	string indenting
+	respect open lines (when in string)
+list processes  enter goes to process (ie proced)
++ interface to vm:memory-interface  (crashes on :dynamic)
 m-/ complete from all buffers (at least all visible)
-c-g in macro def
+c-g in  macro def
+		?-invoked ~inspection  eg backtrace
 cmp defparse "algo" w byacc
 c-h k c-c s s  should find in .hem
     rompsite fun-defined-from-pathname get pn from %function-self
@@ -82,8 +127,7 @@ correct :line,% redisplay
 recursive extended cmd
 repeat last cmd  C-z z*
 vc interface
-	darcs, subversion, trac, ...
-    compare prompted versions
+	darcs, subversion, trac, git, hg... as required
     retrieve prompted versions
     annotate
     dired  show only  files under cvs, ~ files w status
@@ -108,7 +152,7 @@ mail  replace external program w lisp
       auto address to .db
 integrate public domain ~database
     distributed
-    nuttal encyclopedia, infoanarchy wiki
+    nuttal encyclopedia, infoanarchy wiki, 1911 encycl
     dict
         copyright on original source of gcide?
 	pd french dict, pd lojban words
@@ -117,6 +161,26 @@ native web browser
     generate parser defn from dtd,schema?
 
 clear out FIXes
+
+introduce single window, stick echo area prompt to bottom of window,
+  always prompting, prompt with current directory like shell,
+  brighten prompt when in echo area, mv echo area to top, move modelines to
+  top, rename echo area (prompts and echoes, "area" ~redundant)
+
+	Welcome to Nightshade.  This is the Echo Area window.  The last line in
+	the window is prompting for a command.  All system messages appear in
+	this window.
+
+	The command Help (bound to C-h) switches to the help prompt.  Entering
+	t at the help prompt enters a short tutorial.
+
+	When the screen is split, for example when visiting the first file, the
+	Echo Area window is set to a fixed size.  The command Extended Command
+	(bound to M-x) switches to the Echo Area Window and moves point to the
+	prompt.
+
+	Arbitrary Lisp expressions can be entered at the prompt instead of
+	extended commands, by preceding the expression with a `*'.
 
 
 ;;;; Bill and/or Rob.

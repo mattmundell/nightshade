@@ -1,22 +1,5 @@
-;;; -*- Package: Extensions; Log: code.log  -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/run-program.lisp,v 1.22.2.1 1998/06/23 11:22:25 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; RUN-PROGRAM and friends.  Facility for running unix programs from inside
-;;; a lisp.
-;;;
-;;; Written by Jim Healy and Bill Chiles, November 1987, using an earlier
-;;; version written by David McDonald.
-;;;
-;;; Completely re-written by William Lott, July 1989 - January 1990.
-;;;
+;;; RUN-PROGRAM and friends.  Facility for running unix programs inside a
+;;; lisp.
 
 (in-package "EXTENSIONS")
 
@@ -39,7 +22,7 @@
   (defconstant wait-wstopped #-svr4 #o177 #+svr4 wait-wuntraced))
 
 (defun wait3 (&optional do-not-hang check-for-stopped)
-  "Return any available status information on child processed. "
+  "Return any available status information on child processed."
   (multiple-value-bind (pid status)
 		       (c-wait3 (logior (if do-not-hang
 					  wait-wnohang
@@ -72,7 +55,6 @@
 		     signal
 		     (not (zerop (ldb (byte 1 7) status)))))))))
 
-
 
 ;;;; Process control stuff.
 
@@ -90,8 +72,7 @@
   error			    ; Stream from child's error output or nil.
   status-hook		    ; Closure to call when PROC changes status.
   plist			    ; Place for clients to stash tings.
-  cookie		    ; List of the number of pipes from the subproc.
-  )
+  cookie)		    ; List of the number of pipes from the subproc.
 
 (defun %print-process (proc stream depth)
   (declare (ignore depth))
@@ -106,7 +87,6 @@
    :stopped, :exited, :signaled."
   (get-processes-status-changes)
   (process-%status proc))
-
 
 ;;; PROCESS-WAIT -- Public.
 ;;;
@@ -123,7 +103,6 @@
 	 (return))))
     (system:serve-all-events 1))
   proc)
-
 
 #-hpux
 ;;; FIND-CURRENT-FOREGROUND-PROCESS -- internal
@@ -143,16 +122,15 @@
       result))
   (process-pid proc))
 
-
 ;;; PROCESS-KILL -- public
 ;;;
 ;;; Hand a process a signal.
 ;;;
 (defun process-kill (proc signal &optional (whom :pid))
-  "Hand SIGNAL to PROC.  If whom is :pid, use the kill Unix system call.  If
-   whom is :process-group, use the killpg Unix system call.  If whom is
-   :pty-process-group deliver the signal to whichever process group is currently
-   in the foreground."
+  "Hand SIGNAL to PROC.  If whom is :pid, use the kill Unix system call.
+   If whom is :process-group, use the killpg Unix system call.  If whom is
+   :pty-process-group deliver the signal to whichever process group is
+   currently in the foreground."
   (let ((pid (ecase whom
 	       ((:pid :process-group)
 		(process-pid proc))
@@ -184,7 +162,6 @@
 	    (t
 	     t)))))
 
-
 ;;; PROCESS-ALIVE-P -- public
 ;;;
 ;;; Returns T if the process is still alive, NIL otherwise.
@@ -202,7 +179,8 @@
 ;;; Close all the streams held open by PROC.
 ;;;
 (defun process-close (proc)
-  "Close all streams connected to PROC and stop maintaining the status slot."
+  "Close all streams connected to PROC and stop maintaining the status
+   slot."
   (macrolet ((frob (stream abort)
 	       `(when ,stream (close ,stream :abort ,abort))))
     (frob (process-pty    proc)   t) ; Don't FLUSH-OUTPUT to dead process.
@@ -242,23 +220,24 @@
 	      (setf *active-processes*
 		    (delete proc *active-processes*)))))))))
 
-
 
 ;;;; RUN-PROGRAM and close friends.
 
 (defvar *close-on-error* nil
-  "List of file descriptors to close when RUN-PROGRAM exits due to an error.")
+  "List of file descriptors to close when RUN-PROGRAM exits due to an
+   error.")
 (defvar *close-in-parent* nil
-  "List of file descriptors to close when RUN-PROGRAM returns in the parent.")
+  "List of file descriptors to close when RUN-PROGRAM returns in the
+   parent.")
 (defvar *handlers-installed* nil
   "List of handlers installed by RUN-PROGRAM.")
 
-
 ;;; FIND-A-PTY -- internal
 ;;;
-;;;   Finds a pty that is not in use. Returns three values: the file descriptor
-;;; for the master side of the pty, the file descriptor for the slave side of
-;;; the pty, and the name of the tty device for the slave side.
+;;; Finds a pty that is not in use. Returns three values: the file
+;;; descriptor for the master side of the pty, the file descriptor for the
+;;; slave side of the pty, and the name of the tty device for the slave
+;;; side.
 ;;;
 #-irix
 (defun find-a-pty ()
@@ -303,7 +282,7 @@
 
 #+irix
 (defun find-a-pty ()
-  "Returns the master fd, the slave fd, and the name of the tty"
+  "Returns the master fd, the slave fd, and the name of the tty."
   (multiple-value-bind (line master-fd)
     (c-getpty (logior unix:o_rdwr unix:o_ndelay) #o600 0)
     (let* ((slave-name line)
@@ -347,7 +326,6 @@
       (values name
 	      (system:make-fd-stream master :input t :output t)))))
 
-
 (defmacro round-bytes-to-words (n)
   `(logand (the fixnum (+ (the fixnum ,n) 3)) (lognot 3)))
 
@@ -389,7 +367,6 @@
       (setf (sap-ref-sap vec-sap i) (int-sap 0))
       (values vec-sap (sap+ vec-sap #-alpha 4 #+alpha 8) total-bytes))))
 
-
 (defmacro with-c-strvec ((var str-list) &body body)
   (let ((sap (gensym "SAP-"))
 	(size (gensym "SIZE-")))
@@ -400,7 +377,6 @@
 	   (progn
 	     ,@body)
 	 (system:deallocate-system-memory ,sap ,size)))))
-
 
 (defun %spawn (program args env pty-name stdin stdout stderr)
   "Fork Program, setting the standard streams to Stdin, Stdout and Stderr."
@@ -476,7 +452,6 @@
 (ed::with-pop-up-display (stream)
 	(ext::run-program "/home/matt/bin/test" nil :output stream))
 |#
-
 
 ;;; RUN-PROGRAM -- public
 ;;;
@@ -570,12 +545,11 @@
      :status-hook -
         This is a function the system calls whenever the status of the
         process changes.  The function takes the process as an argument."
-
   ;; Make sure the interrupt handler is installed.
   (system:enable-interrupt unix:sigchld #'sigchld-handler)
   ;; Make sure all the args are okay.
-  (unless (every #'simple-string-p args)
-    (error "All args to program must be simple strings -- ~S." args))
+  (or (every #'simple-string-p args)
+      (error "All args to program must be simple strings -- ~S." args))
   ;; Pre-pend the program to the argument list.
   (push (namestring program) args)
   ;; Clear random specials used by GET-DESCRIPTOR-FOR to communicate cleanup
@@ -584,8 +558,7 @@
     (unwind-protect
 	(let ((pfile (unix-namestring (merge-pathnames program "path:") t t))
 	      (cookie (list 0)))
-	  (unless pfile
-	    (error "No such program: ~S" program))
+	  (or pfile (error "No such program: ~S" program))
 	  (multiple-value-bind
 	      (stdin input-stream)
 	      (get-descriptor-for input cookie :direction :input
@@ -646,8 +619,7 @@
 	    #'(lambda (fd)
 		(declare (ignore fd))
 		(loop
-		  (unless handler
-		    (return))
+		  (or handler (return))
 		  (multiple-value-bind
 		      (result readable/errno)
 		      (unix:unix-select (1+ descriptor) (ash 1 descriptor)
@@ -704,18 +676,17 @@
 			       (:output unix:o_wronly)
 			       (t unix:o_rdwr))
 			     #o666)
-	   (unless fd
-	     (error "Could not open \"/dev/null\": ~A"
-		    (unix:get-unix-error-msg errno)))
+	   (or fd (error "Could not open \"/dev/null\": ~A"
+			 (unix:get-unix-error-msg errno)))
 	   (push fd *close-in-parent*)
 	   (values fd nil)))
 	((eq object :stream)
 	 (multiple-value-bind
 	     (read-fd write-fd)
 	     (unix:unix-pipe)
-	   (unless read-fd
-	     (error "Could not create pipe: ~A"
-		    (unix:get-unix-error-msg write-fd)))
+	   (or read-fd
+	       (error "Could not create pipe: ~A"
+		      (unix:get-unix-error-msg write-fd)))
 	   (case direction
 	     (:input
 	      (push read-fd *close-in-parent*)

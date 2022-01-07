@@ -1,6 +1,10 @@
 ;;; LISP Mode and commands.
 
-(in-package "HEMLOCK")
+(in-package "ED")
+
+(export '(backward-up-list forward-up-list defindent form-offset
+	  inside-defun-p mark-top-level-form pre-command-parse-check
+	  start-defun-p top-level-offset valid-spot))
 
 (declaim (optimize (speed 2))) ; turn off byte compilation.
 
@@ -94,7 +98,7 @@
   `(find-attribute ,mark :lisp-syntax
 		   #'(lambda (x)
 		       (member x '(:open-paren :close-paren :newline :comment
-					       :char-quote :string-quote)))))
+				   :char-quote :string-quote)))))
 ;;;
 ;;; PUSH-RANGE
 
@@ -142,6 +146,18 @@
 
 
 ;;;; Parsing functions.
+
+;;; Public.
+;;;
+(defun name-at-point (&optional (mark (current-point)))
+  "If there is a variable name at Mark return the name, else return nil."
+  (let ((ch (next-character mark)))
+    (if (test-char ch :lisp-syntax :constituent)
+	(let* ((mark-1 (scan-char (copy-mark mark :temporary)
+				  :lisp-syntax (not :constituent)))
+	       (mark-2 (copy-mark mark-1)))
+	  (rev-scan-char (mark-before mark-2) :lisp-syntax (not :constituent))
+	  (region-to-string (region mark-2 mark-1))))))
 
 ;;; PRE-COMMAND-PARSE-CHECK -- Public.
 ;;;
@@ -812,11 +828,12 @@
 	   (setf (gethash fname *special-forms*) args)))))
 
 
-;;; Hemlock forms.
+;;; Editor forms.
 ;;;
 (defindent "with-mark" 1)
 (defindent "with-random-typeout" 1)
 (defindent "with-pop-up-display" 1)
+(defindent "with-pop-up-window" 1)
 (defindent "defhvar" 1)
 (defindent "hlet" 1)
 (defindent "defcommand" 2)
@@ -833,13 +850,13 @@
 (defindent "do-headers-buffers" 1)
 (defindent "do-headers-lines" 1)
 (defindent "with-headers-mark" 1)
-(defindent "frob" 1) ;cover silly FLET and MACROLET names for Rob and Bill.
+(defindent "frob" 1) ; cover silly FLET and MACROLET names for Rob and Bill.
 (defindent "with-writable-buffer" 1)
 (defindent "with-temp-buffer" 1)
 (defindent "in-directory" 1)
 (defindent "defparser" 1)
 
-;;; Common Lisp forms.
+;;; Lisp forms.
 ;;;
 (defindent "block" 1)
 (defindent "case" 1)
@@ -847,6 +864,7 @@
 (defindent "ccase" 1)
 (defindent "compiler-let" 1)
 (defindent "ctypecase" 1)
+(defindent "collect" 1)
 (defindent "defconstant" 1)
 (defindent "define-setf-method" 2)
 (defindent "destructuring-bind" 2)
@@ -860,7 +878,10 @@
 (defindent "do" 2)
 (defindent "do*" 2)
 (defindent "do-all-symbols" 1)
+(defindent "do-directories" 1)
 (defindent "do-external-symbols" 1)
+(defindent "do-files" 1)
+(defindent "do-hash" 1)
 (defindent "do-symbols" 1)
 (defindent "dolist" 1)
 (defindent "dotimes" 1)
@@ -868,6 +889,7 @@
 (defindent "etypecase" 1)
 (defindent "eval-when" 1)
 (defindent "flet" 1)
+(defindent "iterate" 1)
 (defindent "labels" 1)
 (defindent "lambda" 1)
 (defindent "let" 1)
@@ -1406,13 +1428,13 @@
       (if (eq (character-attribute :lisp-syntax (next-character lstart))
 	      :open-paren)
 	  (mark-after lend)
-	  (unless (backward-up-list lstart) (editor-error)))
-      (unless (forward-up-list lend) (editor-error))
+	  (or (backward-up-list lstart) (editor-error)))
+      (or (forward-up-list lend) (editor-error))
       (with-mark ((rstart lstart)
 		  (rend lend))
 	(dotimes (i (or p 1))
-	  (unless (and (forward-up-list rend) (backward-up-list rstart))
-	    (editor-error)))
+	  (or (and (forward-up-list rend) (backward-up-list rstart))
+	      (editor-error)))
 	(let ((r (copy-region (region lstart lend))))
 	  (ring-push (delete-and-save-region (region rstart rend))
 		     *kill-ring*)
@@ -1437,8 +1459,8 @@
 	    (scan-char s2 :whitespace nil)
 	    (with-mark ((e1 s1 :right-inserting)
 			(e2 s2 :right-inserting))
-	      (unless (form-offset e1 1) (editor-error))
-	      (unless (form-offset e2 1) (editor-error))
+	      (or (form-offset e1 1) (editor-error))
+	      (or (form-offset e2 1) (editor-error))
 	      (ninsert-region s1 (delete-and-save-region (region s2 e2)))
 	      (ninsert-region s2 (delete-and-save-region (region s1 e1))))))
 	(let ((fcount (if (plusp count) count 1))
@@ -1446,13 +1468,13 @@
 	  (with-mark ((s1 point :left-inserting)
 		      (e2 point :right-inserting))
 	    (dotimes (i bcount)
-	      (unless (form-offset s1 -1) (editor-error)))
+	      (or (form-offset s1 -1) (editor-error)))
 	    (dotimes (i fcount)
-	      (unless (form-offset e2 1) (editor-error)))
+	      (or (form-offset e2 1) (editor-error)))
 	    (with-mark ((e1 s1 :right-inserting)
 			(s2 e2 :left-inserting))
-	      (unless (form-offset e1 1) (editor-error))
-	      (unless (form-offset s2 -1) (editor-error))
+	      (or (form-offset e1 1) (editor-error))
+	      (or (form-offset s2 -1) (editor-error))
 	      (ninsert-region s1 (delete-and-save-region (region s2 e2)))
 	      (ninsert-region s2 (delete-and-save-region (region s1 e1)))
 	      (move-mark point s2)))))))
@@ -1577,11 +1599,11 @@
 
 ;;; FILL-LISP-STRING -- Internal.
 ;;;
-;;; This fills the Lisp string containing mark as if it had been entered using
-;;; Hemlock's Lisp string indentation, "Indent Function" for "Lisp" mode.  This
-;;; assumes the area around mark has already been PRE-COMMAND-PARSE-CHECK'ed,
-;;; and it ensures the string ends before doing any filling.  This function
-;;; is undo'able.
+;;; This fills the Lisp string containing mark as if it had been entered
+;;; using the editor's Lisp string indentation, "Indent Function" for
+;;; "Lisp" mode.  This assumes the area around mark has already been
+;;; PRE-COMMAND-PARSE-CHECK'ed, and it ensures the string ends before doing
+;;; any filling.  This function is undo'able.
 ;;;
 (defun fill-lisp-string (mark)
   (with-mark ((end mark))
@@ -1820,32 +1842,39 @@
 (setf (gethash "return-from" lisp-special-forms) t)
 (setf (gethash "go" lisp-special-forms) t)
 (setf (gethash "if" lisp-special-forms) t)
+(setf (gethash "fi" lisp-special-forms) t)
 (setf (gethash "or" lisp-special-forms) t)
 (setf (gethash "and" lisp-special-forms) t)
 (setf (gethash "do" lisp-special-forms) t)
 (setf (gethash "do*" lisp-special-forms) t)
+(setf (gethash "dotimes" lisp-special-forms) t)
+(setf (gethash "dolist" lisp-special-forms) t)
+(setf (gethash "dohash" lisp-special-forms) t)
 (setf (gethash "loop" lisp-special-forms) t)
 (setf (gethash "when" lisp-special-forms) t)
 (setf (gethash "cond" lisp-special-forms) t)
 (setf (gethash "unless" lisp-special-forms) t)
 
-(setf (gethash "proclaim" lisp-special-forms) t)
 (setf (gethash "declare" lisp-special-forms) t)
 (setf (gethash "declaim" lisp-special-forms) t)
-(setf (gethash "defun" lisp-special-forms) t)
 (setf (gethash "defcommand" lisp-special-forms) t)
-(setf (gethash "defmode" lisp-special-forms) t)
 (setf (gethash "defconst" lisp-special-forms) t)
-(setf (gethash "defvar" lisp-special-forms) t)
 (setf (gethash "defhvar" lisp-special-forms) t)
-(setf (gethash "defsetf" lisp-special-forms) t)
 (setf (gethash "defmacro" lisp-special-forms) t)
-(setf (gethash "defstruct" lisp-special-forms) t)
+(setf (gethash "defmode" lisp-special-forms) t)
+(setf (gethash "defparameter" lisp-special-forms) t)
 (setf (gethash "defprinter" lisp-special-forms) t)
+(setf (gethash "defsetf" lisp-special-forms) t)
+(setf (gethash "defstruct" lisp-special-forms) t)
+(setf (gethash "deftype" lisp-special-forms) t)
+(setf (gethash "defun" lisp-special-forms) t)
+(setf (gethash "defvar" lisp-special-forms) t)
+(setf (gethash "proclaim" lisp-special-forms) t)
 
 (declaim (inline highlight-lisp-line))
 (declaim (special *in-string* *in-comment*))
 
+;; FIX #\;
 (defun highlight-lisp-line (line chi-info)
   (when (next-character (mark line 0))
     (let ((chars (line-string line))
@@ -1896,6 +1925,8 @@
 		       (return-from highlight-lisp-line))))
 
 		((< oparen (min multic comment string))
+		 ;; FIX (return-from-many)
+		 ;; FIX (cond ((fi p)
 		 (if (>= oparen (1- (line-length line)))
 		     (return-from highlight-lisp-line)
 		     (let ((mark (mark line (1+ oparen))))

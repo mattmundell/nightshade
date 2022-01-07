@@ -1,24 +1,11 @@
-;;; -*- Log: code.log; Package: MACH -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/vm.lisp,v 1.3 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/code/vm.lisp,v 1.3 1994/10/31 04:11:27 ram Exp $
-;;;
-;;; This file contains stubs for interfacing MACH's vm primitives.
-;;;
+;;; Stubs for interfacing MACH's vm primitives.
+
 (in-package "MACH")
 
 (export '(vm_allocate vm_copy vm_deallocate vm_statistics))
 
-(def-c-pointer *sap system-area-pointer)
 
+(def-c-pointer *sap system-area-pointer)
 
 (def-c-routine ("vm_allocate" vm_allocate) (int)
   (task port)
@@ -36,8 +23,6 @@
   (task port)
   (address system-area-pointer)
   (size unsigned-long))
-
-
 
 
 ;;;; vm_statistics
@@ -78,4 +63,3 @@
      (alien-access (vm_statistics-cow_faults (alien-value vm_stats)))
      (alien-access (vm_statistics-lookups (alien-value vm_stats)))
      (alien-access (vm_statistics-hits (alien-value vm_stats))))))
-

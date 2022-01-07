@@ -1,26 +1,13 @@
-;;; -*- Package: C -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/byte-interp.lisp,v 1.32.2.1 2000/05/23 16:36:13 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the noise to interpret byte-compiled stuff.
-;;;
-;;; Written by William Lott
-;;;
+;;; Noise to interpret byte-compiled stuff.
+
 (in-package "C")
 
 (in-package "KERNEL")
 (export '(byte-function byte-function-name initialize-byte-compiled-function
-			byte-closure byte-closure-function
-			byte-closure-data byte-function-or-closure
-			byte-function-type
-			*eval-stack* *eval-stack-top*))
+	  byte-closure byte-closure-function
+	  byte-closure-data byte-function-or-closure
+	  byte-function-type
+	  *eval-stack* *eval-stack-top*))
 (in-package "C")
 
 ;;; We need at least this level of debug-info in order for the local

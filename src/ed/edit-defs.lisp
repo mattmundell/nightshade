@@ -1,8 +1,9 @@
 ;;; Editing DEFMACRO and DEFUN definitions.  Also, has directory translation
 ;;; code for moved and/or different sources.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
+(export '(add-definition-dir-translation delete-definition-dir-translation))
 
 ;;; Directory translation for definition editing commands.
 
@@ -131,7 +132,8 @@
   (declare (ignore p))
   (let ((fun-name (prompt-for-string
 		   :prompt "Name: "
-		   :help "Symbol name of function.")))
+		   :help "Symbol name of function."
+		   :default (name-at-point))))
     (get-def-info-and-go-to-it fun-name)))
 
 (defun get-def-info-and-go-to-it (fun-name)

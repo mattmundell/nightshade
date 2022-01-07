@@ -1,6 +1,6 @@
 ;;; Minimal dylan mode.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 ;;; hack ..

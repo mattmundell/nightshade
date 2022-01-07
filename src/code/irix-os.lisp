@@ -1,17 +1,5 @@
-;;; -*- Mode: Lisp; Package: Lisp; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/irix-os.lisp,v 1.3 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; OS interface functions for CMU CL under IRIX.
-;;;
-;;;
+;;; OS interface functions for running under IRIX.
+
 (in-package "SYSTEM")
 (use-package "EXTENSIONS")
 (export '(get-system-info get-page-size os-init))
@@ -37,11 +25,10 @@
             (subseq version-line 0 (1- (length version-line))))))
   *software-version*)
 
-
 ;;; OS-INIT -- interface.
 ;;;
 ;;; Other OS dependent initializations.
-;;; 
+;;;
 (defun os-init ()
   ;; Decache version on save, because it might not be the same when we restart.
   (setf *software-version* nil))
@@ -61,7 +48,6 @@
 	  (T
 	   (values utime stime majflt)))))
 
-
 ;;; GET-PAGE-SIZE  --  Interface
 ;;;
 ;;;    Return the system page size.
@@ -72,4 +58,3 @@
     (unless val
       (error "Getpagesize failed: ~A" (unix:get-unix-error-msg err)))
     val))
-

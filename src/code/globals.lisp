@@ -1,22 +1,9 @@
-;;; -*- Package: Lisp; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/globals.lisp,v 1.12.2.3 1998/06/23 11:22:01 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains special proclamations for variables that are
-;;; referenced in the code sources before they are defined.  There is also a
-;;; function proclamation to make some common functions be known, avoiding
-;;; large amounts of work in recording the calls that are done before the
+;;;    Special proclamations for variables that are referenced in the code
+;;; sources before they are defined.  There are also some function
+;;; proclamations to make some common functions be known, avoiding large
+;;; amounts of work in recording the calls that are done before the
 ;;; definition.
-;;;
-;;; Written by Rob MacLachlan
-;;;
+
 (in-package "LISP")
 
 (declaim (special *keyword-package* *lisp-package* *package* *query-io*
@@ -30,7 +17,7 @@
 		  *print-length* *print-level* *print-pretty* *print-escape*
 		  *print-case* *print-circle* *print-gensym* *print-array*
 		  defmacro-error-string defsetf-error-string
-		  std-lisp-readtable hi::*in-the-editor*
+		  std-lisp-readtable ; hi::*in-the-editor*
 		  debug::*in-the-debugger*
 		  conditions::*handler-clusters*
 		  conditions::*restart-clusters*
@@ -61,13 +48,13 @@
 		hemlock-internals::current-window
 		hemlock-internals::device-exit
 		hemlock-internals::device-hunk-device
-		hemlock-internals::device-init 
+		hemlock-internals::device-init
 		hemlock::ts-stream-p hemlock::ts-stream-wire
 		hemlock-internals::window-hunk))
 
 ;;; Gray streams functions not defined until after PCL is loaded.
 (declaim (ftype (function * *)
-		stream-advance-to-column stream-clear-input 
+		stream-advance-to-column stream-clear-input
 		stream-clear-output stream-finish-output stream-force-output
 		stream-fresh-line stream-line-column stream-line-length
 		stream-listen stream-peek-char stream-read-byte

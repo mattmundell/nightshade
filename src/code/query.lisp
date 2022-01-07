@@ -1,23 +1,4 @@
-;;; -*- Mode: Lisp; Package: Lisp; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/query.lisp,v 1.5 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Querying the user.
-;;; Written by Walter van Roggen, 27 December 1982.
-;;; Brought up to date and fixed somewhat by Rob MacLachlan.
-;;; Modified by Bill Chiles.
-;;;
-;;; These functions are part of the standard Spice Lisp environment.
-;;;
-;;; **********************************************************************
-;;;
 
 (in-package "LISP")
 
@@ -26,7 +7,6 @@
 (defun query-readline ()
   (force-output *query-io*)
   (string-trim " 	" (read-line *query-io*)))
-
 
 ;;; Y-OR-N-P  --  Public.
 ;;;
@@ -59,8 +39,8 @@
 ;;; uses READ-LINE to get "YES" or "NO".
 ;;;
 (defun yes-or-no-p (&optional format-string &rest arguments)
-  "YES-OR-NO-P is similar to Y-OR-N-P, except that it clears the 
-   input buffer, beeps, and uses READ-LINE to get the strings 
+  "YES-OR-NO-P is similar to Y-OR-N-P, except that it clears the
+   input buffer, beeps, and uses READ-LINE to get the strings
    YES or NO."
   (clear-input *query-io*)
   (beep)

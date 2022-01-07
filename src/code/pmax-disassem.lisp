@@ -1,18 +1,4 @@
-;;; -*- Mode: Lisp; Package: MIPS -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/pmax-disassem.lisp,v 1.18 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; A simple dissambler for the MIPS R2000.
-;;;
-;;; Written by Christopher Hoover.
-;;; 
 
 (in-package "MIPS" :use '("LISP"))
 
@@ -21,12 +7,9 @@
 
 ;;;; Instruction Layout
 
-;;;
-;;; Each instrunction on the MIPS R2000 consists of a single word (32
-;;; bits) aligned on a single word boundaray.  There are three
-;;; instrunction formats:
-;;; 
-;;; 	I-Type (Immediate)
+;;; Each instrunction on the MIPS R2000 consists of a single word (32 bits)
+;;; aligned on a single word boundaray.  There are three instrunction
+;;; formats: I-Type (Immediate)
 ;;;
 ;;; 	3 3 2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0
 ;;; 	1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0 9 8 7 6 5 4 3 2 1 0
@@ -34,7 +17,7 @@
 ;;;	[   op    ] [  rs   ] [  rt   ] [         immediate           ]
 ;;;     ---------------------------------------------------------------
 ;;;
-;;; 
+;;;
 ;;;	J-Type (Jump)
 ;;;
 ;;; 	3 3 2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 1 1 1 1 0 0 0 0 0 0 0 0 0 0
@@ -52,9 +35,8 @@
 ;;;	[   op    ] [  rs   ] [  rt   ] [  rd   ] [ shmat ] [  funct  ]
 ;;;     ---------------------------------------------------------------
 ;;;
-;;; These instructions fall into 5 categories: Load/Store,
-;;; Computational, Jump/Branch, Coprocessor, and Special.
-;;;
+;;; These instructions fall into 5 categories: Load/Store, Computational,
+;;; Jump/Branch, Coprocessor, and Special.
 
 
 ;;;; Register Names
@@ -64,15 +46,12 @@
     (error "Illegal register number!"))
   (svref *register-names* register-number))
 
-
 
 ;;;; Instruction Type Definition
 
-;;;
 ;;; These instruction types correspond to the various ways the decoded
-;;; instructions are printed which in turn corresponds somewhat to the
-;;; way the instructions are decoded.
-;;; 
+;;; instructions are printed which in turn corresponds somewhat to the way
+;;; the instructions are decoded.
 
 (defvar *mips-instruction-types* (make-hash-table :test #'eq))
 
@@ -89,8 +68,8 @@
 
 ;;;; Instruction Types
 
-;;;
 ;;; Used later for relative branches.
+;;;
 (defvar *current-instruction-number* 0)
 
 (def-mips-instruction-type (:ls-type)
@@ -427,9 +406,8 @@
 	   (format stream "~16,8TDATA~8,8T#x~X~%" word)
 	   (return-from disassemble-instruction (values nil nil))))))
 
-
 
-;;; Dissassemble-Code-Vector
+;;;; Dissassemble-Code-Vector
 
 (defconstant delay-slot-instruction-types
   '(:j-type :jr-type :jalr-type :branch-type :branch2-type))
@@ -453,7 +431,6 @@
 	     (setf instruction-in-delay-slot-p t))
 	    (t
 	     (setf instruction-in-delay-slot-p nil))))))
-
 
 
 ;;;; Disassemble-code-sap

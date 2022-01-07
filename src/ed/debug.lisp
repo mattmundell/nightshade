@@ -1,6 +1,6 @@
 ;;; Commands for sending debugger commands to slaves in the debugger.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 

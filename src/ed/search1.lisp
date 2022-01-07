@@ -1,6 +1,6 @@
 ;;; Searching and replacing functions.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(search-pattern search-pattern-p find-pattern replace-pattern
 	  new-search-pattern at at* find-string))
@@ -613,7 +613,7 @@
 
 #|
 (profile:profile ed::buffer-parse-abc move-mark mark-after)
-(profile:unprofile hi::buffer-parse-abc)
+(profile:unprofile edi::buffer-parse-abc)
 (ed::defparser '((t "abc")) :bufferp t)
 (compile 'buffer-parse-t)
 
@@ -692,8 +692,8 @@
 	(search-pattern-direction old) direction
 	(search-pattern-pattern old) pattern)
   (setf	(parser-pattern-parser old)
-	(let ((*package* (or (find-package "HEMLOCK")
-			     (editor-error "Failed to find Hemlock package."))))
+	(let ((*package* (or (find-package "ED")
+			     (editor-error "Failed to find ED package."))))
 	  (ed::define-parser pattern)))
   (setf	(search-pattern-reclaim-function old)
 	(if (consp pattern) #'reclaim-parser #'identity))
@@ -773,8 +773,8 @@
 (defmacro at (&rest reqs)
   "Return a true value if the text at point matches the parser requirements
    Reqs."
-  (let ((*package* (or (find-package "HEMLOCK")
-		       (editor-error "Failed to find Hemlock package."))))
+  (let ((*package* (or (find-package "ED")
+		       (editor-error "Failed to find ED package."))))
     (ed::parse (ed::define-parser reqs)))
   ;; FIX (makunbound parser
   )

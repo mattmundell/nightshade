@@ -1,37 +1,25 @@
-;;; -*- Log: code.log; Package: Lisp -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/seq.lisp,v 1.23.2.8 2000/09/27 18:26:27 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Functions to implement generic sequences for Spice Lisp.
-;;; Written by Skef Wholey.
-;;; Fixed up by Jim Muller on Friday the 13th, January, 1984.
-;;; Gone over again by Bill Chiles.  Next?
+;;; Generic sequences.
 ;;;
 ;;; Be careful when modifying code.  A lot of the structure of the code is
-;;; affected by the fact that compiler transforms use the lower level support
-;;; functions.  If transforms are written for some sequence operation, note
-;;; how the end argument is handled in other operations with transforms.
+;;; affected by the fact that compiler transforms use the lower level
+;;; support functions.  If transforms are written for some sequence
+;;; operation, note how the end argument is handled in other operations
+;;; with transforms.
 
 (in-package "LISP")
-(export '(elt subseq copy-seq coerce
-	  length reverse nreverse make-sequence concatenate map some every
+
+(export '(elt subseq safe-subseq copy-seq coerce
+	  length longest-length
+	  reverse nreverse make-sequence concatenate map some every
 	  notany notevery reduce fill replace remove remove-if remove-if-not
 	  delete delete-if delete-if-not remove-duplicates delete-duplicates
 	  substitute substitute-if substitute-if-not nsubstitute nsubstitute-if
 	  nsubstitute-if-not find find-if find-if-not position position-if
 	  position-if-not count count-if count-if-not mismatch search
-	  map-into split
-          identity))
+	  map-into split))
 
-
-;;; Spice-Lisp specific stuff and utilities:
+
+;;;; Utilities.
 
 (eval-when (compile)
 
@@ -57,9 +45,7 @@
 
 ) ; eval-when
 
-
 
-
 ;;; RESULT-TYPE-OR-LOSE  --  Internal
 ;;;
 ;;;    Given an arbitrary type specifier, return a sane sequence type specifier
@@ -163,9 +149,15 @@
     (vector (length (truly-the vector sequence)))
     (list (length (truly-the list sequence)))))
 
+(defun longest-length (&rest sequences)
+  "Return the length of the longest of Sequences."
+  (if (car sequences)
+      (max (length (car sequences)) (apply #'longest-length (cdr sequences)))
+      0))
+
 (defun make-sequence (type length &key (initial-element NIL iep))
-  "Returns a sequence of the given Type and Length, with elements initialized
-  to :Initial-Element."
+  "Returns a sequence of the given Type and Length, with elements
+   initialized to :Initial-Element."
   (declare (fixnum length))
   (let ((type (specifier-type type)))
     (cond ((csubtypep type (specifier-type 'list))
@@ -206,9 +198,8 @@
 		    :format-control "~S is a bad type specifier for sequences."
 		    :format-arguments (list type))))))
 
-
 
-;;; Subseq:
+;;;; Subseq.
 ;;;
 ;;; The support routines for SUBSEQ are used by compiler transforms, so we
 ;;; worry about dealing with end being supplied as or defaulting to nil
@@ -216,7 +207,7 @@
 
 (defun vector-subseq* (sequence start &optional end)
   (declare (vector sequence) (fixnum start))
-  (when (null end) (setf end (length sequence)))
+  (or end (setf end (length sequence)))
   (do ((old-index start (1+ old-index))
        (new-index 0 (1+ new-index))
        (copy (make-sequence-like sequence (- end start))))
@@ -245,13 +236,21 @@
 ;;; routines for other reasons (see above).
 (defun subseq (sequence start &optional end)
   "Returns a copy of a subsequence of SEQUENCE starting with element number
-   START and continuing to the end of SEQUENCE or the optional END."
+   START and continuing to the end of SEQUENCE or the optional END element
+   number."
   (seq-dispatch sequence
 		(list-subseq* sequence start end)
 		(vector-subseq* sequence start end)))
 
+(defun safe-subseq (sequence start &optional end)
+  "Return the subsequence of SEQUENCE from element number START to the end
+   of sequence or to END if END is before the end of the sequence."
+  (if (and end (< (length sequence) end))
+      (subseq sequence start (length sequence))
+      (subseq sequence start end)))
+
 
-;;; Copy-seq:
+;;; Copy-seq.
 
 (eval-when (compile eval)
 
@@ -282,8 +281,6 @@
 		(list-copy-seq* sequence)
 		(vector-copy-seq* sequence)))
 
-;;; Internal Frobs:
-
 (defun list-copy-seq* (sequence)
   (list-copy-seq sequence))
 
@@ -291,7 +288,7 @@
   (vector-copy-seq sequence (type-of sequence)))
 
 
-;;; Fill:
+;;;; Fill.
 
 (eval-when (compile eval)
 
@@ -312,8 +309,8 @@
 )
 
 ;;; The support routines for FILL are used by compiler transforms, so we
-;;; worry about dealing with end being supplied as or defaulting to nil
-;;; at this level.
+;;; worry about dealing with end being supplied as or defaulting to nil at
+;;; this level.
 
 (defun list-fill* (sequence item start end)
   (declare (list sequence))
@@ -334,9 +331,8 @@
 		(list-fill* sequence item start end)
 		(vector-fill* sequence item start end)))
 
-
 
-;;; Replace:
+;;;; Replace.
 
 (eval-when (compile eval)
 
@@ -387,7 +383,7 @@
 	    target-sequence)
 	 (declare (fixnum target-index source-index))
 	 (rplaca target-sequence-ref (car source-sequence-ref)))))
-
+
 (defmacro list-replace-from-mumble ()
   `(do ((target-index target-start (1+ target-index))
 	(source-index source-start (1+ source-index))
@@ -415,8 +411,8 @@
 ) ; eval-when
 
 ;;; The support routines for REPLACE are used by compiler transforms, so we
-;;; worry about dealing with end being supplied as or defaulting to nil
-;;; at this level.
+;;; worry about dealing with end being supplied as or defaulting to nil at
+;;; this level.
 
 (defun list-replace-from-list* (target-sequence source-sequence target-start
 				target-end source-start source-end)
@@ -442,7 +438,7 @@
   (when (null target-end) (setq target-end (length target-sequence)))
   (when (null source-end) (setq source-end (length source-sequence)))
   (mumble-replace-from-mumble))
-
+
 ;;; REPLACE cannot default end arguments to the length of sequence since it
 ;;; is not an error to supply nil for their values.  We must test for ends
 ;;; being nil in the body of the function.
@@ -463,8 +459,8 @@
 				(mumble-replace-from-list)
 				(mumble-replace-from-mumble)))))
 
-
-;;; Reverse:
+
+;;;; Reverse.
 
 (eval-when (compile eval)
 
@@ -492,8 +488,6 @@
 		(list-reverse* sequence)
 		(vector-reverse* sequence)))
 
-;;; Internal Frobs:
-
 (defun list-reverse* (sequence)
   (list-reverse-macro sequence))
 
@@ -501,7 +495,7 @@
   (vector-reverse sequence (type-of sequence)))
 
 
-;;; Nreverse:
+;;;; Nreverse.
 
 (eval-when (compile eval)
 
@@ -525,7 +519,6 @@
 
 )
 
-
 (defun list-nreverse* (sequence)
   (list-nreverse-macro sequence))
 
@@ -540,7 +533,7 @@
 		(vector-nreverse* sequence)))
 
 
-;;; Concatenate:
+;;;; Concatenate.
 
 (eval-when (compile eval)
 
@@ -607,16 +600,31 @@
     (t
      (apply #'concatenate (result-type-or-lose output-type-spec) sequences))))
 
-;;; Internal Frobs:
-
 (defun concat-to-list* (&rest sequences)
   (concatenate-to-list sequences))
 
 (defun concat-to-simple* (type &rest sequences)
   (concatenate-to-mumble type sequences))
 
+#|
+FIX
+(defun mapconcatenate (type function list &optional (spacer "") spacer-first)
+  "Return the concatenation of the results of applying FUNCTION to
+   succussive CARs of LIST.  Insert SPACER between each result, and if
+   SPACER-FIRST add a leading spacer."
+  (if list
+      (concatenate type
+		   (if spacer-first
+		       (concatenate type
+				    spacer
+				    (funcall function (car list)))
+		       (funcall function (car list)))
+		   (mapconcat function (cdr list) spacer t))
+      ""))
+|#
+
 
-;;; Map:
+;;;; Map.
 
 (declaim (start-block map))
 
@@ -723,9 +731,9 @@
       result)))
 
 (defun map (output-type-spec function first-sequence &rest more-sequences)
-  "FUNCTION must take as many arguments as there are sequences provided.  The
-   result is a sequence such that element i is the result of applying FUNCTION
-   to element i of each of the argument sequences."
+  "FUNCTION must take as many arguments as there are sequences provided.
+   The result is a sequence such that element i is the result of applying
+   FUNCTION to element i of each of the argument sequences."
   (let ((sequences (cons first-sequence more-sequences)))
     (case (type-specifier-atom output-type-spec)
       ((nil) (map-for-effect function sequences))
@@ -738,7 +746,6 @@
 	      function sequences)))))
 
 (declaim (end-block))
-
 
 (defun map-into (result-sequence function &rest sequences)
   (let* ((fp-result
@@ -761,7 +768,7 @@
   result-sequence)
 
 
-;;; Quantifiers:
+;;;; Quantifiers.
 
 (eval-when (compile eval)
 (defmacro defquantifier (name doc-string every-result abort-sense abort-value)
@@ -822,9 +829,8 @@
    is non-()."
   nil nil t)
 
-
 
-;;; Reduce:
+;;;; Reduce.
 
 (eval-when (compile eval)
 
@@ -869,12 +875,12 @@
 	 ((= count (the fixnum ,end)) value)
        (declare (fixnum count)))))
 
-)
-
+) ; eval-when (compile eval)
+
 (defun reduce (function sequence &key key from-end (start 0)
 			end (initial-value nil ivp))
-  "The specified Sequence is ``reduced'' using the given Function.
-  See manual for details."
+  "The specified Sequence is ``reduced'' using the given Function.  FIX See
+   manual for details."
   (declare (type index start))
   (let ((start start)
 	(end (or end (length sequence))))
@@ -901,7 +907,7 @@
 			  initial-value aref)))))
 
 
-;;; Coerce:
+;;;; Coerce.
 
 (defun coerce (object output-type-spec)
   "Coerces the Object to an object of type Output-Type-Spec."
@@ -979,7 +985,7 @@
 	 (coerce-error))))))
 
 
-;;; Internal Frobs:
+;;;; Internal Frobs.
 
 (macrolet ((frob (name result access src-type &optional typep)
 		 `(defun ,name (object ,@(if typep '(type) ()))
@@ -1011,7 +1017,7 @@
 
   (frob vector-to-bit-vector* (make-array length :element-type '(mod 2))
 	sbit :vector))
-
+
 (defun vector-to-list* (object)
   (let ((result (list nil))
 	(length (length object)))
@@ -1041,7 +1047,7 @@
 	(subseq data start end))))
 
 
-;;; Delete:
+;;;; Delete.
 
 (eval-when (compile eval)
 
@@ -1095,7 +1101,7 @@
     (if test-not
 	(not (funcall test-not item (apply-key key (aref sequence index))))
 	(funcall test item (apply-key key (aref sequence index))))))
-
+
 (defmacro normal-mumble-delete-from-end ()
   `(mumble-delete-from-end
     (if test-not
@@ -1146,11 +1152,11 @@
 	(not (funcall test-not item (apply-key key (car current))))
 	(funcall test item (apply-key key (car current))))))
 )
-
+
 (defun delete (item sequence &key from-end (test #'eql) test-not (start 0)
 		end count key)
-  "Returns a sequence formed by destructively removing the specified Item from
-  the given Sequence."
+  "Returns a sequence formed by destructively removing the specified Item
+   from the given Sequence."
   (declare (fixnum start))
   (let* ((length (length sequence))
 	 (end (or end length))
@@ -1186,8 +1192,8 @@
 )
 
 (defun delete-if (predicate sequence &key from-end (start 0) key end count)
-  "Returns a sequence formed by destructively removing the elements satisfying
-  the specified Predicate from the given Sequence."
+  "Returns a sequence formed by destructively removing the elements
+   satisfying the specified Predicate from the given Sequence."
   (declare (fixnum start))
   (let* ((length (length sequence))
 	 (end (or end length))
@@ -1207,7 +1213,7 @@
 (defmacro if-not-mumble-delete ()
   `(mumble-delete
     (not (funcall predicate (apply-key key (aref sequence index))))))
-
+
 (defmacro if-not-mumble-delete-from-end ()
   `(mumble-delete-from-end
     (not (funcall predicate (apply-key key this-element)))))
@@ -1224,7 +1230,7 @@
 
 (defun delete-if-not (predicate sequence &key from-end (start 0) end key count)
   "Returns a sequence formed by destructively removing the elements not
-  satisfying the specified Predicate from the given Sequence."
+   satisfying the specified Predicate from the given Sequence."
   (declare (fixnum start))
   (let* ((length (length sequence))
 	 (end (or end length))
@@ -1239,8 +1245,8 @@
 		      (if-not-mumble-delete-from-end)
 		      (if-not-mumble-delete)))))
 
-
-;;; Remove:
+
+;;;; Remove.
 
 (eval-when (compile eval)
 
@@ -1268,7 +1274,7 @@
      (cond (,pred (setq number-zapped (1+ number-zapped)))
 	   (t (setf (aref result new-index) this-element)
 	      (setq new-index (,bump new-index))))))
-
+
 (defmacro mumble-remove (pred)
   `(mumble-remove-macro 1+ 0 start end length ,pred))
 
@@ -1301,8 +1307,8 @@
   `(mumble-remove-from-end
     (not (funcall predicate (apply-key key this-element)))))
 
-;;; LIST-REMOVE-MACRO does not include (removes) each element that satisfies
-;;; the predicate.
+;;; LIST-REMOVE-MACRO does not include (removes) each element that
+;;; satisfies the predicate.
 (defmacro list-remove-macro (pred reverse?)
   `(let* ((sequence ,(if reverse?
 			 '(reverse (the list sequence))
@@ -1330,7 +1336,7 @@
        (if ,pred
 	   (setq number-zapped (1+ number-zapped))
 	   (setq splice (cdr (rplacd splice (list this-element))))))))
-
+
 (defmacro list-remove (pred)
   `(list-remove-macro ,pred nil))
 
@@ -1384,10 +1390,10 @@
 		  (if from-end
 		      (normal-mumble-remove-from-end)
 		      (normal-mumble-remove)))))
-
+
 (defun remove-if (predicate sequence &key from-end (start 0) end count key)
-  "Returns a copy of sequence with elements such that predicate(element)
-   is non-null are removed"
+  "Returns a copy of sequence with elements such that predicate(element) is
+   non-null are removed"
   (declare (fixnum start))
   (let* ((length (length sequence))
 	 (end (or end length))
@@ -1403,8 +1409,8 @@
 		      (if-mumble-remove)))))
 
 (defun remove-if-not (predicate sequence &key from-end (start 0) end count key)
-  "Returns a copy of sequence with elements such that predicate(element)
-   is null are removed"
+  "Returns a copy of sequence with elements such that predicate(element) is
+   null are removed"
   (declare (fixnum start))
   (let* ((length (length sequence))
 	 (end (or end length))
@@ -1420,14 +1426,14 @@
 		      (if-not-mumble-remove)))))
 
 
-;;; Remove-Duplicates:
+;;;; Remove-Duplicates.
 
-;;; Remove duplicates from a list. If from-end, remove the later duplicates,
-;;; not the earlier ones. Thus if we check from-end we don't copy an item
-;;; if we look into the already copied structure (from after :start) and see
-;;; the item. If we check from beginning we check into the rest of the
-;;; original list up to the :end marker (this we have to do by running a
-;;; do loop down the list that far and using our test.
+;;; Remove duplicates from a list. If from-end, remove the later
+;;; duplicates, not the earlier ones. Thus if we check from-end we don't
+;;; copy an item if we look into the already copied structure (from after
+;;; :start) and see the item. If we check from beginning we check into the
+;;; rest of the original list up to the :end marker (this we have to do by
+;;; running a do loop down the list that far and using our test.
 (defun list-remove-duplicates* (list test test-not start end key from-end)
   (declare (fixnum start))
   (let* ((result (list ())) ; Put a marker on the beginning to splice with.
@@ -1467,8 +1473,6 @@
       (setq current (cdr current)))
     (cdr result)))
 
-
-
 (defun vector-remove-duplicates* (vector test test-not start end key from-end
 					 &optional (length (length vector)))
   (declare (vector vector) (fixnum start length))
@@ -1500,7 +1504,6 @@
       (setq jndex (1+ jndex)))
     (shrink-vector result jndex)))
 
-
 (defun remove-duplicates (sequence &key (test #'eql) test-not (start 0) from-end
 				   end key)
   "The elements of Sequence are compared pairwise, and if any two match,
@@ -1517,10 +1520,8 @@
 		(vector-remove-duplicates* sequence test test-not
 					    start end key from-end)))
 
-
 
-;;; Delete-Duplicates:
-
+;;;; Delete-Duplicates.
 
 (defun list-delete-duplicates* (list test test-not key from-end start end)
   (declare (fixnum start))
@@ -1573,7 +1574,6 @@
 		      :end (if from-end jndex end) :test-not test-not)
       (setq jndex (1+ jndex)))))
 
-
 (defun delete-duplicates (sequence &key (test #'eql) test-not (start 0) from-end
 			    end key)
   "The elements of Sequence are examined, and if any two match, one is
@@ -1622,9 +1622,10 @@
       (setq splice (cdr (rplacd splice (list (car list)))))
       (setq list (cdr list)))
     (cdr result)))
-
-;;; Replace old with new in sequence moving from left to right by incrementer
-;;; on each pass through the loop. Called by all three substitute functions.
+
+;;; Replace old with new in sequence moving from left to right by
+;;; incrementer on each pass through the loop. Called by all three
+;;; substitute functions.
 (defun vector-substitute* (pred new sequence incrementer left right length
 			   start end count key test test-not old)
   (declare (fixnum start count end incrementer right))
@@ -1658,7 +1659,6 @@
 
 (eval-when (compile eval)
 
-
 (defmacro subst-dispatch (pred)
  `(if (listp sequence)
       (if from-end
@@ -1678,13 +1678,15 @@
 )
 
 
-;;; Substitute:
+;;;; Substitution.
 
+;;; Public.
+;;;
 (defun substitute (new old sequence &key from-end (test #'eql) test-not
 		   (start 0) count end key)
   "Returns a sequence of the same kind as Sequence with the same elements
-  except that all elements equal to Old are replaced with New.  See manual
-  for details."
+   except that all elements equal to Old are replaced with New.  FIX See manual
+   for details."
   (declare (fixnum start))
   (let* ((length (length sequence))
 	 (end (or end length))
@@ -1693,13 +1695,12 @@
 	     (fixnum count))
     (subst-dispatch 'normal)))
 
-
-;;; Substitute-If:
-
+;;; Public.
+;;;
 (defun substitute-if (new test sequence &key from-end (start 0) end count key)
   "Returns a sequence of the same kind as Sequence with the same elements
-  except that all elements satisfying the Test are replaced with New.  See
-  manual for details."
+   except that all elements satisfying the Test are replaced with New.  FIX See
+   manual for details."
   (declare (fixnum start))
   (let* ((length (length sequence))
 	 (end (or end length))
@@ -1710,14 +1711,13 @@
 	     (fixnum count))
     (subst-dispatch 'if)))
 
-
-;;; Substitute-If-Not:
-
+;;; Public.
+;;;
 (defun substitute-if-not (new test sequence &key from-end (start 0)
 			   end count key)
   "Returns a sequence of the same kind as Sequence with the same elements
-  except that all elements not satisfying the Test are replaced with New.
-  See manual for details."
+   except that all elements not satisfying the Test are replaced with New.
+   See manual for details."
   (declare (fixnum start))
   (let* ((length (length sequence))
 	 (end (or end length))
@@ -1728,15 +1728,13 @@
 	     (fixnum count))
     (subst-dispatch 'if-not)))
 
-
-
-;;; NSubstitute:
-
+;;; Public.
+;;;
 (defun nsubstitute (new old sequence &key from-end (test #'eql) test-not
 		     end count key (start 0))
   "Returns a sequence of the same kind as Sequence with the same elements
-  except that all elements equal to Old are replaced with New.  The Sequence
-  may be destroyed.  See manual for details."
+   except that all elements equal to Old are replaced with New.  The
+   Sequence may be destroyed.  See manual for details."
   (declare (fixnum start))
   (let ((end (or end (length sequence)))
 	(count (or count most-positive-fixnum)))
@@ -1778,9 +1776,8 @@
       (setf (aref sequence index) new)
       (setq count (1- count)))))
 
-
-;;; NSubstitute-If:
-
+;;; Public.
+;;;
 (defun nsubstitute-if (new test sequence &key from-end (start 0) end count key)
   "Returns a sequence of the same kind as Sequence with the same elements
    except that all elements satisfying the Test are replaced with New.  The
@@ -1819,9 +1816,8 @@
       (setf (aref sequence index) new)
       (setq count (1- count)))))
 
-
-;;; NSubstitute-If-Not:
-
+;;; Public.
+;;;
 (defun nsubstitute-if-not (new test sequence &key from-end (start 0)
 			       end count key)
   "Returns a sequence of the same kind as Sequence with the same elements
@@ -1862,7 +1858,7 @@
       (setq count (1- count)))))
 
 
-;;; Locater macros used by FIND and POSITION.
+;;;; Locater macros used by FIND and POSITION.
 
 (eval-when (compile eval)
 
@@ -1900,7 +1896,7 @@
   `(vector-locater-macro ,sequence
 			 (locater-test-not ,item ,sequence :vector ,return-type)
 			 ,return-type))
-
+
 (defmacro locater-if-test (test sequence seq-type return-type sense)
   (let ((seq-ref (case return-type
 		   (:position
@@ -1928,7 +1924,6 @@
 (defmacro vector-locater-if-not (test sequence return-type)
   `(vector-locater-if-macro ,test ,sequence ,return-type nil))
 
-
 (defmacro list-locater-macro (sequence body-form return-type)
   `(if from-end
        (do ((sequence (nthcdr (- (the fixnum (length sequence))
@@ -1972,7 +1967,7 @@
 ) ; eval-when
 
 
-;;; Position:
+;;;; Position functions.
 
 (eval-when (compile eval)
 
@@ -1984,19 +1979,20 @@
 
 ) ; eval-when
 
-
+;;; Public.
+;;;
 ;;; POSITION cannot default end to the length of sequence since it is not
 ;;; an error to supply nil for its value.  We must test for end being nil
 ;;; in the body of the function, and this is actually done in the support
 ;;; routines for other reasons (see below).
+;;;
 (defun position (item sequence &key from-end (test #'eql) test-not (start 0)
 		 end key)
   "Returns the zero-origin index of the first element in SEQUENCE
-   satisfying the test (default is EQL) with the given ITEM"
+   satisfying the test (default is EQL) with the given ITEM, else `nil'."
   (seq-dispatch sequence
     (list-position* item sequence from-end test test-not start end key)
     (vector-position* item sequence from-end test test-not start end key)))
-
 
 ;;; The support routines for SUBSEQ are used by compiler transforms, so we
 ;;; worry about dealing with end being supplied as or defaulting to nil
@@ -2012,7 +2008,6 @@
   (when (null end) (setf end (length sequence)))
   (vector-position item sequence))
 
-
 ;;; Position-if:
 
 (eval-when (compile eval)
@@ -2020,12 +2015,13 @@
 (defmacro vector-position-if (test sequence)
   `(vector-locater-if ,test ,sequence :position))
 
-
 (defmacro list-position-if (test sequence)
   `(list-locater-if ,test ,sequence :position))
 
 )
 
+;;; Public.
+;;;
 (defun position-if (test sequence &key from-end (start 0) key end)
   "Returns the zero-origin index of the first element satisfying test(el)"
   (declare (fixnum start))
@@ -2034,9 +2030,6 @@
     (seq-dispatch sequence
 		  (list-position-if test sequence)
 		  (vector-position-if test sequence))))
-
-
-;;; Position-if-not:
 
 (eval-when (compile eval)
 
@@ -2048,6 +2041,8 @@
 
 )
 
+;;; Public.
+;;;
 (defun position-if-not (test sequence &key from-end (start 0) key end)
   "Returns the zero-origin index of the first element not satisfying test(el)"
   (declare (fixnum start))
@@ -2058,7 +2053,7 @@
 		  (vector-position-if-not test sequence))))
 
 
-;;; Find:
+;;;; Find functions.
 
 (eval-when (compile eval)
 
@@ -2070,6 +2065,8 @@
 
 )
 
+;;; Public.
+;;;
 ;;; FIND cannot default end to the length of sequence since it is not
 ;;; an error to supply nil for its value.  We must test for end being nil
 ;;; in the body of the function, and this is actually done in the support
@@ -2083,7 +2080,6 @@
     (list-find* item sequence from-end test test-not start end key)
     (vector-find* item sequence from-end test test-not start end key)))
 
-
 ;;; The support routines for FIND are used by compiler transforms, so we
 ;;; worry about dealing with end being supplied as or defaulting to nil
 ;;; at this level.
@@ -2096,9 +2092,6 @@
   (when (null end) (setf end (length sequence)))
   (vector-find item sequence))
 
-
-;;; Find-if:
-
 (eval-when (compile eval)
 
 (defmacro vector-find-if (test sequence)
@@ -2109,6 +2102,8 @@
 
 )
 
+;;; Public.
+;;;
 (defun find-if (test sequence &key from-end (start 0) end key)
   "Returns the first element in SEQUENCE satisfying the test."
   (declare (fixnum start))
@@ -2117,9 +2112,6 @@
     (seq-dispatch sequence
 		  (list-find-if test sequence)
 		  (vector-find-if test sequence))))
-
-
-;;; Find-if-not:
 
 (eval-when (compile eval)
 
@@ -2131,6 +2123,8 @@
 
 )
 
+;;; Public.
+;;;
 (defun find-if-not (test sequence &key from-end (start 0) end key)
   "Returns the first element in SEQUENCE not satisfying the test."
   (declare (fixnum start))
@@ -2141,7 +2135,7 @@
 		  (vector-find-if-not test sequence))))
 
 
-;;; Count:
+;;;; Counting.
 
 (eval-when (compile eval)
 
@@ -2171,6 +2165,8 @@
 
 )
 
+;;; Public.
+;;;
 (defun count (item sequence &key from-end (test #'eql) test-not (start 0)
 		end key)
   "Returns the number of elements in SEQUENCE satisfying a test with ITEM,
@@ -2181,9 +2177,6 @@
     (seq-dispatch sequence
 		  (list-count item sequence)
 		  (vector-count item sequence))))
-
-
-;;; Count-if:
 
 (eval-when (compile eval)
 
@@ -2206,6 +2199,8 @@
 
 )
 
+;;; Public.
+;;;
 (defun count-if (test sequence &key from-end (start 0) end key)
   "Returns the number of elements in SEQUENCE satisfying TEST(el)."
   (declare (ignore from-end) (fixnum start))
@@ -2214,9 +2209,6 @@
     (seq-dispatch sequence
 		  (list-count-if test sequence)
 		  (vector-count-if test sequence))))
-
-
-;;; Count-if-not:
 
 (eval-when (compile eval)
 
@@ -2238,7 +2230,9 @@
 	 (setq count (1+ count)))))
 
 )
-
+
+;;; Public.
+;;;
 (defun count-if-not (test sequence &key from-end (start 0) end key)
   "Returns the number of elements in SEQUENCE not satisfying TEST(el)."
   (declare (ignore from-end) (fixnum start))
@@ -2249,10 +2243,9 @@
 		  (vector-count-if-not test sequence))))
 
 
-;;; Mismatch utilities:
+;;;; Mismatch utilities.
 
 (eval-when (compile eval)
-
 
 (defmacro match-vars (&rest body)
   `(let ((inc (if from-end -1 1))
@@ -2273,8 +2266,6 @@
      ,@body))
 
 )
-
-;;; Mismatch:
 
 (eval-when (compile eval)
 
@@ -2307,7 +2298,7 @@
        (())
      (declare (fixnum index1 index2))
      (if-mismatch (aref sequence1 index1) (pop sequence2))))
-
+
 (defmacro list-mumble-mismatch ()
   `(do ((index1 start1 (+ index1 (the fixnum inc)))
 	(index2 start2 (+ index2 (the fixnum inc))))
@@ -2326,6 +2317,8 @@
 
 )
 
+;;; Public.
+;;;
 (defun mismatch (sequence1 sequence2 &key from-end (test #'eql) test-not
 			   (start1 0) end1 (start2 0) end2 key)
   "The specified subsequences of Sequence1 and Sequence2 are compared
@@ -2355,13 +2348,12 @@
 	 (mumble-mumble-mismatch))))))
 
 
-;;; Search comparison functions:
+;;; Search.
 
 (eval-when (compile eval)
 
-;;; Compare two elements and return if they don't match:
-
 (defmacro compare-elements (elt1 elt2)
+  "Compare two elements and return if they don't match."
   `(if test-not
        (if (funcall test-not (apply-key key ,elt1) (apply-key key ,elt2))
 	   (return nil)
@@ -2411,7 +2403,7 @@
 		     (search-compare-vector-vector ,main ,sub ,index))))
 
 )
-
+
 (eval-when (compile eval)
 
 (defmacro list-search (main sub)
@@ -2428,7 +2420,6 @@
 	     (setq last-match index2)
 	     (return index2)))))
 
-
 (defmacro vector-search (main sub)
   `(do ((index2 start2 (1+ index2))
 	(terminus (- (the fixnum end2)
@@ -2443,7 +2434,6 @@
 	     (return index2)))))
 
 )
-
 
 (defun search (sequence1 sequence2 &key from-end (test #'eql) test-not
 		(start1 0) end1 (start2 0) end2 key)
@@ -2461,15 +2451,47 @@
 
 ;;;; Split.
 
-(defun split (sequence separator &key (start 0) end)
-  "Split the portion of Sequence from Start to End at Separators.  Return a
-   list of the resulting subsequences."
-  (let ((result))
-    (loop for pos = (position separator sequence :start start :end end)
-          do
-      (or pos
-	  (return-from split
-		       (nreverse (push (subseq sequence
-					       start) result))))
-      (push (subseq sequence start pos) result)
-      (setq start (1+ pos)))))
+;;; Public
+;;;
+;;; FIX perhaps should only return up to end (currently last subsequence
+;;; contains rest of sequence)
+;;;
+#|
+FIX in resulting build, on c-x r
+   Error in function MH::PARSE-SEQUENCE:  Attempt to reference undumpable constant.
+(defmacro split (sequence separators &key start end)
+  "Split the portion of Sequence from Start to End according to Separators.
+   Return a list of the resulting subsequences.  If Seperators is a list
+   split at every item in the list, otherwise split at Seperators."
+  `(collect ((result))
+     (let ((start (or ,start 0))
+	   (end ,end))
+       (loop for pos = (position ,separators ,sequence :start start :end end
+				 :test ,(if (listp separators)
+					    ;; FIX are position,member arg orders consistent?
+					    (lambda (one two) (member two one))
+					    #'eql))
+	 do
+	 (result (subseq ,sequence start pos))
+	 (or pos (return))
+	 (setq start (1+ pos))))
+     (result)))
+|#
+(defun split (sequence separators &key (start 0) end)
+  "Split the portion of Sequence from Start to End according to Separators.
+   Return a list of the resulting subsequences.  If Separators is a list
+   split at every item in the list, otherwise split at Separators."
+  (collect ((result))
+    (if (listp separators)
+	(loop for pos = (position separators sequence :start start :end end
+				  ;; FIX are position,member arg orders consistent?
+				  :test (lambda (one two) (member two one)))
+	  do
+	  (result (subseq sequence start pos))
+	  (or pos (return))
+	  (setq start (1+ pos)))
+	(loop for pos = (position separators sequence :start start :end end) do
+	  (result (subseq sequence start pos))
+	  (or pos (return))
+	  (setq start (1+ pos))))
+    (result)))

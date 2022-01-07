@@ -1,31 +1,16 @@
-;;; -*- Log: code.log; Package: Extensions -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/extensions.lisp,v 1.22.2.1 1998/06/23 11:21:52 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Spice Lisp extensions to the language.
-;;;
-;;; Letf written by Steven Handerson.
-;;;
-;;; **********************************************************************
+;;; Extensions to the language.
+
 (in-package "EXTENSIONS")
 
 (export '(letf* letf dovector deletef indenting-further file-comment
-		read-char-no-edit listen-skip-whitespace concat-pnames
-		iterate once-only collect do-anonymous undefined-value
-		required-argument define-hash-cache defun-cached
-		cache-hash-eq do-hash))
+	  read-char-no-edit listen-skip-whitespace concat-pnames
+	  iterate once-only collect do-anonymous undefined-value
+	  required-argument define-hash-cache defun-cached
+	  cache-hash-eq do-hash))
 
 (import 'lisp::whitespace-char-p)
 
-
-
+
 ;;; Undefined-Value  --  Public
 ;;;
 ;;;    This is here until we figure out what to do with it.
@@ -38,35 +23,32 @@
 ;;;
 (proclaim '(ftype (function () nil) required-argument))
 (defun required-argument ()
-  "This function can be used as the default value for keyword arguments that
-  must be always be supplied.  Since it is known by the compiler to never
-  return, it will avoid any compile-time type warnings that would result from a
-  default value inconsistent with the declared type.  When this function is
-  called, it signals an error indicating that a required keyword argument was
-  not supplied.  This function is also useful for DEFSTRUCT slot defaults
-  corresponding to required arguments."
+  "This function can be used as the default value for keyword arguments
+   that must be always be supplied.  Since it is known by the compiler to
+   never return, it will avoid any compile-time type warnings that would
+   result from a default value inconsistent with the declared type.  When
+   this function is called, it signals an error indicating that a required
+   keyword argument was not supplied.  This function is also useful for
+   DEFSTRUCT slot defaults corresponding to required arguments."
   (error "A required keyword argument was not supplied."))
-
 
 ;;; FILE-COMMENT  --  Public
 ;;;
 (defmacro file-comment (string)
   "FILE-COMMENT String
-  When COMPILE-FILE sees this form at top-level, it places the constant string
-  in the run-time source location information.  DESCRIBE will print the file
-  comment for the file that a function was defined in.  The string is also
-  textually present in the FASL, so the RCS \"ident\" command can find it,
-  etc."
+   When COMPILE-FILE sees this form at top-level, it places the constant string
+   in the run-time source location information.  DESCRIBE will print the file
+   comment for the file that a function was defined in.  The string is also
+   textually present in the FASL, so the RCS \"ident\" command can find it,
+   etc."
   (declare (ignore string))
   '(undefined-value))
-
 
 (defun skip-whitespace (&optional (stream *standard-input*))
   (loop (let ((char (read-char stream)))
 	  (if (not (lisp::whitespacep char))
 	      (return (unread-char char stream))))))
 
-  
 (defun listen-skip-whitespace (&optional (stream *standard-input*))
   "See listen.  Any whitespace in the input stream will be flushed."
   (do ((char (read-char-no-hang stream nil nil nil)
@@ -74,15 +56,15 @@
       ((null char) nil)
     (cond ((not (whitespace-char-p char))
 	   (unread-char char stream)
-	   (return T)))))
+	   (return t)))))
 
 ;;; These macros waste time as opposed to space.
 
 (defmacro letf* (bindings &body body &environment env)
   "Does what one might expect, saving the old values and setting the generalized
-  variables to the new values in sequence.  Unwind-protects and get-setf-method
-  are used to preserve the semantics one might expect in analogy to let*,
-  and the once-only evaluation of subforms."
+   variables to the new values in sequence.  Unwind-protects and get-setf-method
+   are used to preserve the semantics one might expect in analogy to let*,
+   and the once-only evaluation of subforms."
   (labels ((do-bindings
 	    (bindings)
 	    (cond ((null bindings) body)
@@ -99,12 +81,11 @@
 			       ,setter)))))))))
     (car (do-bindings bindings))))
 
-
 (defmacro letf (bindings &body body &environment env)
   "Like letf*, but evaluates all the implicit subforms and new values of all
-  the implied setfs before altering any values.  However, the store forms
-  (see get-setf-method) must still be evaluated in sequence.  Uses unwind-
-  protects to protect the environment."
+   the implied setfs before altering any values.  However, the store forms
+   (see get-setf-method) must still be evaluated in sequence.  Uses unwind-
+   protects to protect the environment."
   (let (temps)
     (labels
       ((do-bindings
@@ -115,7 +96,7 @@
 					(get-setf-method (car binding) env)
 		     (let ((save (gensym)))
 		       (mapcar #'(lambda (a b) (push (list a b) temps))
-			       dummies vals) 
+			       dummies vals)
 		       (push (list save getter) temps)
 		       (push (list (car newval) (cadr binding)) temps)
 		       `((unwind-protect
@@ -126,7 +107,6 @@
       (let ((form (car (do-bindings bindings))))
 	`(let* ,(nreverse temps)
 	   ,form)))))
-
 
 (define-setf-method logbitp (index int &environment env)
   (multiple-value-bind (temps vals stores store-form access-form)
@@ -144,19 +124,17 @@
 		 ,store)
 	      `(logbitp ,ind ,access-form)))))
 
-
 ;;; Indenting-Further is a user-level macro which may be used to locally increment
 ;;; the indentation of a stream.
 
 (defmacro indenting-further (stream more &rest body)
   "Causes the output of the indenting Stream to indent More spaces.  More is
-  evaluated twice."
+   evaluated twice."
   `(unwind-protect
      (progn
       (incf (lisp::indenting-stream-indentation ,stream) ,more)
       ,@body)
      (decf (lisp::indenting-stream-indentation ,stream) ,more)))
-
 
 ;;; Deletef
 
@@ -171,7 +149,6 @@
 	      (,(car newval) (delete ,eltsym ,listsym ,@keys)))
 	 ,setter))))
 
-
 (defmacro dovector ((elt vector) &rest forms)
   "Just like dolist, but with one-dimensional arrays."
   (let ((index (gensym))
@@ -184,7 +161,6 @@
 	 (let ((,elt (aref ,vec ,index)))
 	   ,@forms)))))
 
-
 (eval-when (compile load eval)
   (defun concat-pnames (name1 name2)
     (declare (symbol name1 name2))
@@ -193,27 +169,23 @@
 			     (symbol-name name2)))
 	name2)))
 
-
 ;;; Iterate  --  Public
-;;;
-;;;    The ultimate iteration macro...
 ;;;
 (defmacro iterate (name binds &body body)
   "Iterate Name ({(Var Initial-Value)}*) Declaration* Form*
-  This is syntactic sugar for Labels.  It creates a local function Name with
-  the specified Vars as its arguments and the Declarations and Forms as its
-  body.  This function is then called with the Initial-Values, and the result
-  of the call is return from the macro."
+   Create a local function Name with the specified Vars as arguments and
+   the Declarations and Forms as body.  Then call the function with the
+   Initial-Values, returning the result."
   (dolist (x binds)
-    (unless (and (listp x)
-		 (= (length x) 2))
-      (error "Malformed iterate variable spec: ~S." x)))
-  
+    (or (and (listp x)
+	     (= (length x) 2))
+	(error "Malformed iterate variable spec: ~S." x)))
+
   `(labels ((,name ,(mapcar #'first binds) ,@body))
      (,name ,@(mapcar #'second binds))))
 
 
-;;;; The Collect macro:
+;;;; The Collect macro.
 
 ;;; Collect-Normal-Expander  --  Internal
 ;;;
@@ -245,36 +217,34 @@
 		forms)
       ,n-value)))
 
-
 ;;; Collect  --  Public
-;;;
-;;;    The ultimate collection macro...
 ;;;
 (defmacro collect (collections &body body)
   "Collect ({(Name [Initial-Value] [Function])}*) {Form}*
-  Collect some values somehow.  Each of the collections specifies a bunch of
-  things which collected during the evaluation of the body of the form.  The
-  name of the collection is used to define a local macro, a la MACROLET.
-  Within the body, this macro will evaluate each of its arguments and collect
-  the result, returning the current value after the collection is done.  The
-  body is evaluated as a PROGN; to get the final values when you are done, just
-  call the collection macro with no arguments.
 
-  Initial-Value is the value that the collection starts out with, which
-  defaults to NIL.  Function is the function which does the collection.  It is
-  a function which will accept two arguments: the value to be collected and the
-  current collection.  The result of the function is made the new value for the
-  collection.  As a totally magical special-case, the Function may be Collect,
-  which tells us to build a list in forward order; this is the default.  If an
-  Initial-Value is supplied for Collect, the stuff will be rplacd'd onto the
-  end.  Note that Function may be anything that can appear in the functional
-  position, including macros and lambdas."
+   Collect values.  Each Name specifies a collection to which values can be
+   added during the evaluation of the body.  The name of the collection is
+   used to define a local macro, as with MACROLET.  Within the body, this
+   macro will evaluate each of its arguments and collect the result,
+   returning the current value after the collection is done.  The body is
+   evaluated as a PROGN; to get the final values when you are done, just
+   call the collection macro with no arguments.
+
+   Initial-Value is the value that the collection starts out with, which
+   defaults to NIL.  Function is the function which does the collection.
+   It is a function which will accept two arguments: the value to be
+   collected and the current collection.  The result of the function is
+   made the new value for the collection.  As a special-case the Function
+   may be Collect, which results in a list built in forward order; this is
+   the default.  If an Initial-Value is supplied for Collect, the stuff
+   will be rplacd'd onto the end.  Note that Function may be anything that
+   can appear in the functional position, including macros and lambdas."
 
   (let ((macros ())
 	(binds ()))
     (dolist (spec collections)
-      (unless (<= 1 (length spec) 3)
-	(error "Malformed collection specifier: ~S." spec))
+      (or (<= 1 (length spec) 3)
+	  (error "Malformed collection specifier: ~S." spec))
       (let ((n-value (gensym))
 	    (name (first spec))
 	    (default (second spec))
@@ -294,7 +264,7 @@
     `(macrolet ,macros (let* ,(nreverse binds) ,@body))))
 
 
-;;;; The Once-Only macro:
+;;;; The Once-Only macro.
 
 ;;; Once-Only  --  Interface
 ;;;
@@ -304,10 +274,10 @@
 ;;;
 (defmacro once-only (specs &body body)
   "Once-Only ({(Var Value-Expression)}*) Form*
-  Create a Let* which evaluates each Value-Expression, binding a temporary
-  variable to the result, and wrapping the Let* around the result of the
-  evaluation of Body.  Within the body, each Var is bound to the corresponding
-  temporary variable."
+   Create a Let* which evaluates each Value-Expression, binding a temporary
+   variable to the result, and wrapping the Let* around the result of the
+   evaluation of Body.  Within the body, each Var is bound to the corresponding
+   temporary variable."
   (iterate frob
 	   ((specs specs)
 	    (body body))
@@ -324,7 +294,7 @@
 		  ,,(frob (rest specs) body))))))))
 
 
-;;;; DO-ANONYMOUS:
+;;;; DO-ANONYMOUS.
 
 ;;; ### Bootstrap hack...  Renamed to avoid clobbering function in bootstrap
 ;;; environment.
@@ -359,19 +329,18 @@
 	 ,L1
 	 ,@code
 	 (,step ,@(nreverse steps))
-  	 ,L2 
+  	 ,L2
 	 (unless ,(car endlist) (go ,L1))
 	 (return-from ,BLOCK (progn ,@(cdr endlist))))))))
 
-
 (defmacro do-anonymous (varlist endlist &body (body decls))
   "DO-ANONYMOUS ({(Var [Init] [Step])}*) (Test Exit-Form*) Declaration* Form*
-  Like DO, but has no implicit NIL block.  Each Var is initialized in parallel
-  to the value of the specified Init form.  On subsequent iterations, the Vars
-  are assigned the value of the Step form (if any) in paralell.  The Test is
-  evaluated before each evaluation of the body Forms.  When the Test is true,
-  the Exit-Forms are evaluated as a PROGN, with the result being the value
-  of the DO."
+   Like DO, but has no implicit NIL block.  Each Var is initialized in parallel
+   to the value of the specified Init form.  On subsequent iterations, the Vars
+   are assigned the value of the Step form (if any) in paralell.  The Test is
+   evaluated before each evaluation of the body Forms.  When the Test is true,
+   the Exit-Forms are evaluated as a PROGN, with the result being the value
+   of the DO."
   (lisp::do-do-body varlist endlist body decls 'let 'psetq
 		    'do-anonymous (gensym)))
 
@@ -389,8 +358,30 @@
 	   (unless ,n-more (return ,result))
 	   ,@body)))))
 
+;;; Public.
+;;;
+(defmacro do-strings ((string-var value-var table &optional result) &body forms)
+  "Do-Strings (String-Var Value-Var Table [Result]) {declaration}* {form}*
+   Iterate over the strings in a string Table.  String-Var and Value-Var
+   are bound to the string and value respectively of each successive entry
+   in the string-table Table in alphabetical order.  If supplied, Result is
+   a form to evaluate to get the return value."
+  (let ((value-nodes (gensym))
+	(num-nodes (gensym))
+	(value-node (gensym))
+	(i (gensym)))
+    `(let ((,value-nodes (string-table-value-nodes ,table))
+	   (,num-nodes (string-table-num-nodes ,table)))
+       (dotimes (,i ,num-nodes ,result)
+	 (declare (fixnum ,i))
+	 (let* ((,value-node (svref ,value-nodes ,i))
+		(,value-var (value-node-value ,value-node))
+		(,string-var (value-node-proper ,value-node)))
+	   (declare (simple-string ,string-var))
+	   ,@forms)))))
+
 
-;;;; Hash cache utility:
+;;;; Hash cache utility.
 
 (eval-when (compile load eval)
   (defvar *profile-hash-cache* nil))
@@ -404,14 +395,14 @@
 				  (init-form 'progn)
 				  (values 1))
   "DEFINE-HASH-CACHE Name ({(Arg-Name Test-Function)}*) {Key Value}*
-  Define a hash cache that associates some number of argument values to a
-  result value.  The Test-Function paired with each Arg-Name is used to compare
-  the value for that arg in a cache entry with a supplied arg.  The
-  Test-Function must not error when passed NIL as its first arg, but need not
-  return any particular value.  Test-Function may be any thing that can be
-  place in CAR position.
+   Define a hash cache that associates some number of argument values to a
+   result value.  The Test-Function paired with each Arg-Name is used to compare
+   the value for that arg in a cache entry with a supplied arg.  The
+   Test-Function must not error when passed NIL as its first arg, but need not
+   return any particular value.  Test-Function may be any thing that can be
+   place in CAR position.
 
-  Name is used to define functions these functions:
+   Name is used to define functions these functions:
 
   <name>-CACHE-LOOKUP Arg*
       See if there is an entry for the specified Args in the cache.  The if not
@@ -443,7 +434,7 @@
    :INIT-FORM <name>
       The DEFVAR for creating the cache is enclosed in a form with the
       specified name.  Default PROGN."
-      
+
   (let* ((var-name (symbolicate "*" name "-CACHE-VECTOR*"))
 	 (nargs (length args))
 	 (entry-size (+ nargs values))
@@ -480,7 +471,7 @@
 	    (arg-vars arg-name)
 	    (tests `(,test (svref ,n-cache (+ ,n-index ,n)) ,arg-name))
 	    (sets `(setf (svref ,n-cache (+ ,n-index ,n)) ,arg-name))
-	    
+
 	    (let ((fun-name (symbolicate name "-CACHE-FLUSH-" arg-name)))
 	      (forms
 	       `(defun ,fun-name (,arg-name)
@@ -558,7 +549,7 @@
 
       (inits `(unless (boundp ',var-name)
 		(setq ,var-name (make-array ,total-size))))
-      
+
       `(progn
 	 (defvar ,var-name)
 	 (,init-form ,@(inits))
@@ -566,7 +557,6 @@
 	 (proclaim '(inline ,@(inlines)))
 	 ,@(forms)
 	 ',name))))
-
 
 ;;; DEFUN-CACHED  --  Public
 ;;;
@@ -600,7 +590,6 @@
 		    ,@(values-names))
 		   (values ,@(values-names)))
 		 (values ,@(values-names)))))))))
-
 
 ;;; CACHE-HASH-EQ  -- Public
 ;;;

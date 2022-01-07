@@ -1,16 +1,4 @@
-;;; -*- Mode: Lisp; Log: code.log; Package: bignum -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/bignum.lisp,v 1.23.2.3 2000/07/07 09:34:10 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains code to implement bignum support.
-;;;
+;;; Code to implement bignum support.
 
 (in-package "BIGNUM")
 (use-package "KERNEL")
@@ -120,7 +108,7 @@
 
 ;;;; What's a bignum?
 
-(eval-when (compile load eval) ;Necessary for DEFTYPE.
+(eval-when (compile load eval) ; Necessary for DEFTYPE.
 
 (defconstant digit-size 32)
 
@@ -139,7 +127,7 @@
   (%allocate-bignum length))
 
 ;;; Extract the length of the bignum.
-;;; 
+;;;
 (defun %bignum-length (bignum)
   (declare (type bignum-type bignum))
   (%bignum-length bignum))
@@ -190,7 +178,7 @@
 ;;; subtracting a possible incoming borrow.
 ;;;
 ;;; We really do:  a - b - 1 + borrow, where borrow is either 0 or 1.
-;;; 
+;;;
 (defun %subtract-with-borrow (a b borrow)
   (declare (type bignum-element-type a b)
 	   (type (mod 2) borrow))
@@ -313,7 +301,7 @@
 ;;;
 ;;; Change the length of bignum to be newlen.  Newlen must be the same or
 ;;; smaller than the old length, and any elements beyond newlen must be zeroed.
-;;; 
+;;;
 (defun %bignum-set-length (bignum newlen)
   (declare (type bignum-type bignum)
 	   (type bignum-index newlen))
@@ -729,7 +717,7 @@
 	(value (gensym))
 	(last (gensym)))
     `(let* (,@(if (not resultp) `(,last))
-	    (,carry 
+	    (,carry
 	     (multiple-value-bind (,value ,carry)
 				  (%add-with-carry
 				   (%lognot (%bignum-ref ,bignum 0)) 1 0)
@@ -947,7 +935,7 @@
 ;;; finishes, we store the remaining bits from bignum's first digit in the
 ;;; first non-zero result digit, digits.  We also grab some left over high
 ;;; bits from the last digit of bignum.
-;;; 
+;;;
 (defun bignum-ashift-left-unaligned (bignum digits n-bits res-len
 				     &optional (res nil resp))
   (declare (type bignum-index digits res-len)
@@ -979,7 +967,7 @@
 ;;; BIGNUM-PLUS-P -- Public.
 ;;;
 ;;; Return T iff bignum is positive.
-;;; 
+;;;
 (defun bignum-plus-p (bignum)
   (declare (type bignum-type bignum))
   (%bignum-0-or-plusp bignum (%bignum-length bignum)))
@@ -1173,7 +1161,7 @@
 	  (not (bignum-plus-p bignum))
 	  (not (zerop (logand (ash 1 bit-index)
 			      (%bignum-ref bignum word-index))))))))
-  
+
 
 
 ;;;; Logical operations.
@@ -1569,7 +1557,7 @@ IS LESS EFFICIENT BUT EASIER TO MAINTAIN.  BILL SAYS THIS CODE CERTAINLY WORKS!
 
 
 
-;;;; DPB (deposit byte).  
+;;;; DPB (deposit byte).
 
 (defun bignum-deposit-byte (new-byte byte-spec bignum)
   (declare (type bignum-type bignum))
@@ -1652,7 +1640,7 @@ IS LESS EFFICIENT BUT EASIER TO MAINTAIN.  BILL SAYS THIS CODE CERTAINLY WORKS!
 ;;; in as ones.  We call DEPOSIT-FIXNUM-DIGIT to grab what bits actually exist
 ;;; and to fill in the current result digit.
 ;;;
-(defun deposit-fixnum-bits (new-byte byte-len pos-digit pos-bits 
+(defun deposit-fixnum-bits (new-byte byte-len pos-digit pos-bits
 			    end-digit end-bits result)
   (declare (type bignum-index pos-digit end-digit))
   (let ((other-bits (- digit-size pos-bits))
@@ -1739,7 +1727,7 @@ IS LESS EFFICIENT BUT EASIER TO MAINTAIN.  BILL SAYS THIS CODE CERTAINLY WORKS!
 ;;; after after pos-bits; DEPOSIT-UNALIGNED-BIGNUM-BITS expects at least one
 ;;; digit boundary crossing.
 ;;;
-(defun deposit-bignum-bits (bignum-byte byte-len pos-digit pos-bits 
+(defun deposit-bignum-bits (bignum-byte byte-len pos-digit pos-bits
 			    end-digit end-bits result)
   (declare (type bignum-index pos-digit end-digit))
   (cond ((zerop pos-bits)
@@ -1860,7 +1848,7 @@ IS LESS EFFICIENT BUT EASIER TO MAINTAIN.  BILL SAYS THIS CODE CERTAINLY WORKS!
 ;;; at this unless reading the functions' comments leaves you at a loss.
 ;;; Remember this comes from Knuth, so the book might give you the right general
 ;;; overview.
-;;; 
+;;;
 ;;;
 ;;; (truncate x y):
 ;;;
@@ -2181,7 +2169,7 @@ IS LESS EFFICIENT BUT EASIER TO MAINTAIN.  BILL SAYS THIS CODE CERTAINLY WORKS!
 ;;;
 ;;; Note: This is exactly the same as one less than the integer-length of the
 ;;; last digit subtracted from the digit-size.
-;;; 
+;;;
 ;;; We shift y to make it sufficiently large that doing the 64-bit by 32-bit
 ;;; %FLOOR calls ensures the quotient and remainder fit in 32-bits.
 ;;;
@@ -2457,7 +2445,7 @@ IS LESS EFFICIENT BUT EASIER TO MAINTAIN.  BILL SAYS THIS CODE CERTAINLY WORKS!
 ;;; This is similar to BIGNUM-TRUNCATE-GUESS, but instead of computing the
 ;;; guess exactly as described in the its comments (digit by digit), this
 ;;; massages the 16-bit quantities into 32-bit quantities and performs the
-;;; 
+;;;
 #+32x16-divide
 (defun 32x16-truncate-guess (y1 y2 x-i x-i-1 x-i-2)
   (declare (type (unsigned-byte 16) y1 y2 x-i x-i-1 x-i-2))
@@ -2491,7 +2479,7 @@ IS LESS EFFICIENT BUT EASIER TO MAINTAIN.  BILL SAYS THIS CODE CERTAINLY WORKS!
 ;;;
 ;;; Allocate a single word bignum that holds fixnum.  This is useful when
 ;;; we are trying to mix fixnum and bignum operands.
-;;; 
+;;;
 (proclaim '(inline make-small-bignum))
 (defun make-small-bignum (fixnum)
   (let ((res (%allocate-bignum 1)))
@@ -2515,7 +2503,7 @@ IS LESS EFFICIENT BUT EASIER TO MAINTAIN.  BILL SAYS THIS CODE CERTAINLY WORKS!
 	 (sign-digit (%bignum-ref result (1- len)) next-digit))
 	((not (zerop (logxor sign-digit (%ashr next-digit (1- digit-size))))))
 	(decf len)
-	(setf (%bignum-ref result len) 0)	
+	(setf (%bignum-ref result len) 0)
 	(when (= len 1)
 	      (return))))
   len)

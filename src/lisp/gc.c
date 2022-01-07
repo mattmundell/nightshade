@@ -2,7 +2,7 @@
  * Stop and Copy GC based on Cheney's algorithm.
  *
  * $Header: /home/CVS-cmucl/src/lisp/gc.c,v 1.13.2.4 2000/11/06 17:18:34 dtc Exp $
- * 
+ *
  * Written by Christopher Hoover.
  */
 
@@ -10,7 +10,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <signal.h>
-#include "lisp.h"
+#include "nightshade.h"
 #include "internals.h"
 #include "os.h"
 #include "gc.h"
@@ -65,7 +65,7 @@ boolean from_space_p(lispobj object)
 
 	return ((from_space <= ptr) &&
 		(ptr < from_space_free_pointer));
-}	    
+}
 
 boolean new_space_p(lispobj object)
 {
@@ -74,10 +74,10 @@ boolean new_space_p(lispobj object)
 	gc_assert(Pointerp(object));
 
 	ptr = (lispobj *) PTR(object);
-		
+
 	return ((new_space <= ptr) &&
 		(ptr < new_space_free_pointer));
-}	    
+}
 
 #else
 
@@ -189,7 +189,7 @@ void collect_garbage(void)
 #else
 	int oldmask;
 #endif
-	
+
 	SAVE_CONTEXT();
 
 #ifdef PRINTNOISE
@@ -331,7 +331,7 @@ void collect_garbage(void)
 	getrusage(RUSAGE_SELF, &stop_rusage);
 
 	printf("done.]\n");
-	
+
 	percent_retained = (((float) size_retained) /
 			     ((float) size_discarded)) * 100.0;
 
@@ -350,7 +350,7 @@ void collect_garbage(void)
 #else
         printf("Statistics: %10.2fs real, %10.2fs user, %10.2fs system.\n",
                real_time, user_time, system_time);
-#endif        
+#endif
 
 	gc_rate = ((float) size_retained / (float) (1<<20)) / real_time;
 
@@ -480,12 +480,12 @@ static void scavenge_interrupt_context(struct sigcontext *context)
 #ifdef SC_NPC
 	npc_code_offset = SC_NPC(context) - SC_REG(context, reg_CODE);
 #endif SC_NPC
-	       
+
 	/* Scanvenge all boxed registers in the context. */
 	for (i = 0; i < (sizeof(boxed_registers) / sizeof(int)); i++) {
 		int index;
 	        lispobj foo;
-		
+
 		index = boxed_registers[i];
                 foo = SC_REG(context,index);
                 scavenge((lispobj *) &foo, 1);
@@ -499,7 +499,7 @@ static void scavenge_interrupt_context(struct sigcontext *context)
 	SC_REG(context, reg_LIP) =
 		SC_REG(context, lip_register_pair) + lip_offset;
 #endif reg_LIP
-	
+
 	/* Fix the PC if it was in from space */
 	if (from_space_p(SC_PC(context)))
 		SC_PC(context) = SC_REG(context, reg_CODE) + pc_code_offset;
@@ -521,7 +521,7 @@ void scavenge_interrupt_contexts(void)
 
 	for (i = 0; i < index; i++) {
 		context = lisp_interrupt_contexts[i];
-		scavenge_interrupt_context(context); 
+		scavenge_interrupt_context(context);
 	}
 }
 
@@ -602,7 +602,7 @@ scav_function_pointer(lispobj *where, lispobj object)
 		/* if it has been forwarded */
 		first_pointer = (lispobj *) PTR(object);
 		first = *first_pointer;
-		
+
 		if (!(Pointerp(first) && new_space_p(first))) {
 			int type;
 			lispobj copy;
@@ -610,7 +610,7 @@ scav_function_pointer(lispobj *where, lispobj object)
 			/* must transport object -- object may point */
 			/* to either a function header, a closure */
 			/* function header, or to a closure header. */
-			
+
 			type = TypeOf(first);
 			switch (type) {
 			  case type_FunctionHeader:
@@ -642,15 +642,15 @@ scav_function_pointer(lispobj *where, lispobj object)
   int type;
 
   gc_assert(Pointerp(object));
-      
+
   /* object is a pointer into from space. Not a FP */
   first_pointer = (lispobj *) PTR(object);
   first = *first_pointer;
-		
+
   /* must transport object -- object may point */
   /* to either a function header, a closure */
   /* function header, or to a closure header. */
-  
+
   type = TypeOf(first);
   switch (type) {
   case type_FunctionHeader:
@@ -661,7 +661,7 @@ scav_function_pointer(lispobj *where, lispobj object)
     copy = trans_boxed(object);
     break;
   }
-  
+
   first = *first_pointer = copy;
 
   gc_assert(Pointerp(first));
@@ -690,7 +690,7 @@ trans_code(struct code *code)
 	first = code->header;
 	if (Pointerp(first) && new_space_p(first))
 		return (struct code *) PTR(first);
-	
+
 	gc_assert(TypeOf(first) == type_CodeHeader);
 
 	/* prepare to transport the code vector */
@@ -714,7 +714,7 @@ trans_code(struct code *code)
 
 	/* set forwarding pointer */
 	code->header = l_new_code;
-	
+
 	/* set forwarding pointers for all the function headers in the */
 	/* code object.  also fix all self pointers */
 
@@ -724,7 +724,7 @@ trans_code(struct code *code)
 	while (fheaderl != NIL) {
 		struct function *fheaderp, *nfheaderp;
 		lispobj nfheaderl;
-		
+
 		fheaderp = (struct function *) PTR(fheaderl);
 		gc_assert(TypeOf(fheaderp->header) == type_FunctionHeader);
 
@@ -735,7 +735,7 @@ trans_code(struct code *code)
 
 		/* set forwarding pointer */
 		fheaderp->header = nfheaderl;
-		
+
 		/* fix self pointer */
 		nfheaderp->self = nfheaderl;
 
@@ -783,7 +783,7 @@ scav_code_header(lispobj *where, lispobj object)
 	while (fheaderl != NIL) {
 		fheaderp = (struct function *) PTR(fheaderl);
 		gc_assert(TypeOf(fheaderp->header) == type_FunctionHeader);
-		
+
 #if defined(DEBUG_CODE_GC)
 		printf("Scavenging boxed section of entry point located at 0x%08x.\n",
 		       (unsigned long) PTR(fheaderl));
@@ -791,10 +791,10 @@ scav_code_header(lispobj *where, lispobj object)
 		scavenge(&fheaderp->name, 1);
 		scavenge(&fheaderp->arglist, 1);
 		scavenge(&fheaderp->type, 1);
-		
+
 		fheaderl = fheaderp->next;
 	}
-	
+
 	return nwords;
 }
 
@@ -814,7 +814,7 @@ size_code_header(lispobj *where)
 	int nheader_words, ncode_words, nwords;
 
 	code = (struct code *) where;
-	
+
 	ncode_words = fixnum_value(code->code_size);
 	nheader_words = HeaderValue(code->header);
 	nwords = ncode_words + nheader_words;
@@ -841,7 +841,7 @@ trans_return_pc_header(lispobj object)
 	struct function *return_pc;
 	unsigned long offset;
 	struct code *code, *ncode;
-	
+
 	return_pc = (struct function *) PTR(object);
 	offset = HeaderValue(return_pc->header) * 4;
 
@@ -890,7 +890,7 @@ trans_function_header(lispobj object)
 	struct function *fheader;
 	unsigned long offset;
 	struct code *code, *ncode;
-	
+
 	fheader = (struct function *) PTR(object);
 	offset = HeaderValue(fheader->header) * 4;
 
@@ -916,7 +916,7 @@ scav_instance_pointer(lispobj *where, lispobj object)
 	/* if it has been forwarded */
 	first_pointer = (lispobj *) PTR(object);
 	first = *first_pointer;
-		
+
 	if (!(Pointerp(first) && new_space_p(first)))
 	    first = *first_pointer = trans_boxed(object);
 	*where = first;
@@ -928,10 +928,10 @@ static int
 scav_instance_pointer(lispobj *where, lispobj object)
 {
   lispobj  *first_pointer;
-  
+
   /* object is a pointer into from space.  Not a FP */
   first_pointer = (lispobj *) PTR(object);
-  
+
   *where = *first_pointer = trans_boxed(object);
   return 1;
 }
@@ -955,13 +955,13 @@ scav_list_pointer(lispobj *where, lispobj object)
 		/* if it has been forwarded */
 		first_pointer = (lispobj *) PTR(object);
 		first = *first_pointer;
-		
+
 		if (!(Pointerp(first) && new_space_p(first)))
 			first = *first_pointer = trans_list(object);
 
 		gc_assert(Pointerp(first));
 		gc_assert(!from_space_p(first));
-	
+
 		*where = first;
 	}
 	return 1;
@@ -976,12 +976,12 @@ scav_list_pointer(lispobj *where, lispobj object)
 
   /* object is a pointer into from space.  Not a FP. */
   first_pointer = (lispobj *) PTR(object);
-  
+
   first = *first_pointer = trans_list(object);
-  
+
   gc_assert(Pointerp(first));
   gc_assert(!from_space_p(first));
-  
+
   *where = first;
   return 1;
 }
@@ -992,7 +992,7 @@ trans_list(lispobj object)
 {
 	lispobj new_list_pointer;
 	struct cons *cons, *new_cons;
-	
+
 	cons = (struct cons *) PTR(object);
 
 	/* ### Don't use copy_object here. */
@@ -1001,7 +1001,7 @@ trans_list(lispobj object)
 
 	/* Set forwarding pointer. */
 	cons->car = new_list_pointer;
-	
+
 	/* Try to linearize the list in the cdr direction to help reduce */
 	/* paging. */
 
@@ -1030,7 +1030,7 @@ trans_list(lispobj object)
 		/* space to keep the newspace scavenge from having to */
 		/* do it. */
 		new_cons->cdr = new_cdr;
-		
+
 		cons = cdr_cons;
 		new_cons = new_cdr_cons;
 	}
@@ -1054,9 +1054,9 @@ scav_other_pointer(lispobj *where, lispobj object)
 		/* if it has been forwarded */
 		first_pointer = (lispobj *) PTR(object);
 		first = *first_pointer;
-		
+
 		if (!(Pointerp(first) && new_space_p(first)))
-			first = *first_pointer = 
+			first = *first_pointer =
 				(transother[TypeOf(first)])(object);
 
 		gc_assert(Pointerp(first));
@@ -1159,7 +1159,7 @@ scav_fdefn(lispobj *where, lispobj object)
     struct fdefn *fdefn;
 
     fdefn = (struct fdefn *)where;
-    
+
     if ((char *)(fdefn->function + RAW_ADDR_OFFSET) == fdefn->raw_addr) {
         scavenge(where + 1, sizeof(struct fdefn)/sizeof(lispobj) - 1);
         fdefn->raw_addr = (char *)(fdefn->function + RAW_ADDR_OFFSET);
@@ -1859,7 +1859,7 @@ trans_weak_pointer(lispobj object)
 
 	copy = copy_object(object, WEAK_POINTER_NWORDS);
 	wp = (struct weak_pointer *) PTR(copy);
-	
+
 
 	/* Push the weak pointer onto the list of weak pointers. */
 	wp->next = weak_pointers;
@@ -1888,7 +1888,7 @@ void scan_weak_pointers(void)
 #if defined(DEBUG_WEAK)
 		printf("Weak pointer at 0x%08x\n", (unsigned long) wp);
 		printf("Value: 0x%08x\n", (unsigned long) value);
-#endif		
+#endif
 
 		if (!(Pointerp(value) && from_space_p(value)))
 			continue;
@@ -1900,10 +1900,10 @@ void scan_weak_pointers(void)
 
 		first_pointer = (lispobj *) PTR(value);
 		first = *first_pointer;
-		
+
 #if defined(DEBUG_WEAK)
 		printf("First: 0x%08x\n", (unsigned long) first);
-#endif		
+#endif
 
 		if (Pointerp(first) && new_space_p(first))
 			wp->value = first;

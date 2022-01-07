@@ -1,21 +1,9 @@
-;;; -*- Mode: Lisp; Package: Lisp; Log: code.log -*-
+;;; Time functions.
 ;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/time.lisp,v 1.17.2.2 2000/06/07 12:48:07 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    This file contains the definitions for the Spice Lisp time functions.
-;;; They are mostly fairly straightforwardly implemented as calls to the
-;;; time server.
-;;;
-;;;    Written by Rob MacLachlan.
-;;;
+;;; Mostly fairly straightforwardly implemented as calls to the OS.
+
 (in-package "LISP")
+
 (export '(internal-time-units-per-second get-internal-real-time
 	  get-internal-run-time get-universal-time
 	  get-decoded-time encode-universal-time decode-universal-time
@@ -24,22 +12,21 @@
 
 (defconstant internal-time-units-per-second 100
   "The number of internal time units that fit into a second.  See
-  Get-Internal-Real-Time and Get-Internal-Run-Time.")
+   Get-Internal-Real-Time and Get-Internal-Run-Time.")
 
 (defconstant micro-seconds-per-internal-time-unit
   (/ 1000000 internal-time-units-per-second))
 
-
 
+;;;; Internal real time.
 
-;;; The base number of seconds for our internal "epoch".  We initialize this to
-;;; the time of the first call to G-I-R-T, and then subtract this out of the
-;;; result.
+;;; The base number of seconds for our internal "epoch".  We initialize
+;;; this to the time of the first call to G-I-R-T, and then subtract this
+;;; out of the result.
 ;;;
 (defvar *internal-real-time-base-seconds* nil)
 (declaim (type (or (unsigned-byte 32) null) *internal-real-time-base-seconds*))
 
-;; FIX check this, copied directly from 0.0+
 ;;; Universal-To-Internal-Real-Time  --  Public
 ;;;
 (defun universal-to-internal-real-time (universal-time)
@@ -55,7 +42,6 @@
 			      (- seconds *internal-real-time-base-seconds*))
 			 internal-time-units-per-second))))))
 
-;; FIX check this, copied directly from 0.0+
 ;;; Internal-Real-To-Universal-Time  --  Public
 ;;;
 (defun internal-real-to-universal-time (real-time)
@@ -69,7 +55,7 @@
 ;;;
 (defun get-internal-real-time ()
   "Return the real time in the internal time format.  This is useful for
-  finding elapsed time.  See Internal-Time-Units-Per-Second."
+   finding elapsed time.  See Internal-Time-Units-Per-Second."
   (locally (declare (optimize (speed 3) (safety 0)))
     (multiple-value-bind (ignore seconds useconds) (unix:unix-gettimeofday)
       (declare (ignore ignore) (type (unsigned-byte 32) seconds useconds))
@@ -87,13 +73,12 @@
 	       (setq *internal-real-time-base-seconds* seconds)
 	       uint))))))
 
-
 ;;; Get-Internal-Run-Time  --  Public
 ;;;
 #-(and sparc svr4)
 (defun get-internal-run-time ()
   "Return the run time in the internal time format.  This is useful for
-  finding CPU usage."
+   finding CPU usage."
   (declare (values (unsigned-byte 32)))
   (locally (declare (optimize (speed 3) (safety 0)))
     (multiple-value-bind (ignore utime-sec utime-usec stime-sec stime-usec)
@@ -112,7 +97,7 @@
 #+(and sparc svr4)
 (defun get-internal-run-time ()
   "Return the run time in the internal time format.  This is useful for
-  finding CPU usage."
+   finding CPU usage."
   (declare (values (unsigned-byte 32)))
   (locally (declare (optimize (speed 3) (safety 0)))
     (multiple-value-bind (ignore utime stime cutime cstime)
@@ -150,11 +135,10 @@
     (+ secs unix-to-universal-time)))
 
 (defun get-decoded-time ()
-  "Returns nine values specifying the current time as follows:
-   second, minute, hour, date, month, year, day of week (0 = Monday), T
-   (daylight savings times) or NIL (standard time), and timezone."
+  "Returns nine values specifying the current time as follows: second,
+   minute, hour, date, month, year, day of week (0 = Monday), T (daylight
+   savings times) or NIL (standard time), and timezone."
   (decode-universal-time (get-universal-time)))
-
 
 (defun decode-universal-time (universal-time &optional time-zone)
   "Converts a universal-time to decoded time format returning the following
@@ -201,7 +185,6 @@
 				  (1+ (/ timezone 60 60))
 				  (/ timezone 60 60))))))))))))))
 
-
 (defun pick-obvious-year (year)
   (declare (type (mod 100) year))
   (let* ((current-year (nth-value 5 (get-decoded-time)))
@@ -231,8 +214,8 @@
 ;;;
 (defun encode-universal-time (second minute hour date month year
 				     &optional time-zone dst)
-  "The time values specified in decoded format are converted to
-   universal time, which is returned."
+  "The time values specified in decoded format are converted to universal
+   time, which is returned."
   (declare (type (mod 60) second)
 	   (type (mod 60) minute)
 	   (type (mod 24) hour)
@@ -269,7 +252,7 @@
 	  (+ second (* (+ guess (- minwest minwest-guess)) 60))))))
 
 
-;;;; Time:
+;;;; Time.
 
 (defmacro time (form)
   "Evaluates the Form and prints timing information on *Trace-Output*."
@@ -371,8 +354,8 @@
 		     0.0)
 		(max (/ (- new-run-utime old-run-utime) 1000000.0) 0.0)
 		(max (/ (- new-run-stime old-run-stime) 1000000.0) 0.0)
-		(unless (zerop gc-run-time)
-		  (/ (float gc-run-time)
-		     (float internal-time-units-per-second)))
+		(or (zerop gc-run-time)
+		    (/ (float gc-run-time)
+		       (float internal-time-units-per-second)))
 		(max (- new-page-faults old-page-faults) 0)
 		(max (- new-bytes-consed old-bytes-consed) 0)))))))

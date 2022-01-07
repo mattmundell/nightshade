@@ -1,6 +1,8 @@
+;;; Calendar support.
+
 (in-package "EXTENSIONS")
 
-(export '(month-name month-number short-month-number ;; FIX gregorian-*?
+(export '(month-name short-month-name month-number short-month-number ;; FIX gregorian-*?
 	  ;;
 	  last-day-of-gregorian-month last-day-of-julian-month
 	  last-day-of-islamic-month last-day-of-hebrew-month
@@ -15,7 +17,7 @@
 	  ))
 
 
-;;;;
+;;;; Names and numbers.
 
 (defconstant abbrev-weekday-table
   '#("Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun"))
@@ -34,7 +36,11 @@
 
 (defun month-name (month)
   "Return the long name of Month (January is 1)."
-  (aref ext::long-month-table (1- month)))
+  (aref long-month-table (1- month)))
+
+(defun short-month-name (month)
+  "Return the short name of Month (Jan is 1)."
+  (aref abbrev-month-table (1- month)))
 
 (defun month-number (month)
   "Return the number of the month with long name Month (January is 1)."
@@ -54,9 +60,8 @@
 (defconstant daylight-table
   '#(nil nil nil nil nil "EDT" "CDT" "MDT" "PDT"))
 
-
 
-;;;;
+;;;; Conversions, special dates.
 
 (defun quotient (m n)
    (floor (/ m n)))
@@ -713,7 +718,7 @@
 	  5)))
 
 (defun french-leap-year (year)
-  "True if {\em year} is a leap year on the French Revolutionary calendar."
+  "True if YEAR is a leap year on the French Revolutionary calendar."
   (or (member year '(3 7 11)) ; Actual.
       (member year '(15 20))  ; Anticipated.
       (and (> year 20)        ; Proposed.

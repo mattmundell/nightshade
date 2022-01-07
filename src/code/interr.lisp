@@ -1,24 +1,9 @@
-;;; -*- Log: code.log; Package: KERNEL -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/interr.lisp,v 1.30.2.2 2000/05/23 16:36:33 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Functions and macros to define and deal with internal errors (i.e.
 ;;; problems that can be signaled from assembler code).
-;;;
-;;; Written by William Lott.
-;;;
 
 (in-package "KERNEL")
 
 (export '(infinite-error-protect find-caller-name *maximum-error-depth*))
-
 
 
 ;;;; Internal Errors
@@ -27,7 +12,6 @@
   (macrolet ((frob ()
 	       (map 'vector #'cdr (c:backend-internal-errors c:*backend*))))
     (frob)))
-
 
 (eval-when (compile eval)
 
@@ -73,8 +57,6 @@
 	     #',fn-name))))
 
 ) ; Eval-When (Compile Eval)
-
-
 
 (deferr unknown-error (&rest args)
   (error "Unknown error:~{ ~S~})" args))
@@ -470,7 +452,6 @@
 	 :datum object
 	 :expected-type 'instance))
 
-
 
 ;;; INFINITE-ERROR-PROTECT is used by ERROR and friends to keep us out of
 ;;; hyperspace.
@@ -552,7 +533,6 @@
 	(di:debug-condition ()
 	  (values "<error finding name>" nil)))))
 
-
 (defun find-interrupted-name ()
   (if *finding-name*
       (values "<error finding name>" nil)
@@ -615,4 +595,3 @@
 				       arguments))))
 		 (t
 		  (funcall handler name fp scp arguments)))))))))
-

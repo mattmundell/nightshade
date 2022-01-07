@@ -3,7 +3,7 @@
 #include <ctype.h>
 #include <signal.h>
 
-#include "lisp.h"
+#include "nightshade.h"
 #include "internals.h"
 #include "globals.h"
 #include "vars.h"
@@ -67,7 +67,7 @@ static boolean string_to_long(char *token, long *value)
             case 'X':
                 base = 16;
                 token += 2;
-                break;            
+                break;
             case 'o':
             case 'O':
                 base = 8;
@@ -132,7 +132,7 @@ char **ptr;
     char *token;
 
     skip_ws(ptr);
-    
+
     if (**ptr == '\0')
         return NULL;
 
@@ -296,7 +296,7 @@ parse_regnum(char *s)
 #else
 				return i;
 #endif
-		
+
 		return -1;
 	}
 }

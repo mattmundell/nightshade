@@ -1,10 +1,10 @@
 /*
  * $Header: /home/CVS-cmucl/src/lisp/dynbind.c,v 1.2 1997/01/21 00:28:13 ram Exp $
- * 
+ *
  * Support for dynamic binding from C.
  */
 
-#include "lisp.h"
+#include "nightshade.h"
 #include "internals.h"
 #include "globals.h"
 #include "dynbind.h"
@@ -35,9 +35,9 @@ void unbind(void)
 {
 	struct binding *binding;
 	lispobj symbol;
-	
+
 	binding = GetBSP() - 1;
-		
+
 	symbol = binding->symbol;
 
 	SetSymbolValue(symbol, binding->value);

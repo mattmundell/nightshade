@@ -11,7 +11,7 @@
 #include "arch.h"
 #include "signal.h"
 
-#include "lisp.h"
+#include "nightshade.h"
 #include "internals.h"
 #include "interr.h"
 #include "print.h"
@@ -77,7 +77,7 @@ void internal_error(struct sigcontext *context)
 	}
 	sc = scoffset & 0x1f;
 	offset = scoffset >> 5;
-		
+
 	printf("    SC: %d, Offset: %d", sc, offset);
 	switch (sc) {
 	  case sc_AnyReg:

@@ -1,6 +1,6 @@
 ;;; Some degree of upward compatibility for Gosling Emacs users.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 (defcommand "Gosmacs Permute Characters" (p)

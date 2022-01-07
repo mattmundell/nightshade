@@ -1,23 +1,6 @@
-;;; -*- Mode: Lisp; Package: Kernel -*-
+;;; -*- Package: Kernel -*-
 ;;;
-;;; **********************************************************************
-;;; This code was written by Douglas T. Crosher and Raymond Toy based
-;;; on public domain code from Carnegie Mellon University and has been
-;;; placed in the Public domain, and is provided 'as is'.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/rand-mt19937.lisp,v 1.6.2.2 2000/05/23 16:36:46 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Support for the Mersenne Twister, MT19937, random number generator
-;;; due to Matsumoto and Nishimura. This implementation has been
-;;; placed in the public domain with permission from M. Matsumoto.
-;;;
-;;; Makoto Matsumoto and T. Nishimura, "Mersenne twister: A
-;;; 623-dimensionally equidistributed uniform pseudorandom number
-;;; generator.", ACM Transactions on Modeling and Computer Simulation,
-;;; 1997, to appear.
+;;; Support for the Mersenne Twister, MT19937, random number generator.
 
 (in-package "LISP")
 (export '(random-state random-state-p random *random-state*
@@ -27,7 +10,7 @@
 (export '(%random-single-float %random-double-float random-chunk))
 
 
-;;;; Random state hackery:
+;;;; Random state hackery.
 
 ;;; The state is stored in a (simple-array (unsigned-byte 32) (627))
 ;;; wrapped in a random-state structure:
@@ -36,10 +19,8 @@
 ;;;  2:     Index k.
 ;;;  3-626: State.
 
-;;; Generate and initialise a new random-state array. The states are
-;;; initialised to 32bit integers excluding zero, and the index is
-;;; initialised to mt19937-n forcing an update when the first number
-;;; is generated.
+;;; Generate and initialise a new random-state array. Index is
+;;; initialised to 1 and the states to 32bit integers excluding zero.
 ;;;
 ;;; Seed - A 32bit number, not zero.
 ;;;
@@ -51,7 +32,7 @@
   (let ((state (or state (make-array 627 :element-type '(unsigned-byte 32)))))
     (declare (type (simple-array (unsigned-byte 32) (627)) state))
     (setf (aref state 1) #x9908b0df)
-    (setf (aref state 2) mt19937-n)
+    (setf (aref state 2) 1)
     (setf (aref state 3) seed)
     (do ((k 1 (1+ k)))
 	((>= k 624))
@@ -68,10 +49,10 @@
 (defvar *random-state* (make-random-object))
 
 (defun make-random-state (&optional state)
-  "Make a random state object.  If State is not supplied, return a copy
-  of the default random state.  If State is a random state, then return a
-  copy of it.  If state is T then return a random state generated from
-  the universal time."
+  "Make a random state object.  If State is not supplied, return a copy of
+   the default random state.  If State is a random state, then return a
+   copy of it.  If state is T then return a random state generated from the
+   universal time."
   (flet ((copy-random-state (state)
 	   (let ((state (random-state-state state))
 		 (new-state
@@ -93,7 +74,7 @@
 	 ext:*after-save-initializations*)
 
 
-;;;; Random entries:
+;;;; Random entries.
 
 ;;; Size of the chunks returned by random-chunk.
 ;;;
@@ -166,7 +147,6 @@
 (defun random-chunk (state)
   (declare (type random-state state))
   (vm::random-mt19937 (random-state-state state)))
-
 
 
 ;;; %RANDOM-SINGLE-FLOAT, %RANDOM-DOUBLE-FLOAT  --  Interface
@@ -265,15 +245,15 @@
 	1l0)))
 
 
-;;;; Random integers:
+;;;; Random integers.
 
-;;; Amount we overlap chunks by when building a large integer to make up for
-;;; the loss of randomness in the low bits.
+;;; Amount we overlap chunks by when building a large integer to make up
+;;; for the loss of randomness in the low bits.
 ;;;
 (defconstant random-integer-overlap 3)
 
-;;; Extra bits of randomness that we generate before taking the value MOD the
-;;; limit, to avoid loss of randomness near the limit.
+;;; Extra bits of randomness that we generate before taking the value MOD
+;;; the limit, to avoid loss of randomness near the limit.
 ;;;
 (defconstant random-integer-extra-bits 10)
 
@@ -281,7 +261,6 @@
 ;;;
 (defconstant random-fixnum-max
   (1- (ash 1 (- random-chunk-length random-integer-extra-bits))))
-
 
 ;;; %RANDOM-INTEGER  --  Internal
 ;;;
@@ -298,8 +277,8 @@
       (declare (fixnum count)))))
 
 (defun random (arg &optional (state *random-state*))
-  "Generate a uniformly distributed pseudo-random number between zero
-  and Arg.  State, if supplied, is the random state to use."
+  "Generate a uniformly distributed pseudo-random number between zero and
+   Arg.  State, if supplied, is the random state to use."
   (declare (inline %random-single-float %random-double-float
 		   #+long-float %long-float))
   (cond
@@ -317,5 +296,6 @@
     (t
      (error 'simple-type-error
 	    :expected-type '(or (integer 1) (float (0))) :datum arg
-	    :format-control "Argument is not a positive integer or a positive float: ~S"
+	    :format-control
+	    "Argument is not a positive integer or a positive float: ~S"
 	    :format-arguments (list arg)))))

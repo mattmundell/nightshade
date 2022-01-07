@@ -1,9 +1,8 @@
 ;;; File manipulation functions.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(read-file write-file))
-
 
 
 ;;;; Utility functions.
@@ -21,10 +20,10 @@
       (return index))))
 
 
-;;; Read-File:
+;;;; Read-File.
 
 (defun read-file (pathname mark)
-  "Inserts the contents of the file named by Pathname at the Mark."
+  "Insert the contents of the file named by PATHNAME at MARK."
   (with-mark ((mark mark :left-inserting))
     (if (and (lisp::extract-search-list pathname nil)
 	     (if (search-list-defined-p pathname) nil t))
@@ -100,7 +99,6 @@
 		    (setf (line-next previous) line)
 		    (setq previous line))) nil)))))))
 
-
 ;;; Hackish stuff for disgusting speed:
 
 (defun read-buffered-line (line)
@@ -110,9 +108,8 @@
     (setf (line-buffered-p line) nil)
     (setf (line-chars line) chars)))
 
-
 
-;;; Write-File:
+;;;; Write-File.
 
 (defun write-file (region pathname &key append
 			  (keep-backup (value ed::keep-backup-files))

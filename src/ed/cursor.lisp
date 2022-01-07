@@ -1,6 +1,6 @@
 ;;; Cursor positioning and recentering.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(mark-to-cursorpos center-window displayed-p scroll-window
 	  mark-column cursorpos-to-mark move-to-column))

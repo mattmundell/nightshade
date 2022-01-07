@@ -1,6 +1,6 @@
 ;;; Calendar, diary and reminders.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 ;;;; Structure.
@@ -75,12 +75,12 @@
 (defun cancel-reminder (reminder)
   "Cancel *reminders* entry Reminder."
   (setq *reminders* (delq reminder *reminders*))
-  (remove-scheduled-event (hi::tq-event-function (cadr reminder))))
+  (remove-scheduled-event (edi::tq-event-function (cadr reminder))))
 
 (defun cancel-diary-reminder (reminder)
   "Cancel *diary-reminders* entry Reminder."
   (setq *diary-reminders* (delq reminder *diary-reminders*))
-  (remove-scheduled-event (hi::tq-event-function (cadr reminder))))
+  (remove-scheduled-event (edi::tq-event-function (cadr reminder))))
 
 (defun universal-time-to-diary-date (time)
   (multiple-value-bind
@@ -151,21 +151,35 @@
 		       mark))))))
 
 (defun insert-calendar (mark month year months)
-  "Insert at Mark Months months starting from Month in Year."
-  (let ((last-month (+ month (1- months))))
-    (loop
-      for first = t then nil
-      for row-month from month upto last-month by *calendar-columns* do
-      (or first
-	  (insert-character mark #\newline))
+  "Insert at Mark Months months starting from Month (January is 1) in
+   Year."
+  (or (<= 1 month 12) (error "Month must be >= 1 and <= 12."))
+  (let ((last-month (+ month (1- months)))
+	(row-month month))
+    (loop for first = t then () do
+      (if (> row-month last-month) (return))
+      (if (> row-month 12)
+	  (setq row-month (- row-month 12)
+		last-month (- last-month 12)
+		year (1+ year)))
+      (or first (insert-character mark #\newline))
       (let ((top-line (mark-line mark))
-	    (end-line (mark-line mark)))
+	    (end-line (mark-line mark))
+	    (last-col-month (min (+ row-month (1- *calendar-columns*))
+				 last-month))
+	    (col-month row-month))
 	(loop
 	  for column = (mark-charpos mark) then (+ column 22)
-	  for adjacent = nil then t
-	  for col-month from row-month upto
-	  (min (+ row-month (1- *calendar-columns*)) last-month)
+	  for adjacent = () then t
 	  do
+	  (if (> col-month last-col-month) (return))
+	  (assert (<= 1 col-month 13))
+	  (if (eq col-month 13)
+	      (setq col-month 1
+		    last-col-month (- last-col-month 12)
+		    last-month (- last-month 12)
+		    row-month (- row-month 12)
+		    year (1+ year)))
 	  (move-mark mark (mark top-line 0))
 	  (line-end mark)
 	  (fill-to-column mark column)
@@ -173,11 +187,13 @@
 	  (or adjacent
 	      (progn
 		(insert-character mark #\newline)
-		(setq end-line (mark-line mark)))))
+		(setq end-line (mark-line mark))))
+	  (incf col-month))
 	(move-mark mark (mark end-line 0))
 	(line-end mark)
-	(or (eq (mark-charpos mark) 0)
-	    (insert-character mark #\newline))))))
+	(or (zerop (mark-charpos mark))
+	    (insert-character mark #\newline)))
+      (incf row-month *calendar-columns*))))
 
 (defun fill-to-column (mark column)
   "Insert spaces at Mark up to Column."
@@ -187,11 +203,10 @@
 					 :initial-element #\ )))))
 
 (defun insert-month (mark month year &key (fill t) (adjacent nil))
-  "Insert Month of Year at Mark."
+  "Insert Month (January is 1) of Year at Mark."
   (with-output-to-mark (stream mark)
-    (when (> month 12)
-      (incf year (truncate (/ month 12)))
-      (setq month (mod month 12)))
+    (or (<= 1 month 12)
+	(error "Month must be >= 1 and <= 12."))
     (let ((month-name (month-name month))
 	  (column (mark-charpos mark)))
       (fill-to-column mark column)
@@ -213,7 +228,7 @@
 				  0 0 0 1
 				  (month-number month-name)
 				  year))
-	(declare (ignore secs mins hours day year dst tz))
+	(declare (ignore secs mins hours day dst tz))
 	(let ((day 1)
 	      (first-week t)
 	      (last-day (last-day-of-julian-month month year)))
@@ -431,8 +446,8 @@
 			*diary-reminders*))))
 	  (let ((line (line-next (mark-line mark))))
 	    (or line (return))
-	    (hi::change-line mark line)
-	    (hi::change-line line-end line)
+	    (edi::change-line mark line)
+	    (edi::change-line line-end line)
 	    (setf (mark-charpos mark) 0)))))))
 
 
@@ -455,7 +470,7 @@
 		(get-decoded-time)
 	      (declare (ignore secs mins hours day))
  	      (insert-calendar (buffer-point buffer)
- 			       (1- month) year 3)))
+ 			       month year 3)))
 	  (defhvar "Calendar Months"
 	    "The number of months in the buffer."
 	    :buffer buffer
@@ -479,12 +494,16 @@
   (with-writable-buffer (buffer)
     (delete-region (buffer-region buffer))
     (multiple-value-bind
-	(secs mins hours day month year weekday dst tz)
+	(secs mins hours day month year)
 	(get-decoded-time)
-      (declare (ignore secs mins hours day weekday dst tz))
-      (insert-calendar (buffer-point buffer)
-		       (- month (truncate (/ *calendar-columns* 2)))
-		       year (value calendar-months))))
+      (declare (ignore secs mins hours day))
+      (let ((start-month-index (- month
+				  (floor *calendar-columns* 2)
+				  1)))
+	(insert-calendar (buffer-point buffer)
+			 (1+ (mod start-month-index 12))
+			 (+ year (floor start-month-index 12))
+			 (value calendar-months)))))
   (goto-today-command nil buffer))
 
 (defcommand "Goto Today" (p &optional (buffer (current-buffer)))
@@ -717,7 +736,7 @@
 	  (if (long-diary-entry-at-mark-p mark) (return)))
 	(let ((line (line-previous (mark-line mark))))
 	  (or line (return)) ;; FIX
-	  (hi::change-line mark line)
+	  (edi::change-line mark line)
 	  (setf (mark-charpos mark) 0)))
       ;; Move to the end of the entry.
       (loop
@@ -735,7 +754,7 @@
       (mark-before mark))))
 
 #|
-(profile::profile refresh-diary-reminders-command diary-reminder-at-mark copy-mark next-character alpha-char-p line-end line-offset setq change-line setf line-next mark-line hi::change-line)
+(profile::profile refresh-diary-reminders-command diary-reminder-at-mark copy-mark next-character alpha-char-p line-end line-offset setq change-line setf line-next mark-line edi::change-line)
 (profile::unprofile refresh-diary-reminders-command diary-reminder-at-mark copy-mark next-character alpha-char-p line-end line-offset setq change-line setf line-next mark-line)
 (profile::reset-time)
 (profile::report-time
@@ -760,7 +779,7 @@
       (format stream "~A) " (incf i))
       (format-universal-time stream
 			     (internal-real-to-universal-time
-			      (hi::tq-event-time (cadr reminder)))
+			      (edi::tq-event-time (cadr reminder)))
 			     :style :rfc1123
 			     :print-seconds nil
 			     :print-timezone nil
@@ -837,7 +856,7 @@
       (format stream "~A) " (incf i))
       (format-universal-time stream
 			     (internal-real-to-universal-time
-			      (hi::tq-event-time (cadr reminder)))
+			      (edi::tq-event-time (cadr reminder)))
 			     :style :rfc1123
 			     :print-seconds nil
 			     :print-timezone nil
@@ -925,7 +944,7 @@
 
 (defun highlight-visible-diary (buffer)
   (dolist (window (buffer-windows buffer))
-    (or (eq (hi::window-first-changed window) hi::the-sentinel)
+    (or (eq (edi::window-first-changed window) edi::the-sentinel)
 	(loop
 	  for num from (window-height window) downto 1
 	  for line = (mark-line (window-display-start window))

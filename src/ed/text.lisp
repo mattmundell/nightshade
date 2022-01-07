@@ -1,8 +1,9 @@
 ;;; Operations on units of texts, such as paragraphs, sentences, lines, and
 ;;; words.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
+(export '(mark-paragraph paragraph-offset sentence-offset))
 
 ;;;; New Variables
 

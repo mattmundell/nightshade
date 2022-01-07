@@ -1,17 +1,7 @@
-;;; -*- Package: SPARC -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/sparc-svr4-vm.lisp,v 1.4 1997/02/19 01:41:40 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the SPARC specific runtime stuff.
-;;;
+;;; SPARC specific runtime stuff.
+
 (in-package "SPARC")
+
 (use-package "SYSTEM")
 (use-package "UNIX")
 
@@ -33,11 +23,10 @@
     (ss-size unsigned-long)
     (ss-flags unsigned-long)))
 
-; In the include files this structure consists of 3 structures:
-; struct ucontext, that includes struct mcontext which includes; struct fpu.
-; Because the fpu structure contains doubles, it must be aligned on
-; 8 byte bounderies, consequently so must struct mcontext and struct
-; ucontext.
+; In the include files this structure consists of 3 structures: struct
+; ucontext, that includes struct mcontext which includes; struct fpu.
+; Because the fpu structure contains doubles, it must be aligned on 8 byte
+; bounderies, consequently so must struct mcontext and struct ucontext.
 (def-alien-type sigcontext
   (struct nil
     (uc-flags unsigned-long)
@@ -45,7 +34,7 @@
     (uc-mask sigset)
     (uc-stack sigaltstack)
     (uc-pad unsigned-long)  ;; align on 8.
-    ; struct mcontext 
+    ; struct mcontext
     (uc-psr unsigned-long)
     (uc-pc system-area-pointer)
     (uc-npc system-area-pointer)
@@ -84,7 +73,6 @@
 #+sunos
 (pushnew :solaris *features*)
 
-
 
 ;;;; MACHINE-TYPE and MACHINE-VERSION
 
@@ -95,7 +83,6 @@
 (defun machine-version ()
   "Returns a string describing the version of the local machine."
   "SPARCstation")
-
 
 
 ;;; FIXUP-CODE-OBJECT -- Interface
@@ -117,7 +104,6 @@
 	(setf (ldb (byte 10 0) (sap-ref-32 sap offset))
 	      (ldb (byte 10 0) fixup)))))))
 
-
 
 ;;;; Internal-error-arguments.
 
@@ -125,7 +111,7 @@
 ;;;
 ;;; Given the sigcontext, extract the internal error arguments from the
 ;;; instruction stream.
-;;; 
+;;;
 (defun internal-error-arguments (scp)
   (declare (type (alien (* sigcontext)) scp))
   ;(write "SCP = ") (write scp)
@@ -214,7 +200,7 @@
 ;;; sigcontext-REGISTER -- Interface.
 ;;;
 ;;; An escape register saves the value of a register for a frame that someone
-;;; interrupts.  
+;;; interrupts.
 ;;;
 (defun sigcontext-register (scp index)
   (declare (type (alien (* sigcontext)) scp))
@@ -239,7 +225,6 @@
   new)
 
 (defsetf sigcontext-register %set-sigcontext-register)
-
 
 ;;; sigcontext-FLOAT-REGISTER  --  Interface
 ;;;
@@ -266,7 +251,6 @@
 ;;;
 (defsetf sigcontext-float-register %set-sigcontext-float-register)
 
-
 ;;; sigcontext-FLOATING-POINT-MODES  --  Interface
 ;;;
 ;;;    Given a sigcontext pointer, return the floating point modes word in the
@@ -277,18 +261,16 @@
   (with-alien ((scp (* sigcontext) scp))
     (slot scp 'fsr)))
 
-
 
 ;;; EXTERN-ALIEN-NAME -- interface.
 ;;;
 ;;; The loader uses this to convert alien names to the form they occure in
 ;;; the symbol table (for example, prepending an underscore).
 ;;; On SVR4 SPARC, we just return the name.
-;;; 
+;;;
 (defun extern-alien-name (name)
   (declare (type simple-base-string name))
   name)
-
 
 
 ;;; SANCTIFY-FOR-EXECUTION -- Interface.
@@ -299,7 +281,7 @@
 ;;;
 ;;; XXX: newer machines, such as the SuperSPARC and MicroSPARC based ones,
 ;;; have a split I&D cache and do require cahce flusing.
-;;; 
+;;;
 (defun sanctify-for-execution (component)
   (without-gcing
     (alien-funcall (extern-alien "os_flush_icache"

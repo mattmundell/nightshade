@@ -1,19 +1,5 @@
-;;; -*- Log: code.log; Package: wire -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/remote.lisp,v 1.5.2.1 2000/05/23 16:36:47 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file implements a simple remote procedure call mechanism on top
-;;; of wire.lisp.
-;;;
-;;; Written by William Lott.
-;;;
+;;; A simple remote procedure call mechanism implemented on top of
+;;; wire.lisp.
 
 (in-package "WIRE")
 
@@ -28,7 +14,6 @@
 
 (defvar *pending-returns* nil
   "AList of wire . remote-wait structs")
-
 
 ;;; MAYBE-NUKE-REMOTE-WAIT -- internal
 ;;;
@@ -56,7 +41,7 @@
   (let ((wire (gensym)))
     `(let ((,wire ,wire-form))
        ,@(mapcar #'(lambda (form)
-		     `(wire-output-funcall ,wire
+ 		     `(wire-output-funcall ,wire
 					   ',(car form)
 					   ,@(cdr form)))
 	   forms)
@@ -71,9 +56,9 @@
 ;;; return, cause we can kind of guess at what the currect results would be.
 ;;;
 (defmacro remote-value-bind (wire-form vars form &rest body)
-  "Bind vars to the multiple values of form (which is executed remotly). The
-forms in body are only executed if the remote function returned as apposed
-to aborting due to a throw."
+  "Bind vars to the multiple values of form (which is executed remotely).
+   The forms in body are only executed if the remote function returned as
+   apposed to aborting due to a throw."
   (cond
    ((null vars)
     `(progn
@@ -132,7 +117,6 @@ to aborting due to a throw."
 		 ,@body))
 	   (maybe-nuke-remote-wait ,remote)))))))
 
-
 ;;; REMOTE-VALUE -- public
 ;;;
 ;;; Alternate interface to getting the single return value of a remote
@@ -142,9 +126,9 @@ to aborting due to a throw."
 (defmacro remote-value (wire-form form &optional
 				  (on-server-unwind
 				   `(error "Remote server unwound")))
-  "Execute the single form remotly. The value of the form is returned.
-  The optional form on-server-unwind is only evaluated if the server unwinds
-  instead of returning."
+  "Execute the single form remotely. The value of the form is returned.
+   The optional form on-server-unwind is only evaluated if the server
+   unwinds instead of returning."
   (let ((remote (gensym))
 	(wire (gensym)))
     `(let* ((,remote (make-remote-wait))
@@ -224,7 +208,6 @@ to aborting due to a throw."
 (define-functions 4)
 (define-functions 5)
 
-
 ;;; DO-N-VALUE-CALL -- internal
 ;;;
 ;;; For more values then 5, all the values are rolled into a list and passed
@@ -283,9 +266,9 @@ to aborting due to a throw."
 
 ;;; NEW-CONNECTION -- internal
 ;;;
-;;;   Maybe build a new wire and add it to the servers list of fds. If the user
-;;; Supplied a function, close the socket if it returns NIL. Otherwise, install
-;;; the wire.
+;;;   Maybe build a new wire and add it to the servers list of fds.  If the
+;;; user Supplied a function, close the socket if it returns NIL.
+;;; Otherwise, install the wire.
 ;;;
 (defun new-connection (socket addr on-connect)
   (let ((wire (make-wire socket))
@@ -303,8 +286,8 @@ to aborting due to a throw."
 
 ;;; REQUEST-SERVER structure
 ;;;
-;;; Just a simple handle on the socket and system:serve-event handler that make
-;;; up a request server.
+;;; Just a simple handle on the socket and system:serve-event handler that
+;;; make up a request server.
 ;;;
 (defstruct (request-server
 	    (:print-function %print-request-server))
@@ -318,8 +301,8 @@ to aborting due to a throw."
 
 ;;; CREATE-REQUEST-SERVER -- Public.
 ;;;
-;;; Create a TCP/IP listener on the given port.  If anyone tries to connect to
-;;; it, call NEW-CONNECTION to do the connecting.
+;;; Create a TCP/IP listener on the given port.  If anyone tries to connect
+;;; to it, call NEW-CONNECTION to do the connecting.
 ;;;
 (defun create-request-server (port &optional on-connect)
   "Create a request server on the given port.  Whenever anyone connects to it,

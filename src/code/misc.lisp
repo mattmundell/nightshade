@@ -1,19 +1,5 @@
-;;; -*- Mode: Lisp; Package: Lisp; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/misc.lisp,v 1.23.2.5 1998/06/23 11:22:10 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Environment query functions, documentation and dribble.
-;;;
-;;; Written and maintained mostly by Skef Wholey and Rob MacLachlan.
-;;; Scott Fahlman, Dan Aronson, and Steve Handerson did stuff here, too.
-;;;
+
 (in-package "LISP")
 (export '(documentation *features* variable room
 	  lisp-implementation-type lisp-implementation-version machine-type
@@ -55,9 +41,9 @@
       (values (info function documentation name)))))
 
 (defun documentation (x doc-type)
-  "Returns the documentation string of Doc-Type for X, or NIL if
-  none exists.  System doc-types are VARIABLE, FUNCTION, STRUCTURE, TYPE,
-  SETF, and T."
+  "Returns the documentation string of Doc-Type for X, or NIL if none
+   exists.  System doc-types are VARIABLE, FUNCTION, STRUCTURE, TYPE, SETF,
+   and T."
   (flet (;; CMUCL random-documentation.
 	 (try-cmucl-random-doc (x doc-type)
 	   (declare (symbol doc-type))
@@ -116,8 +102,8 @@
    implementation.")
 
 (defun featurep (x)
-  "If X is an atom, see if it is present in *FEATURES*.  Also
-  handle arbitrary combinations of atoms using NOT, AND, OR."
+  "If X is an atom, see if it is present in *FEATURES*.  Also handle
+   arbitrary combinations of atoms using NOT, AND, OR."
   (if (consp x)
       (case (car x)
 	((:not not) (not (featurep (cadr x))))
@@ -128,7 +114,7 @@
       (not (null (memq x *features*)))))
 
 
-;;; Other Environment Inquiries.
+;;;; Other Environment Inquiries.
 
 (defun lisp-implementation-type ()
   "Returns a string describing the implementation type."
@@ -149,14 +135,14 @@
   "Returns a string describing the supporting software."
   *software-type*)
 
-(defvar *short-site-name* "Unknown"
+(defvar *short-site-name* "Short site name"
   "The value of SHORT-SITE-NAME.  Set in library:site-init.lisp.")
 
 (defun short-site-name ()
   "Returns a string with the abbreviated site name."
   *short-site-name*)
 
-(defvar *long-site-name* "Site name not initialized"
+(defvar *long-site-name* "Long site name"
   "The value of LONG-SITE-NAME.  Set in library:site-init.lisp.")
 
 (defun long-site-name ()
@@ -164,7 +150,7 @@
   *long-site-name*)
 
 
-;;;; Dribble stuff:
+;;;; Dribble stuff.
 
 ;;; Each time we start dribbling to a new stream, we put it in
 ;;; *dribble-stream*, and push a list of *dribble-stream*, *standard-input*,
@@ -182,9 +168,8 @@
 (defvar *dribble-stream* nil)
 
 (defun dribble (&optional pathname &key (if-exists :append))
-  "With a file name as an argument, dribble opens the file and
-   sends a record of further I/O to that file.  Without an
-   argument, it closes the dribble file, and quits logging."
+  "If PATHNAME is true, open the file and sends a record of further I/O to
+   that file; otherwise close the dribble file and quit logging."
   (cond (pathname
 	 (let* ((new-dribble-stream
 		 (open pathname :direction :output :if-exists if-exists

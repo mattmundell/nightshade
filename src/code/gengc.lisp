@@ -1,25 +1,10 @@
-;;; -*- Mode: Lisp; Package: LISP; Log: code.log -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/gengc.lisp,v 1.5 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Lisp level interface to the Generational Garbage Collector.
-;;;
-;;; Written by William Lott.
-;;; 
 
 (in-package "EXTENSIONS")
 (export '(*before-gc-hooks* *after-gc-hooks* gc purify
 	  *gc-verbose* *gc-notify-before* *gc-notify-after*))
 
 (in-package "LISP")
-
 
 
 ;;;; GC Hooks.
@@ -34,11 +19,10 @@
 (defvar *before-gc-hooks* nil
   "A list of functions that are called before garbage collection occurs.
   The functions should take no arguments.")
-;;; 
+;;;
 (defvar *after-gc-hooks* nil
   "A list of functions that are called after garbage collection occurs.
   The functions should take no arguments.")
-
 
 ;;; *GC-VERBOSE* -- interface
 ;;;
@@ -47,7 +31,6 @@
   *GC-NOTIFY-AFTER* to be called before and after a garbage collection
   occurs respectively.  If :BEEP, causes the default notify functions to beep
   annoyingly.")
-
 
 (defun default-gc-notify-before (bytes-in-use)
   (when (eq *gc-verbose* :beep)
@@ -77,22 +60,20 @@
   threshold.  The function should notify the user that the system has
   finished GC'ing.")
 
-
 ;;; CAREFULLY-FUNCALL -- Internal
 ;;;
 ;;; Used to carefully invoke hooks.
-;;; 
+;;;
 (defmacro carefully-funcall (function &rest args)
   `(handler-case (funcall ,function ,@args)
      (error (cond)
        (warn "(FUNCALL ~S~{ ~S~}) lost:~%~A" ',function ',args cond)
        nil)))
 
-
 ;;; DO-BEFORE-GC-STUFF -- interface.
 ;;;
 ;;; Called by the C code just before doing a GC.
-;;; 
+;;;
 (defun do-before-gc-stuff ()
   (when *gc-verbose*
     (carefully-funcall *gc-notify-before* 0))
@@ -103,7 +84,7 @@
 ;;; DO-AFTER-GC-STUFF -- interface.
 ;;;
 ;;; Called by the C code just after doing a GC.
-;;; 
+;;;
 (defun do-after-gc-stuff ()
   (dolist (hook *after-gc-hooks*)
     (carefully-funcall hook))
@@ -111,18 +92,15 @@
     (carefully-funcall *gc-notify-after* 0 0 0))
   nil)
 
-
 
 ;;;; Interface to GC routines
 
 (alien:def-alien-routine ("collect_garbage" gc) c-call:void
   "Force a garbage collection.")
 
-
 (defun purify (&key root-structures constants)
   (declare (ignore root-structures constants))
   (gc))
-
 
 (defun gc-init ()
   ;; Nothing to do.

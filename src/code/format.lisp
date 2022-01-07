@@ -1,19 +1,4 @@
-;;; -*- Package: FORMAT -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/format.lisp,v 1.36.2.4 2000/05/23 16:36:30 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Functions to implement FORMAT and FORMATTER for CMU Common Lisp.
-;;;
-;;; Written by William Lott, with lots of stuff stolen from the previous
-;;; version by David Adam and later rewritten by Bill Maddox.
-;;;
+;;; Functions to implement FORMAT and FORMATTER.
 
 (in-package "FORMAT")
 (use-package "EXT")
@@ -209,9 +194,9 @@
 ;;; *ORIG-ARGS-AVAILABLE* -- internal.
 ;;;
 ;;; Used by the expander stuff.  We do an initial pass with this as NIL.
-;;; If someone doesn't like this, they (throw 'need-orig-args nil) and we try
-;;; again with it bound to T.  If this is T, we don't try to do anything
-;;; fancy with args.
+;;; If someone doesn't like this, they (throw 'need-orig-args nil) and we
+;;; try again with it bound to T.  If this is T, we don't try to do
+;;; anything fancy with args.
 ;;;
 (defvar *orig-args-available* nil)
 
@@ -221,61 +206,82 @@
 ;;;
 (defvar *simple-args*)
 
-
-
 
 ;;;; FORMAT
 
 (defun format (destination control-string &rest format-arguments)
   "Provides various facilities for formatting output.
-  CONTROL-STRING contains a string to be output, possibly with embedded
-  directives, which are flagged with the escape character \"~\".  Directives
-  generally expand into additional text to be output, usually consuming one
-  or more of the FORMAT-ARGUMENTS in the process.  A few useful directives
-  are:
-    ~A or ~nA     Prints one argument as if by PRINC
-    ~S or ~nS     Prints one argument as if by PRIN1
-    ~D or ~nD     Prints one argument as a decimal integer
-    ~%            Does a TERPRI
-    ~&            Does a FRESH-LINE
+   CONTROL-STRING contains a string to be output, possibly with embedded
+   directives, which are flagged with the escape character \"~\".  Directives
+   generally expand into additional text to be output, usually consuming one
+   or more of the FORMAT-ARGUMENTS in the process.  A few useful directives
+   are:
+      ~A or ~nA     Prints one argument as if by PRINC
+      ~S or ~nS     Prints one argument as if by PRIN1
+      ~D or ~nD     Prints one argument as a decimal integer
+      ~%            Does a TERPRI
+      ~&            Does a FRESH-LINE
 
-     where n is the width of the field in which the object is printed.
+   where n is the width of the field in which the object is printed.
 
-  DESTINATION controls where the result will go.  If DESTINATION is T, then
-  the output is sent to the standard output stream.  If it is NIL, then the
-  output is returned in a string as the value of the call.  Otherwise,
-  DESTINATION must be a stream to which the output will be sent.
+   DESTINATION controls where the result will go.  If DESTINATION is T, then
+   the output is sent to the standard output stream.  If it is NIL, then the
+   output is returned in a string as the value of the call.  Otherwise,
+   DESTINATION must be a stream to which the output will be sent.
 
-  Example:   (FORMAT NIL \"The answer is ~D.\" 10) => \"The answer is 10.\"
+   Example:   (FORMAT () \"The answer is ~D.\" 10) => \"The answer is 10.\"
 
-  Other directives include:
+   Other directives include:
 
-     ~C            Prints a character  (with : prints #\  as Space)
-     ~T            Prints a tab
+      ~C            Prints a character  (with : prints #\  as Space)
+      ~T            Prints a tab
 
-     ~:[...~;...~] Prints first alternative if argument is true, else second
-     ~@(...~)      Prints contents of braces (...) as a capitalized string
-     ~:@(...~)     Prints contents of braces (...) in upper case
-     ~P            Prints an s if the argument is plural (> 0), else ""
-     ~:P           Prints an s if the previous argument is plural, else ""
+      ~@(...~)      Prints contents of braces (...) as a capitalized string
+      ~:@(...~)     Prints contents of braces (...) in upper case
+      ~P            Prints an s if the argument is plural (> 0), else ""
+      ~:P           Prints an s if the previous argument is plural, else ""
+
+
+
+      ~n<...>       Prints content right-aligned in n spaces
+      ~@n<...>      Prints content right-aligned in n spaces
+
+      Conditionals
+
+	  ~[...~;...~]  Prints ~; seperated element indexed by first argument
+	  ~#[...~;...~] Prints ~; seperated element indexed by number of arguments
+			    If the final seperator is ~:; prints the element for
+			    any number of arguments higher than the final index.
+	  ~:[...~;...~] Prints second alternative if argument is true, else first
+	  ~@[...~]      Prints ... if argument is true
+
+      Iteration
+
+	  ~{...}    Iterate over the elements in the first argument, a list.
+	  ~@{...}   Iterate over the argument.
+
+	     In all of the above elements are used up by the directive inside
+	     the braces.
 
 FIX
-     ~@<...>       Splice?
-~&~@<Warning:  ~3i~:_~A~:>~%
+      ~*            Reference?
+         ~@[~* including the header~]
+
+      ~@<...~:>     Logical block.
+
+~@<Warning:  ~3i~:_~A~:>~%
 ~,2f
-~@[~* including the header~]
-~@[~A~]   print arg if arg is true
 (:short \"~D/~D/~2,'0D\")			;;  MM/DD/YY
    ~2,'0D turns 9 into 09
 ~36R   1 = 1, 35 = Z, 36 = 10
 
-     Printing of numeric arguments
-       ~B            Binary
-       ~O            Octal
-       ~X            Hexadecimal
-       ~:D           Decimal with commas, e.g. 30,000
-       ~R            Words, e.g. one hundred
-       ~@R           Roman numerals.
+      Printing of numeric arguments
+         ~B            Binary
+         ~O            Octal
+         ~X            Hexadecimal
+         ~:D           Decimal with commas, e.g. 30,000
+         ~R            Words, e.g. one hundred
+         ~@R           Roman numerals.
 
   FIX FORMAT has many additional capabilities."
   (etypecase destination
@@ -337,6 +343,7 @@ FIX
 
 ;;;; FORMATTER
 
+;; FIX doc
 (defmacro formatter (control-string)
   `#',(%formatter control-string))
 
@@ -418,7 +425,7 @@ FIX
 
 (defun need-hairy-args ()
   (when *only-simple-args*
-    ))
+    ))  ;; FIX always returns ()?
 
 
 ;;;; Format directive definition macros and runtime support.
@@ -445,8 +452,8 @@ FIX
 
 ;;; NEXT-ARG -- internal.
 ;;;
-;;; This macro is used to extract the next argument from the current arg list.
-;;; This is the version used by format directive interpreters.
+;;; This macro is used to extract the next argument from the current arg
+;;; list.  This is the version used by format directive interpreters.
 ;;;
 (defmacro next-arg (&optional offset)
   `(progn
@@ -587,7 +594,7 @@ FIX
 		  :offset (caar ,params)))
 	 ,@body))))
 
-); eval-when
+) ; eval-when
 
 (defun %set-format-directive-expander (char fn)
   (setf (aref *format-directive-expanders* (char-code (char-upcase char))) fn)
@@ -687,6 +694,7 @@ FIX
 	(t
 	 `(prin1 ,(expand-next-arg) stream))))
 
+;; FIX same as previous
 (def-format-interpreter #\S (colonp atsignp params)
   (cond (params
 	 (interpret-bind-defaults ((mincol 0) (colinc 1) (minpad 0)
@@ -868,11 +876,11 @@ FIX
   #(nil "one" "two" "three" "four" "five" "six" "seven" "eight" "nine"))
 
 (defconstant cardinal-tens
-  #(nil nil "twenty" "thirty" "forty"
-	"fifty" "sixty" "seventy" "eighty" "ninety"))
+  #(nil nil "twenty" "thirty" "forty" "fifty" "sixty" "seventy" "eighty"
+    "ninety"))
 
 (defconstant cardinal-teens
-  #("ten" "eleven" "twelve" "thirteen" "fourteen"  ;;; RAD
+  #("ten" "eleven" "twelve" "thirteen" "fourteen"  ;;; RAD (?)
     "fifteen" "sixteen" "seventeen" "eighteen" "nineteen"))
 
 (defconstant cardinal-periods
@@ -924,13 +932,12 @@ FIX
 
 (defun format-print-cardinal-aux (stream n period err)
   (multiple-value-bind (beyond here) (truncate n 1000)
-    (unless (<= period 20)
-      (error "Number too large to print in English: ~:D" err))
-    (unless (zerop beyond)
-      (format-print-cardinal-aux stream beyond (1+ period) err))
+    (or (<= period 20)
+	(error "Number too large to print in English: ~:D" err))
+    (or (zerop beyond)
+	(format-print-cardinal-aux stream beyond (1+ period) err))
     (unless (zerop here)
-      (unless (zerop beyond)
-	(write-char #\space stream))
+      (or (zerop beyond) (write-char #\space stream))
       (format-print-small-cardinal stream here)
       (write-string (svref cardinal-periods period) stream))))
 
@@ -940,8 +947,8 @@ FIX
   (let ((number (abs n)))
     (multiple-value-bind
 	(top bot) (truncate number 100)
-      (unless (zerop top)
-	(format-print-cardinal stream (- number bot)))
+      (or (zerop top)
+	  (format-print-cardinal stream (- number bot)))
       (when (and (plusp top) (plusp bot))
 	(write-char #\space stream))
       (multiple-value-bind
@@ -966,8 +973,8 @@ FIX
 ;;; Print Roman numerals
 
 (defun format-print-old-roman (stream n)
-  (unless (< 0 n 5000)
-    (error "Number too large to print in old Roman numerals: ~:D" n))
+  (or (< 0 n 5000)
+      (error "Number too large to print in old Roman numerals: ~:D" n))
   (do ((char-list '(#\D #\C #\L #\X #\V #\I) (cdr char-list))
        (val-list '(500 100 50 10 5 1) (cdr val-list))
        (cur-char #\M (car char-list))
@@ -979,8 +986,8 @@ FIX
       ((zerop start))))
 
 (defun format-print-roman (stream n)
-  (unless (< 0 n 4000)
-    (error "Number too large to print in Roman numerals: ~:D" n))
+  (or (< 0 n 4000)
+      (error "Number too large to print in Roman numerals: ~:D" n))
   (do ((char-list '(#\D #\C #\L #\X #\V #\I) (cdr char-list))
        (val-list '(500 100 50 10 5 1) (cdr val-list))
        (sub-chars '(#\C #\X #\X #\I #\I) (cdr sub-chars))
@@ -1017,15 +1024,15 @@ FIX
 			  ((eq (cdr arg-ptr) args)
 			   (car arg-ptr)))))
 		(*only-simple-args*
-		 (unless *simple-args*
-		   (error 'format-error
-			  :complaint "No previous argument."))
+		 (or *simple-args*
+		     (error 'format-error
+			    :complaint "No previous argument."))
 		 (caar *simple-args*))
 		(t
 		 (throw 'need-orig-args nil)))))
       (if atsignp
 	  `(write-string (if (eql ,arg 1) "y" "ies") stream)
-	  `(unless (eql ,arg 1) (write-char #\s stream))))))
+	  `(or (eql ,arg 1) (write-char #\s stream))))))
 
 (def-format-interpreter #\P (colonp atsignp params)
   (interpret-bind-defaults () params
@@ -1039,7 +1046,7 @@ FIX
 		   (next-arg))))
       (if atsignp
 	  (write-string (if (eql arg 1) "y" "ies") stream)
-	  (unless (eql arg 1) (write-char #\s stream))))))
+	  (or (eql arg 1) (write-char #\s stream))))))
 
 
 ;;;; Floating point noise.
@@ -1076,7 +1083,6 @@ FIX
 				  (decimal-string number)
 				  w 1 0 #\space t)))
       (format-princ stream number nil nil w 1 0 pad)))
-
 
 ;;; We return true if we overflowed, so that ~G can output the overflow char
 ;;; instead of spaces.
@@ -1157,7 +1163,6 @@ FIX
 				  (decimal-string number)
 				  w 1 0 #\space t)))
       (format-princ stream number nil nil w 1 0 pad)))
-
 
 (defun format-exponent-marker (number)
   (if (typep number *read-default-float-format*)
@@ -1276,12 +1281,12 @@ FIX
 	;;from the definition given in the manual, and is not
 	;;very efficient, since we generate the digits twice.
 	;;Future maintainers are encouraged to improve on this.
-	(unless d
-	  (multiple-value-bind (str len)
-	      (lisp::flonum-to-string (abs number))
-	    (declare (ignore str))
-	    (let ((q (if (= len 1) 1 (1- len))))
-	      (setq d (max q (min n 7))))))
+	(or d
+	    (multiple-value-bind (str len)
+				 (lisp::flonum-to-string (abs number))
+	      (declare (ignore str))
+	      (let ((q (if (= len 1) 1 (1- len))))
+		(setq d (max q (min n 7))))))
 	(let* ((ee (if e (+ e 2) 4))
 	       (ww (if w (- w ee) nil))
 	       (dd (- d n)))
@@ -1315,7 +1320,7 @@ FIX
 	  (when colon (write-string signstr stream))
 	  (dotimes (i (- w signlen (- n pointplace) strlen))
 	    (write-char pad stream))
-	  (unless colon (write-string signstr stream))
+	  (or colon (write-string signstr stream))
 	  (dotimes (i (- n pointplace)) (write-char #\0 stream))
 	  (write-string str stream)))
       (format-write-field stream
@@ -1323,7 +1328,7 @@ FIX
 			  w 1 0 #\space t)))
 
 
-;;;; line/page breaks and other stuff like that.
+;;;; Line/page breaks and other stuff like that.
 
 (def-format-directive #\% (colonp atsignp params)
   (when (or colonp atsignp)
@@ -1492,9 +1497,9 @@ FIX
 	      ((< cur colnum)
 	       (output-spaces stream (- colnum cur)))
 	      (t
-	       (unless (zerop colinc)
-		 (output-spaces stream
-				(- colinc (rem (- cur colnum) colinc)))))))))
+	       (or (zerop colinc)
+		   (output-spaces stream
+				  (- colinc (rem (- cur colnum) colinc)))))))))
 
 (def-format-directive #\_ (colonp atsignp params)
   (expand-bind-defaults () params
@@ -1541,8 +1546,8 @@ FIX
 	  (error 'format-error
 		 :complaint "Cannot specify both colon and at-sign.")
 	  (expand-bind-defaults ((posn 0)) params
-	    (unless *orig-args-available*
-	      (throw 'need-orig-args nil))
+	    (or *orig-args-available*
+		(throw 'need-orig-args nil))
 	    `(if (<= 0 ,posn (length orig-args))
 		 (setf args (nthcdr ,posn orig-args))
 		 (error 'format-error
@@ -1552,8 +1557,8 @@ FIX
 			:offset ,(1- end)))))
       (if colonp
 	  (expand-bind-defaults ((n 1)) params
-	    (unless *orig-args-available*
-	      (throw 'need-orig-args nil))
+	    (or *orig-args-available*
+		(throw 'need-orig-args nil))
 	    `(do ((cur-posn 0 (1+ cur-posn))
 		  (arg-ptr orig-args (cdr arg-ptr)))
 		 ((eq arg-ptr args)
@@ -1652,9 +1657,9 @@ FIX
 
 (def-complex-format-directive #\( (colonp atsignp params directives)
   (let ((close (find-directive directives #\) nil)))
-    (unless close
-      (error 'format-error
-	     :complaint "No corresponding close paren."))
+    (or close
+	(error 'format-error
+	       :complaint "No corresponding close paren."))
     (let* ((posn (position close directives))
 	   (before (subseq directives 0 posn))
 	   (after (nthcdr (1+ posn) directives)))
@@ -1673,9 +1678,9 @@ FIX
 
 (def-complex-format-interpreter #\( (colonp atsignp params directives)
   (let ((close (find-directive directives #\) nil)))
-    (unless close
-      (error 'format-error
-	     :complaint "No corresponding close paren."))
+    (or close
+	(error 'format-error
+	       :complaint "No corresponding close paren."))
     (interpret-bind-defaults () params
       (let* ((posn (position close directives))
 	     (before (subseq directives 0 posn))
@@ -1708,9 +1713,9 @@ FIX
 	(remaining directives))
     (loop
       (let ((close-or-semi (find-directive remaining #\] t)))
-	(unless close-or-semi
-	  (error 'format-error
-		 :complaint "No corresponding close bracket."))
+	(or close-or-semi
+	    (error 'format-error
+		   :complaint "No corresponding close bracket."))
 	(let ((posn (position close-or-semi remaining)))
 	  (push (subseq remaining 0 posn) sublists)
 	  (setf remaining (nthcdr (1+ posn) remaining))
@@ -1824,8 +1829,6 @@ FIX
 		    (setf *only-simple-args* nil)
 		    (hairy)))))
 	  (hairy)))))
-
-
 
 (def-complex-format-interpreter #\[ (colonp atsignp params directives)
   (multiple-value-bind
@@ -1946,10 +1949,10 @@ FIX
 
 (def-complex-format-directive #\{ (colonp atsignp params string end directives)
   (let ((close (find-directive directives #\} nil)))
-    (unless close
-      (error 'format-error
-	     :complaint
-	     "No corresponding close brace."))
+    (or close
+	(error 'format-error
+	       :complaint
+	       "No corresponding close brace."))
     (let* ((closed-with-colon (format-directive-colonp close))
 	   (posn (position close directives)))
       (labels
@@ -2024,10 +2027,10 @@ FIX
 (def-complex-format-interpreter #\{
 				(colonp atsignp params string end directives)
   (let ((close (find-directive directives #\} nil)))
-    (unless close
-      (error 'format-error
-	     :complaint
-	     "No corresponding close brace."))
+    (or close
+	(error 'format-error
+	       :complaint
+	       "No corresponding close brace."))
     (interpret-bind-defaults ((max-count nil)) params
       (let* ((closed-with-colon (format-directive-colonp close))
 	     (posn (position close directives))
@@ -2086,7 +2089,6 @@ FIX
   (error 'format-error
 	 :complaint "No corresponding open brace."))
 
-
 
 ;;;; Justification.
 
@@ -2106,6 +2108,7 @@ FIX
 				      first-semi params))
      remaining)))
 
+;; FIX twice?
 (def-complex-format-interpreter #\<
 				(colonp atsignp params string end directives)
   (multiple-value-bind
@@ -2132,9 +2135,9 @@ FIX
     (collect ((segments))
       (loop
 	(let ((close-or-semi (find-directive remaining #\> t)))
-	  (unless close-or-semi
-	    (error 'format-error
-		   :complaint "No corresponding close bracket."))
+	  (or close-or-semi
+	      (error 'format-error
+		     :complaint "No corresponding close bracket."))
 	  (let ((posn (position close-or-semi remaining)))
 	    (segments (subseq remaining 0 posn))
 	    (setf remaining (nthcdr (1+ posn) remaining)))
@@ -2142,8 +2145,8 @@ FIX
 		       #\>)
 	    (setf close close-or-semi)
 	    (return))
-	  (unless first-semi
-	    (setf first-semi close-or-semi))))
+	  (or first-semi
+	      (setf first-semi close-or-semi))))
       (values (segments) first-semi close remaining))))
 
 (defun expand-format-justification (segments colonp atsignp first-semi params)
@@ -2406,13 +2409,13 @@ FIX
 (defun extract-user-function-name (string start end)
   (let ((slash (position #\/ string :start start :end (1- end)
 			 :from-end t)))
-    (unless slash
-      (error 'format-error
-	     :complaint "Malformed ~~/ directive."))
+    (or slash
+	(error 'format-error
+	       :complaint "Malformed ~~/ directive."))
     (let* ((name (string-upcase (let ((foo string))
-				  ;; Hack alert: This is to keep the compiler
-				  ;; quit about deleting code inside the subseq
-				  ;; expansion.
+				  ;; Hack alert: This is to keep the
+				  ;; compiler quiet about deleting code
+				  ;; inside the subseq expansion.
 				  (subseq foo (1+ slash) (1- end)))))
 	   (first-colon (position #\: name))
 	   (last-colon (if first-colon (position #\: name :from-end t)))
@@ -2420,10 +2423,10 @@ FIX
 			     (subseq name 0 first-colon)
 			     "USER"))
 	   (package (find-package package-name)))
-      (unless package
-	(error 'format-error
-	       :complaint "No package named ``~A''."
-	       :arguments (list package-name)))
+      (or package
+	  (error 'format-error
+		 :complaint "No package named ``~A''."
+		 :arguments (list package-name)))
       (intern (if first-colon
 		  (subseq name (1+ first-colon))
 		  name)

@@ -1,26 +1,11 @@
-;;; -*- Log: code.log; Package: Lisp -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/purify.lisp,v 1.18.2.1 1998/06/23 11:22:22 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Storage purifier for Spice Lisp.
-;;; Written by Rob MacLachlan and Skef Wholey.
-;;;
-;;; Rewritten in C by William Lott.
-;;;
+;;; Storage purifier.
+
 (in-package "LISP")
 (export 'ext::purify "EXT")
 
 (alien:def-alien-routine ("purify" %purify) c-call:void
   (static-roots c-call:unsigned-long)
   (read-only-roots c-call:unsigned-long))
-
 
 ;;; COMPACT-ENVIRONMENT-AUX  --  Internal
 ;;;
@@ -41,7 +26,6 @@
    (t
     (compact-environment-aux name (1- n))
     n)))
-
 
 (defun purify (&key root-structures (environment-name "Auxiliary"))
   "This function optimizes garbage collection by moving all currently live

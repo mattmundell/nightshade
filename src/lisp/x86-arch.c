@@ -1,12 +1,12 @@
 /* x86-arch.c -*- Mode: C; comment-column: 40 -*-
  *
- * $Header: /home/CVS-cmucl/src/lisp/x86-arch.c,v 1.2.2.3 2000/10/21 12:42:34 dtc Exp $ 
+ * $Header: /home/CVS-cmucl/src/lisp/x86-arch.c,v 1.2.2.3 2000/10/21 12:42:34 dtc Exp $
  *
  */
 
 #include <stdio.h>
 
-#include "lisp.h"
+#include "nightshade.h"
 #include "globals.h"
 #include "validate.h"
 #include "os.h"
@@ -52,7 +52,7 @@ struct sigcontext *context;
       /* Lisp error arg vector length */
       vlen = *(char*)context->sc_pc++;
       /* Skip lisp error arg data bytes */
-      while(vlen-- > 0) 
+      while(vlen-- > 0)
 	(char*)context->sc_pc++;
       break;
 
@@ -79,13 +79,13 @@ arch_internal_error_arguments(struct sigcontext *context)
   return (unsigned char *)(context->sc_pc+1);
 }
 
-boolean 
+boolean
 arch_pseudo_atomic_atomic(struct sigcontext *context)
 {
   return SymbolValue(PSEUDO_ATOMIC_ATOMIC);
 }
 
-void 
+void
 arch_set_pseudo_atomic_interrupted(struct sigcontext *context)
 {
   SetSymbolValue(PSEUDO_ATOMIC_INTERRUPTED, make_fixnum(1));
@@ -93,18 +93,18 @@ arch_set_pseudo_atomic_interrupted(struct sigcontext *context)
 
 
 /* This stuff seems to get called for TRACE and debug activity */
-unsigned long 
+unsigned long
 arch_install_breakpoint(void *pc)
 {
   unsigned long result = *(unsigned long*)pc;
 
   *(char*)pc = BREAKPOINT_INST;		/* x86 INT3       */
   *((char*)pc+1) = trap_Breakpoint;		/* Lisp trap code */
-  
+
   return result;
 }
 
-void 
+void
 arch_remove_breakpoint(void *pc, unsigned long orig_inst)
 {
   *((char *)pc) = orig_inst & 0xff;
@@ -126,7 +126,7 @@ unsigned int  single_step_save2;
 unsigned int  single_step_save3;
 #endif
 
-void 
+void
 arch_do_displaced_inst(struct sigcontext *context, unsigned long orig_inst)
 {
   unsigned int *pc = (unsigned int*)context->sc_pc;
@@ -157,11 +157,11 @@ arch_do_displaced_inst(struct sigcontext *context, unsigned long orig_inst)
 }
 
 
-void 
+void
 sigtrap_handler(HANDLER_ARGS)
 {
   unsigned int  trap;
-  
+
 #ifdef __linux__
   GET_CONTEXT
 #endif
@@ -179,7 +179,7 @@ sigtrap_handler(HANDLER_ARGS)
       *(single_stepping-3) = single_step_save1;
       *(single_stepping-2) = single_step_save2;
       *(single_stepping-1) = single_step_save3;
-#else  
+#else
        context->eflags ^= 0x100;
 #endif
       /* Re-install the breakpoint if possible. */
@@ -222,7 +222,7 @@ sigtrap_handler(HANDLER_ARGS)
       arch_skip_instruction(context);
       interrupt_handle_pending(context);
       break;
-      
+
     case trap_Halt:
       {
 #if defined(__FreeBSD__)
@@ -238,7 +238,7 @@ sigtrap_handler(HANDLER_ARGS)
 	arch_skip_instruction(context);
 	break;
       }
-      
+
     case trap_Error:
     case trap_Cerror:
       DPRINTF(0,(stderr,"<trap Error %d>\n",code));
@@ -248,19 +248,19 @@ sigtrap_handler(HANDLER_ARGS)
       interrupt_internal_error(signal, code, context, code==trap_Cerror);
 #endif
       break;
-      
+
     case trap_Breakpoint:
       /*      fprintf(stderr,"*C break\n");*/
       (char*)context->sc_pc -= 1;
       handle_breakpoint(signal, code, context);
       /*      fprintf(stderr,"*C break return\n");*/
       break;
-      
+
     case trap_FunctionEndBreakpoint:
       (char*)context->sc_pc -= 1;
       context->sc_pc = (int)handle_function_end_breakpoint(signal, code, context);
       break;
-      
+
     default:
       DPRINTF(0,(stderr,"[C--trap default %d %d %x]\n",signal,code,context));
 #ifdef __linux__
@@ -275,7 +275,7 @@ sigtrap_handler(HANDLER_ARGS)
 #define FIXNUM_VALUE(lispobj) (((int)lispobj)>>2)
 
 extern void first_handler();
-void 
+void
 arch_install_interrupt_handlers()
 {
     interrupt_install_low_level_handler(SIGILL ,sigtrap_handler);
@@ -286,7 +286,7 @@ arch_install_interrupt_handlers()
 extern lispobj
 call_into_lisp(lispobj fun, lispobj *args, int nargs);
 
-/* These next four functions are an interface to the 
+/* These next four functions are an interface to the
  * Lisp call-in facility. Since this is C we can know
  * nothing about the calling environment. The control
  * stack might be the C stack if called from the monitor
@@ -297,7 +297,7 @@ call_into_lisp(lispobj fun, lispobj *args, int nargs);
  * args into a portable vector and let the assembly language
  * call-in function figure it out.
  */
-lispobj 
+lispobj
 funcall0(lispobj function)
 {
     lispobj *args = NULL;

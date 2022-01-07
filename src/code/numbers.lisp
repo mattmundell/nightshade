@@ -1,23 +1,7 @@
-;;; -*- Mode: Lisp; Package: KERNEL; Log: code.log -*-
+;;; -*- Package: KERNEL -*-
 ;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/numbers.lisp,v 1.28.2.2 2000/05/23 16:36:40 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;
-;;; This file contains the definitions of most number functions.
-;;;
-;;; Author: Rob MacLachlan
-;;;
-;;; Much code in this file was derived from code written by William Lott, Dave
-;;; Mcdonald, Jim Large, Scott Fahlman, etc.
-;;; Long-float support by Douglas Crosher, 1998.
-;;;
+;;; The definitions of most number functions.
+
 (in-package "LISP")
 
 (export '(zerop plusp minusp oddp evenp = /= < > <= >= max min + - * / 1+ 1-
@@ -31,10 +15,14 @@
 	  ldb ldb-test mask-field dpb deposit-field
 	  upgraded-complex-part-type))
 
+;; FIX consider `integer', like `string', which tries to coerce arg to int
+;;        parse-integer for strings, char-code for chars, maybe truncate other nums
+;;        type conversion should be automatic?
+
 (in-package "KERNEL")
 
 
-;;;; Number dispatch macro:
+;;;; Number dispatch macro.
 
 (eval-when (compile load eval)
 
@@ -71,7 +59,6 @@
 		   (frob var type))
 		 (frob var type)))))))
 
-
 ;;; Our guess for the preferred order to do type tests in (cheaper and/or more
 ;;; probable first.)
 ;;;
@@ -90,7 +77,6 @@
 	  ((not o2) t)
 	  (t
 	   (< o1 o2)))))
-
 
 ;;; GENERATE-NUMBER-DISPATCH  --  Internal
 ;;;
@@ -113,23 +99,22 @@
 
 ); Eval-When (Compile Load Eval)
 
-
 ;;; NUMBER-DISPATCH  --  Interface
 ;;;
 (defmacro number-dispatch (var-specs &body cases)
   "NUMBER-DISPATCH ({(Var Type)}*) {((Type*) Form*) | (Symbol Arg*)}*
-  A vaguely case-like macro that does number cross-product dispatches.  The
-  Vars are the variables we are dispatching off of.  The Type paired with each
-  Var is used in the error message when no case matches.  Each case specifies a
-  Type for each var, and is executed when that signature holds.  A type may be
-  a list (FOREACH Each-Type*), causing that case to be repeatedly instantiated
-  for every Each-Type.  In the body of each case, any list of the form
-  (DISPATCH-TYPE Var-Name) is substituted with the type of that var in that
-  instance of the case.
+   A vaguely case-like macro that does number cross-product dispatches.  The
+   Vars are the variables we are dispatching off of.  The Type paired with each
+   Var is used in the error message when no case matches.  Each case specifies a
+   Type for each var, and is executed when that signature holds.  A type may be
+   a list (FOREACH Each-Type*), causing that case to be repeatedly instantiated
+   for every Each-Type.  In the body of each case, any list of the form
+   (DISPATCH-TYPE Var-Name) is substituted with the type of that var in that
+   instance of the case.
 
-  As an alternate to a case spec, there may be a form whose CAR is a symbol.
-  In this case, we apply the CAR of the form to the CDR and treat the result of
-  the call as a list of cases.  This process is not applied recursively."
+   As an alternate to a case spec, there may be a form whose CAR is a symbol.
+   In this case, we apply the CAR of the form to the CDR and treat the result of
+   the call as a list of cases.  This process is not applied recursively."
   (let ((res (list nil))
 	(vars (mapcar #'car var-specs))
 	(block (gensym)))
@@ -165,7 +150,7 @@
 	   ,@(errors))))))
 
 
-;;;; Binary operation dispatching utilities:
+;;;; Binary operation dispatching utilities.
 
 (eval-when (compile eval)
 
@@ -192,7 +177,6 @@
     ((double-float single-float)
      (,op ,x (coerce ,y 'double-float)))))
 
-
 ;;; BIGNUM-CROSS-FIXNUM  --  Internal
 ;;;
 ;;;    Return NUMBER-DISPATCH forms for bignum X fixnum.
@@ -209,7 +193,7 @@
 ); Eval-When (Compile Eval)
 
 
-;;;; Canonicalization utilities:
+;;;; Canonicalization utilities.
 
 ;;; CANONICAL-COMPLEX  --  Internal
 ;;;
@@ -234,7 +218,6 @@
 	    (t
 	     (%make-complex realpart imagpart)))))
 
-
 ;;; BUILD-RATIO  --  Internal
 ;;;
 ;;;    Given a numerator and denominator with the GCD already divided out, make
@@ -251,7 +234,6 @@
 	num
 	(%make-ratio num den))))
 
-
 ;;; MAYBE-TRUNCATE  --  Internal
 ;;;
 ;;;    Truncate X and Y, but bum the case where Y is 1.
@@ -263,11 +245,11 @@
       (truncate x y)))
 
 
-;;;; Complexes:
+;;;; Complexes.
 
 (defun upgraded-complex-part-type (spec)
-  "Returns the element type of the most specialized COMPLEX number type that
-   can hold parts of type Spec."
+  "Returns the element type of the most specialized COMPLEX number type
+   that can hold parts of type Spec."
   (cond ((subtypep spec 'single-float)
 	 'single-float)
 	((subtypep spec 'double-float)
@@ -335,8 +317,8 @@
      0)))
 
 (defun conjugate (number)
-  "Returns the complex conjugate of NUMBER.  For non-complex numbers, this is
-  an identity."
+  "Returns the complex conjugate of NUMBER.  For non-complex numbers, this
+   is an identity."
   (if (complexp number)
       (complex (realpart number) (- (imagpart number)))
       number))
@@ -360,10 +342,8 @@
   "Return the denominator of NUMBER, which must be rational."
   (denominator number))
 
-
 
 ;;;; Arithmetic Operations
-
 
 (defmacro define-arith (op init doc)
   `(defun ,op (&rest args)
@@ -379,8 +359,8 @@
   "Returns the product of its arguments.  With no args, returns 1.")
 
 (defun - (number &rest more-numbers)
-  "Subtracts the second and all subsequent arguments from the first.
-  With one arg, negates it."
+  "Subtracts the second and all subsequent arguments from the first.  With
+   one arg, negates it."
   (if more-numbers
       (do ((nlist more-numbers (cdr nlist))
 	   (result number))
@@ -390,8 +370,8 @@
       (- number)))
 
 (defun / (number &rest more-numbers)
-  "Divides the first arg by each of the following arguments, in turn.
-  With one arg, returns reciprocal."
+  "Divides the first arg by each of the following arguments, in turn.  With
+   one arg, returns reciprocal."
   (if more-numbers
       (do ((nlist more-numbers (cdr nlist))
 	   (result number))
@@ -407,7 +387,6 @@
 (defun 1- (number)
   "Returns NUMBER - 1."
   (1- number))
-
 
 (eval-when (compile)
 
@@ -455,11 +434,8 @@
 
 ); Eval-When (Compile)
 
-
 (two-arg-+/- two-arg-+ + add-bignums)
 (two-arg-+/- two-arg-- - subtract-bignum)
-
-
 
 (defun two-arg-* (x y)
   (flet ((integer*ratio (x y)
@@ -511,8 +487,6 @@
 		      (* (maybe-truncate dx g2)
 			 (maybe-truncate dy g1))))))))
 
-
-
 ;;; INTEGER-/-INTEGER  --  Internal
 ;;;
 ;;;    Divide two integers, producing a canonical rational.  If a fixnum, we
@@ -536,7 +510,6 @@
 	(if (eql gcd 1)
 	    (build-ratio x y)
 	    (build-ratio (truncate x gcd) (truncate y gcd))))))
-
 
 (defun two-arg-/ (x y)
   (number-dispatch ((x number) (y number))
@@ -600,7 +573,6 @@
        (build-ratio (maybe-truncate nx gcd)
 		    (* (maybe-truncate y gcd) (denominator x)))))))
 
-
 (defun %negate (n)
   (number-dispatch ((n number))
     (((foreach fixnum single-float double-float #+long-float long-float))
@@ -613,11 +585,11 @@
      (complex (- (realpart n)) (- (imagpart n))))))
 
 
-;;;; Truncate & friends.
+;;;; Truncate and friends.
 
 (defun truncate (number &optional (divisor 1))
-  "Returns number (or number/divisor) as an integer, rounded toward 0.
-  The second returned value is the remainder."
+  "Returns number (or number/divisor) as an integer, rounded toward 0.  The
+   second returned value is the remainder."
   (macrolet ((truncate-float (rtype)
 	       `(let* ((float-div (coerce divisor ',rtype))
 		       (res (%unary-truncate (/ number float-div))))
@@ -661,7 +633,6 @@
 	(foreach single-float double-float #+long-float long-float))
        (truncate-float (dispatch-type divisor))))))
 
-
 ;;; Declare these guys inline to let them get optimized a little.  Round and
 ;;; Fround are not declared inline since they seem too obscure and too
 ;;; big to inline-expand by default.  Also, this gives the compiler a chance to
@@ -678,7 +649,7 @@
 ;;;
 (defun floor (number &optional (divisor 1))
   "Returns the greatest integer not greater than number, or number/divisor.
-  The second returned value is (mod number divisor)."
+   The second returned value is (mod number divisor)."
   (multiple-value-bind (tru rem) (truncate number divisor)
     (if (and (not (zerop rem))
 	     (if (minusp divisor)
@@ -687,14 +658,13 @@
 	(values (1- tru) (+ rem divisor))
 	(values tru rem))))
 
-
 ;;; If the numbers do not divide exactly and the result of (/ number divisor)
 ;;; would be positive then increment the quotient and decrement the remainder by
 ;;; the divisor.
 ;;;
 (defun ceiling (number &optional (divisor 1))
   "Returns the smallest integer not less than number, or number/divisor.
-  The second returned value is the remainder."
+   The second returned value is the remainder."
   (multiple-value-bind (tru rem) (truncate number divisor)
     (if (and (not (zerop rem))
 	     (if (minusp divisor)
@@ -703,10 +673,9 @@
 	(values (+ tru 1) (- rem divisor))
 	(values tru rem))))
 
-
 (defun round (number &optional (divisor 1))
-  "Rounds number (or number/divisor) to nearest integer.
-  The second returned value is the remainder."
+  "Rounds number (or number/divisor) to nearest integer.  The second
+   returned value is the remainder."
   (if (eql divisor 1)
       (round number)
       (multiple-value-bind (tru rem) (truncate number divisor)
@@ -724,7 +693,6 @@
 		     (values (- tru 1) (+ rem divisor))))
 		(t (values tru rem)))))))
 
-
 (defun rem (number divisor)
   "Returns second result of TRUNCATE."
   (multiple-value-bind (tru rem) (truncate number divisor)
@@ -741,7 +709,6 @@
 	(+ rem divisor)
 	rem)))
 
-
 (macrolet ((frob (name op doc)
 	     `(defun ,name (number &optional (divisor 1))
 		,doc
@@ -757,7 +724,7 @@
     "Same as ROUND, but returns first value as a float."))
 
 
-;;;; Comparisons:
+;;;; Comparisons.
 
 (defun = (number &rest more-numbers)
   "Returns T if all of its arguments are numerically equal, NIL otherwise."
@@ -767,7 +734,8 @@
      (if (not (= (car nlist) number)) (return nil))))
 
 (defun /= (number &rest more-numbers)
-  "Returns T if no two of its arguments are numerically equal, NIL otherwise."
+  "Returns T if no two of its arguments are numerically equal, NIL
+   otherwise."
   (do* ((head number (car nlist))
 	(nlist more-numbers (cdr nlist)))
        ((atom nlist) t)
@@ -779,15 +747,17 @@
        (return nil))))
 
 (defun < (number &rest more-numbers)
-  "Returns T if its arguments are in strictly increasing order, NIL otherwise."
+  "Returns T if its arguments are in strictly increasing order, NIL
+   otherwise."
   (do* ((n number (car nlist))
 	(nlist more-numbers (cdr nlist)))
        ((atom nlist) t)
-     (declare (list nlist))
-     (if (not (< n (car nlist))) (return nil))))
+    (declare (list nlist))
+    (if (not (< n (car nlist))) (return nil))))
 
 (defun > (number &rest more-numbers)
-  "Returns T if its arguments are in strictly decreasing order, NIL otherwise."
+  "Returns T if its arguments are in strictly decreasing order, NIL
+   otherwise."
   (do* ((n number (car nlist))
 	(nlist more-numbers (cdr nlist)))
        ((atom nlist) t)
@@ -795,7 +765,8 @@
      (if (not (> n (car nlist))) (return nil))))
 
 (defun <= (number &rest more-numbers)
-  "Returns T if arguments are in strictly non-decreasing order, NIL otherwise."
+  "Returns T if arguments are in strictly non-decreasing order, NIL
+   otherwise."
   (do* ((n number (car nlist))
 	(nlist more-numbers (cdr nlist)))
        ((atom nlist) t)
@@ -803,7 +774,8 @@
      (if (not (<= n (car nlist))) (return nil))))
 
 (defun >= (number &rest more-numbers)
-  "Returns T if arguments are in strictly non-increasing order, NIL otherwise."
+  "Returns T if arguments are in strictly non-increasing order, NIL
+   otherwise."
   (do* ((n number (car nlist))
 	(nlist more-numbers (cdr nlist)))
        ((atom nlist) t)
@@ -849,7 +821,6 @@
     (((foreach bignum fixnum ratio) float)
      (,op x (rational y)))))
 
-
 (defmacro two-arg-</> (name op ratio-arg1 ratio-arg2 &rest cases)
   `(defun ,name (x y)
      (number-dispatch ((x real) (y real))
@@ -884,7 +855,6 @@
 	     ((bignum bignum)
 	      (plusp (bignum-compare x y))))
 
-
 (defun two-arg-= (x y)
   (number-dispatch ((x number) (y number))
     (basic-compare =)
@@ -910,7 +880,6 @@
     ((complex (or float rational))
      (and (= (realpart x) y)
 	  (zerop (imagpart x))))))
-
 
 ;;; EQL -- Public
 ;;;
@@ -947,7 +916,7 @@
 		      (eql (imagpart x) (imagpart y))))))))))
 
 
-;;;; Logicals:
+;;;; Logicals.
 
 (defun logior (&rest integers)
   "Returns the bit-wise or of its arguments.  Args must be integers."
@@ -958,7 +927,8 @@
       0))
 
 (defun logxor (&rest integers)
-  "Returns the bit-wise exclusive or of its arguments.  Args must be integers."
+  "Returns the bit-wise exclusive or of its arguments.  Args must be
+   integers."
   (declare (list integers))
   (if integers
       (do ((result (pop integers) (logxor result (pop integers))))
@@ -974,7 +944,8 @@
       -1))
 
 (defun logeqv (&rest integers)
-  "Returns the bit-wise equivalence of its arguments.  Args must be integers."
+  "Returns the bit-wise equivalence of its arguments.  Args must be
+   integers."
   (declare (list integers))
   (if integers
       (do ((result (pop integers) (logeqv result (pop integers))))
@@ -1018,7 +989,6 @@
     (fixnum (lognot (truly-the fixnum number)))
     (bignum (bignum-logical-not number))))
 
-
 (macrolet ((frob (name op big-op)
 	     `(defun ,name (x y)
 	       (number-dispatch ((x integer) (y integer))
@@ -1027,10 +997,9 @@
   (frob two-arg-ior logior bignum-logical-ior)
   (frob two-arg-xor logxor bignum-logical-xor))
 
-
 (defun logcount (integer)
-  "Count the number of 1 bits if INTEGER is positive, and the number of 0 bits
-  if INTEGER is negative."
+  "Count the number of 1 bits if INTEGER is positive, and the number of 0
+   bits if INTEGER is negative."
   (etypecase integer
     (fixnum
      (logcount (truly-the (integer 0 #.(max most-positive-fixnum
@@ -1042,18 +1011,20 @@
      (bignum-logcount integer))))
 
 (defun logtest (integer1 integer2)
-  "Predicate which returns T if logand of integer1 and integer2 is not zero."
+  "Predicate which returns T if logand of integer1 and integer2 is not
+   zero."
   (logtest integer1 integer2))
 
 (defun logbitp (index integer)
   "Predicate returns T if bit index of integer is a 1.  The least
-significant bit of INTEGER is bit 0."
+   significant bit of INTEGER is bit 0."
   (etypecase integer
     (fixnum (logbitp index integer))
     (bignum (bignum-logbitp index integer))))
 
 (defun ash (integer count)
-  "Shifts integer left by count places preserving sign.  - count shifts right."
+  "Shifts integer left by count places preserving sign.  - count shifts
+   right."
   (declare (integer integer count))
   (etypecase integer
     (fixnum
@@ -1080,7 +1051,8 @@ significant bit of INTEGER is bit 0."
 	 (bignum-ashift-right integer (- count))))))
 
 (defun integer-length (integer)
-  "Returns the number of significant bits in the absolute value of integer."
+  "Returns the number of significant bits in the absolute value of
+   integer."
   (etypecase integer
     (fixnum
      (integer-length (truly-the fixnum integer)))
@@ -1088,7 +1060,7 @@ significant bit of INTEGER is bit 0."
      (bignum-integer-length integer))))
 
 
-;;;; Byte operations:
+;;;; Byte operations.
 
 (defun byte (size position)
   "Returns a byte specifier which may be used by other byte functions."
@@ -1111,17 +1083,19 @@ significant bit of INTEGER is bit 0."
   (ldb-test bytespec integer))
 
 (defun mask-field (bytespec integer)
-  "Extract the specified byte from integer,  but do not right justify result."
+  "Extract the specified byte from integer, but do not right justify
+   result."
   (mask-field bytespec integer))
 
 (defun dpb (newbyte bytespec integer)
-  "Returns new integer with newbyte in specified position, newbyte is right justified."
+  "Returns new integer with newbyte in specified position, newbyte is right
+   justified."
   (dpb newbyte bytespec integer))
 
 (defun deposit-field (newbyte bytespec integer)
-  "Returns new integer with newbyte in specified position, newbyte is not right justified."
+  "Returns new integer with newbyte in specified position, newbyte is not
+   right justified."
   (deposit-field newbyte bytespec integer))
-
 
 (defun %ldb (size posn integer)
   (logand (ash integer (- posn))
@@ -1141,12 +1115,12 @@ significant bit of INTEGER is bit 0."
 	    (logand integer (lognot mask)))))
 
 
-;;;; Boole:
+;;;; Boole.
 
-;;; The boole function dispaches to any logic operation depending on
-;;;     the value of a variable.  Presently, legal selector values are [0..15].
-;;;     boole is open coded for calls with a constant selector. or with calls
-;;;     using any of the constants declared below.
+;;; The boole function dispaches to any logic operation depending on the
+;;; value of a variable.  Presently, legal selector values are [0..15].
+;;; boole is open coded for calls with a constant selector. or with calls
+;;; using any of the constants declared below.
 
 (defconstant boole-clr 0
   "Boole function op, makes BOOLE return 0.")
@@ -1179,23 +1153,25 @@ significant bit of INTEGER is bit 0."
   "Boole function op, makes BOOLE return logeqv of integer1 and integer2.")
 
 (defconstant boole-nand  10
-  "Boole function op, makes BOOLE return log nand of integer1 and integer2.")
+  "Boole function op, makes BOOLE return log nand of integer1 and
+   integer2.")
 
 (defconstant boole-nor   11
   "Boole function op, makes BOOLE return lognor of integer1 and integer2.")
 
 (defconstant boole-andc1 12
-  "Boole function op, makes BOOLE return logandc1 of integer1 and integer2.")
+  "Boole function op, makes BOOLE return logandc1 of integer1 and
+   integer2.")
 
 (defconstant boole-andc2 13
-  "Boole function op, makes BOOLE return logandc2 of integer1 and integer2.")
+  "Boole function op, makes BOOLE return logandc2 of integer1 and
+   integer2.")
 
 (defconstant boole-orc1  14
   "Boole function op, makes BOOLE return logorc1 of integer1 and integer2.")
 
 (defconstant boole-orc2  15
   "Boole function op, makes BOOLE return logorc2 of integer1 and integer2.")
-
 
 (defun boole (op integer1 integer2)
   "Bit-wise boolean function on two integers.  Function chosen by OP:
@@ -1235,11 +1211,11 @@ significant bit of INTEGER is bit 0."
     (t (error "~S is not of type (mod 16)." op))))
 
 
-;;;; GCD, LCM:
+;;;; GCD, LCM.
 
 (defun gcd (&rest numbers)
   "Returns the greatest common divisor of the arguments, which must be
-  integers.  Gcd with no arguments is defined to be 0."
+   integers.  Gcd with no arguments is defined to be 0."
   (cond ((null numbers) 0)
 	((null (cdr numbers)) (abs (the integer (car numbers))))
 	(t
@@ -1252,7 +1228,7 @@ significant bit of INTEGER is bit 0."
 
 (defun lcm (&rest numbers)
   "Returns the least common multiple of one or more integers.  LCM of no
-  arguments is defined to be 1."
+   arguments is defined to be 1."
   (cond ((null numbers) 1)
 	((null (cdr numbers)) (abs (the integer (car numbers))))
 	(t
@@ -1262,11 +1238,9 @@ significant bit of INTEGER is bit 0."
 	     ((null rest) lcm)
 	   (declare (integer lcm) (list rest))))))
 
-
 (defun two-arg-lcm (n m)
   (declare (integer n m))
   (* (truncate (max n m) (gcd n m)) (min n m)))
-
 
 ;;; TWO-ARG-GCD  --  Internal
 ;;;
@@ -1328,6 +1302,7 @@ significant bit of INTEGER is bit 0."
 	       ((or (= r 0) (> d q)) (/= r 0))
 	     (declare (fixnum inc))
 	     (multiple-value-setq (q r) (truncate x d))))))
+
 
 ;;; ISQRT  --  Public
 ;;;
@@ -1356,13 +1331,24 @@ significant bit of INTEGER is bit 0."
 	    (setq init-value iterated-value))))))
 
 
-;;;; Random number predicates:
+;;;; Miscellaneous number predicates.
 
-;; FIX define explicitly to aid searching
-(macrolet ((frob (name doc)
-	     `(defun ,name (number) ,doc (,name number))))
-  (frob zerop "Returns T if number = 0, NIL otherwise.")
-  (frob plusp "Returns T if number > 0, NIL otherwise.")
-  (frob minusp "Returns T if number < 0, NIL otherwise.")
-  (frob oddp "Returns T if number is odd, NIL otherwise.")
-  (frob evenp "Returns T if number is even, NIL otherwise."))
+(defun zerop (number)
+  "Returns t if NUMBER = 0, () otherwise."
+  (zerop number))
+
+(defun plusp (number)
+  "Returns t if NUMBER > 0, () otherwise."
+  (plusp number))
+
+(defun minusp (number)
+  "Returns t if NUMBER < 0, () otherwise."
+  (minusp number))
+
+(defun oddp (number)
+  "Returns t if NUMBER is odd, () otherwise."
+  (oddp number))
+
+(defun evenp (number)
+  "Returns t if NUMBER is even, () otherwise."
+  (evenp number))

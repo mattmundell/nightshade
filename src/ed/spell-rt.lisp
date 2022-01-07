@@ -1,18 +1,19 @@
 ;;; -*- Package: Spell -*-
 ;;;
-;;; This file contains system dependent primitives for the spelling checking/
-;;; correcting code in Spell-Correct.Lisp, Spell-Augment.Lisp, and
-;;; Spell-Build.Lisp.
+;;; This file contains system dependent primitives for the spelling
+;;; checking/ correcting code in Spell-Correct.Lisp, Spell-Augment.Lisp,
+;;; and Spell-Build.Lisp.
 
 (defpackage "SPELL"
   (:use "LISP" "EXTENSIONS" "SYSTEM")
   (:export spell-try-word spell-root-word spell-collect-close-words
 	   maybe-read-spell-dictionary correct-spelling max-entry-length
 	   spell-read-dictionary spell-add-entry spell-root-flags
-	   spell-remove-entry))
+	   spell-remove-entry)
+  (:documentation "Spelling checker, including spelling correction and
+dictionary handling."))
 
 (in-package "SPELL")
-
 
 
 ;;;; System Area Referencing and Setting

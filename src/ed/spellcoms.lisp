@@ -1,10 +1,8 @@
-;;; This file contains the code to implement commands using the spelling
-;;; checking/correcting stuff in spell-corr.lisp and the dictionary
-;;; augmenting stuff in spell-aug.lisp.
+;;; Code to implement commands using the spelling checking/correcting stuff
+;;; in spell-corr.lisp and the dictionary augmenting stuff in
+;;; spell-aug.lisp.
 
-(in-package "HEMLOCK")
-
-
+(in-package "ED")
 
 (defstruct (spell-info (:print-function print-spell-info)
 		       (:constructor make-spell-info (pathname)))

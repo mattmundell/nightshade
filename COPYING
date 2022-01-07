@@ -1,19 +1,31 @@
-Towards a fully public domain system Nightshade is a set of patches onto a
-stripped down version of CMUCL 18c.
+As of version 1b Nightshade is most probably entirely public domain.  It is
+based on CMUCL 18c.
 
-All parts of CMUCL that are explicitly marked as copyrighted have been
-removed from the source, including PCL, the CLX interface and the MIT
-version of the loop macro.
+All parts of CMUCL 18c that were explicitly marked as copyrighted have been
+removed.  This includes PCL, the CLX interface, the MIT version of the loop
+macro and some of the contrib directory.
 
-The remaining copyrights are the implicit copyrights on additions made by
-people since the original public domain release of CMUCL.  Some of these
-have been explicitly dedicated to the public domain, and the following
-authors have confirmed that the additions they made are public domain.
+Everyone who committed towards CMUCL 18c after the CMU public domain
+release has confirmed that the additions they made are public domain.  They
+are Douglas Crosher (dtc), Robert MacLachlan (ram) and Paul Werkowski (pw).
 
-    Douglas Crosher     dtc
-    Robert MacLachlan   ram
-    Peter Van Eynde
-    Paul Werkowski      pw
+External contributions made towards CMUCL 18c after the CMU public domain
+release were recorded in the logs.  The public domain status of these
+additions falls into three categories:
 
-The intention for the rest of these additions is to either confirm that
-they are public domain or replace them.
+	- Confirmed public domain by contributor.
+		  Peter Van Eynde, Fred Gilham, Eric Marsden, Timothy Miller,
+		  Raymond Toy.
+
+	- Reverted.
+		  Pierre Mai.
+
+	- Status pending.
+		  Marco Antoniotti, Pierpaolo Bernardi, Casper Dik, Julian Dolby,
+		  Mike McDonald, Tim Moore, Ken Olum.
+
+Every new addition to the CMUCL 18c base is public domain.  A few of these
+additions come from outside the Nightshade project, the sources of these
+are detailed in the file etc/AUTHORS.
+
+Nightshade thanks everyone for the work.

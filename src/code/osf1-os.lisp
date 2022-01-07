@@ -1,19 +1,5 @@
-;;; -*- Package: SYSTEM -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/osf1-os.lisp,v 1.3.2.2 1998/06/23 11:22:16 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; OS interface functions for CMU CL under Mach.
-;;;
-;;; Written and maintained mostly by Skef Wholey and Rob MacLachlan.
-;;; Scott Fahlman, Dan Aronson, and Steve Handerson did stuff here, too.
-;;;
+;;; OS interface functions for running under osf1.
+
 (in-package "SYSTEM")
 (use-package "EXTENSIONS")
 (export '(get-system-info get-page-size os-init))
@@ -62,7 +48,6 @@
 	     (unix:get-unix-error-msg utime)))
     (values utime stime majflt)))
 
-
 ;;; GET-PAGE-SIZE  --  Interface
 ;;;
 ;;;    Return the system page size.
@@ -73,4 +58,3 @@
     (unless val
       (error "Getpagesize failed: ~A" (unix:get-unix-error-msg err)))
     val))
-

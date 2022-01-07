@@ -1,19 +1,8 @@
-;;; -*- Log: Code.Log; Package: Lisp -*-
+;;; -*- Package: Lisp -*-
 ;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/mipsstrops.lisp,v 1.8 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;;    String hacking functions that are stubs for things that might
-;;; be microcoded someday.
-;;;
-;;;    Written by Rob MacLachlan and Skef Wholey
-;;;
+;;; String hacking functions that are stubs for things that might be
+;;; microcoded someday.
+
 (in-package "SYSTEM")
 (export '(%sp-reverse-find-character-with-attribute))
 
@@ -30,12 +19,12 @@
 (defun %sp-string-compare (string1 start1 end1 string2 start2 end2)
   (declare (simple-string string1 string2))
   (declare (fixnum start1 end1 start2 end2))
-  "Compares the substrings specified by String1 and String2 and returns
-NIL if the strings are String=, or the lowest index of String1 in
-which the two differ. If one string is longer than the other and the
-shorter is a prefix of the longer, the length of the shorter + start1 is
-returned. This would be done on the Vax with CMPC3. The arguments must
-be simple strings."
+  "Compares the substrings specified by String1 and String2 and returns NIL
+   if the strings are String=, or the lowest index of String1 in which the
+   two differ. If one string is longer than the other and the shorter is a
+   prefix of the longer, the length of the shorter + start1 is returned.
+   This would be done on the Vax with CMPC3. The arguments must be simple
+   strings."
   (let ((len1 (- end1 start1))
 	(len2 (- end2 start2)))
     (declare (fixnum len1 len2))
@@ -111,11 +100,12 @@ be simple strings."
   (declare (type (simple-array (unsigned-byte 8) (256)) table)
 	   (type (or simple-string system-area-pointer) string)
 	   (fixnum start end mask))
-  "%SP-Find-Character-With-Attribute  String, Start, End, Table, Mask
-  The codes of the characters of String from Start to End are used as indices
-  into the Table, which is a U-Vector of 8-bit bytes. When the number picked
-  up from the table bitwise ANDed with Mask is non-zero, the current
-  index into the String is returned. The corresponds to SCANC on the Vax."
+  "%SP-Find-Character-With-Attribute String, Start, End, Table, Mask
+   The codes of the characters of String from Start to End are used as
+   indices into the Table, which is a U-Vector of 8-bit bytes.  When the
+   number picked up from the table bitwise ANDed with Mask is non-zero, the
+   current index into the String is returned.  The corresponds to SCANC on
+   the Vax."
   (maybe-sap-maybe-string (string)
     (do ((index start (1+ index)))
 	((>= index end) nil)
@@ -137,9 +127,9 @@ be simple strings."
 
 (defun %sp-find-character (string start end character)
   "%SP-Find-Character  String, Start, End, Character
-  Searches String for the Character from Start to End.  If the character is
-  found, the corresponding index into String is returned, otherwise NIL is
-  returned."
+   Searches String for the Character from Start to End.  If the character is
+   found, the corresponding index into String is returned, otherwise NIL is
+   returned."
   (declare (fixnum start end)
 	   (type (or simple-string system-area-pointer) string)
 	   (base-char character))
@@ -155,9 +145,9 @@ be simple strings."
 	   (fixnum start end)
 	   (base-char character))
   "%SP-Reverse-Find-Character  String, Start, End, Character
-  Searches String for Character from End to Start.  If the character is
-  found, the corresponding index into String is returned, otherwise NIL is
-  returned."
+   Searches String for Character from End to Start.  If the character is
+   found, the corresponding index into String is returned, otherwise NIL is
+   returned."
   (maybe-sap-maybe-string (string)
     (do ((index (1- end) (1- index))
 	 (terminus (1- start)))
@@ -171,8 +161,8 @@ be simple strings."
 	   (fixnum start end)
 	   (base-char character))
   "%SP-Skip-Character  String, Start, End, Character
-  Returns the index of the first character between Start and End which
-  is not Char=  to Character, or NIL if there is no such character."
+   Returns the index of the first character between Start and End which
+   is not Char= to Character, or NIL if there is no such character."
   (maybe-sap-maybe-string (string)
     (do ((index start (1+ index)))
 	((= index end) nil)
@@ -185,8 +175,8 @@ be simple strings."
 	   (fixnum start end)
 	   (base-char character))
   "%SP-Skip-Character  String, Start, End, Character
-  Returns the index of the last character between Start and End which
-  is not Char=  to Character, or NIL if there is no such character."
+   Returns the index of the last character between Start and End which
+   is not Char= to Character, or NIL if there is no such character."
   (maybe-sap-maybe-string (string)
     (do ((index (1- end) (1- index))
 	 (terminus (1- start)))
@@ -213,5 +203,3 @@ be simple strings."
 	    (when (char/= (char string1 index1) (char string2 index2))
 	      (return nil)))
       (return index2))))
-
-

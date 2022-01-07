@@ -52,6 +52,7 @@ completion.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  
 cursor.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
 dabbrev.lisp		  date: 2003-02-25 15:18:34 +0000;  author: emarsden;  state: Exp;
 	from luke gorrie (pd)
+		dec 7 2006 reverted and installed original gorrie file
 debug.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
 defsyn.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
 display.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
@@ -91,7 +92,6 @@ lispbuf.lisp 		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  li
 lisplib.lisp		  date: 1997-01-18 14:31:52 +0000;  author: ram;  state: Exp;  lines: +14 -11
 lispeval.lisp 		  date: 1997-01-18 14:31:51 +0000;  author: ram;  state: Exp;  lines: +2 -3
 main.lisp             date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
-	2003 gorrie patch
 mh.lisp				  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
 netnews.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +4 -2
 notes.txt		  	  date: 1990-05-09 14:05:32 +0100;  author: ram;  state: Exp;
@@ -106,7 +106,8 @@ scribe.lisp           date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp
 search1.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
 search2.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
 searchcoms.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
-	2003 gorrie patch
+	2003 gorrie patch applied by emarsden
+		dec 7 2006 reverted and installed original gorrie patch
 spell-aug.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
 spell-build.lisp	  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
 spell-corr.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
@@ -176,7 +177,8 @@ comments.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  li
 compilation.order	  date: 1991-07-29 09:51:42 +0100;  author: chiles;  state: Exp;  lines: +3 -0
 completion.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
 dabbrev.lisp		  date: 2003-02-25 15:18:34 +0000;  author: emarsden;  state: Exp;
-	from luke gorrie (pd)
+	from luke gorrie
+		dec 7 2006 reverted and installed original gorrie file
 defsyn.lisp			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
 doccoms.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
 dylan.lisp 			  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +4 -3
@@ -218,6 +220,7 @@ scribe.lisp           date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp
 search1.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
 searchcoms.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +0 -2
 	2003 gorrie patch
+		dec 7 2006 reverted and installed original gorrie patch
 spell-aug.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
 spell-build.lisp	  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
 spell-corr.lisp		  date: 1994-10-31 04:50:12 +0000;  author: ram;  state: Exp;  lines: +1 -3
@@ -648,6 +651,10 @@ main.lisp
 
 	   - add support for copy-word during isearch (bound to C-w as per GNU Emacs)
 	   - add dabbrev support (bound to M-/)
+	----------------------------
+
+		after 2002-08-23-19h00
+
 	----------------------------
 	revision 1.15
 	date: 2001-03-13 15:49:56 +0000;  author: pw;  state: Exp;  lines: +3 -3

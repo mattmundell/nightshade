@@ -1,31 +1,18 @@
-;;; -*- Package: UNIX -*-
+;;; UNIX low-level support for glibc2.
 ;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/unix-glibc2.lisp,v 1.2.2.6 2000/08/25 10:00:14 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains the UNIX low-level support for glibc2.  Based
-;;; on unix.lisp 1.56, converted for glibc2 by Peter Van Eynde (1998).
-;;; Alpha support by Julian Dolby, 1999.
-;;;
-;;; All the functions with #+nil in front are work in progress,
+;;; FIX All the functions with #+nil in front are work in progress,
 ;;; and mostly don't work.
 ;;;
-;; Todo: #+nil'ed stuff and ioctl's
-;;
+;;; FIX ioctl's
+
 (in-package "UNIX")
+
 (use-package "ALIEN")
 (use-package "C-CALL")
 (use-package "SYSTEM")
 (use-package "EXT")
 
-(export '(
-	  daddr-t caddr-t ino-t swblk-t size-t time-t dev-t off-t uid-t gid-t
+(export '(daddr-t caddr-t ino-t swblk-t size-t time-t dev-t off-t uid-t gid-t
 	  timeval tv-sec tv-usec timezone tz-minuteswest tz-dsttime
 	  itimerval it-interval it-value tchars t-intrc t-quitc t-startc
 	  t-stopc t-eofc t-brkc ltchars t-suspc t-dsuspc t-rprntc t-flushc
@@ -148,6 +135,7 @@
 (pushnew :unix *features*)
 (pushnew :glibc2 *features*)
 
+
 ;;;; Common machine independent structures.
 
 (eval-when (compile eval)
@@ -178,6 +166,7 @@
 	       (setf cur (funcall inc cur 1)))))
     `(progn ,@(mapcar #'defform names))))
 
+
 ;;;; Lisp types used by syscalls.
 
 (deftype unix-pathname () 'simple-string)
@@ -198,7 +187,7 @@
 ;;;
 (defun get-unix-error-msg (&optional (error-number unix-errno))
   "Returns a string describing the error number which was returned by a
-  UNIX system call."
+   UNIX system call."
   (declare (type integer error-number))
 
   (unix-get-errno)
@@ -215,9 +204,9 @@
 	   (values nil unix-errno))
 	 ,success-form)))
 
-;;; Like syscall, but if it fails, signal an error instead of returning error
-;;; codes.  Should only be used for syscalls that will never really get an
-;;; error.
+;;; Like syscall, but if it fails, signal an error instead of returning
+;;; error codes.  Should only be used for syscalls that will never really
+;;; get an error.
 ;;;
 (defmacro syscall* ((name &rest arg-types) success-form &rest args)
   `(let ((result (alien-funcall (extern-alien ,name (function int ,@arg-types))
@@ -235,9 +224,11 @@
 (defun unix-get-errno ()
   "Get the unix errno value in errno..."
   (void-syscall ("update_errno")))
-;;; From stdio.h
 
-;;; Unix-rename accepts two files names and renames the first to the second.
+
+;;;; From stdio.h
+
+;;; Unix-rename accepts two file names and renames the first to the second.
 
 (defun unix-rename (name1 name2)
   "Unix-rename renames the file with string name1 to the string
@@ -275,7 +266,6 @@
 (def-alien-type u-int64-t #+nil unsigned-long-long #-nil (array unsigned-long 2))
 (def-alien-type register-t #-alpha int #+alpha long)
 
-
 (def-alien-type dev-t #-alpha uquad-t #+alpha unsigned-long)
 (def-alien-type uid-t unsigned-int)
 (def-alien-type gid-t unsigned-int)
@@ -302,16 +292,18 @@
 
 (def-alien-type ipc-pid-t unsigned-short)
 
-;;; direntry.h
+
+;;;; direntry.h
 
 (def-alien-type nil
   (struct direct
-    (d-ino long); inode number of entry
-    (d-off off-t)                        ; offset of next disk directory entry
-    (d-reclen unsigned-short)		; length of this record
+    (d-ino long)                   ; inode number of entry
+    (d-off off-t)                  ; offset of next disk directory entry
+    (d-reclen unsigned-short)	   ; length of this record
     (d_type unsigned-char)
-    (d-name (array char 256))))		; name must be no longer than this
-;;; dirent.h
+    (d-name (array char 256))))	   ; name must be no longer than this
+
+;;;; dirent.h
 
 ;;; Operations on Unix Directories.
 
@@ -367,9 +359,10 @@
 		 (directory-dir-struct dir))
   nil)
 
-;;; dlfcn.h -> in foreign.lisp
+
+;;;; dlfcn.h -> in foreign.lisp
 
-;;; fcntl.h
+;;;; fcntl.h
 ;;;
 ;;; POSIX Standard: 6.5 File Control Operations	<fcntl.h>
 
@@ -379,7 +372,7 @@
 (defconstant f_ok 0 "Test for presence of file")
 
 (defun unix-fcntl (fd cmd arg)
-  "Unix-fcntl manipulates file descriptors accoridng to the
+  "Unix-fcntl manipulates file descriptors according to the
    argument CMD which can be one of the following:
 
    F-DUPFD         Duplicate a file descriptor.
@@ -397,8 +390,7 @@
    FASYNC          Signal pgrp when data ready.
    FCREAT          Create if nonexistant.
    FTRUNC          Truncate to zero length.
-   FEXCL           Error if already created.
-   "
+   FEXCL           Error if already created."
   (declare (type unix-fd fd)
 	   (type (unsigned-byte 32) cmd)
 	   (type (unsigned-byte 32) arg))
@@ -445,8 +437,8 @@
   (declare (type unix-fd fd))
   (void-syscall ("close" int) fd))
 
-;;; Unix-creat accepts a file name and a mode.  It creates a new file
-;;; with name and sets it mode to mode (as for chmod).
+;;; Unix-creat accepts a file name and a mode.  It creates a new file with
+;;; name and sets it mode to mode (as for chmod).
 
 (defun unix-creat (name mode)
   "Unix-creat accepts a file name and a mode (same as those for
@@ -460,7 +452,8 @@
 	   (type unix-file-mode mode))
   (int-syscall ("creat" c-string int) name mode))
 
-;;; fcntlbits.h
+
+;;;; fcntlbits.h
 
 (defconstant o_read    o_rdonly "Open for reading")
 (defconstant o_write   o_wronly "Open for writing")
@@ -517,8 +510,6 @@
   (defconstant f-setown   5  "Set owner (for sockets)")
   (defconstant f-getown   6  "Get owner (for sockets)"))
 
-
-
 (defconstant F-CLOEXEC 1 "for f-getfl and f-setfl")
 
 #-alpha
@@ -558,16 +549,16 @@
 (defconstant FNONBLOCK  o_nonblock "depricated stuff")
 (defconstant FNDELAY  o_ndelay "depricated stuff")
 
-
-;;; grp.h
-
+
+;;;; grp.h
+;;;
 ;;;  POSIX Standard: 9.2.1 Group Database Access	<grp.h>
 
 (def-alien-type nil
     (struct group
-	    (gr-name   c-string) ;; group name
-	    (gr-passwd c-string) ;; password
-	    (gr-gid    gid-t)    ;; group ID
+	    (gr-name   c-string)     ; group name
+	    (gr-passwd c-string)     ; password
+	    (gr-gid    gid-t)        ; group ID
 	    (gr-mem    (* c-string))))
 
 #+nil
@@ -619,8 +610,8 @@
 	nil
       result)))
 
-
-;;; ioctl-types.h
+
+;;;; ioctl-types.h
 
 (def-alien-type nil
   (struct winsize
@@ -664,77 +655,76 @@
 (defconstant N-STRIP  4)
 (defconstant N-AX25   5)
 
-
-;;; ioctls.h
+
+;;;; ioctls.h
 
 ;;; Routing table calls.
-(defconstant siocaddrt	#x890B) ;; add routing table entry
-(defconstant siocdelrt	#x890C) ;; delete routing table entry
-(defconstant siocrtmsg	#x890D) ;; call to routing system
+(defconstant siocaddrt	#x890B) ; add routing table entry
+(defconstant siocdelrt	#x890C) ; delete routing table entry
+(defconstant siocrtmsg	#x890D) ; call to routing system
 
 ;;; Socket configuration controls.
-(defconstant siocgifname #x8910) ;; get iface name
-(defconstant siocsiflink #x8911) ;; set iface channel
-(defconstant siocgifconf #x8912) ;; get iface list
-(defconstant siocgifflags #x8913) ;; get flags
-(defconstant siocsifflags #x8914) ;; set flags
-(defconstant siocgifaddr #x8915) ;; get PA address
-(defconstant siocsifaddr #x8916) ;; set PA address
-(defconstant siocgifdstaddr #x8917  ) ;; get remote PA address
-(defconstant siocsifdstaddr #x8918  ) ;; set remote PA address
-(defconstant siocgifbrdaddr #x8919  ) ;; get broadcast PA address
-(defconstant siocsifbrdaddr #x891a  ) ;; set broadcast PA address
-(defconstant siocgifnetmask #x891b  ) ;; get network PA mask
-(defconstant siocsifnetmask #x891c  ) ;; set network PA mask
-(defconstant siocgifmetric #x891d  ) ;; get metric
-(defconstant siocsifmetric #x891e  ) ;; set metric
-(defconstant siocgifmem #x891f  ) ;; get memory address (BSD)
-(defconstant siocsifmem #x8920  ) ;; set memory address (BSD)
-(defconstant siocgifmtu #x8921  ) ;; get MTU size
-(defconstant siocsifmtu #x8922  ) ;; set MTU size
-(defconstant siocsifhwaddr #x8924  ) ;; set hardware address
-(defconstant siocgifencap #x8925  ) ;; get/set encapsulations
+(defconstant siocgifname #x8910)  ; get iface name
+(defconstant siocsiflink #x8911)  ; set iface channel
+(defconstant siocgifconf #x8912)  ; get iface list
+(defconstant siocgifflags #x8913) ; get flags
+(defconstant siocsifflags #x8914) ; set flags
+(defconstant siocgifaddr #x8915)  ; get PA address
+(defconstant siocsifaddr #x8916)  ; set PA address
+(defconstant siocgifdstaddr #x8917) ; get remote PA address
+(defconstant siocsifdstaddr #x8918) ; set remote PA address
+(defconstant siocgifbrdaddr #x8919) ; get broadcast PA address
+(defconstant siocsifbrdaddr #x891a) ; set broadcast PA address
+(defconstant siocgifnetmask #x891b) ; get network PA mask
+(defconstant siocsifnetmask #x891c) ; set network PA mask
+(defconstant siocgifmetric #x891d) ; get metric
+(defconstant siocsifmetric #x891e) ; set metric
+(defconstant siocgifmem #x891f)    ; get memory address (BSD)
+(defconstant siocsifmem #x8920)    ; set memory address (BSD)
+(defconstant siocgifmtu #x8921)    ; get MTU size
+(defconstant siocsifmtu #x8922)    ; set MTU size
+(defconstant siocsifhwaddr #x8924) ; set hardware address
+(defconstant siocgifencap #x8925)  ; get/set encapsulations
 (defconstant siocsifencap #x8926)
-(defconstant siocgifhwaddr #x8927  ) ;; Get hardware address
-(defconstant siocgifslave #x8929  ) ;; Driver slaving support
+(defconstant siocgifhwaddr #x8927) ; Get hardware address
+(defconstant siocgifslave #x8929)  ; Driver slaving support
 (defconstant siocsifslave #x8930)
-(defconstant siocaddmulti #x8931  ) ;; Multicast address lists
+(defconstant siocaddmulti #x8931)  ; Multicast address lists
 (defconstant siocdelmulti #x8932)
-(defconstant siocgifindex #x8933  ) ;; name -> if_index mapping
-(defconstant siogifindex SIOCGIFINDEX ) ;; misprint compatibility :-)
-(defconstant siocsifpflags #x8934  ) ;; set/get extended flags set
+(defconstant siocgifindex #x8933)  ; name -> if_index mapping
+(defconstant siogifindex SIOCGIFINDEX) ; misprint compatibility :-)
+(defconstant siocsifpflags #x8934) ; set/get extended flags set
 (defconstant siocgifpflags #x8935)
-(defconstant siocdifaddr #x8936  ) ;; delete PA address
-(defconstant siocsifhwbroadcast #x8937 ) ;; set hardware broadcast addr
-(defconstant siocgifcount #x8938  ) ;; get number of devices
+(defconstant siocdifaddr #x8936)   ; delete PA address
+(defconstant siocsifhwbroadcast #x8937) ; set hardware broadcast addr
+(defconstant siocgifcount #x8938)  ; get number of devices
 
-(defconstant siocgifbr #x8940  ) ;; Bridging support
-(defconstant siocsifbr #x8941  ) ;; Set bridging options
+(defconstant siocgifbr #x8940)     ; Bridging support
+(defconstant siocsifbr #x8941)     ; Set bridging options
 
-(defconstant siocgiftxqlen #x8942  ) ;; Get the tx queue length
-(defconstant siocsiftxqlen #x8943  ) ;; Set the tx queue length
-
+(defconstant siocgiftxqlen #x8942) ; Get the tx queue length
+(defconstant siocsiftxqlen #x8943) ; Set the tx queue length
 
 ;;; ARP cache control calls.
 ;;  0x8950 - 0x8952  * obsolete calls, don't re-use
-(defconstant siocdarp #x8953  ) ;; delete ARP table entry
-(defconstant siocgarp #x8954  ) ;; get ARP table entry
-(defconstant siocsarp #x8955  ) ;; set ARP table entry
+(defconstant siocdarp #x8953) ; delete ARP table entry
+(defconstant siocgarp #x8954) ; get ARP table entry
+(defconstant siocsarp #x8955) ; set ARP table entry
 
 ;;; RARP cache control calls.
-(defconstant siocdrarp #x8960  ) ;; delete RARP table entry
-(defconstant siocgrarp #x8961  ) ;; get RARP table entry
-(defconstant siocsrarp #x8962  ) ;; set RARP table entry
+(defconstant siocdrarp #x8960) ; delete RARP table entry
+(defconstant siocgrarp #x8961) ; get RARP table entry
+(defconstant siocsrarp #x8962) ; set RARP table entry
 
 ;;; Driver configuration calls
 
-(defconstant siocgifmap #x8970  ) ;; Get device parameters
-(defconstant siocsifmap #x8971  ) ;; Set device parameters
+(defconstant siocgifmap #x8970) ; Get device parameters
+(defconstant siocsifmap #x8971) ; Set device parameters
 
 ;;; DLCI configuration calls
 
-(defconstant siocadddlci #x8980  ) ;; Create new DLCI device
-(defconstant siocdeldlci #x8981  ) ;; Delete DLCI device
+(defconstant siocadddlci #x8980) ; Create new DLCI device
+(defconstant siocdeldlci #x8981) ; Delete DLCI device
 
 ;;; Device private ioctl calls.
 
@@ -743,10 +733,10 @@
 ;; names as their own. Because these are device dependent it is a good
 ;; idea _NOT_ to issue them to random objects and hope.
 
-(defconstant siocdevprivate	#x89F0	) ;; to 89FF
+(defconstant siocdevprivate	#x89F0) ; to 89FF
 
-
-;;;  mathcalls.h
+
+;;;; mathcalls.h
 
 #+nil
 (defmacro def-math-rtn (name num-args)
@@ -776,23 +766,22 @@
 	 (ARG-2 'double)))))
 
 #+nil
-(def-math-rtn "expm1" 1) ;Return exp(X) - 1.
+(def-math-rtn "expm1" 1) ; Return exp(X) - 1.
 
 #+nil
-(def-math-rtn "log1p" 1) ;Return log(1 + X).
-
-
-#+nil
-(def-math-rtn "logb" 1) ;Return the base 2 signed integral exponent of X.
+(def-math-rtn "log1p" 1) ; Return log(1 + X).
 
 #+nil
-(def-math-rtn "cbrt" 1) ; returns cuberoot
+(def-math-rtn "logb" 1)  ; Return the base 2 signed integral exponent of X.
 
 #+nil
-(def-math-rtn "copysign" 2) ;Return X with its signed changed to Y's.
+(def-math-rtn "cbrt" 1)  ; Returns cuberoot.
 
 #+nil
-(def-math-rtn "cabs" 2) ;Return `sqrt(X*X + Y*Y)'.
+(def-math-rtn "copysign" 2) ; Return X with its signed changed to Y's.
+
+#+nil
+(def-math-rtn "cabs" 2)  ; Return `sqrt(X*X + Y*Y)'.
 
 #+nil
 (def-math-rtn "erf" 1)
@@ -826,9 +815,8 @@
 
 ;;; netdb.h
 
-;; All data returned by the network data base library are supplied in
-;; host order and returned in network order (suitable for use in
-;; system calls).
+;; All data returned by the network data base library are supplied in host
+;; order and returned in network order (suitable for use in system calls).
 
 ;;; Absolute file name for network data base files.
 (defconstant path-hequiv "/etc/hosts.equiv")
@@ -837,7 +825,6 @@
 (defconstant path-nsswitch_conf "/etc/nsswitch.conf")
 (defconstant path-protocols "/etc/protocols")
 (defconstant path-services "/etc/services")
-
 
 ;;; Possible values left in `h_errno'.
 (defconstant netdb-internal -1 "See errno.")
@@ -860,8 +847,8 @@
 
 #+nil
 (defun unix-sethostent (stay-open)
-  "Open host data base files and mark them as staying open even after
-a later search if STAY_OPEN is non-zero."
+  "Open host data base files and mark them as staying open even after a
+   later search if STAY_OPEN is non-zero."
   (void-syscall ("sethostent" int) stay-open))
 
 #+nil
@@ -871,23 +858,22 @@ a later search if STAY_OPEN is non-zero."
 
 #+nil
 (defun unix-gethostent ()
-  "Get next entry from host data base file.  Open data base if
-necessary."
-    (let ((result (alien-funcall (extern-alien "gethostent"
+  "Get next entry from host data base file.  Open data base if necessary."
+  (let ((result (alien-funcall (extern-alien "gethostent"
 					     (function (* (struct hostent)))))))
     (declare (type system-area-pointer result))
     (if (zerop (sap-int result))
 	nil
-      result)))
+	result)))
 
 #+nil
 (defun unix-gethostbyaddr (addr length type)
-  "Return entry from host data base which address match ADDR with
-length LEN and type TYPE."
-    (let ((result (alien-funcall (extern-alien "gethostbyaddr"
+  "Return entry from host data base which address match ADDR with length
+   LEN and type TYPE."
+  (let ((result (alien-funcall (extern-alien "gethostbyaddr"
 					     (function (* (struct hostent))
 						       c-string int int))
-				 addr len type)))
+			       addr len type)))
     (declare (type system-area-pointer result))
     (if (zerop (sap-int result))
 	nil
@@ -896,10 +882,10 @@ length LEN and type TYPE."
 #+nil
 (defun unix-gethostbyname (name)
   "Return entry from host data base for host with NAME."
-    (let ((result (alien-funcall (extern-alien "gethostbyname"
+  (let ((result (alien-funcall (extern-alien "gethostbyname"
 					     (function (* (struct hostent))
 						       c-string))
-				 name)))
+			       name)))
     (declare (type system-area-pointer result))
     (if (zerop (sap-int result))
 	nil
@@ -910,38 +896,36 @@ length LEN and type TYPE."
   "Return entry from host data base for host with NAME.  AF must be
    set to the address type which as `AF_INET' for IPv4 or `AF_INET6'
    for IPv6."
-    (let ((result (alien-funcall (extern-alien "gethostbyname2"
+  (let ((result (alien-funcall (extern-alien "gethostbyname2"
 					     (function (* (struct hostent))
 						       c-string int))
-				 name af)))
+			       name af)))
     (declare (type system-area-pointer result))
     (if (zerop (sap-int result))
 	nil
-      result)))
+	result)))
 
-;; Description of data base entry for a single network.  NOTE: here a
-;; poor assumption is made.  The network number is expected to fit
-;; into an unsigned long int variable.
+;; Description of data base entry for a single network.  NOTE: here a poor
+;; assumption is made.  The network number is expected to fit into an
+;; unsigned long int variable.
 
 (def-alien-type nil
     (struct netent
-	    (n-name c-string) ; Official name of network.
+	    (n-name c-string)        ; Official name of network.
 	    (n-aliases (* c-string)) ; Alias list.
-	    (n-addrtype int) ;  Net address type.
-	    (n-net unsigned-long))) ; Network number.
+	    (n-addrtype int)         ; Net address type.
+	    (n-net unsigned-long)))  ; Network number.
 
 #+nil
 (defun unix-setnetent (stay-open)
-  "Open network data base files and mark them as staying open even
-   after a later search if STAY_OPEN is non-zero."
+  "Open network data base files and mark them as staying open even after a
+   later search if STAY_OPEN is non-zero."
   (void-syscall ("setnetent" int) stay-open))
-
 
 #+nil
 (defun unix-endnetent ()
   "Close network data base files and clear `stay open' flag."
   (void-syscall ("endnetent")))
-
 
 #+nil
 (defun unix-getnetent ()
@@ -954,11 +938,10 @@ length LEN and type TYPE."
 	nil
       result)))
 
-
 #+nil
 (defun unix-getnetbyaddr (net type)
-  "Return entry from network data base which address match NET and
-   type TYPE."
+  "Return entry from network data base which address match NET and type
+   TYPE."
     (let ((result (alien-funcall (extern-alien "getnetbyaddr"
 					     (function (* (struct netent))
 						       unsigned-long int))
@@ -971,34 +954,34 @@ length LEN and type TYPE."
 #+nil
 (defun unix-getnetbyname (name)
   "Return entry from network data base for network with NAME."
-    (let ((result (alien-funcall (extern-alien "getnetbyname"
+  (let ((result (alien-funcall (extern-alien "getnetbyname"
 					     (function (* (struct netent))
 						       c-string))
-				 name)))
+			       name)))
     (declare (type system-area-pointer result))
     (if (zerop (sap-int result))
 	nil
       result)))
 
 ;; Description of data base entry for a single service.
+
 (def-alien-type nil
     (struct servent
-	    (s-name c-string) ; Official service name.
+	    (s-name c-string)        ; Official service name.
 	    (s-aliases (* c-string)) ; Alias list.
-	    (s-port int) ; Port number.
-	    (s-proto c-string))) ; Protocol to use.
+	    (s-port int)             ; Port number.
+	    (s-proto c-string)))     ; Protocol to use.
 
 #+nil
 (defun unix-setservent (stay-open)
-  "Open service data base files and mark them as staying open even
-   after a later search if STAY_OPEN is non-zero."
+  "Open service data base files and mark them as staying open even after a
+   later search if STAY_OPEN is non-zero."
   (void-syscall ("setservent" int) stay-open))
 
 #+nil
 (defun unix-endservent (stay-open)
   "Close service data base files and clear `stay open' flag."
   (void-syscall ("endservent")))
-
 
 #+nil
 (defun unix-getservent ()
@@ -1037,7 +1020,7 @@ length LEN and type TYPE."
 	nil
       result)))
 
-;;  Description of data base entry for a single service.
+;; Description of data base entry for a single service.
 
 (def-alien-type nil
     (struct protoent
@@ -1047,8 +1030,8 @@ length LEN and type TYPE."
 
 #+nil
 (defun unix-setprotoent (stay-open)
-  "Open protocol data base files and mark them as staying open even
-   after a later search if STAY_OPEN is non-zero."
+  "Open protocol data base files and mark them as staying open even after a
+   later search if STAY_OPEN is non-zero."
   (void-syscall ("setprotoent" int) stay-open))
 
 #+nil
@@ -1060,36 +1043,36 @@ length LEN and type TYPE."
 (defun unix-getprotoent ()
   "Get next entry from protocol data base file.  Open data base if
    necessary."
-    (let ((result (alien-funcall (extern-alien "getprotoent"
+  (let ((result (alien-funcall (extern-alien "getprotoent"
 					     (function (* (struct protoent)))))))
     (declare (type system-area-pointer result))
     (if (zerop (sap-int result))
 	nil
-      result)))
+	result)))
 
 #+nil
 (defun unix-getprotobyname (name)
   "Return entry from protocol data base for network with NAME."
-    (let ((result (alien-funcall (extern-alien "getprotobyname"
+  (let ((result (alien-funcall (extern-alien "getprotobyname"
 					     (function (* (struct protoent))
 						       c-string))
-				 name)))
+			       name)))
     (declare (type system-area-pointer result))
     (if (zerop (sap-int result))
 	nil
-      result)))
+	result)))
 
 #+nil
 (defun unix-getprotobynumber (proto)
   "Return entry from protocol data base which number is PROTO."
-    (let ((result (alien-funcall (extern-alien "getprotobynumber"
+  (let ((result (alien-funcall (extern-alien "getprotobynumber"
 					     (function (* (struct protoent))
 						       int))
-				 proto)))
+			       proto)))
     (declare (type system-area-pointer result))
     (if (zerop (sap-int result))
 	nil
-      result)))
+	result)))
 
 #+nil
 (defun unix-setnetgrent (netgroup)
@@ -1103,8 +1086,8 @@ length LEN and type TYPE."
 
 #+nil
 (defun unix-getnetgrent (hostp userp domainp)
-  "Get next member of netgroup established by last `setnetgrent' call
-   and return pointers to elements in HOSTP, USERP, and DOMAINP."
+  "Get next member of netgroup established by last `setnetgrent' call and
+   return pointers to elements in HOSTP, USERP, and DOMAINP."
   (int-syscall ("getnetgrent" (* c-string) (* c-string) (* c-string))
 	       hostp userp domainp))
 
@@ -1145,7 +1128,6 @@ length LEN and type TYPE."
 (defconstant eai_memory -10 "Memory allocation failure.")
 (defconstant eai_system -11 "System error returned in errno.")
 
-
 #+nil
 (defun unix-getaddrinfo (name service req pai)
   "Translate name of a service location and/or a service name to set of
@@ -1154,15 +1136,14 @@ length LEN and type TYPE."
 			      (* (* struct addrinfo)))
 	       name service req pai))
 
-
 #+nil
 (defun unix-freeaddrinfo (ai)
   "Free `addrinfo' structure AI including associated storage."
   (void-syscall ("freeaddrinfo" (* struct addrinfo))
 		ai))
 
-
-;;; pty.h
+
+;;;; pty.h
 
 #+nil
 (defun unix-openpty (amaster aslave name termp winp)
@@ -1181,6 +1162,7 @@ length LEN and type TYPE."
 			  (* (struct winsize)))
 	       amaster name termp winp))
 
+
 ;;; pwd.h
 ;; POSIX Standard: 9.2.2 User Database Access <pwd.h>
 
@@ -1214,12 +1196,13 @@ length LEN and type TYPE."
 	nil
 	result)))
 
-;;; resourcebits.h
+
+;;;; resourcebits.h
 
 (def-alien-type nil
   (struct rlimit
-    (rlim-cur long)	 ; current (soft) limit
-    (rlim-max long))); maximum value for rlim-cur
+    (rlim-cur long)   ; current (soft) limit
+    (rlim-max long))) ; maximum value for rlim-cur
 
 (defconstant rusage_self 0 "The calling process.")
 (defconstant rusage_children -1 "Terminated child processes.")
@@ -1249,7 +1232,6 @@ length LEN and type TYPE."
 (defconstant prio-min -20 "Minimum priority a process can have")
 (defconstant prio-max 20 "Maximum priority a process can have")
 
-
 ;;; The type of the WHICH argument to `getpriority' and `setpriority',
 ;;; indicating what flavor of entity the WHO argument specifies.
 
@@ -1257,7 +1239,8 @@ length LEN and type TYPE."
 (defconstant priority-pgrp 1 "WHO is a process group ID")
 (defconstant priority-user 2 "WHO is a user ID")
 
-;;; sched.h
+
+;;;; sched.h
 
 #+nil
 (defun unix-sched_setparam (pid param)
@@ -1300,20 +1283,18 @@ length LEN and type TYPE."
   (int-syscall ("sched_get_priority_min" int)
 		algorithm))
 
-
-
 #+nil
 (defun unix-sched_rr_get_interval (pid t)
   "Get the SCHED_RR interval for the named process."
   (int-syscall ("sched_rr_get_interval" pid-t (* (struct timespec)))
 		pid t))
 
-;;; schedbits.h
+
+;;;; schedbits.h
 
 (defconstant scheduler-other 0)
 (defconstant scheduler-fifo 1)
 (defconstant scheduler-rr 2)
-
 
 ;; Data structure to describe a process' schedulability.
 
@@ -1328,7 +1309,6 @@ length LEN and type TYPE."
 (defconstant clone_files   #x00000400 "Set if open files shared between processe")
 (defconstant clone_sighand #x00000800 "Set if signal handlers shared.")
 (defconstant clone_pid     #x00001000 "Set if pid shared.")
-
 
 ;;; shadow.h
 
@@ -1403,7 +1383,8 @@ length LEN and type TYPE."
   "Unlock password file."
   (void-syscall ("ulckpwdf")))
 
-;;; statbuf.h
+
+;;;; statbuf.h
 
 (def-alien-type nil
   (struct stat
@@ -1459,7 +1440,8 @@ length LEN and type TYPE."
 (defconstant s-iwrite #o0000200 "Write by owner.")
 (defconstant s-iexec #o0000100 "Execute by owner.")
 
-;;; statfsbuf.h
+
+;;;; statfsbuf.h
 
 (def-alien-type nil
     (struct statfs
@@ -1474,8 +1456,8 @@ length LEN and type TYPE."
 	    (f-namelen int)
 	    (f-spare (array int 6))))
 
-
-;;; termbits.h
+
+;;;; termbits.h
 
 (def-alien-type cc-t unsigned-char)
 (def-alien-type speed-t  unsigned-int)
@@ -1598,7 +1580,8 @@ length LEN and type TYPE."
 ;; tcsetattr uses these
 (def-enum + 0 tty-tcsanow tty-tcsadrain tty-tcsaflush)
 
-;;; termios.h
+
+;;;; termios.h
 
 (defun unix-cfgetospeed (termios)
   "Get terminal output speed."
@@ -1658,7 +1641,8 @@ length LEN and type TYPE."
   (declare (type unix-fd fd))
   (void-syscall ("tcflow" int int) fd action))
 
-;;; timebits.h
+
+;;;; timebits.h
 
 ;; A time value that is accurate to the nearest
 ;; microsecond but also has a range of years.
@@ -1667,7 +1651,7 @@ length LEN and type TYPE."
 	  (tv-sec #-alpha time-t #+alpha int)		; seconds
 	  (tv-usec #-alpha time-t #+alpha int)))	; and microseconds
 
-;;; unistd.h
+;;;; unistd.h
 
 (defun sub-unix-execve (program arg-list env-list)
   (let ((argv nil)
@@ -1699,6 +1683,7 @@ length LEN and type TYPE."
 	(system:deallocate-system-memory envp envp-bytes)))
     (values result error-code)))
 
+
 ;;;; UNIX-EXECVE
 
 (defun unix-execve (program &optional arg-list
@@ -1779,7 +1764,6 @@ length LEN and type TYPE."
 
   (int-syscall ("read" int (* char) int) fd buf len))
 
-
 ;;; Unix-write accepts a file descriptor, a buffer, an offset, and the
 ;;; length to write.  It attempts to write len bytes to the device
 ;;; associated with fd from the the buffer starting at offset.  It returns
@@ -1812,7 +1796,6 @@ length LEN and type TYPE."
     (syscall ("pipe" (* int))
 	     (values (deref fds 0) (deref fds 1))
 	     (cast fds (* int)))))
-
 
 (defun unix-chown (path uid gid)
   "Given a file path, an integer user-id, and an integer group-id,
@@ -1855,7 +1838,6 @@ length LEN and type TYPE."
 						     (function int (* char)))
 				       (cast buf (* char)))))
 	    (cast buf c-string))))
-
 
 ;;; Unix-dup returns a duplicate copy of the existing file-descriptor
 ;;; passed as an argument.
@@ -1910,7 +1892,6 @@ length LEN and type TYPE."
 							       size-t))
 				       name buf 1024)))
 	    (cast buf c-string))))
-
 
 (def-alien-routine ("getpid" unix-getpid) int
   "Unix-getpid returns the process-id of the current process.")
@@ -1980,7 +1961,6 @@ length LEN and type TYPE."
   "Return nonzero iff the calling process is in group GID."
   (int-syscall ( "group-member" gid-t) gid))
 
-
 #+nil
 (defun unix-setuid (uid)
   "Set the user ID of the calling process to UID.
@@ -2007,7 +1987,6 @@ length LEN and type TYPE."
    and effective group IDs, and the saved set-group-ID to GID;
    if not, the effective group ID is set to GID."
   (int-syscall ( "setgid" gid-t) gid))
-
 
 ;;; Unix-setregid sets the real and effective group-id's of the current
 ;;; process to the arguments "rgid" and "egid", respectively.  Usage is
@@ -2115,8 +2094,8 @@ length LEN and type TYPE."
 		(alien:alien-sap (alien:addr alien-pgrp)))))
 
 (defun %set-tty-process-group (pgrp &optional fd)
-  "Set the tty-process-group for the unix file-descriptor FD to PGRP.  If not
-  supplied, FD defaults to /dev/tty."
+  "Set the tty-process-group for the unix file-descriptor FD to PGRP.  If
+   not supplied, FD defaults to /dev/tty."
   (let ((old-sigs
 	 (unix-sigblock
 	  (sigmask :sigttou :sigttin :sigtstp :sigchld))))
@@ -2135,8 +2114,8 @@ length LEN and type TYPE."
       (unix-sigsetmask old-sigs))))
 
 (defsetf tty-process-group (&optional fd) (pgrp)
-  "Set the tty-process-group for the unix file-descriptor FD to PGRP.  If not
-  supplied, FD defaults to /dev/tty."
+  "Set the tty-process-group for the unix file-descriptor FD to PGRP.  If
+   not supplied, FD defaults to /dev/tty."
   `(%set-tty-process-group ,pgrp ,fd))
 
 #+nil
@@ -2181,7 +2160,6 @@ length LEN and type TYPE."
   (declare (type unix-fd fd))
   (void-syscall ("fsync" int) fd))
 
-
 #+nil
 (defun unix-vhangup ()
  "Revoke access permissions to all processes currently communicating
@@ -2193,7 +2171,6 @@ length LEN and type TYPE."
 (defun unix-revoke (file)
  "Revoke the access of all descriptors currently open on FILE."
  (int-syscall ("revoke" c-string) file))
-
 
 #+nil
 (defun unix-chroot (path)
@@ -2326,7 +2303,6 @@ length LEN and type TYPE."
 	   (type (unsigned-byte 32) cmd))
   (void-syscall ("ioctl" int unsigned-int (* char)) fd cmd arg))
 
-
 ;;; sys/fsuid.h
 
 #+nil
@@ -2362,7 +2338,6 @@ length LEN and type TYPE."
 ;; Event types always implicitly polled for.  These bits need not be set in
 ;;`events', but they will appear in `revents' to indicate the status of
 ;; the file descriptor.  */
-
 
 (defconstant POLLERR  #o10 "Error condition.")
 (defconstant POLLHUP  #o20 "Hung up.")
@@ -2474,9 +2449,10 @@ in at a time in poll.")
   (int-syscall ("setpriority" int int)
 	       which who))
 
-;;; sys/socket.h
-
-;;;; Socket support.
+
+;;;; sys/socket.h
+;;;
+;;; Socket support.
 
 ;;; Looks a bit naked.
 
@@ -2540,7 +2516,8 @@ in at a time in poll.")
   (optval (* t))
   (optlen unsigned))
 
-;;; sys/select.h
+
+;;;; sys/select.h
 
 ;;; UNIX-FAST-SELECT -- public.
 ;;;
@@ -2565,8 +2542,8 @@ in at a time in poll.")
 		    (if timeout-secs (alien-sap (addr tv)) (int-sap 0))))))
 
 
-;;; Unix-select accepts sets of file descriptors and waits for an event
-;;; to happen on one of them or to time out.
+;;; Unix-select accepts sets of file descriptors and waits for an event to
+;;; happen on one of them or to time out.
 
 (defmacro num-to-fd-set (fdset num)
   `(if (fixnump ,num)
@@ -2618,7 +2595,8 @@ in at a time in poll.")
 	       nfds (frob rdfds rdf) (frob wrfds wrf) (frob xpfds xpf)
 	       (if to-secs (alien-sap (addr tv)) (int-sap 0))))))
 
-;;; sys/stat.h
+
+;;;; sys/stat.h
 
 (defmacro extract-stat-results (buf)
   `(values T
@@ -2678,7 +2656,8 @@ in at a time in poll.")
 	     (extract-stat-results buf)
 	     name (addr buf))))
 
-;;; Unix-chmod accepts a path and a mode and changes the mode to the new mode.
+;;; Unix-chmod accepts a path and a mode and changes the mode to the new
+;;; mode.
 
 ;; FIX (unix-chmod "xx" "a+w") would be cool too
 (defun unix-chmod (path mode)
@@ -2721,7 +2700,6 @@ in at a time in poll.")
 	   (type unix-file-mode mode))
   (void-syscall ("fchmod" int int) fd mode))
 
-
 #+nil
 (defun unix-umask (mask)
   "Set the file creation mask of the current process to MASK,
@@ -2748,7 +2726,6 @@ in at a time in poll.")
 	   (type unix-file-mode mode))
   (void-syscall ("makedev" c-string mode-t dev-t) name mode dev))
 
-
 #+nil
 (defun unix-fifo (name mode)
   "Create a new FIFO named PATH, with permission bits MODE."
@@ -2756,7 +2733,8 @@ in at a time in poll.")
 	   (type unix-file-mode mode))
   (void-syscall ("mkfifo" c-string int) name mode))
 
-;;; sys/statfs.h
+
+;;;; sys/statfs.h
 
 #+nil
 (defun unix-statfs (file buf)
@@ -2764,7 +2742,7 @@ in at a time in poll.")
   (int-syscall ("statfs" c-string (* (struct statfs)))
 	       file buf))
 
-;;; sys/swap.h
+;;;; sys/swap.h
 
 #+nil
 (defun unix-swapon (path flags)
@@ -2778,7 +2756,8 @@ in at a time in poll.")
   This call is restricted to the super-user."
  (int-syscall ("swapon" c-string) path))
 
-;;; sys/sysctl.h
+
+;;;; sys/sysctl.h
 
 #+nil
 (defun unix-sysctl (name nlen oldval oldlenp newval newlen)
@@ -2786,7 +2765,7 @@ in at a time in poll.")
   (int-syscall ("sysctl" int int (* void) (* void) (* void) size-t)
 	       name nlen oldval oldlenp newval newlen))
 
-;;; time.h
+;;;; time.h
 
 ;; POSIX.4 structure for a time value.  This is like a `struct timeval' but
 ;; has nanoseconds instead of microseconds.
@@ -2880,7 +2859,8 @@ in at a time in poll.")
     (declare (ignore minutes))
     (values (deref unix-tzname (if dst 1 0)))))
 
-;;; sys/time.h
+
+;;;; sys/time.h
 
 ;; Structure crudely representing a timezone.
 ;;   This is obsolete and should never be used.
@@ -2888,7 +2868,6 @@ in at a time in poll.")
   (struct timezone
     (tz-minuteswest int)		; minutes west of Greenwich
     (tz-dsttime	int)))			; type of dst correction
-
 
 (declaim (inline unix-gettimeofday))
 (defun unix-gettimeofday ()
@@ -2908,7 +2887,6 @@ in at a time in poll.")
 	      (addr tv)
 	      (addr tz))))
 
-
 ;/* Set the current time of day and timezone information.
 ;   This call is restricted to the super-user.  */
 ;extern int __settimeofday __P ((__const struct timeval *__tv,
@@ -2924,7 +2902,6 @@ in at a time in poll.")
 ;      struct timeval *__olddelta));
 ;extern int adjtime __P ((__const struct timeval *__delta,
 ;    struct timeval *__olddelta));
-
 
 ;; Type of the second argument to `getitimer' and
 ;; the second and third arguments `setitimer'.
@@ -2992,7 +2969,8 @@ in at a time in poll.")
 			(slot (slot itvo 'it-value) 'tv-usec))
 		which (alien-sap (addr itvn))(alien-sap (addr itvo))))))
 
-;;; sys/timeb.h
+
+;;;; sys/timeb.h
 
 ;; Structure returned by the `ftime' function.
 
@@ -3008,8 +2986,7 @@ in at a time in poll.")
   "Fill in TIMEBUF with information about the current time."
   (int-syscall ("ftime" (* (struct timeb))) timebuf))
 
-
-;;; sys/times.h
+;;;; sys/times.h
 
 ;; Structure describing CPU time used by a process and its children.
 
@@ -3028,7 +3005,8 @@ in at a time in poll.")
    All times are in CLK_TCKths of a second."
   (int-syscall ("times" (* (struct tms))) buffer))
 
-;;; sys/wait.h
+
+;;;; sys/wait.h
 
 #+nil
 (defun unix-wait (status)
@@ -3053,7 +3031,8 @@ in at a time in poll.")
   (int-syscall ("waitpit" pid-t (* int) int)
 	       pid status options))
 
-;;; asm/errno.h
+
+;;;; asm/errno.h
 
 (def-unix-error ESUCCESS 0 "Successful")
 (def-unix-error EPERM 1 "Operation not permitted")
@@ -3185,6 +3164,7 @@ in at a time in poll.")
 ;;; And now for something completely different ...
 (emit-unix-errors)
 
+
 ;;; the ioctl's.
 ;;;
 ;;; I've deleted all the stuff that wasn't in the header files.
@@ -3281,6 +3261,7 @@ in at a time in poll.")
   '#(0 50 75 110 134 150 200 300 600 1200 1800 2400
      4800 9600 19200 38400 57600 115200 230400))
 
+
 ;;;; Support routines for dealing with unix pathnames.
 
 (export '(unix-file-kind unix-maybe-prepend-current-directory
@@ -3460,7 +3441,6 @@ in at a time in poll.")
 	  (t
 	   (subseq dst 0 dst-len)))))
 
-;;;
 ;;; STRING-LIST-TO-C-STRVEC	-- Internal
 ;;;
 ;;; STRING-LIST-TO-C-STRVEC is a function which takes a list of
@@ -3506,6 +3486,7 @@ in at a time in poll.")
       (setf (sap-ref-sap vec-sap i) (int-sap 0))
       (values vec-sap total-bytes))))
 
+
 ;;; Stuff not yet found in the header files...
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -3516,7 +3497,6 @@ in at a time in poll.")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; Abandon all hope who enters here...
-
 
 ;; not checked for linux...
 (defmacro fd-set (offset fd-set)
@@ -3549,10 +3529,4 @@ in at a time in poll.")
   `(progn
      ,@(loop for index upfrom 0 below (/ fd-setsize nfdbits)
 	 collect `(setf (deref (slot ,fd-set 'fds-bits) ,index) 0))))
-
-
-
-
-
-
 

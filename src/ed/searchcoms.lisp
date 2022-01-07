@@ -1,7 +1,8 @@
 ;;; Searching and replacing commands.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
+(export '(*last-search-pattern* *last-search-string* get-search-pattern))
 
 
 ;;;; Some global state.
@@ -40,7 +41,6 @@
   (setq *last-rule-search-pattern*
 	(new-search-pattern :parser direction rule
 			    *last-rule-search-pattern*)))
-
 
 
 ;;;; Once-off searching.
@@ -149,7 +149,6 @@
 	  (t (delete-mark mark)
 	     (editor-error)))))
 
-
 
 ;;;; Incremental searching.
 
@@ -199,7 +198,7 @@
 	    (invoke-hook abort-hook)
 	    (editor-error))
 	;; Now signalled in handler of C-g sigint.
-	(hi::editor-top-level-catcher ()
+	(edi::editor-top-level-catcher ()
 	  (move-mark point save-start)))
       (if (region-active-p)
 	  (delete-mark save-start)
@@ -235,7 +234,7 @@
 	    (invoke-hook abort-hook)
 	    (editor-error))
 	;; Now signalled in handler of C-g sigint.
-	(hi::editor-top-level-catcher ()
+	(edi::editor-top-level-catcher ()
 	  (move-mark point save-start)))
       (if (region-active-p)
 	  (delete-mark save-start)
@@ -297,8 +296,7 @@
 	 (%i-search-printed-char (get-key-event *editor-input* t)
 				 string point trailer direction failure))
 	((equalp key-event #k"C-w")
-	 (%i-search-copy-word key-event
-			      string point trailer direction failure))
+	 (%i-search-copy-word string point trailer direction failure))
 	((and (zerop (length string)) (logical-key-event-p key-event :exit))
 	 (if (eq direction :forward)
 	     (forward-search-command nil)
@@ -310,6 +308,42 @@
 	 (unless (zerop (length string))
 	   (setf *last-search-string* string))
 	 (throw 'exit-i-search nil))))
+
+;;;      %I-SEARCH-COPY-WORD handles the "take the next word of the current
+;;; match" case.
+
+(defun %i-search-copy-word (string point trailer direction failure)
+  ;; Begin by finding the region starting at the end of the current search
+  ;; and ending after the next word.
+  (let ((word-region (%i-search-region-to-copy string point direction)))
+    (when word-region
+      (let* ((new-fragment (region-to-string word-region))
+	     (new-string (concatenate 'simple-string
+				      string new-fragment)))
+	;; Update the status message.
+	(when (interactive)
+	  (insert-string (buffer-point *echo-area-buffer*) new-fragment)
+	  (force-output *echo-area-stream*))
+	(i-search-pattern new-string direction)
+	(cond (failure (%i-search new-string point
+				  trailer direction failure))
+	      (t
+	       (when (eq direction :backward)
+		 (move-mark trailer (region-end word-region)))
+	       (%i-search-find-pattern new-string point trailer direction)))))))
+
+(defun %i-search-region-to-copy (string point direction)
+  "Find the region containing the rest of the word to copy."
+  (let ((start-mark (copy-mark point :temporary)))
+    ;; When going backwards, the point is at the beginning of the search
+    ;; string, so move start-mark to the end.
+    (when (eq direction :backward)
+      (character-offset start-mark (length string)))
+    (let* ((end-mark (copy-mark start-mark :temporary)))
+      ;; Advance end-mark to the end of the word.
+      (when (and (find-attribute end-mark :word-delimiter #'zerop)
+		 (find-attribute (mark-after end-mark) :word-delimiter))
+	(region start-mark end-mark)))))
 
 ;;;      %I-SEARCH-CONTROL-S-OR-R handles repetitions in the search.  Note
 ;;; that there cannot be failure in the last COND branch: since the direction
@@ -382,45 +416,6 @@
 	    (t
 	     (%i-search-find-pattern new-string point trailer direction))))))
 
-;;; FIX Presumably %i-search-copy-word, added 2003 (file from 2006 head),
-;;; is pd like dabbrev.lisp which is also by Luke Gorrie.
-;;;     check http://fresh.homeunix.net/~luke/hemlock/
-
-;;;       %I-SEARCH-COPY-WORD handles the "take the next word of the current
-;;; match" case, like C-w in GNU Emacs. By Luke Gorrie.
-
-(defun %i-search-copy-word (key-event string point trailer direction failure)
-  (declare (ignore key-event))
-  ;; Begin by finding the region starting at the end of the current search
-  ;; and ending after the next word.
-  (let ((start-mark (copy-mark point :temporary)))
-    ;; When going backwards, the point is at the beginning of the search
-    ;; string, so move start-mark to the end.
-    (when (eq direction :backward)
-      (character-offset start-mark (length string)))
-    (let* ((end-mark (copy-mark start-mark :temporary))
-	   (word-region (region start-mark end-mark)))
-      ;; Advance end-mark to the end of the word.
-      (and (find-attribute end-mark :word-delimiter #'zerop)
-	   (find-attribute (mark-after end-mark) :word-delimiter)
-	   ;; The region is correct, now extract the text and update the
-	   ;; search string.
-	   (let ((new-fragment (region-to-string word-region)))
-	     ;; Start End  start End  sTaRt End
-	     (when (eq (value string-search-fold-case) :initially)
-	       (nstring-downcase new-fragment))
-	     (let ((new-string (concatenate 'simple-string string new-fragment)))
-	       ;; Update the status message.
-	       (when (interactive)
-		 (insert-string (buffer-point *echo-area-buffer*) new-fragment)
-		 (force-output *echo-area-stream*))
-	       (i-search-pattern new-string direction)
-	       (cond (failure (%i-search new-string point trailer direction failure))
-		     (t
-		      (when (eq direction :backward)
-			(move-mark trailer end-mark))
-		      (%i-search-find-pattern new-string point trailer direction)))))))))
-
 ;;;      %I-SEARCH-FIND-PATTERN takes a pattern for a string and direction
 ;;; and finds it, updating necessary pointers for the next call to %I-SEARCH.
 ;;; If the search failed, tell the user and do not move any pointers.
@@ -440,7 +435,6 @@
 	       (beep)
 	       (editor-error "I-Search failed."))
 	   (%i-search string point trailer direction t)))))
-
 
 
 ;;;; Replacement commands:
@@ -553,8 +547,8 @@
   (declare (simple-string replacement))
   (let ((replacement-len (length replacement))
 	(*query-replace-undo-data* nil))
-    (when (and count (minusp count))
-      (editor-error "Replacement count is negative."))
+    (and count (minusp count)
+	 (editor-error "Replacement count is negative."))
     (get-search-pattern target :forward)
     (unwind-protect
 	(query-replace-loop (get-count-region) (or count -1) target replacement
@@ -628,7 +622,6 @@
 		 (t (unget-key-event key-event *editor-input*)
 		    (return nil))))))
        (length (the list *query-replace-undo-data*))))))
-
 
 
 ;;;; Occurrence searching.

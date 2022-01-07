@@ -19,7 +19,7 @@
 #include "os.h"				/* for SetSymbolValue */
 #include "x86-validate.h"		/* for memory layout  */
 #include "x86-lispregs.h"
-#include "lisp.h"			/* for object defs */
+#include "nightshade.h"			/* for object defs */
 #include "interrupt.h"			/* interrupt_handlers */
 #include "internals.h"
 #include "cgc.h"
@@ -197,7 +197,7 @@ void print_clusters()
     print_cluster(cluster);
 }
 #endif /* TESTING */
-  
+
 
 /* Allocation/deallocation routines */
 
@@ -260,28 +260,28 @@ os_vm_size_t length;
   os_vm_address_t block_start = os_round_up_to_page(addr);
   os_vm_address_t end = addr + length;
   os_vm_size_t block_size;
-  
-  
+
+
   if(block_start > addr)
     bzero((char *)addr, MIN(block_start - addr, length));
 
   if(block_start < end)
     {
       length -= block_start - addr;
-      
+
       block_size =os_trunc_size_to_page(length);
-      
+
       if(block_size < length)
 	bzero((char *)block_start + block_size,length - block_size);
-  
+
       if (block_size != 0)
 	{
 	  /* Now deallocate and allocate the block so that it */
 	  /* faults in  zero-filled. */
-	  
+
 	  os_invalidate(block_start,block_size);
 	  addr=os_validate(block_start,block_size);
-	  
+
 	  if(addr == NULL || addr != block_start)
 	    fprintf(stderr,"cgc_zero: block moved, 0x%08x ==> 0x%08x!\n",
 		    block_start,addr);
@@ -301,7 +301,7 @@ static void compact_cluster(struct cluster *cluster)
   struct region **large_prev = &large_additions;
   struct region *small_additions = NULL;
   struct region **small_prev = &small_additions;
-  
+
   dprintf(show,("compact cluster %x\n",cluster));
   while (region < end) {
     struct region *next =
@@ -343,7 +343,7 @@ static void compact_cluster(struct cluster *cluster)
     else
       region = next;
   }
-  
+
   *large_prev = large_region_free_list;
   large_region_free_list = large_additions;
   *small_prev = small_region_free_list;
@@ -508,7 +508,7 @@ void *cgc_alloc(int nbytes)
 	  space->alloc_end = (char *)region + CHUNK_BYTES;
 	  bytes_allocated += region->num_chunks*CHUNK_BYTES;
 	}
-      
+
       res = space->alloc_ptr;
       space->alloc_ptr += ROUNDUP(nbytes, ALIGN_BYTES);
     }
@@ -518,7 +518,7 @@ void *cgc_alloc(int nbytes)
 
 static void move_to_newspace(struct region *region)
 {
-  /* (maybe) unlink region from oldspace and add to tail of 
+  /* (maybe) unlink region from oldspace and add to tail of
    * newspace regions. Don't attempt to move a region that
    * is already in newspace.
    */
@@ -863,7 +863,7 @@ scav_code_header(lispobj*where)
   nwords = CEILING(nwords, 2);
   /* Scavenge the boxed section of the code data block */
   /* NOTE: seeing a problem where the trace_table_offset slot
-   * is a bogus list pointer instead of a fixnum such that 
+   * is a bogus list pointer instead of a fixnum such that
    * junk gets moved to newspace which causes problems later.
    * Purify doesn't look at that slot (a bug?). Need
    * to figure out how it happens. Ans: from loading top-level
@@ -873,7 +873,7 @@ scav_code_header(lispobj*where)
   for(i=1; i < nheader_words; i++)
     scavenge_1word_obj(where + i);
 
-  /* Scavenge the boxed section of each function object in the 
+  /* Scavenge the boxed section of each function object in the
    * code data block.
    */
   fheaderl = code->entry_points;
@@ -974,7 +974,7 @@ scav_fdefn(lispobj*where)
 	  scavenge_pointer(&fdefn->function);
 	  break;
 	default:
-	  dprintf(1,("Ignoring bogus value %x for fdefn function.\n", 
+	  dprintf(1,("Ignoring bogus value %x for fdefn function.\n",
 		     *fcnobj));
 	}
     }
@@ -1011,7 +1011,7 @@ trans_list(lispobj object)
   lispobj  cdr;
 
   cons = (struct cons *) PTR(object);
-  
+
   /* copy 'object' */
   new_cons = (struct cons *) cgc_alloc(sizeof(struct cons));
   new_cons->car = cons->car;
@@ -1028,19 +1028,19 @@ trans_list(lispobj object)
   /* Set forwarding pointer (clobbers start of list). */
   DEPOSIT_FORWARDING_PTR((obj_t)cons,new_list_pointer);
 
-  /* Try to linearize the list in the cdr direction to help reduce paging. */  
+  /* Try to linearize the list in the cdr direction to help reduce paging. */
   while (1)
     {
       lispobj  new_cdr;
       struct cons *cdr_cons, *new_cdr_cons;
-      
-      if (LowtagOf(cdr) != type_ListPointer 
+
+      if (LowtagOf(cdr) != type_ListPointer
 	  || !from_space_p(cdr)
 	  || FORWARDED((obj_t)PTR(cdr)) )
 	break;
-    
+
       cdr_cons = (struct cons *) PTR(cdr);
-      
+
       /* copy 'cdr' */
       new_cdr_cons = (struct cons*) cgc_alloc(sizeof(struct cons));
       new_cdr_cons->car = cdr_cons->car;
@@ -1061,10 +1061,10 @@ trans_list(lispobj object)
        * space to keep the newspace scavenge from having to do it.
        */
       new_cons->cdr = new_cdr;
-      
+
       new_cons = new_cdr_cons;
   }
-  
+
   return new_list_pointer;
 }
 
@@ -1109,7 +1109,7 @@ void scan_weak_pointers(void)
       lispobj value = wp->value;
       obj_t obj = (obj_t)PTR(value);
       lispobj first, *first_pointer;
-      
+
       dprintf(weak_noise,("Weak pointer at 0x%08x\n", (unsigned long) wp));
       dprintf(weak_noise,("Value: 0x%08x\n", (unsigned long) value));
 
@@ -1119,7 +1119,7 @@ void scan_weak_pointers(void)
 	   * If it has been, the weak pointer is still good and needs
 	   * to be updated. Otherwise, the weak pointer needs to be nil'ed out.
 	   */
-	  
+
 	  if(FORWARDED(obj))
 	     wp->value = FORWARDING_PTR(obj);
 	  else
@@ -1264,9 +1264,9 @@ maybe_transport(lispobj*addr, lispobj tagged, struct region*region)
       *addr = new;
     }
   else
-    { 
+    {
       move_to_newspace(region);
-      dprintf(0,("move %x\n",region)); 
+      dprintf(0,("move %x\n",region));
     }
 }
 
@@ -1350,7 +1350,7 @@ static lispobj*scavenge(lispobj*addr, int ptrs)
 	count = scavenge_random_object(addr);
       else
 	IMMED_OR_LOSE(obj);
-	  
+
       addr += count;
     }
   return addr;
@@ -1443,7 +1443,7 @@ static void preserve_interrupt_contexts(void)
   for (i = 0; i < index; i++)
     {
       context = lisp_interrupt_contexts[i];
-      preserve_interrupt_context(context); 
+      preserve_interrupt_context(context);
     }
 }
 
@@ -1462,7 +1462,7 @@ static void flip_spaces()
 #define BOS (CONTROL_STACK_START+CONTROL_STACK_SIZE) /* x86-validate.h */
 /* Traverse stack in same direction as it was loaded to try and
  * preserve original ordering of pages. Good for the VM system I hope.
- */ 
+ */
 #define ACROSS_STACK(var) var=(void**)BOS-1; var > (void**)&var; var--
 #endif
 
@@ -1492,13 +1492,13 @@ void scavenge_thread_stacks(void)
 {
   lispobj thread_stacks = SymbolValue(CONTROL_STACKS);
   int type = TypeOf(thread_stacks);
-  
+
   if (LowtagOf(thread_stacks)==type_OtherPointer) {
     struct vector *vector = (struct vector *) PTR(thread_stacks);
     int length, i;
     if (TypeOf(vector->header)!=type_SimpleVector)
       return;
-    length = fixnum_value(vector->length);    
+    length = fixnum_value(vector->length);
     for (i=0; i<length; i++) {
       lispobj stack_obj = vector->data[i];
       if (LowtagOf(stack_obj)==type_OtherPointer) {
@@ -1534,7 +1534,7 @@ static void zero_stack()
   while(p < q)
     *p++ = 0;
 #endif
-  
+
 }
 
 #if defined STATIC_BLUE_BAG
@@ -1703,7 +1703,7 @@ static void verify_space(lispobj*start, size_t words)
 		  int nheader_words, ncode_words, nwords;
 		  lispobj fheaderl;
 		  struct function *fheaderp;
-		  
+
 		  code = (struct code *) start;
 		  ncode_words = fixnum_value(code->code_size);
 		  nheader_words = HeaderValue(object);
@@ -1711,7 +1711,7 @@ static void verify_space(lispobj*start, size_t words)
 		  nwords = CEILING(nwords, 2);
 		  /* Scavenge the boxed section of the code data block */
 		  verify_space(start + 1, nheader_words - 1);
-		  
+
 		  /* Scavenge the boxed section of each function object in the
 		   * code data block.
 		   */
@@ -1754,7 +1754,7 @@ static void verify_space(lispobj*start, size_t words)
 }
 
 /* For debug/test only. */
-static void 
+static void
 verify_gc()
 {
   lispobj*rs0 = (lispobj*)READ_ONLY_SPACE_START;
@@ -1765,7 +1765,7 @@ verify_gc()
   lispobj*bsz = (lispobj*)SymbolValue(BINDING_STACK_POINTER);
   lispobj*cs0 = (lispobj*)&rs0;
   lispobj*csz = (lispobj*)BOS;
-  /* can't check stack easily because there may be non-valid 
+  /* can't check stack easily because there may be non-valid
    * objects there (thats why we're doing this cgc stuff). In
    * particular there are raw return addresses which can be very
    * descriptorish looking!!!
@@ -1779,7 +1779,7 @@ verify_gc()
 static void fixup_regions(struct region*region)
 {
   do
-    {    
+    {
       lispobj header = (lispobj)OBJECT_AT(region)->header;
       if(static_space_p(header))
 	{
@@ -1937,7 +1937,7 @@ char*alloc(int nbytes)
 	  && bytes_allocated > auto_gc_trigger
 	  && !maybe_gc_called++)		/* Only once         */
 	funcall0(SymbolFunction(MAYBE_GC));
-      
+
       if (SymbolValue(INTERRUPTS_ENABLED) == NIL)
 	/* Interrupts are disable so no special care is needed */
 	return cgc_alloc(nbytes);
@@ -1948,12 +1948,12 @@ char*alloc(int nbytes)
 	     before calling cgc_alloc to prevent cgc_alloc from being
 	     re-entered. */
 	  SetSymbolValue(INTERRUPTS_ENABLED, NIL);
-	  
+
 	  result = cgc_alloc(nbytes);
-	  
+
 	  /* Restore *interrupts-enabled* */
 	  SetSymbolValue(INTERRUPTS_ENABLED, T);
-	  
+
 	  /* Check if an interrupt occured */
 	  if (SymbolValue(INTERRUPT_PENDING) == T)
 	    /* Handle any interrupts that occured during cgc_alloc */
@@ -2006,7 +2006,7 @@ search_space(lispobj *start, size_t words, lispobj *pointer)
   while(words > 0) {
     size_t count = 1;
     lispobj thing = *start;
-    
+
     /* If thing is an immediate then this is a cons */
     if (Pointerp(thing)
 	|| ((thing & 3) == 0) /* fixnum */
@@ -2015,17 +2015,17 @@ search_space(lispobj *start, size_t words, lispobj *pointer)
       count = 2;
     else
       count = sizeOfObject((obj_t)start);
-	      
+
     /* Check if the pointer is within this object? */
     if ((pointer >= start) && (pointer < (start+count))) {
       /* Found it. */
       /*	  fprintf(stderr,"* Found %x in %x %x\n",pointer, start, thing);*/
       return(start);
     }
-    
+
     /* Round up the count */
     count = CEILING(count,2);
-    
+
     start += count;
     words -= count;
   }
@@ -2057,11 +2057,11 @@ lispobj*
 component_ptr_from_pc(lispobj *pc)
 {
   lispobj *object = NULL;
-  
+
   if (object = search_read_only_space(pc));
   else
     object = search_static_space(pc);
-  
+
   /* Found anything? */
   if (object)
     /* Check if it is a code object. */

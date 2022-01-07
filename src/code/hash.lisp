@@ -1,19 +1,5 @@
-;;; -*- Package: CL -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/hash.lisp,v 1.29.2.3 2000/07/09 14:03:00 dtc Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; Hashing and hash table functions for Spice Lisp.
-;;; Originally written by Skef Wholey.
-;;; Everything except SXHASH rewritten by William Lott.
-;;; Equalp hashing by William Newman, Cadabra Inc, and Douglas Crosher, 2000.
-;;;
+;;; Hashing and hash table functions.
+
 (in-package :common-lisp)
 
 (export '(hash-table hash-table-p make-hash-table
@@ -151,9 +137,9 @@
 ;;;
 ;;; %puthash: if there are any active scans, then make sure the current bucket
 ;;; for each scan holds the key we are trying to puthash, and flame out of it
-;;; isn't.  Given that we have our hands directly on the correct bucket, just 
+;;; isn't.  Given that we have our hands directly on the correct bucket, just
 ;;; go for it.
-;;; 
+;;;
 ;;; remhash: make the same check as with %puthash.  If it checks out, then
 ;;; just scan down the correct bucket chain and yank it.
 ;;;
@@ -227,7 +213,7 @@
 ;;;; User defined hash table tests.
 
 ;;; *HASH-TABLE-TESTS* -- Internal.
-;;; 
+;;;
 (defvar *hash-table-tests* nil)
 
 ;;; DEFINE-HASH-TABLE-TEST -- Public.
@@ -245,7 +231,7 @@
 ;;;; Construction and simple accessors.
 
 ;;; MAKE-HASH-TABLE -- public.
-;;; 
+;;;
 (defun make-hash-table (&key (test 'eql) (size 65) (rehash-size 1.5)
 			     (rehash-threshold 1) (weak-p nil))
   "Creates and returns a new hash table.  The keywords are as follows:
@@ -422,7 +408,7 @@
   (undefined-value))
 
 ;;; GETHASH -- Public.
-;;; 
+;;;
 (defun gethash (key hash-table &optional default)
   "Finds the entry in HASH-TABLE whose key is KEY and returns the associated
    value and T as multiple values, or returns DEFAULT and NIL if there is no
@@ -515,7 +501,7 @@
   (%puthash key table new-value))
 
 ;;; %PUTHASH -- public setf method.
-;;; 
+;;;
 (defun %puthash (key hash-table value)
   (declare (type hash-table hash-table))
   (without-gcing
@@ -615,7 +601,7 @@
   value)
 
 ;;; REMHASH -- public.
-;;; 
+;;;
 (defun remhash (key hash-table)
   "Remove the entry in HASH-TABLE associated with KEY.  Returns T if there
    was such an entry, and NIL if not."
@@ -693,7 +679,7 @@
 
 
 ;;; CLRHASH -- public.
-;;; 
+;;;
 (defun clrhash (hash-table)
   "This removes all the entries from HASH-TABLE and returns the hash table
    itself."

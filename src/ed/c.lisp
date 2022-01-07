@@ -4,12 +4,25 @@
 
 (defhvar "Preprocessor Start"
   "String that indicates the start of a comment."
-  :value nil)
+  :value ())
+
+(defhvar "C Special Forms"
+  "Hashtable of C special forms."
+  :value ())
 
 
 ;;;; C.
 
+(defvar c-special-forms (make-hash-table :size 50 :test #'equal)
+  "A hashtable of C special form names.")
+
 (defun setup-c-mode (buffer)
+  (if (editor-bound-p 'c-special-forms)
+      (setv c-special-forms c-special-forms)
+      (defhvar "C Special Forms"
+	"Hashtable of C special forms."
+	:buffer buffer
+	:value c-special-forms))
   (highlight-visible-c-buffer buffer)
   (pushnew '("C" t highlight-visible-c-buffer) *mode-highlighters*))
 
@@ -114,7 +127,7 @@
 
 (defhvar "Comment End"
   "String that ends comments.  Nil indicates #\newline termination."
-  :mode "C" :value " */")
+  :mode "C" :value "*/")
 
 (defhvar "Comment Begin"
   "String that is inserted to begin a comment."
@@ -127,9 +140,6 @@
 (shadow-attribute :scribe-syntax #\< nil "C")
 
 ;;; Context highlighting.
-
-(defvar c-special-forms (make-hash-table :size 50 :test #'equal)
-  "A hashtable of C special form names.")
 
 (setf (gethash "if" c-special-forms) t)
 (setf (gethash "else" c-special-forms) t)
@@ -151,6 +161,23 @@
 (declaim (inline highlight-c-line))
 (declaim (special *in-string* *in-comment*))
 
+(defun search-for-c-qmark (string &optional (start 0))
+  "Return position of first \" in String if there are any, else nil.  Skip
+   any quoted quotation marks (like \\\" or '\"')."
+  (do ((string-start (position #\" string :start start)
+		     (position #\" string :start (1+ string-start))))
+      ((or (eq string-start nil)
+	   (zerop string-start)
+	   (and (plusp string-start)
+		(if (and (eq (aref string (1- string-start)) #\')
+			 (> (1- (length string)) string-start)
+			 (eq (aref string (1+ string-start)) #\'))
+		    nil
+		    (oddp (loop
+			    for start downfrom (1- string-start) count start
+			    while (eq (aref string start) #\\))))))
+       string-start)))
+
 (defun highlight-c-line (line chi-info)
   (when (next-character (mark line 0))
     (let ((chars (line-string line))
@@ -159,7 +186,7 @@
       (if *in-string*
 	  (progn
 	    (chi-mark line 0 string-font chi-info)
-	    (setq pos (1+ (or (search-for-qmark chars)
+	    (setq pos (1+ (or (search-for-c-qmark chars)
 			      (return-from highlight-c-line))))
 	    (chi-mark line pos original-font chi-info)
 	    (setq *in-string* nil))
@@ -173,7 +200,7 @@
       (let ((comment-start (value comment-start))
 	    (pp-start (value preprocessor-start)))
 	(loop
-	  (let ((string (or (search-for-qmark chars pos)
+	  (let ((string (or (search-for-c-qmark chars pos)
 			    most-positive-fixnum))
 		(preproc (or (and pp-start
 				  (search pp-start chars :start2 pos))
@@ -197,13 +224,13 @@
 			      (min string preproc comment multic)))
 		      (return-from nil))
 		  (when (gethash (subseq chars start (mark-charpos end))
-				 c-special-forms)
+				 (value c-special-forms))
 		    (chi-mark line start special-form-font chi-info)
 		    (chi-mark line (mark-charpos end) original-font chi-info)))))
 	    ;; Highlight the rest.
 	    (cond ((< string (min preproc comment multic))
 		   (chi-mark line string string-font chi-info)
-		   (setq pos (search-for-qmark chars (1+ string)))
+		   (setq pos (search-for-c-qmark chars (1+ string)))
 		   (if pos
 		       (chi-mark line (incf pos) original-font chi-info)
 		       (progn
@@ -242,9 +269,81 @@
   (highlight-visible-chi-buffer buffer highlight-c-line))
 
 
+;;;; C++.
+
+(defvar c++-special-forms (make-hash-table :size 50 :test #'equal)
+  "A hashtable of C special form names.")
+
+;; Copy the C special forms.
+(do-hash (key value c-special-forms)
+  (setf (gethash key c++-special-forms) value))
+
+(setf (gethash "class" c++-special-forms) t)
+(setf (gethash "namespace" c++-special-forms) t)
+(setf (gethash "private" c++-special-forms) t)
+(setf (gethash "protected" c++-special-forms) t)
+(setf (gethash "public" c++-special-forms) t)
+(setf (gethash "using" c++-special-forms) t)
+(setf (gethash "virtual" c++-special-forms) t)
+
+(defun setup-c++-mode (buffer)
+  (if (editor-bound-p 'c-special-forms)
+      (setv c-special-forms c++-special-forms)
+      (defhvar "C Special Forms"
+	"Hashtable of C special forms."
+	:buffer buffer
+	:value c-special-forms))
+  (highlight-visible-c-buffer buffer)
+  (pushnew '("C++" t highlight-visible-c-buffer) *mode-highlighters*))
+
+(defmode "C++" :major-p t
+  :setup-function 'setup-c++-mode)
+
+(defcommand "C++ Mode" (p)
+  "Put the current buffer into \"C++\" mode."
+  "Put the current buffer into \"C++\" mode."
+  (declare (ignore p))
+  (setf (buffer-major-mode (current-buffer)) "C++"))
+
+(defhvar "Indent Function"
+  "Indentation function which is invoked by \"Indent\" command.
+   It must take one argument that is the prefix argument."
+  :value #'indent-for-c
+  :mode "C++")
+
+(defhvar "Auto Fill Space Indent"
+  "When non-nil, uses \"Indent New Comment Line\" to break lines instead of
+   \"New Line\"."
+  :mode "C++" :value t)
+
+(defhvar "Comment Start"
+  "String that indicates the start of a comment."
+  :mode "C++" :value "/*")
+
+(defhvar "Comment End"
+  "String that ends comments.  Nil indicates #\newline termination."
+  :mode "C++" :value "*/")
+
+(defhvar "Comment Begin"
+  "String that is inserted to begin a comment."
+  :mode "C++" :value "/* ")
+
+(defhvar "Preprocessor Start"
+  "String that indicates the start of a preprocessor directive."
+  :mode "C++" :value "#")
+
+(shadow-attribute :scribe-syntax #\< nil "C++")
+
+
 ;;;; Perl.
 
 (defun setup-perl-mode (buffer)
+  (if (editor-bound-p 'c-special-forms)
+      (setv c-special-forms c-special-forms)
+      (defhvar "C Special Forms"
+	"Hashtable of C special forms."
+	:buffer buffer
+	:value c-special-forms))
   (highlight-visible-c-buffer buffer)
   (pushnew '("Perl" t highlight-visible-c-buffer) *mode-highlighters*))
 
@@ -286,6 +385,12 @@
 ;;;; Java.
 
 (defun setup-java-mode (buffer)
+  (if (editor-bound-p 'c-special-forms)
+      (setv c-special-forms c-special-forms)
+      (defhvar "C Special Forms"
+	"Hashtable of C special forms."
+	:buffer buffer
+	:value c-special-forms))
   (highlight-visible-c-buffer buffer)
   (pushnew '("Java" t highlight-visible-c-buffer) *mode-highlighters*))
 

@@ -7,12 +7,26 @@ of the original CMU authors.  (Also check commits on branches.)
 
 ** pd
 
+alpha-vm.lisp      date: 1994-10-31 04:11:27 +0000;  author: ram;  state: Exp;  lines: +2 -4
+backq.lisp		   date: 1994-10-31 04:11:27 +0000;  author: ram;  state: Exp;  lines: +1 -3
+bignum-test.lisp   date: 1994-10-31 04:11:27 +0000;  author: ram;  state: Exp;  lines: +1 -3
+
+AT byte-interp.lisp
+
 ** the rest
+
+alieneval.lisp     dtc,pw
+array.lisp		   dtc,pw
+bignum.lisp		   dtc
+bitbash.lisp	   pw
+bsd-os.lisp		   pw
 
 run-program.lisp   pw
 parse-time.lisp    dtc
 reader.lisp        dtc (1 Based on patches from Tim Moore)
 				   pw, toy
+
+time.lisp		   dtc
 
 * CMU CL 2002-08-23-19h00 (base of Nightshade 0.0)
 
@@ -234,4 +248,30 @@ reader.lisp
 	date: 1997-03-20 21:53:49 +0000;  author: pw;  state: Exp;  lines: +39 -7
 	branches:  1.22.2;
 	Ray Toy's fix for reading very large/small FP numbers
+	----------------------------
+
+time.lisp
+	----------------------------
+	revision 1.19
+	date: 2000-06-07 08:11:02 +0100;  author: dtc;  state: Exp;  lines: +40 -50
+	Rework decode-universal-time to correctly handle time zones that are a
+	multiple of 1/3600 as required by ANSI CL, rather than just multiples of 1/60.
+	----------------------------
+	revision 1.18
+	date: 1998-01-29 07:22:45 +0000;  author: dtc;  state: Exp;  lines: +16 -1
+	Add the unix-times unix system call for the sparc svr4 port, and make
+	use of this to implement get-internal-run-time and
+	get-system-info. This allows the run time to be obtained on Solaris 2.4,
+	and is reportedly faster than getrusage on later versions of Solaris.
+	----------------------------
+	----------------------------
+	revision 1.17.2.2
+	date: 2000-06-07 13:48:07 +0100;  author: dtc;  state: Exp;  lines: +40 -50
+	Rework decode-universal-time to correctly handle time zones that are a
+	multiple of 1/3600 as required by ANSI CL, rather than just multiples of 1/60.
+	----------------------------
+	revision 1.17.2.1
+	date: 1998-06-23 12:22:34 +0100;  author: pw;  state: Exp;  lines: +16 -1
+	This (huge) revision brings the RELENG_18 branch up to the current HEAD.
+	Note code/unix-glib2.lisp not yet included -- not sure it is ready to go.
 	----------------------------

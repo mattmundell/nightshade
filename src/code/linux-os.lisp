@@ -1,20 +1,4 @@
-;;; -*- Package: SYSTEM -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/linux-os.lisp,v 1.1 1997/01/18 14:30:35 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; OS interface functions for CMU CL under Mach.
-;;;
-;;; Written and maintained mostly by Skef Wholey and Rob MacLachlan.
-;;; Scott Fahlman, Dan Aronson, and Steve Handerson did stuff here, too.
-;;;
-;;; Hacked into Linux-os.lisp /Werkowski
+;;; OS interface functions for running under Linux.
 
 (in-package "SYSTEM")
 (use-package "EXTENSIONS")
@@ -48,7 +32,6 @@
   #+sparc ;; Can't use #x20000000 thru #xDFFFFFFF, but mach tries to let us.
   (system:allocate-system-memory-at (system:int-sap #x20000000) #xc0000000))
 
-
 ;;; GET-SYSTEM-INFO  --  Interface
 ;;;
 ;;;    Return system time, user time and number of page faults.
@@ -61,9 +44,8 @@
     (unless err?
       (error "Unix system call getrusage failed: ~A."
 	     (unix:get-unix-error-msg utime)))
-    
-    (values utime stime majflt)))
 
+    (values utime stime majflt)))
 
 ;;; GET-PAGE-SIZE  --  Interface
 ;;;
@@ -72,4 +54,3 @@
 (defun get-page-size ()
   ;; probably should call getpagesize()
   4096)
-

@@ -68,7 +68,7 @@
       (ir1-convert start cont form)
       (setf (block-last block) (continuation-use cont))
       block)))
-  
+
 
 ;;;; Continuation use hacking:
 
@@ -222,7 +222,7 @@
 ;;; continuation to be used more than once.  Every continuation which may be
 ;;; used more than once must start a block by the time that anyone does a
 ;;; Use-Continuation on it.
-;;; 
+;;;
 ;;;    We also throw the block into the next/prev list for the
 ;;; *current-component* so that we keep track of which blocks we have made.
 ;;;
@@ -350,7 +350,7 @@
 ;;;
 ;;;    Return the (reversed) list for the path in the orignal source (with the
 ;;; TLF number last.)
-;;; 
+;;;
 (defun source-path-original-source (path)
   (declare (list path) (inline member))
   (cddr (member 'original-source-start path :test #'eq)))
@@ -407,7 +407,7 @@
 ;;;    Return a new LEXENV just like Default except for the specified slot
 ;;; values.  Values for the alist slots are NCONC'ed to the beginning of the
 ;;; current value, rather than replacing it entirely.
-;;; 
+;;;
 (defun make-lexenv (&key (default *lexical-environment*)
 			 functions variables blocks tags type-restrictions
 			 options
@@ -446,7 +446,7 @@
      :cspeed (or (cookie-cspeed icookie) (cookie-cspeed cookie))
      :brevity (or (cookie-brevity icookie) (cookie-brevity cookie))
      :debug (or (cookie-debug icookie) (cookie-debug cookie)))))
-			   
+
 
 ;;;; Flow/DFO/Component hackery:
 
@@ -530,7 +530,7 @@
       (t
        (unless (member new (block-succ block) :test #'eq)
 	 (link-blocks block new)))))
-  
+
   (undefined-value))
 
 
@@ -630,7 +630,7 @@
 	(link-blocks block new-block)
 	(add-to-dfo new-block block)
 	(setf (component-reanalyze (block-component block)) t)
-	
+
 	(do ((cont start (node-cont (continuation-next cont))))
 	    ((eq cont last-cont)
 	     (when (eq (continuation-kind last-cont) :inside-block)
@@ -708,7 +708,7 @@
 ;;;
 ;;;    This function deletes functions that have no references.  This need only
 ;;; be called on functions that never had any references, since otherwise
-;;; DELETE-REF will handle the deletion. 
+;;; DELETE-REF will handle the deletion.
 ;;;
 (defun delete-functional (fun)
   (assert (and (null (leaf-refs fun))
@@ -818,7 +818,7 @@
 			      (maybe-convert-to-assignment fun)))
 			 (t
 			  (maybe-convert-to-assignment fun)))))))
-	
+
 	(dolist (ep (optional-dispatch-entry-points leaf))
 	  (frob ep))
 	(when (optional-dispatch-more-entry leaf)
@@ -841,7 +841,7 @@
   (let* ((leaf (ref-leaf ref))
 	 (refs (delete ref (leaf-refs leaf))))
     (setf (leaf-refs leaf) refs)
-    
+
     (cond ((null refs)
 	   (typecase leaf
 	     (lambda-var (delete-lambda-var leaf))
@@ -886,7 +886,7 @@
 ;;;
 (defun flush-dest (cont)
   (declare (type continuation cont))
-  
+
   (unless (eq (continuation-kind cont) :deleted)
     (assert (continuation-dest cont))
     (setf (continuation-dest cont) nil)
@@ -899,7 +899,7 @@
 		  t))))))
 
   (setf (continuation-%type-check cont) nil)
-  
+
   (undefined-value))
 
 
@@ -933,7 +933,7 @@
 (defun delete-continuation (cont)
   (declare (type continuation cont))
   (assert (not (eq (continuation-kind cont) :deleted)))
-  
+
   (do-uses (use cont)
     (let ((prev (node-prev use)))
       (unless (eq (continuation-kind prev) :deleted)
@@ -949,7 +949,7 @@
 	  (let ((block (continuation-block prev)))
 	    (unless (block-delete-p block)
 	      (mark-for-deletion block)))))))
-  
+
   (setf (continuation-kind cont) :deleted)
   (setf (continuation-dest cont) nil)
   (setf (continuation-next cont) nil)
@@ -960,7 +960,7 @@
   (setf (continuation-reoptimize cont) nil)
   (setf (continuation-%type-check cont) nil)
   (setf (continuation-info cont) nil)
-  
+
   (undefined-value))
 
 
@@ -1070,8 +1070,10 @@
     (unless (or (leaf-ever-used var)
 		(lambda-var-ignorep var))
       (let ((*compiler-error-context* (lambda-bind fun)))
-	(compiler-note "Variable ~S defined but never used." (leaf-name var)))
-      (setf (leaf-ever-used var) t)))
+ 	(unless (policy *compiler-error-context* (= brevity 3))
+ 	  (compiler-warning "Variable ~S defined but never used."
+ 			    (leaf-name var)))
+	(setf (leaf-ever-used var) t))))
   (undefined-value))
 
 
@@ -1157,7 +1159,7 @@
 ;;; cleaning up any type-specific semantic attachments.  If the CONT is :UNUSED
 ;;; after deleting this use, then we delete CONT.  (Note :UNUSED is not the
 ;;; same as no uses.  A continuation will only become :UNUSED if it was
-;;; :INSIDE-BLOCK before.) 
+;;; :INSIDE-BLOCK before.)
 ;;;
 ;;;    If the node is the last node, there must be exactly one successor.  We
 ;;; link all of our precedessors to the successor and unlink the block.  In
@@ -1174,13 +1176,13 @@
 	 (block (continuation-block prev))
 	 (prev-kind (continuation-kind prev))
 	 (last (block-last block)))
-    
+
     (unless (eq (continuation-kind cont) :deleted)
       (delete-continuation-use node)
       (when (eq (continuation-kind cont) :unused)
 	(assert (not (continuation-dest cont)))
 	(delete-continuation cont)))
-    
+
     (setf (block-type-asserted block) t)
     (setf (block-test-modified block) t)
 
@@ -1263,7 +1265,7 @@
   (do-blocks (block component)
     (delete-block block))
   (undefined-value))
-  
+
 
 ;;; EXTRACT-FUNCTION-ARGS -- interface
 ;;;
@@ -1273,7 +1275,7 @@
 ;;; whatever transform called this.  Note, as the number of arguments changes,
 ;;; the transform must be prepared to return a lambda with a new lambda-list
 ;;; with the correct number of arguments.
-;;; 
+;;;
 (defun extract-function-args (cont fun num-args)
   "If CONT is a call to FUN with NUM-ARGS args, change those arguments
    to feed directly to the continuation-dest of CONT, which must be
@@ -1575,8 +1577,8 @@
   ;;
   ;; The original source part of the source path.
   (original-source-path nil :type list))
-  
-  
+
+
 ;;; If true, this is the node which is used as context in compiler warning
 ;;; messages.
 ;;;
@@ -1587,7 +1589,7 @@
 
 ;;; Hashtable mapping macro names to source context parsers.  Each parser
 ;;; function returns the source-context list for that form.
-;;; 
+;;;
 (defvar *source-context-methods* (make-hash-table))
 
 ;;; DEF-SOURCE-CONTEXT  --  Public
@@ -1665,7 +1667,7 @@
 		  (context (source-form-context form))))))
 	  (when (null current) (return))
 	  (setq form (nth (pop current) form)))
-	
+
 	(cond ((context)
 	       (values form (context)))
 	      ((and path root)
@@ -1690,7 +1692,7 @@
 	(format nil "  ~S~%" form)
 	(prin1-to-string form))))
 
-	  
+
 ;;; FIND-ERROR-CONTEXT  --  Interface
 ;;;
 ;;;    Return a COMPILER-ERROR-CONTEXT structure describing the current error
@@ -1794,7 +1796,7 @@
 	(let ((*print-level* 2)
 	      (*print-pretty* nil)
 	      (name (compiler-error-context-file-name context)))
-	  (funcall *compiler-notification-function* severity 
+	  (funcall *compiler-notification-function* severity
 		   (format nil "~{~{~S~^ ~}~^ => ~}"
 			   (compiler-error-context-context context))
 		   (when (pathnamep name) (namestring name))
@@ -1854,27 +1856,27 @@
 		(source (compiler-error-context-source context))
 		(last *last-error-context*))
 	    (compiler-notification what context)
-	    
+
 	    (unless (and last
 			 (equal file (compiler-error-context-file-name last)))
 	      (when (pathnamep file)
 		(note-message-repeats)
 		(setq last nil)
 		(format stream "~2&File: ~A~%" (namestring file))))
-	    
+
 	    (unless (and last
 			 (equal in (compiler-error-context-context last)))
 	      (note-message-repeats)
 	      (setq last nil)
 	      (format stream "~2&In:~{~<~%   ~4:;~{ ~S~}~>~^ =>~}~%" in))
-	    
+
 	    (unless (and last
 			 (string= form
 				  (compiler-error-context-original-source last)))
 	      (note-message-repeats)
 	      (setq last nil)
 	      (write-string form stream))
-	    
+
 	    (unless (and last
 			 (equal enclosing
 				(compiler-error-context-enclosing-source last)))
@@ -1882,7 +1884,7 @@
 		(note-message-repeats)
 		(setq last nil)
 		(format stream "--> ~{~<~%--> ~1:;~A~> ~}~%" enclosing)))
-	    
+
 	    (unless (and last
 			 (equal source (compiler-error-context-source last)))
 	      (setq *last-format-string* nil)
@@ -1898,14 +1900,14 @@
 	  (format stream "~2&")))
 
     (setq *last-error-context* context)
-    
+
     (unless (and (equal format-string *last-format-string*)
 		 (tree-equal format-args *last-format-args*))
       (note-message-repeats nil)
       (setq *last-format-string* format-string)
       (setq *last-format-args* format-args)
       (format stream "~&~:(~A~): ~?~&" what format-string format-args)))))
-  
+
   (incf *last-message-count*)
   (undefined-value))
 
@@ -2001,7 +2003,7 @@
   (funcall *compiler-error-bailout*))
 ;;;
 (defun compiler-error-message (format-string &rest format-args)
-  (cerror "ignore it." 
+  (cerror "ignore it."
 	  'compiler-error :format-control format-string
 	  :format-arguments format-args))
 ;;;
@@ -2086,7 +2088,7 @@
 ;;; continuation for the value of the keyword argument Key in the list of
 ;;; continuations Args.  It returns the continuation if the keyword is present,
 ;;; or NIL otherwise.  The legality and constantness of the keywords should
-;;; already have been checked. 
+;;; already have been checked.
 ;;;
 (defun find-keyword-continuation (args key)
   (declare (list args) (type keyword key))

@@ -1,18 +1,5 @@
-;;; -*- Package: ALPHA -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/alpha-vm.lisp,v 1.2 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; $Header: /home/CVS-cmucl/src/code/alpha-vm.lisp,v 1.2 1994/10/31 04:11:27 ram Exp $
-;;;
-;;; This file contains the Alpha specific runtime stuff.
-;;;
+;;; Alpha specific runtime stuff.
+
 (in-package "ALPHA")
 (use-package "SYSTEM")
 (use-package "ALIEN")
@@ -110,7 +97,7 @@
 ;;;
 ;;; Given the sigcontext, extract the internal error arguments from the
 ;;; instruction stream.
-;;; 
+;;;
 (defun internal-error-arguments (scp)
   (declare (type (alien (* sigcontext)) scp))
   (with-alien ((scp (* sigcontext) scp))
@@ -146,7 +133,7 @@
 ;;; SIGCONTEXT-REGISTER -- Interface.
 ;;;
 ;;; An escape register saves the value of a register for a frame that someone
-;;; interrupts.  
+;;; interrupts.
 ;;;
 (defun sigcontext-register (scp index)
   (declare (type (alien (* sigcontext)) scp))
@@ -205,7 +192,7 @@
 ;;; The loader uses this to convert alien names to the form they occure in
 ;;; the symbol table (for example, prepending an underscore).  On the MIPS,
 ;;; we don't do anything.
-;;; 
+;;;
 (defun extern-alien-name (name)
   (declare (type simple-base-string name))
   name)
@@ -215,7 +202,7 @@
 ;;; SANCTIFY-FOR-EXECUTION -- Interface.
 ;;;
 ;;; Do whatever is necessary to make the given code component executable.
-;;; 
+;;;
 (defun sanctify-for-execution (component)
   (declare (ignore component))
   nil)

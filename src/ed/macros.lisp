@@ -1,16 +1,16 @@
 ;;; This file contains most of the junk that needs to be in the compiler to
 ;;; compile commands.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(invoke-hook value setv hlet string-to-variable add-hook remove-hook
 	  defcommand with-mark use-buffer editor-error
 	  editor-error-format-string editor-error-format-arguments
-	  do-strings do-lines do-processes
+	  do-lines do-processes
 	  command-case reprompt with-output-to-mark with-input-from-region
 	  with-temp-buffer handle-lisp-errors with-output-to-window
 	  with-pop-up-display with-pop-up-window
-	  *random-typeout-buffers* complf in-lisp in-directory))
+	  *random-typeout-buffers* complf in-lisp))
 
 
 
@@ -367,30 +367,10 @@
 
 ;;;; Do-*
 
-(defmacro do-strings ((string-var value-var table &optional result) &body forms)
-  "Do-Strings (String-Var Value-Var Table [Result]) {declaration}* {form}*
-  Iterate over the strings in a String Table.  String-Var and Value-Var
-  are bound to the string and value respectively of each successive entry
-  in the string-table Table in alphabetical order.  If supplied, Result is
-  a form to evaluate to get the return value."
-  (let ((value-nodes (gensym))
-	(num-nodes (gensym))
-	(value-node (gensym))
-	(i (gensym)))
-    `(let ((,value-nodes (string-table-value-nodes ,table))
-	   (,num-nodes (string-table-num-nodes ,table)))
-       (dotimes (,i ,num-nodes ,result)
-	 (declare (fixnum ,i))
-	 (let* ((,value-node (svref ,value-nodes ,i))
-		(,value-var (value-node-value ,value-node))
-		(,string-var (value-node-proper ,value-node)))
-	   (declare (simple-string ,string-var))
-	   ,@forms)))))
-
-(defmacro do-lines ((line-var buffer-var) &body forms)
-  "Do-Lines (Line-Var Buffer-Var) {declaration}* {form}*
-  Iterate over the lines in a Buffer."
-  `(loop for ,line-var = (mark-line (buffer-start-mark ,buffer-var))
+(defmacro do-lines ((line-var buffer) &body forms)
+  "Do-Lines (Line-Var Buffer) {declaration}* {form}*
+   Execute FORM for each line in BUFFER with the line bound to LINE-VAR."
+  `(loop for ,line-var = (mark-line (buffer-start-mark ,buffer))
                        then (line-next ,line-var)
          while ,line-var do
      ,@forms))
@@ -519,8 +499,8 @@
 (defmacro complf (a) `(setf ,a (not ,a)))
 
 (defmacro in-lisp (&body body)
-  "Evaluates body inside HANDLE-LISP-ERRORS.  *package* is bound to the package
-   named by \"Current Package\" if it is non-nil."
+  "Evaluates body inside HANDLE-LISP-ERRORS.  *package* is bound to the
+   package named by \"Current Package\" if it is non-nil."
   (let ((name (gensym)) (package (gensym)))
     `(handle-lisp-errors
       (let* ((,name (value ed::current-package))
@@ -529,6 +509,7 @@
 	  ,@body)))))
 
 ;; FIX use in shell...
+;; FIX mv to filesys
 (defmacro in-directory (directory &body forms)
   (let ((cwd (gensym)))
     `(let ((,cwd (ext:default-directory)))
@@ -601,11 +582,11 @@
 
 (defmacro with-output-to-window ((stream name) &body forms)
   "With-Output-To-Window (Stream Name) {Form}*
-  Bind Stream to a stream that writes into the buffer named Name a la
-  With-Output-To-Mark.  The buffer is created if necessary and the buffer
-  is displayed in the next window (which is created if necessary) if it is
-  not already displayed.  For the duration of the evaluation this window
-  is made the current window."
+   Bind Stream to a stream that writes into the buffer named Name a la
+   With-Output-To-Mark.  The buffer is created if necessary and the buffer
+   is displayed in the next window (which is created if necessary) if it is
+   not already displayed.  For the duration of the evaluation this window
+   is made the current window."
   (let ((nam (gensym)) (buffer (gensym)) (point (gensym))
 	(window (gensym)) (old-window (gensym)))
     `(let* ((,nam ,name)
@@ -800,7 +781,7 @@
 		       (invoke-debugger condition))
 		   (funcall (device-init device) device))))
 	      (#\b "Do a stack backtrace."
-		 (with-pop-up-display (*debug-io* :height 100)
+	       (with-pop-up-display (*debug-io* :height 100)
 		 (debug:backtrace)))
 	      (#\e "Show the error."
 	       (with-pop-up-display (*standard-output*)

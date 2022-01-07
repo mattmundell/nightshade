@@ -1,35 +1,23 @@
-;;; -*- Log: code.log; Package: inspect -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/tty-inspect.lisp,v 1.15.2.2 2000/05/23 16:36:51 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
 ;;; Tty interface for INSPECT.
-;;;
-;;; Written by Blaine Burks
 
-;;;
 (in-package "INSPECT")
 
-;;; The Tty inspector views LISP objects as being composed of parts.  A list,
-;;; for example, would be divided into it's members, and a instance into its
-;;; slots.  These parts are stored in a list.  The first two elements of this
-;;; list are for bookkeeping.  The first element is a preamble string that will
-;;; be displayed before the object.  The second element is a boolean value that
-;;; indicates whether a label will be printed in front of a value, or just the
-;;; value.  Symbols and instances need to display both a slot name and a
-;;; value, while lists, vectors, and atoms need only display a value.  If the
-;;; second member of a parts list is t, then the third and successive members
-;;; must be an association list of slot names and values.  When the second slot
-;;; is nil, the third and successive slots must be the parts of an object.
-;;;
+(export '(describe-parts))
 
-;;; *tty-object-stack* is an assoc list of objects to their parts.  
+;;; The Tty inspector views LISP objects as being composed of parts.  A
+;;; list, for example, would be divided into it's members, and a instance
+;;; into its slots.  These parts are stored in a list.  The first two
+;;; elements of this list are for bookkeeping.  The first element is a
+;;; preamble string that will be displayed before the object.  The second
+;;; element is a boolean value that indicates whether a label will be
+;;; printed in front of a value, or just the value.  Symbols and instances
+;;; need to display both a slot name and a value, while lists, vectors, and
+;;; atoms need only display a value.  If the second member of a parts list
+;;; is t, then the third and successive members must be an association list
+;;; of slot names and values.  When the second slot is nil, the third and
+;;; successive slots must be the parts of an object.
+
+;;; *tty-object-stack* is an assoc list of objects to their parts.
 ;;;
 (defvar *tty-object-stack* ())
 
@@ -57,8 +45,8 @@
       (input-loop object (describe-parts object) *standard-output*)
     (setf *tty-object-stack* nil)))
 
-;;; When %illegal-object% occurs in a parts list, it indicates that that slot
-;;; is unbound.
+;;; When %illegal-object% occurs in a parts list, it indicates that that
+;;; slot is unbound.
 (defvar %illegal-object% (cons nil nil))
 
 (defun input-loop (object parts s)
@@ -67,7 +55,8 @@
     (format s "~&> ")
     (force-output)
     (let ((command (read))
-	  ;; Use 2 less than length because first 2 elements are bookkeeping.
+	  ;; Use 2 less than length because first 2 elements are
+	  ;; bookkeeping.
 	  (parts-len-2 (- (length parts) 2)))
       (typecase command
 	(integer
@@ -140,7 +129,6 @@
 		      (cdar part)))
 	  (format stream "~d. ~a~%" i (car part))))))
 
-
 
 ;;;; DESCRIBE-PARTS
 
@@ -186,7 +174,8 @@
 		     object)))
     (list (format nil "Function ~s.~@[~%Argument List: ~a~]." object
 		  (kernel:%function-arglist object)
-		  ;; Defined from stuff used to be here.  Someone took it out.
+		  ;; Defined from stuff used to be here.  Someone took it
+		  ;; out.
 		  )
 	  t)))
 
@@ -208,7 +197,7 @@
 	    (cons "Cdr" (cdr object)))))
 
 ;;; ### Copied from inspect.lisp.  Remove when it is up.
-;;; 
+;;;
 (defun index-string (index rev-dimensions)
   (if (null rev-dimensions)
       "[]"

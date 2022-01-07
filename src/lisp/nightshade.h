@@ -1,7 +1,5 @@
-/* $Header: /home/CVS-cmucl/src/lisp/lisp.h,v 1.3.2.3 2000/05/23 16:38:29 pw Exp $ */
-
-#ifndef _LISP_H_
-#define _LISP_H_
+#ifndef _NIGHTSHADE_H_
+#define _NIGHTSHADE_H_
 
 #define lowtag_Bits 3
 #define lowtag_Mask ((1<<lowtag_Bits)-1)
@@ -52,4 +50,4 @@ typedef u32 lispobj;
 #define SymbolFunction(sym) \
     (((struct fdefn *)(SymbolValue(sym)-type_OtherPointer))->function)
 
-#endif /* _LISP_H_ */
+#endif /* _NIGHTSHADE_H_ */

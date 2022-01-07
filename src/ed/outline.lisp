@@ -3,7 +3,7 @@
 ;;; where the number of characters determines the depth of nesting of the
 ;;; section.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 (defhvar "Outline Character"
   "Character which starts Outline sections."
@@ -58,5 +58,5 @@
 				   while (and (mark-after mark)
 					      (eq (next-character mark)
 						  ochar))
-				   finally return (mod i hi::font-map-size)))
+				   finally return (mod i edi::font-map-size)))
 		      (ch-info-font-marks info))))))))))

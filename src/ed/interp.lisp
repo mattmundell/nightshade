@@ -1,6 +1,6 @@
 ;;; Routines which define commands, and the command interpreter.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(bind-key delete-key-binding get-command map-bindings
 	  make-command command-name command-bindings
@@ -392,8 +392,8 @@
 ;;;
 (defun last-command-type ()
   "Return the command-type of the last command invoked.
-  If no command-type has been set then return NIL.  Setting this with
-  Setf sets the value for the next command."
+   If no command-type has been set then return NIL.  Setting this with
+   Setf sets the value for the next command."
   *last-command-type*)
 
 ;;; %SET-LAST-COMMAND-TYPE  --  Internal

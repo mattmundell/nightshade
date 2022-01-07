@@ -1,6 +1,6 @@
 ;;; Key bindings.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 
@@ -550,11 +550,22 @@
 
 
 
-;;;; X commands:
+;;;; X commands.
 
 #+clx (bind-key "Insert Cut Buffer" #k"insert")
 #+clx (bind-key "Region to Cut Buffer" #k"meta-insert")
 
+
+
+;;;; Telnet.
+
+(bind-key "Confirm Telnet Input" #k"return" :mode "Telnet")
+(bind-key "Previous Interactive Input" #k"meta-p" :mode "Telnet")
+(bind-key "Search Previous Interactive Input" #k"meta-P" :mode "Telnet")
+(bind-key "Interactive Beginning of Line" #k"control-a" :mode "Telnet")
+(bind-key "Kill Interactive Input" #k"meta-i" :mode "Telnet")
+(bind-key "Next Interactive Input" #k"meta-n" :mode "Telnet")
+(bind-key "Reenter Interactive Input" #k"control-return" :mode "Telnet")
 
 
 ;;;; Mailer commands.
@@ -570,6 +581,7 @@
 ;;; Global.
 ;;;
 (bind-key "Incorporate and Read New Mail" #k"control-x i")
+;(bind-key "Browse Folders" #k"hyper-x m")?
 (bind-key "Send Message" #k"control-x m")
 (bind-key "Message Headers" #k"control-x r")
 
@@ -583,12 +595,10 @@
 (bind-key "Previous Message" #k"meta-p" :mode "Message")
 (bind-key "Next Undeleted Message" #k"n" :mode "Message")
 (bind-key "Previous Undeleted Message" #k"p" :mode "Message")
-(bind-key "Send Message" #k"s" :mode "Message")
-(bind-key "Send Message" #k"m" :mode "Message")
 (bind-key "Forward Message" #k"f" :mode "Message")
 (bind-key "Headers Delete Message" #k"k" :mode "Message")
 (bind-key "Headers Undelete Message" #k"u" :mode "Message")
-(bind-key "Headers Refile Message" #k"o" :mode "Message")
+(bind-key "Headers Refile Message" #k"r" :mode "Message")
 (bind-key "List Mail Buffers" #k"l" :mode "Message")
 (bind-key "Quit Headers" #k"q" :mode "Message")
 (bind-key "Incorporate and Read New Mail" #k"i" :mode "Message")
@@ -599,12 +609,10 @@
 (bind-key "Previous Message" #k"meta-p" :mode "Headers")
 (bind-key "Next Undeleted Message" #k"n" :mode "Headers")
 (bind-key "Previous Undeleted Message" #k"p" :mode "Headers")
-(bind-key "Send Message" #k"s" :mode "Headers")
-(bind-key "Send Message" #k"m" :mode "Headers")
 (bind-key "Forward Message" #k"f" :mode "Headers")
 (bind-key "Headers Delete Message" #k"k" :mode "Headers")
-(bind-key "Headers Undelete Message" #k"u" :mode "Headers")
-(bind-key "Headers Refile Message" #k"o" :mode "Headers")
+(bind-key "Headers Undelete Message and Down Line" #k"u" :mode "Headers")
+(bind-key "Headers Refile Message" #k"r" :mode "Headers")
 (bind-key "List Mail Buffers" #k"l" :mode "Headers")
 (bind-key "Quit Headers" #k"q" :mode "Headers")
 (bind-key "Incorporate and Read New Mail" #k"i" :mode "Headers")
@@ -614,15 +622,16 @@
 
 ;;; Headers mode.
 ;;;
-(bind-key "Delete Message and Down Line" #k"d" :mode "Headers")
+(bind-key "Headers Delete Message and Down Line" #k"d" :mode "Headers")
 (bind-key "Pick Headers" #k"h" :mode "Headers")
 (bind-key "Show Message" #k"space" :mode "Headers")
 (bind-key "Show Message" #k"." :mode "Headers")
-(bind-key "Reply to Message" #k"r" :mode "Headers")
+(bind-key "Reply to Message" #k"a" :mode "Headers")
 (bind-key "Expunge Messages" #k"!" :mode "Headers")
 (bind-key "Headers Help" #k"?" :mode "Headers")
 (bind-key "Refresh Headers" #k"g" :mode "Headers")
 (bind-key "Sort Headers" #k"s" :mode "Headers")
+(bind-key "Browse Folders" #k"^" :mode "Headers")
 
 ;;; Message mode.
 ;;;
@@ -632,7 +641,7 @@
 (bind-key "Scroll Message" #k"control-v" :mode "Message")
 (bind-key "Scroll Window Up" #k"backspace" :mode "Message")
 (bind-key "Scroll Window Up" #k"delete" :mode "Message")
-(bind-key "Reply to Message in Other Window" #k"r" :mode "Message")
+(bind-key "Reply to Message in Other Window" #k"a" :mode "Message")
 (bind-key "Edit Message Buffer" #k"e" :mode "Message")
 (bind-key "Insert Message Region" #k"hyper-y" :mode "Message")
 (bind-key "Message Help" #k"?" :mode "Message")
@@ -654,6 +663,21 @@
 (bind-key "Attach File" #k"hyper-a" :mode "Draft")
 (bind-key "Draft Insert Space" #k"space" :mode "Draft")
 (bind-key "Draft New Line" #k"return" :mode "Draft")
+
+;;; Mail-Browse.
+
+(bind-key "Scroll Window Up" #k"delete" :mode "Mail-Browse")
+(bind-key "Scroll Window Down" #k"space" :mode "Mail-Browse")
+(bind-key "Rotate Buffers Forward" #k"q" :mode "Mail-Browse")
+(bind-key "Next Line" #k"n" :mode "Mail-Browse")
+(bind-key "Previous Line" #k"p" :mode "Mail-Browse")
+(bind-key "Mail-Browse Browse Folder" #k"return" :mode "Mail-Browse")
+(bind-key "Mail-Browse Browse Folder in Other Window" #k"o" :mode "Mail-Browse")
+(bind-key "Refresh Folders" #k"g" :mode "Mail-Browse")
+(bind-key "Mail-Browse Delete Folder" #k"d" :mode "Mail-Browse")
+(bind-key "Mail-Browse Mark Folder" #k"m" :mode "Mail-Browse")
+(bind-key "Mail-Browse Clear Folder Marks" #k"u" :mode "Mail-Browse")
+(bind-key "Expunge Folders" #k"x" :mode "Mail-Browse")
 
 
 ;;;; Netnews.
@@ -685,7 +709,7 @@
 (bind-key "Netnews Quit Starting Here" #k"." :mode "News-Headers")
 (bind-key "Netnews Group Punt Messages" #k"G" :mode "News-Headers")
 (bind-key "Netnews Show Whole Header" #k"w" :mode "News-Headers")
-(bind-key "Netnews Reply to Sender in Other Window" #k"r" :mode "News-Headers")
+(bind-key "Netnews Reply to Sender in Other Window" #k"r" :mode "News-Headers") ; FIX rename
 (bind-key "Netnews Reply to Group in Other Window" #k"R" :mode "News-Headers")
 ;;;
 (bind-key "List All Groups" #k"l" :mode "News-Message")
@@ -785,7 +809,7 @@
 (bind-key "Next Interactive Input" #k"meta-n" :mode "Process")
 (bind-key "Reenter Interactive Input" #k"control-return" :mode "Process")
 
-
+
 ;;;; Compile.
 
 (bind-key "Switch to Next Compile Reference" #k"control-x `")
@@ -828,9 +852,48 @@
 (bind-key "Next Line" #k"n" :mode "Bufed")
 (bind-key "Previous Line" #k"p" :mode "Bufed")
 
-
 (bind-key "Bufed Help" #k"?" :mode "Bufed")
 
+
+
+;;;; Packdired and Packed.
+
+(bind-key "Packdired" #k"control-x p")
+(bind-key "Packdired Quit" #k"q" :mode "Packdired")
+(bind-key "Packdired Refresh" #k"g" :mode "Packdired")
+(bind-key "Packdired Edit Package" #k"return" :mode "Packdired")
+(bind-key "Packdired Edit Package" #k"v" :mode "Packdired")
+(bind-key "Packdired Edit Package in Other Window" #k"o" :mode "Packdired")
+(bind-key "Next Line" #k"n" :mode "Packdired")
+(bind-key "Previous Line" #k"p" :mode "Packdired")
+(bind-key "Scroll Window Down" #k"space" :mode "Packdired")
+(bind-key "Scroll Window Up" #k"delete" :mode "Packdired")
+
+(bind-key "Packdired Help" #k"?" :mode "Packdired")
+
+(bind-key "Packdired" #k"^" :mode "Packed")
+(bind-key "Packdired" #k"d" :mode "Packed")
+(bind-key "Packed Quit" #k"q" :mode "Packed")
+(bind-key "Packed Refresh" #k"g" :mode "Packed")
+(bind-key "Next Line" #k"n" :mode "Packed")
+(bind-key "Previous Line" #k"p" :mode "Packed")
+(bind-key "Scroll Window Down" #k"space" :mode "Packed")
+(bind-key "Scroll Window Up" #k"delete" :mode "Packed")
+
+(bind-key "Packed Help" #k"?" :mode "Packed")
+
+
+;;;; Evented.
+
+(bind-key "Evented Quit" #k"q" :mode "Evented")
+(bind-key "Evented Refresh" #k"g" :mode "Evented")
+(bind-key "Evented Cancel Event" #k"D" :mode "Evented")
+(bind-key "Next Line" #k"n" :mode "Evented")
+(bind-key "Previous Line" #k"p" :mode "Evented")
+(bind-key "Scroll Window Down" #k"space" :mode "Evented")
+(bind-key "Scroll Window Up" #k"delete" :mode "Evented")
+
+(bind-key "Evented Help" #k"?" :mode "Evented")
 
 
 ;;;; Dired.
@@ -856,6 +919,7 @@
 
 (bind-key "Dired Toggle Backups" #k"s b" :mode "Dired")
 (bind-key "Dired Toggle Hidden Files" #k"s h" :mode "Dired")
+(bind-key "Dired Toggle All Files" #k"s a" :mode "Dired")
 (bind-key "Dired Toggle Version Control" #k"s v" :mode "Dired")
 
 (bind-key "Dired Expunge Files" #k"!" :mode "Dired")
@@ -906,6 +970,7 @@
 (bind-key "Manual Page from Point" #k"return" :mode "Manual")
 (bind-key "Next Manual Part" #k"n" :mode "Manual")
 (bind-key "Previous Manual Part" #k"p" :mode "Manual")
+(bind-key "Manual Page" #k"m" :mode "Manual")
 ;; TODO
 ;;(bind-key "Next Manual Reference" #k"tab" :mode "Manual")
 ;;(bind-key "Previous Manual Reference" #k"M-tab" :mode "Manual")
@@ -1019,6 +1084,12 @@
 
 (do-alpha-key-events (key-event :lower)
   (bind-key "Self Insert Caps Lock" key-event :mode "CAPS-LOCK"))
+
+
+
+;;;; Enriched mode.
+
+(bind-key "Do Nothing" #k"control-x control-s" :mode "Enriched")
 
 
 

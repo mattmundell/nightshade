@@ -4,7 +4,6 @@
 
 (defmode "Abbrev" :major-p nil :transparent-p t :precedence 2.0)
 
-
 (defvar *Global-Abbrev-Table* (make-hash-table :test #'equal)
   "Hash table holding global abbrev definitions.")
 
@@ -13,7 +12,8 @@
   :value (pathname "abbrev.defns"))
 
 (defvar *new-abbrevs* ()
- "holds a list of abbrevs (and their definitions and modes) changed since saving.")
+ "A list of abbrevs (and their definitions and modes) changed since
+  saving.")
 
 
 ;;; C-X C-H    Inverse Add Mode Word Abbrev
@@ -181,18 +181,13 @@
     (delete-mark (value prefix-mark))
     (setf (value prefix-mark) nil)))
 
-
-
-;;; This function returns the n words immediately before the mark supplied.
-
 (defun prev-word (n mark)
+  "Return the N words immediately before MARK."
   (let* ((mark-1 (reverse-find-attribute (copy-mark mark :temporary)
 					 :word-delimiter #'zerop))
 	 (mark-2 (copy-mark mark-1)))
     (dotimes (x n (region-to-string (region mark-2 mark-1)))
       (reverse-find-attribute (mark-before mark-2) :word-delimiter))))
-
-
 
 ;;; M-'        Word Abbrev Prefix Mark
 ;;;               Mark a prefix to be glued to an abbrev following.
@@ -240,16 +235,14 @@
     (character-offset mark (length word1))
     (setf (value last-expanded) (list mark word2 word1))))
 
-
-
 ;;; Delete Mode Word Abbrev                       Kills some Mode abbrevs.
 
 (defcommand "Delete Mode Word Abbrev"
 	    (p &optional abbrev
 	       (mode (buffer-major-mode (current-buffer))))
-  "Prompts for a word abbrev and deletes the mode expansion in the current mode.
-  If called with a prefix argument, deletes all word abbrevs define in the
-  current mode."
+  "Prompts for a word abbrev and deletes the mode expansion in the current
+   mode.  If called with a prefix argument, deletes all word abbrevs define
+   in the current mode."
   "Deletes Abbrev in Mode, or all abbrevs in Mode if P is true."
   (let ((boundp (editor-bound-p 'Mode-Abbrev-Table :mode mode)))
     (if p
@@ -346,8 +339,6 @@
 		       table))))
       (terpri s))))
 
-
-
 (defun count-abbrevs ()
   (let* ((count (hash-table-count *global-abbrev-table*))
 	 (mode-tables nil))
@@ -385,8 +376,6 @@
        (change-to-buffer old-buf)
        (delete-buffer new-buf)))))
 
-
-
 ;;; Insert Word Abbrevs          Inserts a list of current definitions in the
 ;;;                                format that Define Word Abbrevs uses.
 
@@ -410,8 +399,6 @@
 	  (maphash #'(lambda (key val)
 		       (write-abbrev key val modename stream))
 		   (variable-value 'Mode-Abbrev-Table :mode modename)))))))
-
-
 
 ;;; Define Word Abbrevs          Defines set of abbrevs from a definition list in
 ;;;                                the buffer.
@@ -463,7 +450,6 @@
   (with-open-file (file (value abbrev-pathname-defaults) :direction :input
 			:element-type 'base-char :if-does-not-exist :error)
     (read-abbrevs file)))
-
 
 ;;; Does the actual defining of abbrevs from a given stream, expecting tabs and
 ;;; doubled double-quotes.
@@ -520,7 +506,6 @@
 					'Mode-Abbrev-Table :mode modename))
 		       expansion)))))))
 
-
 ;;; Write Word Abbrev File            Make a definition file from current abbrevs.
 
 (defcommand "Write Word Abbrev File" (p &optional filename)
@@ -551,8 +536,6 @@
   (let ((tn (truename filename)))
     (setf (value abbrev-pathname-defaults) tn)
     (message "~A written." (namestring tn))))
-
-
 
 ;;; Append to Word Abbrev File          Appends to a file changed abbrev
 ;;;                                     definitions since last dumping.
@@ -590,7 +573,6 @@
     (setf (value abbrev-pathname-defaults) tn)
     (message "~A written." (namestring tn))))
 
-
 ;;; Given an Abbrev, expansion, mode (nil for Global), and stream, this function
 ;;; writes to the stream with doubled double-quotes and stuff.
 ;;; If the flag is true, then the output is in a pretty format (like "List Word
@@ -623,7 +605,6 @@
     (incf found)
     (write-string expansion file :start prev :end found)
     (write-char #\" file)))
-
 
 (defcommand "Abbrev Mode" (p)
   "Put current buffer in Abbrev mode."

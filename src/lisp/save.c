@@ -12,7 +12,7 @@
 #include <signal.h>
 #include <sys/file.h>
 
-#include "lisp.h"
+#include "nightshade.h"
 #include "os.h"
 #include "internals.h"
 #include "core.h"

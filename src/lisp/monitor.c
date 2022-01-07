@@ -8,7 +8,7 @@
 #include <sys/resource.h>
 #include <signal.h>
 
-#include "lisp.h"
+#include "nightshade.h"
 #include "internals.h"
 #include "globals.h"
 #include "vars.h"
@@ -90,7 +90,7 @@ static void dump_cmd(char **ptr)
         printf("COUNT must be non-zero.\n");
         return;
     }
-        
+
     lastcount = count;
 
     if (count > 0)
@@ -129,7 +129,7 @@ static void dump_cmd(char **ptr)
 static void print_cmd(char **ptr)
 {
     lispobj obj = parse_lispobj(ptr);
-    
+
     print(obj);
 }
 
@@ -350,7 +350,7 @@ static void print_context_cmd(char **ptr)
 	int free;
 
 	free = SymbolValue(FREE_INTERRUPT_CONTEXT_INDEX)>>2;
-	
+
         if (more_p(ptr)) {
 		int index;
 

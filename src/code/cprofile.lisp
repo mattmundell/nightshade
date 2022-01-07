@@ -1,17 +1,6 @@
-;;; -*- Package: CPROFILE -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/cprofile.lisp,v 1.2 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains run-time support for collecting dynamic profiling
-;;; information from code instrumented by the compiler.
-;;; 
+;;; Run-time support for collecting dynamic profiling information from code
+;;; instrumented by the compiler.
+
 (defpackage "CPROFILE"
   (:use "C" "DI" "KERNEL" "EXTENSIONS" "LISP" "SYSTEM"))
 (in-package "C")
@@ -20,10 +9,10 @@
 
 (eval-when (compile)
   (when *collect-dynamic-statistics*
-    (error "You don't want to compile this file with profiling.")))
+    (error "Attempt to compile cprofile.lisp with profiling.")))
 
 
-;;; Represents a single high-cost code object we've pulled out of memory.
+;;; Represents a single high-cost code object pulled out of memory.
 ;;;
 (defstruct (selection-elt
 	    (:print-function

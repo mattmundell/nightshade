@@ -1,19 +1,11 @@
 ;;; -*- Log: C.Log -*-
 ;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/exports.lisp,v 1.119.2.13 2000/08/24 16:40:14 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; All the stuff necessary to export various symbols from various packages.
-;;;
+;;; All the calls necessary to export various symbols from various
+;;; packages.
 
 (in-package "LISP")
 
+;; FIX
 (if (find-package "PCL")
     (rename-package "PCL" "PCL" 'nil)
     (make-package "PCL" :nicknames 'nil :use nil))
@@ -122,6 +114,18 @@
 (if (find-package "MULTIPROCESSING")
     (rename-package "MULTIPROCESSING" "MULTIPROCESSING" 'nil)
     (make-package "MULTIPROCESSING" :nicknames '("MP") :use nil))
+(if (find-package "INTERNET")
+    (rename-package "INTERNET" "INTERNET" 'nil)
+    (make-package "INTERNET" :nicknames '() :use nil))
+(if (find-package "MH")
+    (rename-package "MH" "MH" 'nil)
+    (make-package "MH" :nicknames '() :use nil))
+(if (find-package "DOC")
+    (rename-package "DOC" "DOC" 'nil)
+    (make-package "DOC" :nicknames '() :use nil))
+(if (find-package "DB")
+    (rename-package "DB" "DB" 'nil)
+    (make-package "DB" :nicknames '() :use nil))
 
 (use-package '("SYSTEM" "ALIEN-INTERNALS" "ALIEN" "LISP") "C-CALL")
 (use-package '("KERNEL" "EXTENSIONS" "LISP") "INSPECT")
@@ -154,14 +158,20 @@
 (use-package '("ALIEN-INTERNALS" "LISP" "EXTENSIONS" "SYSTEM" "BIGNUM")
              "KERNEL")
 (use-package '("LISP") "NEW-ASSEM")
+(use-package '("LISP" "EXTENSIONS") "INTERNET")
+(use-package '("LISP" "EXTENSIONS" "INTERNET") "MH")
+(use-package '("LISP" "EXTENSIONS") "DOC")
+(use-package '("LISP" "EXTENSIONS") "DB")
 
 (defpackage "C-CALL"
             (:export "C-STRING" "CHAR" "DOUBLE" "FLOAT" "INT" "LONG" "SHORT"
              "UNSIGNED-CHAR" "UNSIGNED-INT" "UNSIGNED-LONG" "UNSIGNED-SHORT"
              "VOID"))
+
 (defpackage "INSPECT"
             (:export "*INTERFACE-STYLE*" "REMOVE-ALL-DISPLAYS"
              "REMOVE-OBJECT-DISPLAY" "SHOW-OBJECT"))
+
 (defpackage "BIGNUM"
             (:export "%ADD-WITH-CARRY" "%ALLOCATE-BIGNUM" "%ASHL" "%ASHR"
              "%BIGNUM-LENGTH" "%BIGNUM-REF" "%BIGNUM-SET" "%BIGNUM-SET-LENGTH"
@@ -297,9 +307,11 @@
 	     "EPROTONOSUPPORT" "EPROTOTYPE" "EREMCHG" "EREMOTE"
 	     #+linux "EREMOTEIO" "ERESTART" "ESHUTDOWN" "ESOCKTNOSUPPORT"
 	     "ESRMNT" "ESTALE" "ESTRPIPE" "ETIME" "ETIMEDOUT" "ETOOMANYREFS"
-	     #+linux "EUCLEAN" "EUNATCH" "EUSERS" "EWOULDBLOCK" "EXFULL"))
+	     #+linux "EUCLEAN" "EUNATCH" "EUSERS" "EWOULDBLOCK" "EXFULL"
+	     #+linux "SIGSTKFLT"))
 
 (defpackage "FORMAT")
+
 (defpackage "COMMON-LISP"
 	    (:nicknames "CL" "LISP")
 	    (:export "&ALLOW-OTHER-KEYS" "&AUX" "&BODY" "&ENVIRONMENT" "&KEY"
@@ -361,7 +373,7 @@
              "COMPILED-FUNCTION" "COMPILED-FUNCTION-P"
 	     "COMPILER-MACRO" "COMPILER-MACRO-FUNCTION" "COMPILER-MACROEXPAND"
 	     "COMPILER-MACROEXPAND-1" "COMPLEMENT" "COMPLEX"
-	     "COMPLEXP" "COMPUTE-RESTARTS" "CONCATENATE"
+	     "COMPLEXP" "COMPUTE-RESTARTS" "CONCAT" "CONCATENATE"
 	     "CONCATENATED-STREAM" "CONCATENATED-STREAM-STREAMS"
 	     "COND" "CONDITION"
              "CONJUGATE" "CONS" "CONSP" "CONSTANTLY" "CONSTANTP" "CONTINUE"
@@ -369,7 +381,9 @@
              "COPY-PPRINT-DISPATCH" "COPY-READTABLE" "COPY-SEQ"
 	     "COPY-STRUCTURE"
              "COPY-SYMBOL" "COPY-TREE" "COS" "COSH" "COUNT" "COUNT-IF"
-             "COUNT-IF-NOT" "CTYPECASE" "DEBUG" "DECF" "DECLAIM"
+             "COUNT-IF-NOT" "CTYPECASE"
+	     "DAYS-PER-MONTH"
+	     "DEBUG" "DECF" "DECLAIM"
              "DECLARATION" "DECLARE" "DECODE-FLOAT" "DECODE-UNIVERSAL-TIME"
              "DEFCONSTANT" "DEFINE-COMPILER-MACRO" "DEFINE-CONDITION"
              "DEFINE-MODIFY-MACRO" "DEFINE-SETF-METHOD" "DEFINE-SYMBOL-MACRO"
@@ -445,7 +459,8 @@
 	     "LOGICAL-PATHNAME-TRANSLATIONS"
 	     "LOGIOR" "LOGNAND" "LOGNOR" "LOGCOM" "LOGNOT" "LOGORC1" "LOGORC2" "LOGTEST"
              "LOGXOR" "LONG-FLOAT" "LONG-FLOAT-EPSILON"
-             "LONG-FLOAT-NEGATIVE-EPSILON" "LONG-SITE-NAME" "LOOP"
+             "LONG-FLOAT-NEGATIVE-EPSILON" "LONG-SITE-NAME" "LONGEST-LENGTH"
+	     "LOOP"
              "LOOP-FINISH" "LOWER-CASE-P" "MACHINE-INSTANCE" "MACHINE-TYPE"
              "MACHINE-VERSION" "MACRO-FUNCTION" "MACROEXPAND" "MACROEXPAND-1"
              "MACROLET" "MAKE-ARRAY" "MAKE-BROADCAST-STREAM"
@@ -456,6 +471,7 @@
              "MAKE-STRING-INPUT-STREAM" "MAKE-STRING-OUTPUT-STREAM"
              "MAKE-SYMBOL" "MAKE-SYNONYM-STREAM" "MAKE-TWO-WAY-STREAM"
              "MAKUNBOUND" "MAP" "MAP-INTO" "MAPC" "MAPCAN" "MAPCAR" "MAPCON"
+	     "MAPCONCAT"
 	     "MAPHASH" "MAPL" "MAPLIST" "MASK-FIELD" "MAX" "MEMBER" "MEMBER-IF"
              "MEMBER-IF-NOT" "MERGE" "MERGE-PATHNAMES" "MIN" "MINUSP"
              "MISMATCH" "MOD" "MOST-NEGATIVE-DOUBLE-FLOAT"
@@ -601,6 +617,7 @@
              "INTERPRETED-FUNCTION-NAME" "INTERPRETED-FUNCTION-P"
              "INTERPRETED-FUNCTION-TYPE" "MAKE-INTERPRETED-FUNCTION"
              "TRACE-EVAL"))
+
 (dolist
     (name
      '("%ARRAY-TYPEP" "%ASET" "%BITSET" "%CHARSET" "%PUT" "%RPLACA" "%RPLACD"
@@ -620,6 +637,7 @@
      '("%SP-SET-DEFINITION" "%SP-SET-PLIST" "ARRAY-HEADER-P" "BASE-CHAR-P"
        "DOUBLE-FLOAT-P" "LONG-FLOAT-P" "SIMPLE-ARRAY-P" "SINGLE-FLOAT-P"))
   (intern name "KERNEL"))
+
 (defpackage #+pmax "PMAX" #+sparc "SPARC" #+ibmrt "RT"
             #+x86 "X86" #+hppa "HPPA" #+alpha "ALPHA" #+sgi "SGI"
             (:nicknames "VM" #+(or pmax sgi) "MIPS"
@@ -796,8 +814,7 @@
 	   "WEAK-POINTER-BROKEN-SLOT" "WEAK-POINTER-NEXT-SLOT"
 	   "WEAK-POINTER-SIZE" "WEAK-POINTER-TYPE" "WEAK-POINTER-VALUE-SLOT"
 	   "WORD-BITS" "WORD-BYTES" "WORD-REG-SC-NUMBER" "WORD-SHIFT"
-	   "ZERO-SC-NUMBER"
-	   ))
+	   "ZERO-SC-NUMBER"))
 
 (defpackage "CONDITIONS")
 (intern "DISASSEMBLE" "LISP")
@@ -882,8 +899,13 @@
 
 (intern "CHAR" "LISP")
 (defpackage "EXTENSIONS"
-	    (:nicknames "EXTENSIONS")
-            (:export "*AFTER-GC-HOOKS*" "*AFTER-SAVE-INITIALIZATIONS*"
+	    (:nicknames "EXT")
+            (:export
+	     "GETSTRING"
+
+	     "DO-STRINGS" "IN-DIRECTORY"
+
+	     "*AFTER-GC-HOOKS*" "*AFTER-SAVE-INITIALIZATIONS*"
              "*ALL-MODIFIER-NAMES*" "*BACKUP-EXTENSION*" "*BEFORE-GC-HOOKS*"
              "*BEFORE-SAVE-INITIALIZATIONS*" "*BLOCK-COMPILE-DEFAULT*"
              "*BYTES-CONSED-BETWEEN-GCS*" "*CHAR" "*CLX-FDS-TO-DISPLAYS*"
@@ -919,15 +941,17 @@
              "COMPACT-INFO-ENVIRONMENT" "COMPILE-FROM-STREAM" "COMPILEDP"
              "COMPLETE-FILE" "CONCAT-PNAMES" "CONNECT-TO-INET-SOCKET"
              "CONSTANT" "CONSTANT-ARGUMENT" "CONSTANT-FUNCTION"
-             "CREATE-INET-LISTENER" "CREATE-INET-SOCKET" "DEBUG"
-	     "DEF-SOURCE-CONTEXT"
+             "CREATE-INET-LISTENER" "CREATE-INET-SOCKET"
+	     "DEBUG" "DEF-SOURCE-CONTEXT"
              "DEFAULT-CLX-EVENT-HANDLER" "DEFAULT-DIRECTORY"
              "DEFINE-CLX-MODIFIER" "DEFINE-HASH-CACHE" "DEFINE-INFO-CLASS"
              "DEFINE-INFO-TYPE" "DEFINE-KEY-EVENT-MODIFIER"
              "DEFINE-KEYBOARD-MODIFIER" "DEFINE-KEYSYM" "DEFINE-MOUSE-CODE"
              "DEFINE-MOUSE-KEYSYM" "DEFMODULE" "DEFSWITCH" "DEFUN-CACHED"
              "DELETEF" "DELQ" "DISABLE-CLX-EVENT-HANDLING"
-             "DO-ALPHA-KEY-EVENTS" "DO-ANONYMOUS" "DO-INFO"
+             "DO-ALPHA-KEY-EVENTS" "DO-ANONYMOUS"
+	     "DO-DIRECTORIES" "DO-FILES"
+	     "DO-INFO"
              "DOUBLE-FLOAT-NEGATIVE-INFINITY" "DOUBLE-FLOAT-POSITIVE-INFINITY"
              "DOUBLE-FLOATP" "DOVECTOR" "E" "ENABLE-CLX-EVENT-HANDLING"
              "ENCAPSULATE" "ENCAPSULATED-DEFINITION" "ENCAPSULATED-P"
@@ -935,7 +959,8 @@
              "FINALIZE" "FIXNUMP" "FLOAT-DENORMALIZED-P" "FLOAT-INFINITY-P"
              "FLOAT-NAN-P" "FLOAT-TRAPPING-NAN-P" "FLOATING-POINT-INEXACT"
              "FLOATING-POINT-INVALID" "FLUSH-DISPLAY-EVENTS"
-             "FORMAT-DECODED-TIME" "FORMAT-UNIVERSAL-TIME" "FREEZE-TYPE" "GC"
+             "FORMAT-DECODED-TIME" "FORMAT-UNIVERSAL-TIME" "FORMAT-TIME"
+	     "FREEZE-TYPE" "GC"
              "GC-OFF" "GC-ON" "GET-BYTES-CONSED" "GET-CODE-POINTER"
              "GET-COMMAND-LINE-SWITCH" "GET-DATA-POINTER"
              "GET-FLOATING-POINT-MODES" "GET-PEER-HOST-AND-PORT"
@@ -948,8 +973,8 @@
              "ITERATE" "KEY-EVENT" "KEY-EVENT-BIT-P" "KEY-EVENT-BITS"
              "KEY-EVENT-BITS-MODIFIERS" "KEY-EVENT-CHAR" "KEY-EVENT-KEYSYM"
              "KEY-EVENT-MODIFIER-MASK" "KEY-EVENT-P" "KEYSYM-NAMES"
-             "KEYSYM-PREFERRED-NAME" "LETF" "LETF*" "LISTEN-SKIP-WHITESPACE"
-	     "LIST-FILES"
+             "KEYSYM-PREFERRED-NAME"
+	     "LETF" "LETF*" "LISTEN-SKIP-WHITESPACE" "LIST-FILES"
              "LOAD-FOREIGN" "LONG-FLOAT-NEGATIVE-INFINITY"
              "LONG-FLOAT-POSITIVE-INFINITY" "LONG-FLOATP" "LOOKUP-HOST-ENTRY"
              "MAKE-CASE-FROB-STREAM" "MAKE-INFO-ENVIRONMENT" "MAKE-KEY-EVENT"
@@ -958,6 +983,7 @@
              "MAYBE-INLINE" "MEMQ" "NAME-KEYSYM" "NTOHL" "NTOHS"
              "OBJECT-SET-EVENT-HANDLER" "OLD-TRACE" "OLD-UNTRACE" "ONCE-ONLY"
              "OPEN-CLX-DISPLAY" "OPTIMIZE-INTERFACE" "PARSE-TIME"
+	     "PICK-TEMPORARY-FILE-NAME"
              "PRINT-DIRECTORY" "PRINT-FILES" "PRINT-HERALD" "PRINT-PRETTY-KEY"
              "PRINT-PRETTY-KEY-EVENT" "PROCESS-ALIVE-P" "PROCESS-CLOSE"
              "PROCESS-CORE-DUMPED" "PROCESS-ERROR" "PROCESS-EXIT-CODE"
@@ -1031,7 +1057,9 @@
 	     "STREAM-START-LINE-P" "STREAM-TERPRI" "STREAM-UNREAD-CHAR"
 	     "STREAM-WRITE-BYTE" "STREAM-WRITE-CHAR" "STREAM-WRITE-STRING"))
 
-(defpackage "LOOP")
+(defpackage "LOOP"
+  (:documentation "The loop macro."))
+
 (dolist
     (name
      '("DEBUG-SOURCE" "DEBUG-SOURCE-COMPILED" "DEBUG-SOURCE-CREATED"
@@ -1233,24 +1261,32 @@
 	   "LARGE-ALLOC"
 	   "%SET-FUNCTION-SELF"
 	   "IR2-COMPONENT-DYNCOUNT-INFO"
-	   "DYNCOUNT-INFO" "DYNCOUNT-INFO-P")
-  )
+	   "DYNCOUNT-INFO" "DYNCOUNT-INFO-P"))
+
 (defpackage "WIRE"
-            (:export "*CURRENT-WIRE*" "CONNECT-TO-REMOTE-SERVER"
-             "CREATE-REQUEST-SERVER" "DESTROY-REQUEST-SERVER"
-             "FORGET-REMOTE-TRANSLATION" "MAKE-REMOTE-OBJECT" "MAKE-WIRE"
-             "REMOTE" "REMOTE-OBJECT" "REMOTE-OBJECT-EQ"
-             "REMOTE-OBJECT-LOCAL-P" "REMOTE-OBJECT-P" "REMOTE-OBJECT-VALUE"
-             "REMOTE-VALUE" "REMOTE-VALUE-BIND" "WIRE-EOF" "WIRE-ERROR"
-             "WIRE-FD" "WIRE-FORCE-OUTPUT" "WIRE-GET-BIGNUM" "WIRE-GET-BYTE"
-             "WIRE-GET-NUMBER" "WIRE-GET-OBJECT" "WIRE-GET-STRING"
-             "WIRE-IO-ERROR" "WIRE-LISTEN" "WIRE-OUTPUT-BIGNUM"
-             "WIRE-OUTPUT-BYTE" "WIRE-OUTPUT-FUNCALL" "WIRE-OUTPUT-NUMBER"
-             "WIRE-OUTPUT-OBJECT" "WIRE-OUTPUT-STRING" "WIRE-P"))
+  (:export "*CURRENT-WIRE*" "CONNECT-TO-REMOTE-SERVER"
+	   "CREATE-REQUEST-SERVER" "DESTROY-REQUEST-SERVER"
+	   "FORGET-REMOTE-TRANSLATION" "MAKE-REMOTE-OBJECT" "MAKE-WIRE"
+	   "REMOTE" "REMOTE-OBJECT" "REMOTE-OBJECT-EQ"
+	   "REMOTE-OBJECT-LOCAL-P" "REMOTE-OBJECT-P" "REMOTE-OBJECT-VALUE"
+	   "REMOTE-VALUE" "REMOTE-VALUE-BIND" "WIRE-EOF" "WIRE-ERROR"
+	   "WIRE-FD" "WIRE-FORCE-OUTPUT" "WIRE-GET-BIGNUM" "WIRE-GET-BYTE"
+	   "WIRE-GET-NUMBER" "WIRE-GET-OBJECT" "WIRE-GET-STRING"
+	   "WIRE-IO-ERROR" "WIRE-LISTEN" "WIRE-OUTPUT-BIGNUM"
+	   "WIRE-OUTPUT-BYTE" "WIRE-OUTPUT-FUNCALL" "WIRE-OUTPUT-NUMBER"
+	   "WIRE-OUTPUT-OBJECT" "WIRE-OUTPUT-STRING" "WIRE-P")
+  (:documentation "An interface to internet domain sockets."))
+
+(defpackage "FTP"
+  (:export "FTP-READ" "FTP-WRITE")
+  (:documentation "File Transfer Protocol interface."))
+
 (defpackage "PRETTY-PRINT"
 	    (:nicknames "PP")
 	    (:export "PRETTY-STREAM" "PRETTY-STREAM-P"))
+
 (intern "LOAD-FOREIGN" "EXTENSIONS")
+
 (defpackage "SYSTEM"
 	    (:nicknames "SYS")
             (:import-from "EXTENSIONS" "LOAD-FOREIGN")
@@ -1262,6 +1298,7 @@
 	     "*LONG-SITE-NAME*" "*SHORT-SITE-NAME*"
              "*SOFTWARE-TYPE*" "*STDERR*" "*STDIN*" "*STDOUT*" "*TASK-DATA*"
              "*TASK-NOTIFY*" "*TASK-SELF*" "*TTY*" "*TYPESCRIPTPORT*"
+	     "*WITH-SCREEN-HOOKS*"
 	     "*XWINDOW-TABLE*"
              "ADD-FD-HANDLER" "ADD-PORT-DEATH-HANDLER" "ADD-PORT-OBJECT"
              "ADD-XWINDOW-OBJECT" "ALLOCATE-SYSTEM-MEMORY" "BEEP" "BITS"
@@ -1297,7 +1334,7 @@
              "SYSTEM-AREA-POINTER-P" "VECTOR-SAP"
              "WAIT-UNTIL-FD-USABLE" "WITH-ENABLED-INTERRUPTS" "WITH-FD-HANDLER"
              "WITH-INTERRUPTS" "WITH-REPLY-PORT" "WITHOUT-GCING"
-             "WITHOUT-HEMLOCK" "WITHOUT-INTERRUPTS" "WORDS"
+             "WITHOUT-INTERRUPTS" "WITH-SCREEN" "WORDS"
 	     "OS-INIT" "ALLOCATE-SYSTEM-MEMORY-AT"
 	     "ALTERNATE-GET-GLOBAL-ADDRESS"))
 (dolist
@@ -1305,6 +1342,7 @@
      '("*" "ARRAY" "BOOLEAN" "DOUBLE-FLOAT" "FUNCTION" "INTEGER" "LONG-FLOAT"
        "SINGLE-FLOAT" "UNION" "VALUES"))
   (intern name "LISP"))
+
 (defpackage "ALIEN"
             (:import-from "LISP" "*" "ARRAY" "DOUBLE-FLOAT" "FUNCTION"
              "BOOLEAN" "INTEGER" "LONG-FLOAT" "SINGLE-FLOAT" "UNION" "VALUES")
@@ -1354,6 +1392,7 @@
        "MAKE-LOCAL-ALIEN" "NATURALIZE" "NOTE-LOCAL-ALIEN-TYPE"
        "PARSE-ALIEN-TYPE" "UNPARSE-ALIEN-TYPE"))
   (intern name "ALIEN"))
+
 (defpackage "ALIEN-INTERNALS"
             (:import-from "ALIEN" "%CAST" "%DEREF-ADDR" "%HEAP-ALIEN"
              "%HEAP-ALIEN-ADDR" "%LOCAL-ALIEN-ADDR"
@@ -1428,16 +1467,20 @@
              "MAKE-ALIEN-FUNCTION-TYPE" "MAKE-ALIEN-POINTER-TYPE"
              "MAKE-LOCAL-ALIEN" "NATURALIZE" "NOTE-LOCAL-ALIEN-TYPE"
              "PARSE-ALIEN-TYPE" "UNPARSE-ALIEN-TYPE"))
+
 (defpackage "PROFILE"
             (:export "*TIMED-FUNCTIONS*" "PROFILE" "PROFILE-ALL" "REPORT-TIME"
 	     "RESET-TIME" "UNPROFILE"))
+
 (dolist
     (name
      '("ARRAY-RANK" "ARRAY-TOTAL-SIZE" "BOOLEAN" "CHAR-INT" "FLOAT-DIGITS"
        "FLOAT-RADIX" "PATHNAME-DEVICE" "PATHNAME-DIRECTORY" "PATHNAME-HOST"
        "PATHNAME-NAME" "PATHNAME-TYPE" "PATHNAME-VERSION"))
   (intern name "LISP"))
+
 (intern "VOID" "C-CALL")
+
 (defpackage "KERNEL"
   (:import-from "LISP" "BOOLEAN")
   (:import-from "C-CALL" "VOID")
@@ -1720,3 +1763,30 @@
 	   "PROCESS-WHOSTATE" "PROCESS-YIELD" "PROCESSP" "RESTART-PROCESS"
 	   "SHOW-PROCESSES" "STACK-GROUP-RESUME" "WITHOUT-SCHEDULING"
 	   "WITH-LOCK-HELD" "WITH-TIMEOUT"))
+
+(defpackage "INTERNET"
+  (:export "FILL-FROM-NETRC"
+	   "INET-ACCOUNT" "INET-STREAM" "INET-COMMAND" "INET-QUIT"
+	   "MAKE-INET-ACCOUNT"
+	   "MAKE-INET-STREAM"
+	   "POP-DELE" "POP-INIT" "POP-QUIT" "POP-RETR" "POP-STAT"
+	   "TELNET-INIT" "TELNET-QUIT"
+	   "FTP-INIT" "FTP-COMMAND" "FTP-TRANSLATE-COMMAND")
+  (:documentation "Interface for internet clients."))
+
+(defpackage "MH"
+  (:export "DO-FOLDERS" "PRINT-FOLDERS" "MH-DIRECTORY-PATHNAME")
+  (:documentation "Mail handler."))
+
+(defpackage "DOC"
+  (:export "DEFUN-DOC-TO-TEXT")
+  (:documentation "Document processing."))
+
+(defpackage "DB"
+  (:export "DB-RECORD-FORENAME" "DB-RECORD-SURNAME" "DB-RECORD-AKAS"
+	   "DB-RECORD-EMAILS" "DB-RECORD-URL" "DB-RECORD-FULL-NAME"
+	   "DB-RECORD-ADDRESS"
+	   "READ-DB" "SAVE-DB" "ENSURE-DB-READ" "GET-DB-TABLE"
+	   "ADDRESS-LINE-1" "ADDRESS-TOWN" "ADDRESS-CODE" "ADDRESS-COUNTRY"
+	   "ADD-RECORD" "WRITE-RECORD" "FIND-RECORD")
+  (:documentation "Interface to entity database (people, organisations, etc)."))

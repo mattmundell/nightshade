@@ -1,6 +1,6 @@
 ;;; A ring-buffer type and access functions.
 
-(in-package "HEMLOCK-INTERNALS")
+(in-package "EDI")
 
 (export '(ring ringp make-ring ring-push ring-pop ring-length ring-ref
 	  rotate-ring))

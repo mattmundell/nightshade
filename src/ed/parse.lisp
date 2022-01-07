@@ -1,6 +1,6 @@
 ;;; Parser generator.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 ;;;; Interface definitions.
@@ -13,8 +13,8 @@
 (defmacro defparser (rules &key bufferp (eval t))
   "Define a stream or buffer parser.
 
-   Rules is a list of BNF-style rules, named by the keyword in the car of
-   the rule.  The first rule is the root rule.  A parser is produced for
+   Rules is a list of BNF-style rules, each named by the keyword in the car
+   of the rule.  The first rule is the root rule.  A parser is produced for
    the root rule and for any rule required by the root rule (recursively).
 
    If Eval is true then the parser functions are evaluated and the last one
@@ -22,7 +22,7 @@
 
    If Bufferp is true the parser will parse from the mark in *mark* and
    the generated functions are named buffer-parse-<rule>, otherwise the
-   functions read from the stream in *stream* and the are named like
+   functions read from the stream in *stream* and are named like
    parse-<rule>.  Each parse function returns a node containing the parsed
    information.
 
@@ -254,7 +254,7 @@
 		(start (region-start region))
 		(end (region-end region)))
 	       ((eq line nil))
-	     (let ((marks (hi::line-marks line)))
+	     (let ((marks (edi::line-marks line)))
 	       (when marks
 		 (dolist (m marks)
 		   (or (eq m start)
@@ -460,7 +460,7 @@
   `(defun ,name (region mark)
      ,(format nil
 	      "Parse from ~:[*stream*~;*mark*~] into Mark according to the ~A rule."
-	      bufferp (symbol-name name))
+	      bufferp (car rule))
      ,(list-req-parsing (cdr rule) name :groupp t :bufferp bufferp)))
 
 (defun list-parse-function (name rule &key bufferp)

@@ -1,6 +1,6 @@
 /* $Header: /home/CVS-cmucl/src/lisp/alloc.c,v 1.3.2.2 2000/05/23 16:38:12 pw Exp $ */
 
-#include "lisp.h"
+#include "nightshade.h"
 #include "internals.h"
 #include "alloc.h"
 #include "globals.h"

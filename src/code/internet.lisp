@@ -1,18 +1,4 @@
-;;; -*- Log: code.log; Package: extensions -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/internet.lisp,v 1.18.2.7 2000/11/06 13:07:38 pw Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; This file contains an interface to internet domain sockets.
-;;;
-;;; Written by William Lott.
-;;;
+;;; An interface to internet domain sockets.
 
 (in-package "EXTENSIONS")
 
@@ -26,7 +12,6 @@
 	  close-socket ipproto-tcp ipproto-udp inaddr-any add-oob-handler
 	  remove-oob-handler remove-all-oob-handlers
 	  send-character-out-of-band))
-
 
 #-svr4
 (defconstant sock-stream 1)
@@ -60,7 +45,7 @@
  (defconstant af-x25 9)
  (defconstant af-inet6 10)
  (defconstant af-max 12))
- 
+
 (defconstant msg-oob 1)
 (defconstant msg-peek 2)
 (defconstant msg-dontroute 4)
@@ -77,11 +62,10 @@
     (warn "Internet protocol :DATA-GRAM is depreciated. Using :DATAGRAM")
     (setq kind :datagram))
   (let ((entry (assoc kind *internet-protocols*)))
-    (unless entry
-      (error "Invalid kind (~S) for internet domain sockets." kind))
+    (or entry
+	(error "Invalid kind (~S) for internet domain sockets." kind))
     (values (cadr entry)
 	    (caddr entry))))
-
 
 (defmacro maybe-byte-swap (var bytes)
   (ecase (c:backend-byte-order c:*backend*)
@@ -190,11 +174,11 @@ struct in_addr {
 
 (defun lookup-host-entry (host)
   "Return a host-entry for the given host. The host may be an address
-  string or an IP address in host order."
+   string or an IP address in host order."
   (if (typep host 'host-entry)
       host
       (with-alien
-	  ((hostent (* hostent) 
+	  ((hostent (* hostent)
 		    (etypecase host
 		      (string
 		       (gethostbyname host))
@@ -226,7 +210,7 @@ struct in_addr {
 				    index))
 		      (results))
 		     (t
-		      (results 
+		      (results
 		       (ntohl (deref (deref (slot hostent 'addr-list) index))))
 		      (repeat (1+ index)))))))))))
 
@@ -351,8 +335,8 @@ struct in_addr {
 (defun close-socket (socket)
   (multiple-value-bind (ok err)
 		       (unix:unix-close socket)
-    (unless ok
-      (error "Error closing socket: ~A" (unix:get-unix-error-msg err))))
+    (or ok
+	(error "Error closing socket: ~A" (unix:get-unix-error-msg err))))
   (undefined-value))
 
 (defun get-peer-host-and-port (fd)

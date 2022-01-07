@@ -1,19 +1,5 @@
-;;; -*- Package: SYSTEM -*-
-;;;
-;;; **********************************************************************
-;;; This code was written as part of the CMU Common Lisp project at
-;;; Carnegie Mellon University, and has been placed in the public domain.
-;;;
-(ext:file-comment
-  "$Header: /home/CVS-cmucl/src/code/mach-os.lisp,v 1.12 1994/10/31 04:11:27 ram Exp $")
-;;;
-;;; **********************************************************************
-;;;
-;;; OS interface functions for CMU CL under Mach.
-;;;
-;;; Written and maintained mostly by Skef Wholey and Rob MacLachlan.
-;;; Scott Fahlman, Dan Aronson, and Steve Handerson did stuff here, too.
-;;;
+;;; OS interface functions for running under Mach.
+
 (in-package "SYSTEM")
 (use-package "EXTENSIONS")
 (export '(get-system-info get-page-size os-init))
@@ -41,7 +27,6 @@
   #+sparc ;; Can't use #x20000000 thru #xDFFFFFFF, but mach tries to let us.
   (system:allocate-system-memory-at (system:int-sap #x20000000) #xc0000000))
 
-
 ;;; GET-SYSTEM-INFO  --  Interface
 ;;;
 ;;;    Return system time, user time and number of page faults.  For
@@ -56,14 +41,13 @@
     (unless err?
       (error "Unix system call getrusage failed: ~A."
 	     (unix:get-unix-error-msg utime)))
-    
+
     (multiple-value-bind (gr ps fc ac ic wc zf ra in ot)
 			 (mach:vm_statistics *task-self*)
       (declare (ignore ps fc ac ic wc zf ra))
       (mach:gr-error 'mach:vm_statistics gr)
-      
-      (values utime stime (+ in ot)))))
 
+      (values utime stime (+ in ot)))))
 
 ;;; GET-PAGE-SIZE  --  Interface
 ;;;
@@ -71,4 +55,3 @@
 ;;;
 (defun get-page-size ()
   (mach:gr-call* mach:vm_statistics *task-self*))
-

@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <machine/trap.h>
 
-#include "lisp.h"
+#include "nightshade.h"
 #include "globals.h"
 #include "validate.h"
 #include "os.h"

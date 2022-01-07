@@ -256,3 +256,5 @@ cp ns-0.0+/code/calender.lisp code/
 
 
 10. Where is the 18c doc source?
+
+Use the docs from the CMU repository.

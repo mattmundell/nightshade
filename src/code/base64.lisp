@@ -1,11 +1,11 @@
 ;;; -*- Package: Base64 -*-
-;;;
-;;; The Base64 transfer encoding algorithm, as defined in RFC 1521 by
-;;; Borensten and Freed, September 1993.
 
 (defpackage "BASE64"
   (:use "CL")
-  (:export #:base64-encode #:base64-decode))
+  (:export #:base64-encode #:base64-decode)
+  (:documentation
+   "The Base64 transfer encoding algorithm, as defined in RFC 1521 by
+Borensten and Freed, September 1993."))
 
 (in-package :base64)
 
