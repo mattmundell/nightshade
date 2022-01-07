@@ -1,1 +1,3 @@
 Mad project from 2006 aimed at creating a public domain Lisp OS.  I spent most of the time playing around with the Emacs-like editor.  Derived from CMUCL.
+
+For info on building the system see the [System Building](https://github.com/mattmundell/nightshade/blob/a01f22b5b88b0a72948e8daf295034b9d614b44f/src/code/build.lisp#L310) docs in the source (especially [Build Tools](https://github.com/mattmundell/nightshade/blob/a01f22b5b88b0a72948e8daf295034b9d614b44f/src/code/build.lisp#L283), [Compiling the C](https://github.com/mattmundell/nightshade/blob/a01f22b5b88b0a72948e8daf295034b9d614b44f/src/code/build.lisp#L310), etc).
