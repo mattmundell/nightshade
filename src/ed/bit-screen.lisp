@@ -80,11 +80,11 @@ Bind the corresponding up character to the command described here.
 ;;; These could be parameters, but they have to be set after the display is
 ;;; opened.  These are set in INIT-BITMAP-SCREEN-MANAGER.
 
-(defvar *default-border-pixmap* nil
+(defvar *default-border-pixmap* ()
   "This is the default color of X window borders.  It defaults to a grey
    pattern.")
 
-(defvar *highlight-border-pixmap* nil
+(defvar *highlight-border-pixmap* ()
   "This is the color of the border of the current window when the mouse
    cursor is over any editor window.")
 
@@ -150,7 +150,7 @@ Bind the corresponding up character to the command described here.
   (unless (bitmap-hunk-trashed hunk)
     (let ((liftp (and (eq *cursor-hunk* hunk) *cursor-dropped*))
 	  (display (bitmap-device-display (device-hunk-device hunk))))
-      (when liftp (lift-cursor))
+      (if liftp (lift-cursor))
       (multiple-value-bind (y-peek height-peek)
 			   (exposed-region-peek-event display
 						      (bitmap-hunk-xwindow hunk))
@@ -181,6 +181,7 @@ Bind the corresponding up character to the command described here.
 ;;;
 (defun exposed-region-peek-event (display win)
   (xlib:display-finish-output display)
+  ;(xlib::print-events display)
   (let (result-y result-height)
     (xlib:process-event
      display :timeout 0
@@ -188,7 +189,8 @@ Bind the corresponding up character to the command described here.
 			      &allow-other-keys)
 		  (cond ((and (or (eq event-key :exposure)
 				  (eq event-key :graphics-exposure))
-			      (or (eq event-window win) (eq window win)))
+			      (or (equalp event-window win)
+				  (equalp window win)))
 			 (setf result-y y)
 			 (setf result-height height)
 			 t)
@@ -196,14 +198,14 @@ Bind the corresponding up character to the command described here.
     (values result-y result-height)))
 
 ;;; COELESCE-EXPOSED-REGIONS insert sorts exposed region events from the X
-;;; input queue into *coelesce-buffer*.  Then the regions are merged into the
-;;; same number or fewer regions that are vertically distinct
+;;; input queue into *coelesce-buffer*.  Then the regions are merged into
+;;; the same number or fewer regions that are vertically distinct
 ;;; (non-overlapping).  When this function is called, one event has already
-;;; been popped from the queue, the first event that caused HUNK-EXPOSED-REGION
-;;; to be called.  That information is passed in as y1 and height1.  There is
-;;; a second event that also has already been popped from the queue, the
-;;; event resulting from peeking for multiple "exposure" events.  That info
-;;; is passed in as y2 and height2.
+;;; been popped from the queue, the first event that caused
+;;; HUNK-EXPOSED-REGION to be called.  That information is passed in as y1
+;;; and height1.  There is a second event that also has already been popped
+;;; from the queue, the event resulting from peeking for multiple
+;;; "exposure" events.  That info is passed in as y2 and height2.
 ;;;
 (defun coelesce-exposed-regions (hunk display y1 height1 y2 height2)
   (let ((len 0))
@@ -234,7 +236,7 @@ Bind the corresponding up character to the command described here.
 					  expanded-height end-line len)))
 	  (multiple-value-setq (y height)
 	    (exposed-region-peek-event display xwindow))
-	  (unless y (return)))))
+	  (or y (return)))))
     (coelesce-exposed-regions-merge len)))
 
 ;;; *coelesce-buffer* is a vector of records used to sort exposure events on a
@@ -509,13 +511,14 @@ Bind the corresponding up character to the command described here.
      (fi (and (= width (bitmap-hunk-width object))
 	      (= height (bitmap-hunk-height object)))
 	 (progn
-	   #|
 	   (hunk-changed object width height ())
 	   ;; Under X11, don't redisplay since an exposure event is coming next.
 	   (setf (bitmap-hunk-trashed object) t)
-	   |#
+	   #|
 	   (setf (bitmap-hunk-trashed object) t)
-	   (hunk-changed object width height t))))
+	   (hunk-changed object width height t)
+	   |#
+	   )))
     (window-group
      (let ((old-width (window-group-width object))
 	   (old-height (window-group-height object)))
@@ -566,10 +569,11 @@ Bind the corresponding up character to the command described here.
 ;;;
 (defun hunk-ignore-event (hunk event-key event-window window one
 			       &optional two three four five)
-  (declare (ignore hunk event-key event-window window one two three four five))
+  (declare (ignore hunk event-key event-window window
+		   one two three four five))
+  ;(format t "ed passing event ~A~%" event-key)
   t)
 ;;;
-(ext:serve-destroy-notify *editor-windows* #'hunk-ignore-event)
 (ext:serve-unmap-notify *editor-windows* #'hunk-ignore-event)
 (ext:serve-map-notify *editor-windows* #'hunk-ignore-event)
 (ext:serve-reparent-notify *editor-windows* #'hunk-ignore-event)
@@ -577,6 +581,15 @@ Bind the corresponding up character to the command described here.
 (ext:serve-circulate-notify *editor-windows* #'hunk-ignore-event)
 (ext:serve-client-message *editor-windows* #'hunk-ignore-event)
 (ext:serve-property-notify *editor-windows* #'hunk-ignore-event)
+
+;;; HUNK-DESTROY-EVENT removes the window from the set being served.
+;;;
+(defun hunk-destroy-event (hunk event-key event-window window send-event-p)
+  (declare (ignore event-key event-window window send-event-p))
+  (remove-xwindow-object (bitmap-hunk-xwindow hunk))
+  t)
+;;;
+(ext:serve-destroy-notify *editor-windows* #'hunk-destroy-event)
 
 
 ;;;; Interface to X input events.
@@ -592,15 +605,15 @@ Bind the corresponding up character to the command described here.
 		       root-x root-y modifiers time key-code send-event-p)
   (declare (ignore event-key event-window root child same-screen-p root-x
 		   root-y time send-event-p))
+  (declare (ignore hunk))
 #|
   (format t "(hunk-process-input ~A ...)~%" hunk)
   (format t "x: ~A~%" x)
   (format t "y: ~A~%" y)
-  (format t "key-code: ~A~%" key-code)
+  (format t "hpi key-code: ~A~%" key-code)
   (format t "modifiers: ~A~%" modifiers)
   (format t "(device-hunk-device hunk): ~A~%" (device-hunk-device hunk))
 |#
-  (declare (ignore hunk))
   (let ((hunk (window-hunk (current-window))))
     (hunk-process-input hunk
 			(ext:translate-key-event
@@ -609,6 +622,21 @@ Bind the corresponding up character to the command described here.
 			x y)))
 ;;;
 (ext:serve-key-press *editor-windows* #'hunk-key-input)
+
+(defun hunk-key-release-input (hunk event-key event-window root child same-screen-p x y
+		       root-x root-y modifiers time key-code send-event-p)
+  (declare (ignore event-key event-window root child same-screen-p root-x
+		   root-y time send-event-p))
+  (declare (ignore hunk))
+#|
+  (format t "(hunk-process-input ~A ...)~%" hunk)
+  (format t "x: ~A~%" x)
+  (format t "y: ~A~%" y)
+  (format t "== hpri key-code: ~A~%" key-code)
+|#
+  )
+;;;
+(ext:serve-key-release *editor-windows* #'hunk-key-release-input)
 
 (defun hunk-mouse-input (hunk event-key event-window root child same-screen-p x y
 			 root-x root-y modifiers time key-code send-event-p)
@@ -924,14 +952,14 @@ Bind the corresponding up character to the command described here.
 	(maybe-make-x-window-and-parent window display start ask-user x y
 					width-arg height-arg font-family
 					modelinep thumb-bar-p proportion)
-      (or xwindow (return-from bitmap-make-window nil))
+      (or xwindow (return-from bitmap-make-window ()))
       (let ((window-group (make-window-group xparent
 					     (xlib:drawable-width xparent)
 					     (xlib:drawable-height xparent))))
 	(setf (bitmap-hunk-xwindow hunk) xwindow)
 	(pushnew (cons xwindow hunk) *xwindow-hunk-map* :test #'equalp)
 	(setf (bitmap-hunk-window-group hunk) window-group)
-	(setf (bitmap-hunk-gcontext hunk)
+ 	(setf (bitmap-hunk-gcontext hunk)
 	      (default-gcontext xwindow font-family))
 	;;
 	;; Select input and enable event service before showing the window.
@@ -982,7 +1010,7 @@ Bind the corresponding up character to the command described here.
 ;;; BITMAP-MAKE-WINDOW calls this.  If xparent is non-nil, we clear it and
 ;;; return it with a child that fills it.  If xparent is nil, and ask-user
 ;;; is true, then we invoke *create-window-hook* to get a parent window and
-;;; return it with a child that fills it.  By default, we make a child in
+;;; return it with a child that fills it.  Otherwise, we make a child in
 ;;; the CURRENT-WINDOW's parent.
 ;;;
 (defun maybe-make-x-window-and-parent (xparent display start ask-user x y width
@@ -1132,22 +1160,59 @@ Bind the corresponding up character to the command described here.
 	 (xwindow (bitmap-hunk-xwindow hunk))
 	 (xparent (window-group-xparent (bitmap-hunk-window-group hunk)))
 	 (display (bitmap-device-display (device-hunk-device hunk))))
-    (remove-xwindow-object xwindow)
-    (setq *window-list* (delete window *window-list*))
-    (when (eq *current-highlighted-border* hunk)
-      (setf *current-highlighted-border* nil))
-    (when (and (eq *cursor-hunk* hunk) *cursor-dropped*) (lift-cursor))
+    ;(remove-xwindow-object xwindow)
+    (if (eq *current-highlighted-border* hunk)
+	(setf *current-highlighted-border* ()))
+    (and (eq *cursor-hunk* hunk)
+	 *cursor-dropped*
+	 (lift-cursor))
     (xlib:display-force-output display)
     (bitmap-delete-and-reclaim-window-space xwindow window)
-    (while () ((deleting-window-drop-event display xwindow)))
+
+#|
+    ;(while () ((deleting-window-drop-event display xwindow)))
+
+    ;; Wait for the destroy-notify event.
+    (format t "  1~%")
+    (xlib:display-finish-output display)
+    (until ((exit)) (exit)
+      (xlib:event-case (display :timeout 0)
+	(:destroy-notify (event-window)
+	   (if (equalp event-window xwindow)
+	       (setq exit t))
+	   t)
+	(t (event-window event-key)
+	   ;; Drop any other events on the window.
+	   (when (equalp event-window xwindow)
+	     (format t "  drop ~A~%" event-key)
+	     t))))
+|#
+
+    (setq *window-list* (delete window *window-list*))
     (let ((device (device-hunk-device hunk)))
       (setf (device-hunks device) (delete hunk (device-hunks device))))
     (cond ((eq hunk (bitmap-hunk-next hunk))
 	   ;; Is this the last window in the group?
-	   (remove-xwindow-object xparent)
+	   ;(remove-xwindow-object xparent)
 	   (xlib:display-force-output display)
 	   (funcall *delete-window-hook* xparent)
-	   (while () ((deleting-window-drop-event display xparent)))
+
+#|
+	   ;(while () ((deleting-window-drop-event display xparent)))
+
+	   ;; Wait for the destroy-notify event.
+	   (xlib:display-finish-output display)
+	   (until ((exit)) (exit)
+	     (xlib:event-case (display :timeout 0)
+	       (:destroy-notify (event-window)
+				(if (equalp event-window xparent)
+				    (setq exit t))
+				t)
+	       (t (event-window)
+		  ;; Drop any other events on the window.
+		  (equalp event-window xparent))))
+|#
+
 	   (let ((window (find-if-not #'(lambda (window)
 					  (eq window *echo-area-window*))
 				      *window-list*)))
@@ -1167,7 +1232,7 @@ Bind the corresponding up character to the command described here.
 	     (setf (bitmap-hunk-previous next) prev))))
     (let ((buffer (window-buffer window)))
       (setf (buffer-windows buffer) (delete window (buffer-windows buffer)))))
-  nil)
+  ())
 
 ;;; BITMAP-DELETE-AND-RECLAIM-WINDOW-SPACE -- Internal.
 ;;;
@@ -1204,7 +1269,7 @@ Bind the corresponding up character to the command described here.
 
 ;;; MERGE-WITH-NEXT-WINDOW -- Internal.
 ;;;
-;;; This trys to grow the next hunk's window to make use of the space created
+;;; This tries to grow the next hunk's window to make use of the space created
 ;;; by deleting hunk's window.  If this is possible, then we must also move the
 ;;; next window up to where hunk's window was.
 ;;;
@@ -1235,13 +1300,16 @@ Bind the corresponding up character to the command described here.
 ;;;
 (defun deleting-window-drop-event (display win)
   (xlib:display-finish-output display)
-  (let ((result nil))
+  (let ((result ()))
     (xlib:process-event
      display :timeout 0
-     :handler #'(lambda (&key event-window window &allow-other-keys)
-		  (if (or (eq event-window win) (eq window win))
-		      (setf result t)
-		      nil)))
+     :handler #'(lambda (&key event-window window event-key
+			 &allow-other-keys)
+		  (if (or (equalp event-window win)
+			  (equalp window win))
+		      (progn
+			(format t "drop event, key ~A~%" event-key)
+			(setf result t)))))
     result))
 
 ;;; MODIFY-PARENT-PROPERTIES -- Internal.
@@ -1319,11 +1387,11 @@ Bind the corresponding up character to the command described here.
   (declare (ignore window))
   new-value)
 
-;;; %SET-WINDOW-HEIGHT  --  Internal
+;;; BITMAP-SET-WINDOW-HEIGHT  --  Internal
 ;;;
-;;; Can't change window height either.
+;;; FIX refer create,release win above
 ;;;
-(defun %set-window-height (window new-value)
+(defun bitmap-set-window-height (window new-value)
   (declare (ignore window))
   new-value)
 
@@ -1463,14 +1531,11 @@ Bind the corresponding up character to the command described here.
     (let ((xwindow (bitmap-hunk-xwindow (window-hunk hwindow)))
 	  (display (bitmap-device-display device)))
       (xlib:display-finish-output display)
-      (until ((exit)) (exit)
-	(xlib:event-case (display :timeout 0)
-	  (:exposure (event-window)
-	    (or (equalp event-window xwindow)
-		(setq exit t))
-	    ())
-	  (t ()
-	     (setq exit t)))))))
+      (loop
+	(or (xlib:event-case (display :timeout 0)
+	      (:exposure (event-window) (equalp event-window xwindow))
+	      (t () ()))
+	    (return))))))
 
 (defun change-bitmap-random-typeout-window (hwindow height)
   (update-modeline-field (window-buffer hwindow) hwindow :more-prompt)
@@ -1493,8 +1558,8 @@ Bind the corresponding up character to the command described here.
     ;; A window is only really mapped when it is viewable.  It is said to
     ;; be mapped if a map request has been sent whether it is handled or
     ;; not.
-    (loop (when (eq (xlib:window-map-state xwin) :viewable)
-	    (return)))
+    (loop
+      (if (eq (xlib:window-map-state xwin) :viewable) (return)))
     ;; Clear the window.
     (setf (xlib:window-background xwin)
 	  (color-pixel (bitmap-device-display (bitmap-hunk-device hunk))
@@ -1505,7 +1570,7 @@ Bind the corresponding up character to the command described here.
   hwindow)
 
 (defun make-bitmap-random-typeout-window (device mark height)
-  (format t "(make-bitmap-random-typeout-window . . .)~%")
+  ;(format t "(make-bitmap-random-typeout-window . . .)~%")
   (let* ((display (bitmap-device-display device))
 	 (hunk (make-bitmap-hunk
 		:font-family *default-font-family*
@@ -1539,8 +1604,7 @@ Bind the corresponding up character to the command described here.
       ;; be mapped if a map request has been sent whether it is handled or
       ;; not.
       (loop
-	(when (eq (xlib:window-map-state xwindow) :viewable)
-	  (return)))
+	(if (eq (xlib:window-map-state xwindow) :viewable) (return)))
       ;; Clear the window.
       (setf (xlib:window-background xwindow)
 	    (color-pixel display
@@ -1744,6 +1808,7 @@ Bind the corresponding up character to the command described here.
    :previous-window #'bitmap-previous-window
    :make-window #'bitmap-make-window
    :delete-window #'bitmap-delete-window
+   :set-window-height #'bitmap-set-window-height
    :set-foreground-color #'bitmap-set-foreground-color
    :set-background-color #'bitmap-set-background-color
    :force-output #'bitmap-force-output
@@ -1787,15 +1852,16 @@ Bind the corresponding up character to the command described here.
   (let ((xwindow (bitmap-hunk-xwindow hunk))
 	(trashed (bitmap-hunk-trashed hunk)))
     (when trashed
-      (setf (bitmap-hunk-trashed hunk) nil)
+      (setf (bitmap-hunk-trashed hunk) ())
       (xlib:with-state (xwindow)
 	(let ((w (xlib:drawable-width xwindow))
 	      (h (xlib:drawable-height xwindow)))
 	  (when (or (/= w (bitmap-hunk-width hunk))
 		    (/= h (bitmap-hunk-height hunk))
 		    (eq trashed :font-change))
-	    (hunk-changed hunk w h nil)))))
-    (xlib:clear-area xwindow :width (bitmap-hunk-width hunk)
+	    (hunk-changed hunk w h ())))))
+    (xlib:clear-area xwindow
+		     :width (bitmap-hunk-width hunk)
 		     :height (bitmap-hunk-height hunk))
     (hunk-draw-bottom-border hunk)))
 
@@ -1808,7 +1874,7 @@ Bind the corresponding up character to the command described here.
 (defun hunk-changed (hunk new-width new-height redisplay)
   (set-hunk-size hunk new-width new-height)
   (funcall (bitmap-hunk-changed-handler hunk) hunk)
-  (when redisplay (dumb-window-redisplay (bitmap-hunk-window hunk))))
+  (if redisplay (dumb-window-redisplay (bitmap-hunk-window hunk))))
 
 ;;; WINDOW-GROUP-CHANGED -- Internal.
 ;;;
@@ -1828,7 +1894,7 @@ Bind the corresponding up character to the command described here.
     (dolist (window *window-list*)
       (let ((test (window-group-xparent (bitmap-hunk-window-group
 					 (window-hunk window)))))
-	(when (eq test xparent)
+	(when (equalp test xparent)
 	  (push window affected-windows)
 	  (incf count))))
     ;; Probably should insertion sort them, but I'm lame.
@@ -1952,7 +2018,7 @@ Bind the corresponding up character to the command described here.
   (multiple-value-bind (children parent root)
 		       (xlib:query-tree xwin)
     (declare (ignore children))
-    (if (eq parent root)
+    (if (equalp parent root)
 	(if (and x y)
 	    (values x y)
 	    (xlib:with-state (xwin)

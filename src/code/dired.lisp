@@ -117,7 +117,7 @@ denotes a wildcard.
    FIX \"/spec/*\" then copy only the files from $spec1 to directory $spec2.
 
    If $spec1 is a file, and $spec2 is a directory, then copy $spec1 into
-   $spec2 with the same pathname-name.
+   $spec2 with the same pathname-name as $spec1.
 
    If $update is true, then only copy files if the source is newer than the
    destination.
@@ -125,8 +125,7 @@ denotes a wildcard.
    If $check-for-links is true, then preserve symbolic links.
 
    If $update and $clobber are both (), and the destination exists, the
-   copying process stops and asks whether the destination should be
-   overwritten.
+   copying process prompts whether the destination should be overwritten.
 
    If $directory is supplied, it is a list of pathnames and $spec1 is a
    pattern containing one wildcard.  Copy each of the pathnames whose
@@ -613,19 +612,20 @@ denotes a wildcard.
    entirety of the directory and its subdirectory structure.  A directory
    may be specified with $recurse false, as long as the directory is
    empty."
-  (let* ((ses-name (ext:os-namestring spec t))
-	 (pname (pathname ses-name))
+  (let* ((pname (pathname spec))
 	 (wildp (if (file-namestring pname)
 		    (wildcardp (file-namestring pname))))
-	 (dirp (directoryp pname :check-for-links t)))
+	 (dirp (fi wildp (directoryp pname :check-for-links t))))
     (if dirp
-	(if recurse
-	    (when (or clobber
-		      (funcall *yesp-function*
-			       "~&Recursively delete ~S? " ses-name))
-	      (recursive-delete pname ses-name))
-	    (delete-file-2 ses-name clobber))
-	(delete-file-1 pname ses-name wildp clobber)))
+	(let ((ses-name (ext:os-namestring spec t)))
+	  (if recurse
+	      (when (or clobber
+			(funcall *yesp-function*
+				 "~&Recursively delete ~S? "
+				 (namestring spec)))
+		(recursive-delete pname ses-name))
+	      (delete-file-2 ses-name clobber)))
+	(delete-file-1 pname spec wildp clobber)))
   (values))
 
 (defun recursive-delete (directory dir-ses-name)
@@ -643,11 +643,17 @@ denotes a wildcard.
 
 (declaim (inline delete-file-1 delete-file-2))
 
-(defun delete-file-1 (pname ses-name wildp clobber)
+(defun delete-file-1 (pname spec wildp clobber)
+  (declare (ignore pname))
   (if wildp
+#|
+      FIX old version, does wildcard matching manually, update others above
       (dolist (match (resolve-wildcard pname wildp () :check-for-links t))
 	(delete-file-2 (wild-match-file match) clobber))
-      (delete-file-2 ses-name clobber)))
+|#
+      (dolist (match (directory spec :follow-links ()))
+	(delete-file-2 match clobber))
+      (delete-file-2 (ext:os-namestring spec) clobber)))
 
 (defun delete-file-2 (ses-name clobber)
   (when (or clobber (funcall *yesp-function* "~&Delete ~S? " ses-name))

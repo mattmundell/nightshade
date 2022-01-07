@@ -30,13 +30,6 @@ applications such as a mail reader and a diary.
 	   ("Desktop"   "Edit the Desktop.")
 	   ("")
 	   ("Help"      "Choose a help option.")
-	   ;; FIX find sounds like search
-	   ("Find"      "Open a file or directory for editing.")
-	   ("Info"      "Read documentation.")
-	   ("Tutorial"  "Do the editor tutorial.")
-	   ("Packdired" "Browse installed packages.")
-	   ("Manage Packages" "Enter the package manager.")
-; 	   ("Config" "Configure the system."
  	   ("Menu"      "Mail, diary, IRC, News..." "Applications"
 	    (("Browse Folders" "Browse email folders.")
 	     ("Calendar"       "Bring up the calendar.")
@@ -46,10 +39,10 @@ applications such as a mail reader and a diary.
 	                       "Browse processes of underlying OS.")
 	     ("FTP"
 	                       "Start a File Tranfer Protocol sesson.")
-	     ("Goto Today in Diary"
+	     ("Go To Today in Diary"
 	                       "Switch to the diary file.")
 	     ("Gopher"         "Browse Gopher sites.")
-	     ("Ginfo"          "Browse the GNU Info system.")
+	     ("Info"           "Browse the GNU Info system.")
 	     ("Incorporate and Read New Mail"
 	                       "Fetch and read email.")
 	     ("IRC"            "Instant chat.")
@@ -58,7 +51,15 @@ applications such as a mail reader and a diary.
 	     ("Shell"          "Start a shell on the underlying OS.")
 	     ("Telnet"         "Start a remote shell via Telnet.")
 	     ("WWW"            "Browse the World Wide Web.")))
+	   ;; FIX find sounds like search
+	   ("Find"             "Open a file or directory for editing.")
+	   ("Doc"              "Read documentation.")
+	   ("Tutorial"         "Do the editor tutorial.")
+; 	   ("Config"           "Configure the system."
+	   ("Packdired"        "Browse installed packages.")
+	   ("Manage Packages"  "Enter the package manager.")
 ; 	   ("recent files"     "Browse the `Find' history.")
+; 	   ("recent dirs"      "Browse the `Find' history.")
 	   ("Bufed"            "Browse the list of buffers.")
 	   ("Browse Kill Ring" "Browse the history of kills.")
 	   ("Evented"
@@ -142,7 +143,23 @@ applications such as a mail reader and a diary.
 	    (insert-character mark #\newline)))
 	(buffer-start (buffer-point buffer))))))
 
-(defmode "Menu" :major-p t)
+(defun highlight-menu-line (line chi-info)
+  (let* ((string (line-string line))
+	 (pos (search "  " string)))
+    (when pos
+      (chi-mark line 0 *original-font* :special-form chi-info)
+      (chi-mark line pos *original-font* :window-foreground chi-info))))
+
+(defun highlight-visible-menu-buffer (buffer)
+  (highlight-visible-chi-buffer buffer highlight-menu-line))
+
+(defun setup-menu-mode (buffer)
+  (highlight-visible-menu-buffer buffer)
+  (pushnew '("Menu" t highlight-visible-menu-buffer)
+	   *mode-highlighters*))
+
+(defmode "Menu" :major-p t
+  :setup-function #'setup-menu-mode)
 
 (defcommand "Menu" (p (menu (value menu)) name)
   "Switch to the menu buffer, creating it if necessary."

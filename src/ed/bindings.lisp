@@ -28,8 +28,8 @@ commands, or establish bindings for commands never bound before (see section
 [Binding Keys]).
 
 In addition to the key bindings explicitly listed with each command, there
-are some implicit bindings created by using key translationsfootKey
-translations are documented in the [Editor Extension] Manual.  These
+are some implicit bindings created by using key translations ([Key
+Translation]s are documented in the [Editor Extension] manual).  These
 bindings are not displayed by documentation commands such as `Where Is'.
 By default, there are only a few key translations.  The modifier-prefix
 characters C-^, Escape, C-z, or C-c may be used when typing keys to convert
@@ -74,6 +74,19 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (do-alpha-key-events (key-event :both)
   (bind-key "Self Insert" key-event))
 
+;;; German UTF-8 hacks.
+;;;
+;;; FIX could bind to "control-i ..." is c-x u ... is too slow.
+;;;
+(bind-key "Input UTF8 Umlaut A" #k"control-x u a")
+(bind-key "Input UTF8 Umlaut A Caps" #k"control-x u A")
+(bind-key "Input UTF8 Umlaut O" #k"control-x u o")
+(bind-key "Input UTF8 Umlaut O Caps" #k"control-x u O")
+(bind-key "Input UTF8 Umlaut U" #k"control-x u u")
+(bind-key "Input UTF8 Umlaut U Caps" #k"control-x u U")
+(bind-key "Input UTF8 SS" #k"control-x u s")
+(bind-key "Input UTF8 SS" #k"control-x u S")
+
 (bind-key "Beginning of Line" #k"control-a")
 (bind-key "Delete Next Character" #k"control-d")
 (bind-key "End of Line" #k"control-e")
@@ -109,9 +122,9 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 ;; Mouse
 (bind-key "Point to Here"            #k"leftdown")
 (bind-key "Generic Pointer Up"       #k"leftup")
-(bind-key "Previous Line"            #k"fourdown")
+(bind-key "Roll Up"                  #k"fourdown")
 (bind-key "Do Nothing"               #k"fourup")
-(bind-key "Next Line"                #k"fivedown")
+(bind-key "Roll Down"                #k"fivedown")
 (bind-key "Do Nothing"               #k"fiveup")
 (bind-key "Menu"                     #k"rightdown")
 (bind-key "Do Nothing"               #k"rightup")
@@ -169,9 +182,11 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Previous Window" #k"control-x p")
 (bind-key "Split Window" #k"control-x 2")
 ;(bind-key "New Window" #k"control-x control-n")
-(bind-key "Go to one window" #k"control-x 1")
+(bind-key "Go To One Window" #k"control-x 1")
 ;(bind-key "Delete Next Window" #k"control-x 1")
 (bind-key "Delete Window" #k"control-x 0")
+(bind-key "Compact Window" #k"control-x \-")
+(bind-key "Increment Window Height" #k"control-x ^")
 ;(bind-key "Line to Top of Window" #k"meta-!") ; FIX should be where then?
 (bind-key "Saving Shell Command Line in Buffer" #k"meta-!")
 (bind-key "Line to Center of Window" #k"meta-#")
@@ -193,8 +208,8 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Mark Whole Buffer" #k"control-x h")
 (bind-key "Set/Pop Mark" #k"control-@")
 (bind-key "Set/Pop Mark" #k"control-space")
-(bind-key "Pop and Goto Mark" #k"meta-space")
-(bind-key "Pop and Goto Mark" #k"meta-@")
+(bind-key "Pop and Go To Mark" #k"meta-space")
+(bind-key "Pop and Go To Mark" #k"meta-@")
 (bind-key "Pop Mark" #k"control-meta-space")  ;#k"control-meta-@" = "Mark Form".
 (bind-key "Kill Region" #k"control-w")
 (bind-key "Save Region" #k"meta-w")
@@ -231,9 +246,9 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Lowercase Word" #k"meta-l")
 (bind-key "Capitalize Word" #k"meta-c")
 
-; FIX Goto Previous Page
+; FIX Go To Previous Page
 (bind-key "Previous Page" #k"control-x [")
-(bind-key "Goto Next Page" #k"control-x ]")
+(bind-key "Go To Next Page" #k"control-x ]")
 (bind-key "Mark Page" #k"control-x control-p")
 (bind-key "Count Lines Page" #k"control-x l")
 (bind-key "Count Lines and Characters" #k"meta-=")
@@ -330,27 +345,27 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Self Insert" #k"}")
 
 
-;;;; Goto.
+;;;; Go To.
 
 (bind-key "Edit Command Definition"          #k"meta-g meta-c")
 ;; FIX should be analogous to c-h d (~describe generic def)
 ;; Go Directly
-(bind-key "Goto Definition"                  #k"meta-g meta-d")
+(bind-key "Go To Definition"                  #k"meta-g meta-d")
 (bind-key "Edit Editor Variable Definition"  #k"meta-g meta-e")
 (bind-key "Edit Definition"                  #k"meta-g meta-f") ; f for function
-(bind-key "Goto Absolute Line"               #k"meta-g meta-g")
-(bind-key "Goto Absolute Character"          #k"meta-g meta-k")
-(bind-key "Goto Absolute Line"               #k"meta-g meta-l")
+(bind-key "Go To Absolute Line"               #k"meta-g meta-g")
+(bind-key "Go To Absolute Character"          #k"meta-g meta-k")
+(bind-key "Go To Absolute Line"               #k"meta-g meta-l")
 ;(bind-key "Edit Variable Definition"        #k"meta-g meta-v")
 (bind-key "Edit Command Definition"          #k"meta-g c")
-(bind-key "Goto Definition"                  #k"meta-g d")
+(bind-key "Go To Definition"                  #k"meta-g d")
 (bind-key "Edit Editor Variable Definition"  #k"meta-g e")
 (bind-key "Edit Definition"                  #k"meta-g f") ; f for function
 ; FIX meta-< control-u <num> control-n
-(bind-key "Goto Absolute Line"               #k"meta-g g")
-(bind-key "Goto Absolute Character"          #k"meta-g k")
-(bind-key "Goto Absolute Line"               #k"meta-g l")
-(bind-key "Goto Page"                        #k"meta-g p")
+(bind-key "Go To Absolute Line"               #k"meta-g g")
+(bind-key "Go To Absolute Character"          #k"meta-g k")
+(bind-key "Go To Absolute Line"               #k"meta-g l")
+(bind-key "Go To Page"                        #k"meta-g p")
 (bind-key "Edit TODO"                        #k"meta-g t")
 ;(bind-key "Edit Variable Definition"        #k"meta-g v")
 
@@ -486,7 +501,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Describe Function Call" #k"control-meta-A")
 (bind-key "Describe Symbol" #k"control-meta-S")
 
-(bind-key "Goto Definition" #k"control-meta-F")
+(bind-key "Go To Definition" #k"control-meta-F")
 
 (bind-key "Inspect Up" #k"control-meta-hyper-u")
 (bind-key "Inspect Down" #k"control-meta-hyper-d")
@@ -559,7 +574,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 ;;;; Auto Fill Mode.
 
 (bind-key "Fill Paragraph" #k"meta-q")
-; FIX used for goto
+; FIX used for Go To
 ;(bind-key "Fill Region" #k"meta-g")
 (bind-key "Set Fill Prefix" #k"control-x .")
 (bind-key "Set Fill Column" #k"control-x f")
@@ -627,11 +642,13 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Add Mode Word Abbrev" #k"control-x control-a")
 (bind-key "Add Global Word Abbrev" #k"control-x +")
 (bind-key "Inverse Add Mode Word Abbrev" #k"control-x control-h")
-(bind-key "Inverse Add Global Word Abbrev" #k"control-x \-")
-;; Used for "Pop and Goto Mark" instead.
+;; Used for "Reduce Window" instead.
+;;(bind-key "Inverse Add Global Word Abbrev" #k"control-x \-")
+;; Used for "Pop and Go To Mark" instead.
 ;;(bind-key "Abbrev Expand Only" #k"meta-space")
 (bind-key "Word Abbrev Prefix Mark" #k"meta-\"")
-(bind-key "Unexpand Last Word" #k"control-x u")
+;; Used for UTF-8 input
+;(bind-key "Unexpand Last Word" #k"control-x u")
 
 (dolist (key (list #k"!" #k"~" #k"@" #k"#" #k";" #k"$" #k"%" #k"^" #k"&" #k"*"
 		   #k"\-" #k"_" #k"=" #k"+" #k"[" #k"]" #k"(" #k")" #k"/" #k"|"
@@ -664,6 +681,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Step Forward" #k"f" :mode "Inspect")
 ;(bind-key "Step Backward" #k"b" :mode "Inspect")
 (bind-key "Edit Frame Source" #k"return" :mode "Inspect")
+(bind-key "Edit Frame Source Other Window" #k"o" :mode "Inspect")
 ;(bind-key "Step Backward" #k"o" :mode "Inspect")
 (bind-key "Forward Frame" #k"tab" :mode "Inspect")
 (bind-key "Backward Frame" #k"meta-tab" :mode "Inspect")
@@ -682,6 +700,11 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Select Scribe Warnings" #k"control-meta-C" :mode "Scribe")
 
 (bind-key "Insert Scribe Directive" #k"hyper-i" :mode "Scribe")
+
+
+;;;; Clock.
+
+(bind-key "Rotate Buffers Forward" #k"q" :mode "Clock")
 
 
 ;;;; X.
@@ -752,7 +775,8 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Next Undeleted Message" #k"n" :mode "Message")
 (bind-key "Previous Undeleted Message" #k"p" :mode "Message")
 (bind-key "Forward Message" #k"f" :mode "Message")
-(bind-key "Headers Delete Message" #k"k" :mode "Message")
+;(bind-key "Headers Delete Message" #k"k" :mode "Message")
+(bind-key "Keep Message" #k"k" :mode "Message")
 (bind-key "Headers Undelete Message" #k"u" :mode "Message")
 (bind-key "Headers Refile Message" #k"r" :mode "Message")
 (bind-key "Headers Mark as Read" #k"c" :mode "Message")
@@ -760,6 +784,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Incorporate and Read New Mail" #k"i" :mode "Message")
 (bind-key "Beginning of Buffer" #k"\<" :mode "Message")
 (bind-key "End of Buffer" #k"\>" :mode "Message")
+(bind-key "Hold Message" #k"&" :mode "Message")
 (bind-key "Mark Message" #k"M" :mode "Message")
 ;;;
 (bind-key "Next Message" #k"meta-n" :mode "Headers")
@@ -767,7 +792,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Next Undeleted Message" #k"n" :mode "Headers")
 (bind-key "Previous Undeleted Message" #k"p" :mode "Headers")
 (bind-key "Forward Message" #k"f" :mode "Headers")
-(bind-key "Headers Delete Message" #k"k" :mode "Headers")
+;(bind-key "Headers Delete Message" #k"k" :mode "Headers")
 (bind-key "Headers Undelete Message and Down Line" #k"u" :mode "Headers")
 (bind-key "Headers Refile Message" #k"r" :mode "Headers")
 (bind-key "Headers Mark as Read" #k"c" :mode "Headers")
@@ -775,6 +800,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Incorporate and Read New Mail" #k"i" :mode "Headers")
 (bind-key "Beginning of Buffer" #k"\<" :mode "Headers")
 (bind-key "End of Buffer" #k"\>" :mode "Headers")
+(bind-key "Hold Message" #k"&" :mode "Headers")
 (bind-key "Mark Message" #k"M" :mode "Headers")
 
 ;;; Headers mode.
@@ -806,8 +832,8 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 ;;; Message mode.
 ;;;
 (bind-key "Delete Message and Show Next" #k"d" :mode "Message")
-(bind-key "Goto Headers Buffer" #k"^" :mode "Message")
-(bind-key "Goto Headers Buffer" #k"q" :mode "Message")
+(bind-key "Go To Headers Buffer" #k"^" :mode "Message")
+(bind-key "Go To Headers Buffer" #k"q" :mode "Message")
 (bind-key "Scroll Message" #k"space" :mode "Message")
 (bind-key "Scroll Message" #k"control-v" :mode "Message")
 (bind-key "Scroll Window Up" #k"backspace" :mode "Message")
@@ -833,9 +859,9 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 
 ;;; Draft mode.
 ;;;
-(bind-key "Goto Headers Buffer" #k"hyper-^" :mode "Draft")
-(bind-key "Goto Message Buffer" #k"hyper-m" :mode "Draft")
-;(bind-key "Goto Message Buffer" #k"m" :mode "Draft")
+(bind-key "Go To Headers Buffer" #k"hyper-^" :mode "Draft")
+(bind-key "Go To Message Buffer" #k"hyper-m" :mode "Draft")
+;(bind-key "Go To Message Buffer" #k"m" :mode "Draft")
 (bind-key "Check and Deliver Message" #k"hyper-s" :mode "Draft")
 (bind-key "Check and Deliver Message" #k"hyper-c" :mode "Draft")
 (bind-key "Insert Message Buffer" #k"hyper-y" :mode "Draft")
@@ -849,6 +875,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 ;(bind-key "Draft Insert Space" #k"space" :mode "Draft")
 ;(bind-key "Draft New Line" #k"return" :mode "Draft")
 (bind-key "Draft Save File" #k"control-x control-s" :mode "Draft")
+(bind-key "Draft +" #k"+" :mode "Draft")
 
 ;;; Mail Browse.
 
@@ -870,6 +897,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Mail Browse Rename Folder" #k"r" :mode "Mail Browse")
 (bind-key "Expunge Folders" #k"x" :mode "Mail Browse")
 (bind-key "Create Folder" #k"c" :mode "Mail Browse")
+(bind-key "Create Folder" #k"+" :mode "Mail Browse")
 
 ;;; Kill Browse.
 
@@ -904,7 +932,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "List All Groups" #k"l" :mode "News Headers")
 (bind-key "Netnews Append to File" #k"i" :mode "News Headers") ;; FIX i for insert (was 'a')
 (bind-key "Netnews Forward Message" #k"f" :mode "News Headers")
-(bind-key "Netnews Go to Next Group" #k"g" :mode "News Headers") ;; FIX refresh
+(bind-key "Netnews Go To Next Group" #k"g" :mode "News Headers") ;; FIX refresh
 (bind-key "Netnews Next Article" #k"n" :mode "News Headers")
 (bind-key "Netnews Previous Article" #k"p" :mode "News Headers")
 (bind-key "Netnews Quit Starting Here" #k"." :mode "News Headers")
@@ -916,7 +944,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "List All Groups" #k"l" :mode "News Message")
 (bind-key "Netnews Append to File" #k"i" :mode "News Message")  ;; FIX i for insert (was 'a')
 (bind-key "Netnews Forward Message" #k"f" :mode "News Message")
-(bind-key "Netnews Go to Next Group" #k"g" :mode "News Message") ;; FIX refresh
+(bind-key "Netnews Go To Next Group" #k"g" :mode "News Message") ;; FIX refresh
 (bind-key "Netnews Next Article" #k"n" :mode "News Message")
 (bind-key "Netnews Previous Article" #k"p" :mode "News Message")
 (bind-key "Netnews Quit Starting Here" #k"." :mode "News Message")
@@ -953,10 +981,10 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Netnews Message Scroll Down"  #k"space" :mode "News Message")
 (bind-key "Scroll Window Up" #k"delete" :mode "News Message")
 (bind-key "Scroll Window Up" #k"backspace" :mode "News Message")
-(bind-key "Netnews Goto Draft Buffer" #k"hyper-d" :mode "News Message")
-(bind-key "Netnews Goto Headers Buffer" #k"^" :mode "News Message")
-(bind-key "Netnews Goto Headers Buffer" #k"hyper-h" :mode "News Message")
-(bind-key "Netnews Goto Post Buffer" #k"hyper-p" :mode "News Message")
+(bind-key "Netnews Go To Draft Buffer" #k"hyper-d" :mode "News Message")
+(bind-key "Netnews Go To Headers Buffer" #k"^" :mode "News Message")
+(bind-key "Netnews Go To Headers Buffer" #k"hyper-h" :mode "News Message")
+(bind-key "Netnews Go To Post Buffer" #k"hyper-p" :mode "News Message")
 
 ;;; Post.
 ;;;
@@ -1008,6 +1036,8 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Previous VC File"       #k"meta-tab" :mode "VC Comparison")
 (bind-key "Edit VC Comparison"     #k"enter" :mode "VC Comparison")
 (bind-key "Edit VC Comparison"     #k"e" :mode "VC Comparison")
+(bind-key "Edit VC Comparison Next Window" #k"o" :mode "VC Comparison")
+(bind-key "Refresh VC Comparison"  #k"g" :mode "VC Comparison")
 
 
 ;;;; Process (Shell).
@@ -1102,6 +1132,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Remove Field" #k"r" :mode "Record")
 (bind-key "Mail Contact" #k"m" :mode "Record")
 (bind-key "WWW Contact" #k"w" :mode "Record")
+(bind-key "WWW Contact Externally" #k"W" :mode "Record")
 (bind-key "Save DB" #k"s" :mode "Record")
 
 
@@ -1115,7 +1146,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 
 ;;;; Diary.
 
-;(bind-key "Goto Date in Diary" #k"meta-g d" :mode "Diary")
+;(bind-key "Go To Date in Diary" #k"meta-g d" :mode "Diary")
 
 
 ;;;; Bufed.
@@ -1129,9 +1160,9 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Bufed Expunge" #k"!" :mode "Bufed")
 (bind-key "Bufed Expunge" #k"x" :mode "Bufed")
 (bind-key "Bufed Quit" #k"q" :mode "Bufed")
-(bind-key "Bufed Goto" #k"return" :mode "Bufed")
-(bind-key "Bufed Goto and Quit" #k"super-leftdown" :mode "Bufed")
-(bind-key "Bufed Goto in Next Window" #k"o" :mode "Bufed")
+(bind-key "Bufed Go To" #k"return" :mode "Bufed")
+(bind-key "Bufed Go To and Quit" #k"super-leftdown" :mode "Bufed")
+(bind-key "Bufed Go To in Next Window" #k"o" :mode "Bufed")
 (bind-key "Bufed Save File" #k"s" :mode "Bufed")
 (bind-key "Bufed Refresh" #k"g" :mode "Bufed")
 (bind-key "Next Line" #k"n" :mode "Bufed")
@@ -1159,6 +1190,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 
 (bind-key "Packdired" #k"^" :mode "Packed")
 (bind-key "Packdired" #k"d" :mode "Packed")
+(bind-key "Packed Edit Package" #k"e" :mode "Packed")
 (bind-key "Packed Quit" #k"q" :mode "Packed")
 (bind-key "Packed Refresh" #k"g" :mode "Packed")
 (bind-key "Next Line" #k"n" :mode "Packed")
@@ -1182,6 +1214,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Commit Package" #k"c" :mode "PackMan")
 (bind-key "Edit Package" #k"e" :mode "PackMan")
 (bind-key "Test Package" #k"t" :mode "PackMan")
+(bind-key "Add Package" #k"+" :mode "PackMan")
 
 (bind-key "Next Line" #k"n" :mode "PackMan")
 (bind-key "Previous Line" #k"p" :mode "PackMan")
@@ -1259,7 +1292,8 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Dired Compare Files" #k"=" :mode "Dired")
 (bind-key "Dired Shell Command on File" #k"!" :mode "Dired")
 ;(bind-key "Dired Shell Command on File with Pattern" #k"% !" :mode "Dired")
-(bind-key "Dired WWW File" #k"W" :mode "Dired")
+(bind-key "Dired WWW File" #k"w" :mode "Dired")
+(bind-key "Dired WWW File Externally" #k"W" :mode "Dired")
 (bind-key "Dired Change File Mode" #k"M" :mode "Dired")
 
 (bind-key "Dired VC Update Directory" #k"meta-u" :mode "Dired")
@@ -1318,49 +1352,49 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Signal Process" #k"k" :mode "SysProc")
 
 
-;;;; Info Mode.
+;;;; Documentation directory.
 
-(bind-key "Info Directory" #k"d" :mode "Info")
-(bind-key "Read Info Node" #k"i" :mode "Info")
-;(bind-key "Next Info Node" #k"n" :mode "Info")
-;(bind-key "Previous Info Node" #k"p" :mode "Info")
-;(bind-key "Parent Info Node" #k"u" :mode "Info")
-;(bind-key "Parent Info Node" #k"^" :mode "Info")
-(bind-key "Top Info Node" #k"t" :mode "Info")
-(bind-key "Info Node from Point" #k"return" :mode "Info")
-(bind-key "Forward Info Node" #k"f" :mode "Info")
-(bind-key "Backward Info Node" #k"b" :mode "Info") ; FIX Scroll Win Up in View Mode.
-(bind-key "Backward Info Node" #k"l" :mode "Info")
-(bind-key "Next Info Reference" #k"tab" :mode "Info")
-(bind-key "Previous Info Reference" #k"meta-tab" :mode "Info")
-(bind-key "Edit Node Source" #k"e" :mode "Info")
-(bind-key "Refresh Info" #k"g" :mode "Info")
+(bind-key "Doc Directory" #k"d" :mode "Doc")
+(bind-key "Read Doc Node" #k"i" :mode "Doc")
+;(bind-key "Next Doc Node" #k"n" :mode "Doc")
+;(bind-key "Previous Doc Node" #k"p" :mode "Doc")
+;(bind-key "Parent Doc Node" #k"u" :mode "Doc")
+;(bind-key "Parent Doc Node" #k"^" :mode "Doc")
+(bind-key "Top Doc Node" #k"t" :mode "Doc")
+(bind-key "Doc Node from Point" #k"return" :mode "Doc")
+(bind-key "Forward Doc Node" #k"f" :mode "Doc")
+(bind-key "Backward Doc Node" #k"b" :mode "Doc") ; FIX Scroll Win Up in View Mode.
+(bind-key "Backward Doc Node" #k"l" :mode "Doc")
+(bind-key "Next Doc Reference" #k"tab" :mode "Doc")
+(bind-key "Previous Doc Reference" #k"meta-tab" :mode "Doc")
+(bind-key "Edit Node Source" #k"e" :mode "Doc")
+(bind-key "Refresh Doc" #k"g" :mode "Doc")
 
 
 ;;;; GNU Info Mode.
 
-(bind-key "Next Ginfo Node" #k"n" :mode "Ginfo")
-(bind-key "Previous Ginfo Node" #k"p" :mode "Ginfo")
-(bind-key "Parent Ginfo Node" #k"u" :mode "Ginfo")
-(bind-key "Parent Ginfo Node" #k"^" :mode "Ginfo")
-(bind-key "Top Ginfo Node" #k"t" :mode "Ginfo")
-(bind-key "Ginfo Node from Point" #k"return" :mode "Ginfo")
-(bind-key "Ginfo Node from Menu" #k"m" :mode "Ginfo")
-(bind-key "Forward Ginfo Node" #k"f" :mode "Ginfo")
-(bind-key "Backward Ginfo Node" #k"b" :mode "Ginfo")
-(bind-key "Backward Ginfo Node" #k"l" :mode "Ginfo")
-(bind-key "Next Ginfo Reference" #k"tab" :mode "Ginfo")
-(bind-key "Previous Ginfo Reference" #k"meta-tab" :mode "Ginfo")
+(bind-key "Next Info Node" #k"n" :mode "Info")
+(bind-key "Previous Info Node" #k"p" :mode "Info")
+(bind-key "Parent Info Node" #k"u" :mode "Info")
+(bind-key "Parent Info Node" #k"^" :mode "Info")
+(bind-key "Top Info Node" #k"t" :mode "Info")
+(bind-key "Info Node from Point" #k"return" :mode "Info")
+(bind-key "Info Node from Menu" #k"m" :mode "Info")
+(bind-key "Forward Info Node" #k"f" :mode "Info")
+(bind-key "Backward Info Node" #k"b" :mode "Info")
+(bind-key "Backward Info Node" #k"l" :mode "Info")
+(bind-key "Next Info Reference" #k"tab" :mode "Info")
+(bind-key "Previous Info Reference" #k"meta-tab" :mode "Info")
 
 
 ;;;; Calendar and Diary.
 
-(bind-key "Goto Today" #k"." :mode "Calendar")
-(bind-key "Goto Date" #k"meta-g d" :mode "Calendar")
+(bind-key "Go To Today" #k"." :mode "Calendar")
+(bind-key "Go To Date" #k"meta-g d" :mode "Calendar")
 (bind-key "Refresh Calendar" #k"g" :mode "Calendar")
 (bind-key "Calendar Show Year" #k"y" :mode "Calendar")
 (bind-key "Calendar Show 3 Months" #k"3" :mode "Calendar")
-(bind-key "Goto Current Date in Diary" #k"d" :mode "Calendar")
+(bind-key "Go To Current Date in Diary" #k"d" :mode "Calendar")
 (bind-key "Show Diary Entries" #k"D" :mode "Calendar")
 (bind-key "Insert Diary Entry" #k"i d" :mode "Calendar")
 (bind-key "Rotate Buffers Forward" #k"q" :mode "Calendar")
@@ -1373,6 +1407,10 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 
 (bind-key "WWW Resource from Point" #k"return" :mode "WWW")
 (bind-key "WWW Resource from Point in New Buffer" #k"meta-return" :mode "WWW")
+(bind-key "WWW Resource from Point Externally" #k"W" :mode "WWW")
+(bind-key "WWW Resource from Point" #k"w" :mode "WWW")
+(bind-key "Encyclopedia" #k"E" :mode "WWW")
+;(bind-key "WWW in Current Buffer" #k"w" :mode "WWW")
 (bind-key "Forward WWW Page" #k"f" :mode "WWW")
 (bind-key "Backward WWW Page" #k"b" :mode "WWW") ; FIX Scroll Win Up in View Mode.
 (bind-key "Backward WWW Page" #k"l" :mode "WWW")
@@ -1383,7 +1421,6 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "WWW URL at Point" #k"u" :mode "WWW")
 (bind-key "Next Line" #k"n" :mode "WWW")
 (bind-key "Previous Line" #k"p" :mode "WWW")
-(bind-key "WWW in Current Buffer" #k"w" :mode "WWW")
 (bind-key "Copy WWW Buffer" #k"control-x n" :mode "WWW")
 (bind-key "WWW Page Info" #k"=" :mode "WWW")
 (bind-key "WWW Toggle Source" #k"s s" :mode "WWW")
@@ -1399,6 +1436,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Links WWW Externally"    #k"W"         :mode "Links")
 (bind-key "Links Edit"              #k"e"         :mode "Links")
 (bind-key "Links Find"              #k"enter"     :mode "Links")
+(bind-key "Links Find Next Window"  #k"o"         :mode "Links")
 (bind-key "Links Next Link"         #k"tab"       :mode "Links")
 (bind-key "Links Next Link"         #k"n"         :mode "Links")
 (bind-key "Links Previous Link"     #k"meta-tab"  :mode "Links")
@@ -1429,7 +1467,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 
 ;;;; Enriched mode.
 
-(bind-key "Do Nothing" #k"control-x control-s" :mode "Enriched")
+(bind-key "Continue" #k"control-x control-s" :mode "Enriched")
 
 
 ;;;; SGML mode.
@@ -1494,6 +1532,71 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Self Insert Hex" #k"/" :mode "Hex")
 (bind-key "Self Insert Hex" #k"{" :mode "Hex")
 (bind-key "Self Insert Hex" #k"}" :mode "Hex")
+
+
+;;;; Function keys.
+
+(bind-key "Help"     #k"f1")
+(bind-key "Continue" #k"f2")
+(bind-key "Continue" #k"f3")
+(bind-key "Continue" #k"f4")
+(bind-key "Continue" #k"f5")
+(bind-key "Continue" #k"f6")
+(bind-key "Continue" #k"f7")
+(bind-key "Continue" #k"f8")
+(bind-key "Continue" #k"f9")
+(bind-key "Rest"     #k"f10")
+(bind-key "Continue" #k"f11")
+(bind-key "Continue" #k"f12")
+
+
+;;;; Special keys.
+
+;;; Middle right key bank.
+;;;
+(bind-key "Overwrite Mode"        #k"insert")
+; FIX
+;(bind-key "Delete Next Character" #k"rubout")
+(bind-key "Delete Next Character" #k"F33")
+(bind-key "Beginning of Buffer"   #k"home")
+(bind-key "End of Buffer"         #k"end")
+(bind-key "Scroll Window Up"      #k"pageup")
+(bind-key "Scroll Window Down"    #k"pagedown")
+
+;;; Arrows.
+;;;
+(bind-key "Previous Line"      #k"uparrow")
+(bind-key "Next Line"          #k"downarrow")
+(bind-key "Forward Character"  #k"rightarrow")
+(bind-key "Backward Character" #k"leftarrow")
+
+(defcommand "Insert Keypad Operation" ()
+  "Insert character for keypad operation (\"/\", \"+\", etc.)."
+  (let ((char (ext:key-event-char *last-key-event-typed*)))
+    (or char
+	(editor-error "Failed to translate key-event to character."))
+    (insert-character (current-point)
+		      (code-char (- (char-code char) 64)))))
+
+;;; Number pad.
+;;;
+;;; ; numlock
+(bind-key "Continue"                #k"numpad\-enter")
+(bind-key "Insert Keypad Operation" #k"numpad/")
+(bind-key "Insert Keypad Operation" #k"numpad*")
+(bind-key "Insert Keypad Operation" #k"numpad\-")
+(bind-key "Insert Keypad Operation" #k"numpad+")
+(bind-key "Overwrite Mode"          #k"numpad0") ; ins
+(bind-key "End of Buffer"           #k"numpad1") ; end
+(bind-key "Next Line"               #k"numpad2") ; down arrow
+(bind-key "Scroll Window Down"      #k"numpad3") ; page down
+(bind-key "Backward Character"      #k"numpad4") ; left arrow
+(bind-key "Continue"                #k"numpad5")
+(bind-key "Forward Character"       #k"numpad6") ; right arrow
+(bind-key "Beginning of Buffer"     #k"numpad7")
+(bind-key "Previous Line"           #k"numpad8")
+(bind-key "Scroll Window Up"        #k"numpad9")
+(bind-key "Delete Next Character"   #k"numpad.") ; del
 
 
 ;;;; Logical characters.
@@ -1625,13 +1728,24 @@ Define a new logical key-event whenever:
 
    This overrides meta-[, which is normally bound to `Backward Paragraph'."
   ;; FIX Almost Hyper.
-  ;;     Maybe hack something to allow one-shot keys to modify, so then F13
-  ;;     bound in linux/x11 to the OS key could be Hyper and the repeat of
-  ;;     holding down the key would be absorbed by the editor.
-  (setf (key-translation #k"meta-[ 2 5 ~") '(:bits :hyper)))
+  ;;     Maybe hack something to allow one-shot keys to modify.  Then
+  ;;     translate the OS sequences to new keysym #k"os".  Absorb the the
+  ;;     repeat of holding down the one-shot key somehow in the editor.
+  ;;
+  ;;     Maybe an os,menu pair would be good with the mouse (that is, scrap
+  ;;     Hyper and simplify whatever depends on it).
+  ; OS
+  (setf (key-translation #k"meta-[ 2 5 ~") '(:bits :hyper))
+  ;; FIX how to do these?
+  ; control-OS
+  (setf (key-translation #k"meta-[ [ 2 5 ; 5 ~") #k"F31")
+  (bind-key "Continue" #k"F31")
+  ; meta
+  (setf (key-translation #k"meta-[ [ 2 5 ; 9 ~") #k"F32")
+  (bind-key "Continue" #k"F32"))
 
 
-;;; Arrow, page and function keys.
+;;; Translating the sequences sent by function and special keys.
 ;;;
 ;;; These keys send "escape [ <char>*" (i.e. "meta-[ <char>*").
 
@@ -1660,36 +1774,64 @@ Define a new logical key-event whenever:
 
   (delete-key-binding #k"meta-[")
 
+  ;; FIX Are these meta-[.. prefixes in termcaps?
+
   ;;; Function keys.
   ;;;
 
-  ;; Aterm (X11).
-  (bind-key "Continue" #k"meta-[ 1 1 ~")       ; F1
-  (bind-key "Continue" #k"meta-[ 1 2 ~")       ; ...
-  (bind-key "Continue" #k"meta-[ 1 3 ~")
-  (bind-key "Continue" #k"meta-[ 1 4 ~")
-  (bind-key "Continue" #k"meta-[ 1 5 ~")
-  (bind-key "Continue" #k"meta-[ 1 6 ~")       ;; FIX check to F12
-  (bind-key "Continue" #k"meta-[ 1 7 ~")
-  (bind-key "Continue" #k"meta-[ 1 8 ~")
-  (bind-key "Continue" #k"meta-[ 1 9 ~")
-  (bind-key "Continue" #k"meta-[ 2 1 ~")
-  (bind-key "Continue" #k"meta-[ 2 3 ~")
-  (bind-key "Continue" #k"meta-[ 2 4 ~")       ; F12
+  ;; Aterm and Xterm (X11).
+  (setf (key-translation #k"meta-[ 1 1 ~") #k"f1")
+  (setf (key-translation #k"meta-[ 1 2 ~") #k"f2")
+  (setf (key-translation #k"meta-[ 1 3 ~") #k"f3")
+  (setf (key-translation #k"meta-[ 1 4 ~") #k"f4")
+  (setf (key-translation #k"meta-[ 1 5 ~") #k"f5")
+  (setf (key-translation #k"meta-[ 1 6 ~") #k"f6")       ;; FIX check to F12
+  (setf (key-translation #k"meta-[ 1 7 ~") #k"f7")
+  (setf (key-translation #k"meta-[ 1 8 ~") #k"f8")
+  (setf (key-translation #k"meta-[ 1 9 ~") #k"f9")
+  (setf (key-translation #k"meta-[ 2 1 ~") #k"f10")
+  (setf (key-translation #k"meta-[ 2 3 ~") #k"f11")
+  (setf (key-translation #k"meta-[ 2 4 ~") #k"f12")
+
+  (setf (key-translation #k"meta-[ 1 ; 5 P ~") #k"control-f1")
+  (setf (key-translation #k"meta-[ 1 ; 5 Q ~") #k"control-f2")
+  (setf (key-translation #k"meta-[ 1 ; 5 R ~") #k"control-f3")
+  (setf (key-translation #k"meta-[ 1 ; 5 S ~") #k"control-f4")
+  (setf (key-translation #k"meta-[ 1 5 ; 5 ~") #k"control-f5")
+  (setf (key-translation #k"meta-[ 1 7 ; 5 ~") #k"control-f6")
+  (setf (key-translation #k"meta-[ 1 8 ; 5 ~") #k"control-f7")
+  (setf (key-translation #k"meta-[ 1 9 ; 5 ~") #k"control-f8")
+  (setf (key-translation #k"meta-[ 2 0 ; 5 ~") #k"control-f9")
+  (setf (key-translation #k"meta-[ 2 1 ; 5 ~") #k"control-f10")
+  (setf (key-translation #k"meta-[ 2 3 ; 5 ~") #k"control-f11")
+  (setf (key-translation #k"meta-[ 2 4 ; 5 ~") #k"control-f12")
+
+  (setf (key-translation #k"meta-[ 1 ; 9 P ~") #k"meta-f1")
+  (setf (key-translation #k"meta-[ 1 ; 9 Q ~") #k"meta-f2")
+  (setf (key-translation #k"meta-[ 1 ; 9 R ~") #k"meta-f3")
+  (setf (key-translation #k"meta-[ 1 ; 9 S ~") #k"meta-f4")
+  (setf (key-translation #k"meta-[ 1 5 ; 9 ~") #k"meta-f5")
+  (setf (key-translation #k"meta-[ 1 7 ; 9 ~") #k"meta-f6")
+  (setf (key-translation #k"meta-[ 1 8 ; 9 ~") #k"meta-f7")
+  (setf (key-translation #k"meta-[ 1 9 ; 9 ~") #k"meta-f8")
+  (setf (key-translation #k"meta-[ 2 0 ; 9 ~") #k"meta-f9")
+  (setf (key-translation #k"meta-[ 2 1 ; 9 ~") #k"meta-f10")
+  (setf (key-translation #k"meta-[ 2 3 ; 9 ~") #k"meta-f11")
+  (setf (key-translation #k"meta-[ 2 4 ; 9 ~") #k"meta-f12")
 
   ;; Linux term.
-  (bind-key "Continue" #k"meta-[ [ [ A ~")     ; F1
-  (bind-key "Continue" #k"meta-[ [ [ B ~")     ; ...
-  (bind-key "Continue" #k"meta-[ [ [ C ~")
-  (bind-key "Continue" #k"meta-[ [ [ D ~")
-  (bind-key "Continue" #k"meta-[ [ [ E ~")
-  (bind-key "Continue" #k"meta-[ [ 1 7 ~")
-  (bind-key "Continue" #k"meta-[ [ 1 8 ~")
-  (bind-key "Continue" #k"meta-[ [ 1 9 ~")
-  (bind-key "Continue" #k"meta-[ 2 0 ~")
-  (bind-key "Continue" #k"meta-[ 2 1 ~")
-  (bind-key "Continue" #k"meta-[ 2 3 ~")
-  (bind-key "Continue" #k"meta-[ 2 4 ~")       ; F12
+  (setf (key-translation #k"meta-[ [ [ A ~") #k"f1")
+  (setf (key-translation #k"meta-[ [ [ B ~") #k"f2")
+  (setf (key-translation #k"meta-[ [ [ C ~") #k"f3")
+  (setf (key-translation #k"meta-[ [ [ D ~") #k"f4")
+  (setf (key-translation #k"meta-[ [ [ E ~") #k"f5")
+  (setf (key-translation #k"meta-[ [ 1 7 ~") #k"f6")
+  (setf (key-translation #k"meta-[ [ 1 8 ~") #k"f7")
+  (setf (key-translation #k"meta-[ [ 1 9 ~") #k"f8")
+  (setf (key-translation #k"meta-[ [ 2 0 ~") #k"f9")
+  (setf (key-translation #k"meta-[ [ 2 1 ~") #k"f10")
+  (setf (key-translation #k"meta-[ [ 2 3 ~") #k"f11")
+  (setf (key-translation #k"meta-[ [ 2 4 ~") #k"f12")
 
   ;;; Function keys for the Sun (and other keyboards) -- L1-L10 and R1-R15.
   ;;;
@@ -1704,47 +1846,69 @@ Define a new logical key-event whenever:
 
   ;;; Middle right key bank.
   ;;;
-  (bind-key "Overwrite Mode"        #k"meta-[ 2 ~") ; insert
-  (bind-key "Delete Next Character" #k"meta-[ 3 ~") ; rubout
-  (bind-key "Beginning of Buffer"   #k"meta-[ 7 ~") ; home     Aterm (x11)
-  (bind-key "Beginning of Buffer"   #k"meta-[ 1 ~") ; home     Linux term
-  (bind-key "End of Buffer"         #k"meta-[ 8 ~") ; end      Aterm (x11)
-  (bind-key "End of Buffer"         #k"meta-[ 4 ~") ; end      Linux term
-  (bind-key "Scroll Window Up"      #k"meta-[ 5 ~") ; page up
-  (bind-key "Scroll Window Down"    #k"meta-[ 6 ~") ; page down
+  (setf (key-translation #k"meta-[ 2 ~") #k"insert")
+  ; FIX
+  ;(setf (key-translation #k"meta-[ 3 ~") #k"rubout")
+  (setf (key-translation #k"meta-[ 3 ~") #k"F33")
+  (setf (key-translation #k"meta-[ 7 ~") #k"home")   ; Aterm (x11)
+  (setf (key-translation #k"meta-[ H")   #k"home")   ; Xterm (x11)
+  (setf (key-translation #k"meta-[ 1 ~") #k"home")   ; Linux term
+  (setf (key-translation #k"meta-[ 8 ~") #k"end")    ; Aterm (x11)
+  (setf (key-translation #k"meta-[ F")   #k"end")    ; Xterm (x11)
+  (setf (key-translation #k"meta-[ 4 ~") #k"end")    ; Linux term
+  (setf (key-translation #k"meta-[ 5 ~") #k"pageup")
+  (setf (key-translation #k"meta-[ 6 ~") #k"pagedown")
+
+  (setf (key-translation #k"meta-[ 2 ; 5 ~") #k"control-insert")
+  (setf (key-translation #k"meta-[ 3 ; 5 ~") #k"control-F33")
+  (setf (key-translation #k"meta-[ 1 ; 5 ~") #k"control-home")
+  (setf (key-translation #k"meta-[ 4 ; 5 ~") #k"control-end")
+  (setf (key-translation #k"meta-[ 5 ; 5 ~") #k"control-pageup")
+  (setf (key-translation #k"meta-[ 6 ; 5 ~") #k"control-pagedown")
+
+  (setf (key-translation #k"meta-[ 2 ; 9 ~") #k"meta-insert")
+  (setf (key-translation #k"meta-[ 3 ; 9 ~") #k"meta-F33")
+  (setf (key-translation #k"meta-[ 1 ; 9 ~") #k"meta-home")
+  (setf (key-translation #k"meta-[ 4 ; 9 ~") #k"meta-end")
+  (setf (key-translation #k"meta-[ 5 ; 9 ~") #k"meta-pageup")
+  (setf (key-translation #k"meta-[ 6 ; 9 ~") #k"meta-pagedown")
 
   ;;; Arrows.
   ;;;
-  (bind-key "Previous Line"      #k"meta-[ A") ; up arrow
-  (bind-key "Next Line"          #k"meta-[ B") ; down arrow
-  (bind-key "Forward Character"  #k"meta-[ C") ; right arrow
-  (bind-key "Backward Character" #k"meta-[ D") ; left arrow
+  (setf (key-translation #k"meta-[ A") #k"uparrow")
+  (setf (key-translation #k"meta-[ B") #k"downarrow")
+  (setf (key-translation #k"meta-[ C") #k"rightarrow")
+  (setf (key-translation #k"meta-[ D") #k"leftarrow")
 
-  (defcommand "Insert Keypad Operation" ()
-    "Insert character for keypad operation (\"/\", \"+\", etc.)."
-    (let ((char (ext:key-event-char *last-key-event-typed*)))
-      (or char (editor-error "Failed to translate key-event to character."))
-      (insert-character (current-point) (code-char (- (char-code char) 64)))))
+  (setf (key-translation #k"meta-[ 1 ; 5 A") #k"control-uparrow")
+  (setf (key-translation #k"meta-[ 1 ; 5 B") #k"control-downarrow")
+  (setf (key-translation #k"meta-[ 1 ; 5 C") #k"control-rightarrow")
+  (setf (key-translation #k"meta-[ 1 ; 5 D") #k"control-leftarrow")
+
+  (setf (key-translation #k"meta-[ 1 ; 9 A") #k"meta-uparrow")
+  (setf (key-translation #k"meta-[ 1 ; 9 B") #k"meta-downarrow")
+  (setf (key-translation #k"meta-[ 1 ; 9 C") #k"meta-rightarrow")
+  (setf (key-translation #k"meta-[ 1 ; 9 D") #k"meta-leftarrow")
 
   ;;; Number pad.
   ;;;
   ;;; ; numlock
-  (bind-key "Continue"                #k"meta-O M") ; enter
-  (bind-key "Insert Keypad Operation" #k"meta-O o") ; /
-  (bind-key "Insert Keypad Operation" #k"meta-O j") ; *
-  (bind-key "Insert Keypad Operation" #k"meta-O m") ; -
-  (bind-key "Insert Keypad Operation" #k"meta-O k") ; +
-  (bind-key "Overwrite Mode"          #k"meta-O p") ; 0  ins
-  (bind-key "End of Buffer"           #k"meta-O q") ; 1  end
-  (bind-key "Next Line"               #k"meta-O r") ; 2  down arrow
-  (bind-key "Scroll Window Down"      #k"meta-O s") ; 3  page down
-  (bind-key "Backward Character"      #k"meta-O t") ; 4  left arrow
-  (bind-key "Continue"                #k"meta-O u") ; 5
-  (bind-key "Forward Character"       #k"meta-O v") ; 6  right arrow
-  (bind-key "Beginning of Buffer"     #k"meta-O w") ; 7
-  (bind-key "Previous Line"           #k"meta-O x") ; 8
-  (bind-key "Scroll Window Up"        #k"meta-O y") ; 9
-  (bind-key "Delete Next Character "  #k"meta-O n")) ; .  del
+  (setf (key-translation #k"meta-O M") #k"numpad\-enter")
+  (setf (key-translation #k"meta-O o") #k"numpad/")
+  (setf (key-translation #k"meta-O j") #k"numpad*")
+  (setf (key-translation #k"meta-O m") #k"numpad\-")
+  (setf (key-translation #k"meta-O k") #k"numpad+")
+  (setf (key-translation #k"meta-O p") #k"numpad0") ; ins
+  (setf (key-translation #k"meta-O q") #k"numpad1") ; end
+  (setf (key-translation #k"meta-O r") #k"numpad2") ; down arrow
+  (setf (key-translation #k"meta-O s") #k"numpad3") ; page down
+  (setf (key-translation #k"meta-O t") #k"numpad4") ; left arrow
+  (setf (key-translation #k"meta-O u") #k"numpad5")
+  (setf (key-translation #k"meta-O v") #k"numpad6") ; right arrow
+  (setf (key-translation #k"meta-O w") #k"numpad7")
+  (setf (key-translation #k"meta-O x") #k"numpad8")
+  (setf (key-translation #k"meta-O y") #k"numpad9")
+  (setf (key-translation #k"meta-O n") #k"numpad.")) ;  del
 
 
 ;; Initialization of these keys depends on the whether the editor is

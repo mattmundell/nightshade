@@ -770,7 +770,7 @@ intermediate representations.  Uses KERNEL.
 	 (let ((new (stringify-names (cdr option) "package")))
 	   (setf use (delete-duplicates (nconc use new) :test #'string=))
 	   (setf use-p t)))
-	(:requires
+	(:require
 	 (let ((new (stringify-names (cdr option) "package")))
 	   (setf requires (delete-duplicates (nconc requires new) :test #'string=))))
 	(:import-from

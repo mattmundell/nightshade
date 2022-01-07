@@ -1,0 +1,8 @@
+?package(nightshade):needs="text" section="Apps/Programming"\
+  title="Nightshade" command="/usr/bin/nit"
+?package(nightshade):needs="X11" section="Apps/Programming"\
+  title="Nightshade X" command="/usr/bin/ni"
+?package(nightshade):needs="text" section="Apps/Programming"\
+  title="Nightshade Editor" command="/usr/bin/net"
+?package(nightshade):needs="X11" section="Apps/Programming"\
+  title="Nightshade Editor X" command="/usr/bin/ne"

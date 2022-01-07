@@ -112,6 +112,16 @@ character positions.
 ;;; is used to find charaters with funny representation much as in
 ;;; Compute-Line-Image.
 ;;;
+;;; TODO If the character immediately before start translates to multiple
+;;; characters and has wrapped midway through the characters, and there is
+;;; a tab within tab-width characters of start, then the length will be too
+;;; long (by however many characters wrapped).  This was causing an error
+;;; in hunk-put-string and others (hunk-draw.lisp), which now watch for it.
+;;; To rectify, the preceding characters need to be checked (keeping the
+;;; line width in mind).  In the worst case (in every case?) every
+;;; character in the line would be checked, which is bad if the line is
+;;; very long.  Tabs are a pain in the ass?
+;;;
 (defun real-line-length (line width start end)
   (declare (fixnum width start end))
   (do ((xpos 0)
@@ -133,17 +143,19 @@ character positions.
       (declare (fixnum last))
       (setq str (get-rep (schar chars start)))
       (incf start)
-      (unless (simple-string-p str) (setq str (funcall str xpos)))
+      (or (simple-string-p str) (setq str (funcall str xpos line)))
       (multiple-value-setq (dy xpos) (truncate (+ xpos (strlen str)) width))
       (setq ypos (+ ypos dy)))))
 
 ;;; cached-real-line-length
 ;;;
-;;; The same as Real-Line-Length, except does it for the cached line.  the
+;;; The same as Real-Line-Length, except does it for the cached line.  The
 ;;; line argument is ignored, but present to make the arglists the same.
 ;;;
+;;; TODO Same issue as cached-real-line-length.
+;;;
 (defun cached-real-line-length (line width start end)
-  (declare (fixnum width start end) (ignore line))
+  (declare (fixnum width start end))
   (let ((offset (- right-open-pos left-open-pos))
 	(bound 0))
     (declare (fixnum offset bound))
@@ -163,7 +175,7 @@ character positions.
       (declare (fixnum xpos ypos dy)
 	       (type (or fixnum null) losing))
       (when (= start bound)
-	(when (= start end) (return (values xpos ypos)))
+	(if (= start end) (return (values xpos ypos)))
 	(setq start right-open-pos  bound end))
       (setq losing (%fcwa open-chars start bound losing-char))
       (cond
@@ -176,7 +188,7 @@ character positions.
 	  (declare (fixnum last))
 	  (setq str (get-rep (schar open-chars start)))
 	  (incf start)
-	  (unless (simple-string-p str) (setq str (funcall str xpos)))
+	  (or (simple-string-p str) (setq str (funcall str xpos line)))
 	  (multiple-value-setq (dy xpos)
 	    (truncate (+ xpos (strlen str)) width))
 	  (setq ypos (+ ypos dy))))

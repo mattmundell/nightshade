@@ -79,7 +79,7 @@ write dates, and so forth, all of the Lisp file functions are available.
 ;;; FIX this could easily be more easily extensible
 
 (defun convert-for-buffer (file buffer)
-  "Convert $file according to it's type, returning the resulting file.  The
+  "Convert $file according to its type, returning the resulting file.  The
    returned file is to be read into $buffer.  Set *Ed Converted Info* to
    '(type pathname) where type is a string and pathname is the returned
    file name."
@@ -239,26 +239,30 @@ write dates, and so forth, all of the Lisp file functions are available.
 		(insert-string mark chars))
 	      (when index
 		(insert-character mark #\newline)
-		(do* ((old-index (1+ index) (1+ index))
-		      (index (find-char-from-sap sap old-index size #\newline)
-			     (find-char-from-sap sap old-index size #\newline))
-		      (number (+ (line-number first-line) line-increment)
-			      (+ number line-increment))
-		      (previous first-line))
-		     ((not index)
-		      (let* ((length (- size old-index))
-			     (chars (make-string length))
-			     (line (mark-line mark)))
-			(declare (fixnum length))
-			(%primitive byte-blt sap old-index chars 0 length)
-			(insert-string mark chars)
-			(setf (line-next previous) line)
-			(setf (line-previous line) previous)
-			(do ((line line (line-next line))
-			     (number number (+ number line-increment)))
-			    ((null line))
-			  (declare (fixnum number))
-			  (setf (line-number line) number))))
+		(while* ((old-index (1+ index) (1+ index))
+			 (index (find-char-from-sap sap old-index size #\newline)
+				(find-char-from-sap sap old-index size #\newline))
+			 (number (+ (line-number first-line) line-increment)
+				 (+ number line-increment))
+			 (previous first-line))
+			(index
+			 (let* ((length (- size old-index))
+				(chars (make-string length))
+				(line (mark-line mark)))
+			   (declare (fixnum length))
+			   ;; FIX Guard due to type error in byte-blt with
+			   ;; large file when length 0.  Should byte-blt
+			   ;; handle 0 length?
+			   (if (plusp length)
+			       (%primitive byte-blt sap old-index chars 0 length))
+			   (insert-string mark chars)
+			   (setf (line-next previous) line)
+			   (setf (line-previous line) previous)
+			   (do ((line line (line-next line))
+				(number number (+ number line-increment)))
+			       ((null line))
+			     (declare (fixnum number))
+			     (setf (line-number line) number))))
 		  (declare (fixnum number old-index))
 		  (let ((line (make-line
 			       :previous previous

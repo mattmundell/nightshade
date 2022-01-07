@@ -123,10 +123,13 @@
 			 (progn
 			   (if (value rest-beep) (beep))
 			   (until ()
-				  ((prompt-for-y-or-n
-				    :prompt (value rest-subreminder-prompt)
-				    :default-string "Y"
-				    :default t)))))
+				  ((catch-cancel
+				    (prompt-for-y-or-n
+				     :prompt
+				     (value rest-subreminder-prompt)
+				     :default-string "Y"
+				     :default t
+				     :help "Rest, then type Y."))))))
 		   (add-subrest-reminder secs))))
 	     () ; repeat
 	     ()))))) ; absolute
@@ -176,8 +179,11 @@
    (let ((on (prog1 (or *rest-timer* *rest-micro-timer*)
 	       (cancel-rest-reminder-command))))
      (unwind-protect
-	 (until () ((prompt-for-y-or-n
-		     :prompt (value rest-initial-prompt)
-		     :default t
-		     :default-string "Y")))
+	 (until () ((catch-cancel
+		     (prompt-for-y-or-n
+		      :prompt (value rest-initial-prompt)
+		      :default t
+		      :default-string "Y"))))
        (if on (reset-rest-reminder-command))))))
+
+(add-hook resume-hook 'reset-rest-reminder-command)

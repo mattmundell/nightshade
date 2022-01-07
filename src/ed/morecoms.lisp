@@ -2,7 +2,7 @@
 
 (in-package "ED")
 
-(export '(check-region-query-size display-page-directory goto-page
+(export '(check-region-query-size display-page-directory go-to-page
 	  page-directory page-offset supply-generic-pointer-up-function))
 
 (defevar "Region Query Size"
@@ -582,14 +582,14 @@ reflects the number of pending recursive edits.
     (delete-mark delete2)
     (delete-mark delete3)))
 
-(defcommand "Goto Absolute Line" (p)
-  "Goes to the indicated line, as if counted from the beginning of the
-   buffer with the number one.  If a prefix argument is supplied, that is
-   the line number; otherwise, the user is prompted."
+(defcommand "Go To Absolute Line" (p)
+  "Go to a prompted line, as if counted from the beginning of the buffer
+   with the number one.  If a prefix argument is supplied use that as the
+   line number instead of prompted."
   "Go to a user perceived line number."
   (let ((p (or p (prompt-for-expression
 		  :prompt "Line number: "
-		  :help "Enter an absolute line number to goto."))))
+		  :help "Enter an absolute line number to go to."))))
     (or (and (integerp p) (plusp p))
 	(editor-error "Must supply a positive integer."))
     (let ((point (current-point)))
@@ -598,14 +598,14 @@ reflects the number of pending recursive edits.
 	    (editor-error "Too few lines in buffer."))
 	(move-mark point m)))))
 
-(defcommand "Goto Absolute Character" (p)
-  "Goes to the prompted character, as counted from the beginning of the
-   buffer starting with the number one.  With a prefix argument goes
+(defcommand "Go to Absolute Character" (p)
+  "Go to the prompted character, as counted from the beginning of the
+   buffer starting with the number one.  With a prefix argument go to
    character number P."
   "Go to a user perceived character number."
   (let ((p (or p (prompt-for-expression
 		  :prompt "Character number: "
-		  :help "Enter an absolute character number to goto."))))
+		  :help "Enter an absolute character number to go to."))))
     (or (and (integerp p) (plusp p))
 	(editor-error "Must supply a positive integer."))
     (let ((point (current-point)))
@@ -715,8 +715,13 @@ various modes with one command bound to the corresponding up-click.
 (defevar "Point to Here Return Skip"
   "A list of command names that `Point to Here' skips if they are bound to
    Return."
-  :value '("New Line"))
+  :value '("New Line" "Auto Fill Return"))
 
+;; old
+;;    When the mouse is in any other modeline, move the point of the window's
+;;    buffer to the position that is the same percentage, start to end, as the
+;;    horizontal position of the mouse within the modeline.  Also make the
+;;    window current if necessary.
 (defcommand "Point to Here" ()
   "Move the point to the position of the mouse, moving to a new window if
    necessary.
@@ -725,14 +730,11 @@ various modes with one command bound to the corresponding up-click.
    function call that property.  This is useful for the likes of clickable
    menus.
 
-   When the mouse is in the first four characters of the echo window
-   modeline, invoke `Menu'.  When the mouse is anywhere else in the echo
-   window invoke `Extended Command'.
+   When the mouse is on a modeline field and the field has a primary-click
+   function then invoke that function.
 
-   When the mouse is in any other modeline, move the point of the window's
-   buffer to the position that is the same percentage, start to end, as the
-   horizontal position of the mouse within the modeline.  Also make the
-   window current if necessary.
+   When the mouse is anywhere above the modeline in the Echo Area window,
+   invoke `Extended Command'.
 
    Supply a function that `Generic Pointer Up' invokes if it runs before
    any intervening generic pointer up predecessors.  If the mouse has moved
@@ -745,9 +747,16 @@ various modes with one command bound to the corresponding up-click.
     (if (eq window *echo-area-window*)
 	(progn
 	  (or (eq window (current-window))
-	      (if (or y (> x 4))
+	      (if y
 		  (extended-command-command)
-		  (menu-command)))
+		  ;; In the status line.
+		  (let ((field (modeline-field-at (window-buffer window)
+						  window
+						  x)))
+		    (if (and field
+			     (modeline-field-primary-click field))
+			(funcall (modeline-field-primary-click field)
+				 (window-buffer window) window)))))
 	  (supply-generic-pointer-up-function
 	   #'continue-command))
 	(progn
@@ -769,24 +778,37 @@ various modes with one command bound to the corresponding up-click.
 		      (let ((bind (get-command #k"return" :current)))
 			(supply-generic-pointer-up-function
 			 (if (commandp bind)
-			     (if (member (command-name bind)
-					 (value point-to-here-return-skip)
-					 :test #'string=)
+			     (if (member
+				  (command-name bind)
+				  (value point-to-here-return-skip)
+				  :test #'string=)
 				 #'point-to-here-up-action
 				 (progn
 				   (funcall (command-function bind))
 				   #'continue-command))
 			     #'point-to-here-up-action))))))
 	      ;; In the modeline.
+	      (let ((field (modeline-field-at (window-buffer window)
+					      window
+					      x)))
+		(if (and field
+			 (modeline-field-primary-click field))
+		    (funcall (modeline-field-primary-click field)
+			     (window-buffer window) window))
+		(supply-generic-pointer-up-function
+		 #'continue-command))
+	      #| Old, move buffer point to match mouse pos in modeline.
 	      (let* ((buffer (window-buffer window))
 		     (region (buffer-region buffer))
 		     (point (buffer-point buffer)))
 		(push-buffer-mark (copy-mark point))
 		(move-mark point (region-start region))
-		(line-offset point (round (* (1- (count-lines region)) x)
+		(line-offset point (round (* (1- (count-lines region))
+					     x)
 					  (1- (window-width window))))
 		(supply-generic-pointer-up-function
-		 #'continue-command)))))))
+		 #'continue-command))
+	      |#)))))
 
 (defun point-to-here-up-action ()
   (multiple-value-bind (x y window)
@@ -826,16 +848,16 @@ of the page titles.  Pages are separated by `Page Delimiter' characters (as
 in [System Defined Character Attributes]) that appear at the beginning of a
 line.
 
-{function:ed:goto-page}
+{function:ed:go-to-page}
 {function:ed:page-offset}
 {function:ed:page-directory}
 {function:ed:display-page-directory}
 ]#
 
-(defvar *goto-page-last-num* 0)
-(defvar *goto-page-last-string* "")
+(defvar *go-to-page-last-num* 0)
+(defvar *go-to-page-last-string* "")
 
-(defun goto-page (mark i)
+(defun go-to-page (mark i)
   "Move $mark to the absolute page numbered $i, returning $mark.
 
    If there are less than $i pages, signal an editor-error.
@@ -1166,6 +1188,64 @@ characters as uppercase letters.
   :documentation "Comma Separated Values mode."
   :setup-function #'setup-csv-mode)
 
+#|
+(defun rr ()
+  (let ((buffer (current-buffer)))
+    (with-writable-buffer (buffer)
+      (delete-region (buffer-region buffer))
+      (insert-string (buffer-point buffer)
+		     (format-time ()))
+      (setf (buffer-modified buffer) ()))))
+
+(schedule-event 1
+		(eval `(lambda (time)
+			 (declare (ignore time))
+			 (let ((buffer ,(current-buffer)))
+			   (with-writable-buffer (buffer)
+			     (delete-region (buffer-region buffer))
+			     (insert-string (buffer-point buffer)
+					    (format-time ()))
+			     (setf (buffer-modified buffer) ()))))))
+
+|#
+
+;;; A Clock buffer.
+;;;
+
+(defmode "Clock" :major-p t
+  :documentation "Clock mode.")
+
+(defvar *clock-buffer* ())
+
+(defun cleanup-clock-buffer (buffer)
+  (if (editor-bound-p 'clock-event :buffer buffer)
+      (let ((event (variable-value 'clock-event :buffer buffer)))
+	(if event (remove-scheduled-event event))))
+  (setq *clock-buffer* ()))
+
+(defcommand "Clock" ()
+  "Create a buffer that shows the date and time, including seconds."
+  (if *clock-buffer*
+      (change-to-buffer *clock-buffer*)
+      (let* ((buffer (make-unique-buffer "Clock"
+					 :delete-hook '(cleanup-clock-buffer)
+					 :modes '("Clock")))
+	     (function (eval `(lambda (time)
+				(declare (ignore time))
+				(let ((buffer ,buffer))
+				  (with-writable-buffer (buffer)
+				    (delete-region (buffer-region buffer))
+				    (insert-string (buffer-point buffer)
+						   (format-time ()))))))))
+	(with-writable-buffer (buffer)
+	  (insert-string (buffer-point buffer) (format-time ())))
+	(setq *clock-buffer* buffer)
+	(defevar "Clock Event"
+	  "Event that refreshes a clock buffer."
+	  :buffer buffer
+	  :value (schedule-event 1 function))
+	(change-to-buffer buffer))))
+
 
 ;;;; File type handling.
 
@@ -1346,11 +1426,11 @@ characters as uppercase letters.
 	   *mode-highlighters*))
 
 (defmode "Colorlist" :major-p t
-  :documentation "Mode for listing colors."
+  :documentation "Mode for listing X colors."
   :setup-function #'setup-colorlist-mode)
 
 (defcommand "List X Colors" ()
-  "Pop-up an list of examples of each color."
+  "Pop-up an list of examples of each available color."
   (let* ((buf-name "X Color List")
 	 (new-buffer (make-buffer buf-name
 				  :modes '("Colorlist" "View")))
@@ -1385,3 +1465,37 @@ characters as uppercase letters.
 
 (defun highlight-visible-colorlist-buffer (buffer)
   (highlight-visible-chi-buffer buffer highlight-colorlist-line))
+
+(defun highlight-colors-line (line chi-info)
+  (let ((color (getf (line-plist line) 'colors-line-color)))
+    (if color
+	(chi-mark line 0 *original-font* color chi-info))))
+
+(defun highlight-colors-buffer (buffer)
+  (highlight-chi-buffer buffer highlight-colors-line))
+
+(defun highlight-visible-colors-buffer (buffer)
+  (highlight-visible-chi-buffer buffer highlight-colors-line))
+
+(defun setup-colors-mode (buffer)
+  (highlight-visible-colors-buffer buffer)
+  (pushnew '("Colors" t highlight-visible-colors-buffer)
+	   *mode-highlighters*))
+
+(defmode "Colors" :major-p t
+  :documentation "Mode for listing colors."
+  :setup-function #'setup-colors-mode)
+
+(defcommand "Colors" ()
+  "Pop-up an list of examples of each defined color."
+  (multiple-value-bind (buffer new)
+		       (make-major-buffer "Colors"
+					  :modes '("Colors" "View"))
+    (change-to-buffer buffer)
+    (when new
+      (let ((point (current-point)))
+	(with-writable-buffer (buffer)
+	  (do-colors (color keyword doc)
+	    (setf (getf (line-plist (mark-line point)) 'colors-line-color)
+		  color)
+	    (insert-format point "~16A ~A~%" keyword doc)))))))

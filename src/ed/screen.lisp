@@ -3,7 +3,9 @@
 (in-package "EDI")
 
 (export '(make-window delete-window next-window previous-window
-	  set-window-foreground-color set-window-background-color))
+	  set-window-foreground-color set-window-background-color
+	  set-window-height
+	  compact-window))
 
 #[ Display Conventions
 
@@ -87,11 +89,15 @@ indicate status information, typically related to the buffer displayed.
 {function:ed:window-point}
 {function:ed:center-window}
 {function:ed:scroll-window}
+{function:ed:compact-window}
 {function:ed:displayed-p}
 {function:ed:window-height}
 {function:ed:window-width}
 {function:ed:next-window}
 {function:ed:previous-window}
+{function:ed:set-window-height}
+{function:ed:set-window-foreground-color}
+{function:ed:set-window-background-color}
 ]#
 
 (defun make-window (start &key (modelinep t) (device nil) window
@@ -124,8 +130,8 @@ indicate status information, typically related to the buffer displayed.
    $width and $height are characters units.
 
    $proportion determines what proportion of the current window's height
-   the new window will use.  The current window retains whatever space left
-   after accommodating the new one.
+   the new window will use.  The current window retains whatever space is
+   left after accommodating the new one.
 
    Invoke *Make Window Hook* with the new window."
   (if (eq (current-window) *echo-area-window*)
@@ -184,6 +190,12 @@ indicate status information, typically related to the buffer displayed.
   (funcall (device-previous-window (device-hunk-device (window-hunk window)))
 	   window))
 
+(defun set-window-height (window height)
+  "Set the height of $window to $height."
+  (funcall (device-set-window-height (device-hunk-device (window-hunk window)))
+	   window
+	   height))
+
 (defun set-window-foreground-color (window color)
   "Set the foreground color of $window to $color."
   (funcall (device-set-foreground-color (device-hunk-device (window-hunk window)))
@@ -195,6 +207,16 @@ indicate status information, typically related to the buffer displayed.
   (funcall (device-set-background-color (device-hunk-device (window-hunk window)))
 	   window
 	   color))
+
+(defun compact-window (window)
+  "Make $window as small as possible while still displaying the same buffer
+   text."
+  (let ((dis-line (car (window-last-line window))))
+    (when dis-line
+      (let ((pos (dis-line-position dis-line)))
+	(and pos
+	     (< pos (window-height window))
+	     (set-window-height window (1+ pos)))))))
 
 
 ;;;; Random typeout support.
@@ -257,8 +279,8 @@ indicate status information, typically related to the buffer displayed.
     (random-typeout-redisplay window)
     (setf (buffer-windows buffer) (delete window (buffer-windows buffer)))
     (funcall (device-random-typeout-cleanup device) stream degree)
-    (when (device-force-output device)
-      (funcall (device-force-output device)))))
+    (if (device-force-output device)
+	(funcall (device-force-output device)))))
 
 ;;; *more-prompt-action* is bound in random typeout streams before
 ;;; redisplaying.

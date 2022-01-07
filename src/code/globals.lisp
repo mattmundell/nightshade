@@ -53,6 +53,7 @@
 		ed::ts-stream-p ed::ts-stream-wire
 		edi::window-hunk))
 
+;; FIX
 ;;; Gray streams functions not defined until after PCL is loaded.
 (declaim (ftype (function * *)
 		stream-advance-to-column stream-clear-input

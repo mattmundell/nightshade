@@ -305,6 +305,8 @@ print syntax
        (result y (cons (car top) result)))
       ((endp top) result)))
 
+;; FIX CONC?
+
 ;;; NCONC finds the first non-null list, so it can make splice point to a cons.
 ;;; After finding the first cons element, it holds it in a result variable
 ;;; while running down successive elements tacking them together.  While
@@ -317,7 +319,7 @@ print syntax
 ;;; argument to be circular.
 ;;;
 (defun nconc (&rest lists)
-  "Concatenates the lists given as arguments (by changing them)"
+  "Concatenates the lists given as arguments, by changing the lists."
   (do ((top lists (cdr top)))
       ((null top) nil)
     (let ((top-of-top (car top)))

@@ -415,8 +415,13 @@ FIX
 
 ;;;; FORMATTER
 
-;; FIX doc
 (defmacro formatter (control-string)
+  ;; FIX when to use? struct printers?
+  "Return function that `format's arguments according to $control-string.
+
+   That is, the function will format the arguments as follows
+
+       (format arg1 $control-string other-args)."
   `#',(%formatter control-string))
 
 (defun %formatter (control-string)

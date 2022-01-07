@@ -6,6 +6,7 @@
 	  font-mark #| FIX font-mark-font |#
 	  font-mark-fore-color font-mark-back-color
 	  delete-font-mark delete-line-font-marks move-font-mark
+	  do-colors
 	  window-font))
 ;;; Default-font used to be in the above list, but that caused a name
 ;;; conflict because "Default Font" is an editor variable.  It is now
@@ -39,6 +40,7 @@
 ;;; The structure in *color-map* and each color mark.
 ;;;
 (defstruct (color (:constructor %make-color))
+  ed-color
   device-colors)
 
 (defun make-color (ed-color)
@@ -49,8 +51,10 @@
 		       (funcall (device-make-color device)
 				device ed-color))))
       (setf (color-device-colors color) (devices)))
+    (setf (color-ed-color color) ed-color)
     color))
 
+(declaim (inline device-color))
 (defun device-color (device color)
   (cdr (assoc device (color-device-colors color))))
 
@@ -68,6 +72,7 @@
 
 (defun color (color)
   (etypecase color
+    (color color)
     (string (error "FIX implement color names"))
     (list
      (if color (make-color color)))
@@ -96,6 +101,16 @@
       (setf (color-mapping-keyword mapping) keyword)
       (setf (color-mapping-color mapping) (make-color color))
       (setf (color-mapping-doc mapping) doc))))
+
+(defmacro do-colors ((color keyword doc) &body body)
+  (let ((ele (gensym)) (index (gensym)))
+    `(while ((,index 0 (1+ ,index)))
+	    ((< ,index *color-map-size*))
+       (let* ((,ele (aref *color-map* ,index))
+	      (,color (color-mapping-color ,ele))
+	      (,keyword (color-mapping-keyword ,ele))
+	      (,doc (color-mapping-doc ,ele)))
+	 ,@body))))
 
 ;; FIX if a device is made after any ed color structure, then every ed
 ;; color structure must be updated
@@ -185,8 +200,8 @@
   (svref (font-family-map (bitmap-hunk-font-family (window-hunk window))) font))
 
 (defun %set-window-font (window font font-object)
-  (unless (and (>= font 0) (< font font-map-size))
-    (error "Font number ~S out of range." font))
+  (or (and (>= font 0) (< font font-map-size))
+      (error "Font number ~S out of range." font))
   (setf (bitmap-hunk-trashed (window-hunk window)) :font-change)
   (let ((family (bitmap-hunk-font-family (window-hunk window))))
     (when (eq family *default-font-family*)

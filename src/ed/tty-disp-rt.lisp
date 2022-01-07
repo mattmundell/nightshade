@@ -12,7 +12,7 @@
 	(system:add-fd-handler 0 :input #'get-editor-tty-input))
   (standard-device-init)
 
-
+#|
   (device-write-string (format () "def~%"))
   (when (device-force-output device)
     (funcall (device-force-output device)))
@@ -32,6 +32,7 @@
   (device-write-string (format () "abc~%~C~%" (code-char #xfc)))
   (when (device-force-output device)
     (funcall (device-force-output device)))
+|#
 
   ;(unix:unix-exit)
 

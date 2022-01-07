@@ -4,7 +4,7 @@ public domain computation, communication and information -*- outline -*-
     based on ease of copying
 	allow reuse of the work in any way
 	    leaving any moral and ethical choice,judgement to the user
-		giving entirely,everything, building on what has been given
+		giving entirely,everything, building on what has been given in this way
 	working together, sharing everything
 	ease reuse, for example of small [generic] parts
 	reduce the legal weight on the project
@@ -13,6 +13,8 @@ public domain computation, communication and information -*- outline -*-
 	moonshine
     belladonna
     mindhouse mindhome
+
+	how much can one do?  as much as the rest allows.
 
 * entirely public domain
 
@@ -123,17 +125,27 @@ incl builder
 		    cut, clip, copy, chop  save-ring (save is for files)
 			text/region ring  could have more than text eventually
 		quit,exit for abort  cancel
+		suggest,offer,prompted
+
+  max 40 lines per function
 
   goto function (meta-g f)  vs  find file (meta-x f)
 	  should be ~ find file and find function
 
   #t () #f '() '#t?
 
+  nreverse, nconc, push    reverse!  all n
+  predicates  listp eq =   list? eq? =?
+						   cmp-lists compare cmp    function names verbs
+
 * clean, tidy, neat, organised
 
 * tests
 
 heed all warnings
+	consider warning when code in a defun starts in col 1 or 2
+		or similar
+		in case missing paren in one fun and extra paren in later fun
 check doc when adding test
 reconsider randomness
     tests must be reproducible
@@ -152,6 +164,7 @@ reconsider randomness
 		maybe use test-string,pathname-1..n instead
 		maybe run test in a temp dir
 			implies too much of the base system
+	separate random test?
 integrate :nightshade.work-pre-aon-2007-01-02-merge/src/tests/
 compiler tests
     srctrans.lisp:1946 onwards
@@ -252,6 +265,7 @@ replace dependencies on copyrighted code
 		build system
 			move c into lisp
 		lisp equivs of unix tools
+			wget  adjust Copy File
 			(sudo (symlink-file ...))
 			dd
 			~Shell History
@@ -278,6 +292,10 @@ replace dependencies on copyrighted code
 			socat
 			libs
 				strtok  split   docs for these
+			"run-mailcap (and its aliases) is in the public domain  (the  only  true
+				   \"free\")."
+				"run-mailcap   (and   its   aliases)   was   written   by   Brian  White
+       			 <bcwhite@pobox.com>."
 		lisp equivs of unix tools
 			mouse hider
 		dict interface  pd version incl data
@@ -289,6 +307,9 @@ cnc
 		based on ENC, which is pd   where is ENC?
 			mail and ask?
 data
+	pd data
+		http://cdsweb.u-strasbg.fr/viz-bin/Cat?I/239
+		http://sci.esa.int/hipparcos
 	dicts  moby thes, jargon file, ...
 		   orig source of gcide?
 		   le dico?
@@ -412,6 +433,7 @@ lang tutorial  super quick to do, for the experienced
 describe labels somewhere
     part of lang?
 	esp describe that jumps to labels jump out of var bindings, e.g.
+		    this is just lexical scope
 	  (let ((s 1))
 		(labels ((a ()
 				  s)
@@ -892,6 +914,9 @@ defclo
 
 ** iteration looping repetition
 
+	(while t body)
+	(let-while ((a 1 (1+ a)) (t) body)
+
     (while () () body)
     (while () symbol body)              (while () t body)
     (while symbol-other-than-() body)   (while t body)
@@ -1155,6 +1180,9 @@ directory :absolute
  * (in-directory ":tmp/" (directory "z/" :truenamep ()))
  (#p"/home/mattm/temp/z/z/a" #p"/home/mattm/temp/z/z/b/")
 
+use *QUERY-IO* instead of *standard-in,out*?
+	saw in c.l.l
+
 ** treats
 
 flesh out code:shell.lisp
@@ -1167,7 +1195,10 @@ list keyboard macros
 ** nb for work
 
     mail
-		mail to prompt
+		make msgs read-only once in
+		new mail old headers  (when opening folder from c-m)
+			due to `message-headers' just switching to existing hdrs buffer
+				should check if hdrs have changed (via dir write date)?
 		work reply-to,from when re work
 			rply  depends on  folder of msg, sender
 			send  depends on current network
@@ -1178,9 +1209,7 @@ list keyboard macros
 		 ~ refresh on file write ~hook  (to show mod)
 		 conflicts?
 	cmp highlighting
-	compile  hi   rtio/uspace.h: In function...    hilights too much
-				  err on certain output
-	         goto ref w multiple files (seems ~ only goes to one)
+	compile  goto ref w multiple files (seems ~ only goes to one)
 				 works for simple :src/test eg
 	way to work on remote machine  ssh edit,dired + remote cmds
 		/home/mattm/a:xx   when in /home/mattm/ dired error trying to ftp to host "a"
@@ -1190,9 +1219,9 @@ list keyboard macros
 		(run-program "//gateway/usr/bin/ls")   ; ssh (absolute?)
 		(run-program "//gateway:ls")           ; ssh (relative to user home)
 		(run-program "//gateway!ls")           ; ssh (relative to gateway PATH)
-		(run-program "ssh://gateway//x!ls")     ; x via gateway?
+		(run-program "ssh://gateway//x!ls")    ; x via gateway?
 		--
-		//root@thoth/etc/cfengine/cfagent.conf   ; absolute
+		//root@thoth/etc/cfengine/cfagent.conf  ; absolute
 		//root@thoth:cfagent.conf   ; relative
 		:cfagent.conf               ; relative to local user home
 		//root@thoth!cfagent.conf   ; relative to thoth PATH
@@ -1201,6 +1230,8 @@ list keyboard macros
 		ftp://user@x/file.ext
 		etc;AUTHORS 				; search list
 		//thoth/etc;AUTHORS 		; search list on remote machine
+		nntp:uk.legal
+		irc:irc.oftc.net/channel
 	terminal interface
 	auto-switch to root with confirm
 	some way of merging work dir to home dir
@@ -1216,10 +1247,12 @@ locate  c-g before cmd finishes
 flush-t-w option buffer,mode
 dired versions  eg :src/mh/mh-6.8.3
 mail XXX
+	 trailing in body  openvas/plugins from kjordan3 (105,6)
 	# first on line in mail body
     assure mail in via log? log buffer?
     need better drafts,trash releasing system  maybe rm if ,,,, or higher
 	searching in headers buffers
+	  /
       control-r,s
     control-l in headers buffers  fetch more
 	send with correct timezone
@@ -1241,12 +1274,19 @@ Auto Inflate Files
 	maybe read,write filters according to content type
 		File Type Handlers  (where the translation is before read and after write)
 								rather translate to a temp file
+								    read-file  convert-for-buffer,file
 			;; similar list already in dired bound to z
 			(("Z" compress-read compress-write)
 			 ("gz" gz-read gz-write))
 		Content Handlers  (where the translation is after read and before write)
+							  rather handle this in the mode?
+								  tricky to always ensure translated before write
 			(("text/enriched"  ;; mime name, as in mh attach handling
 			  . convert-enriched))
+		Buffer ~Overlays  like Hex mode
+			deep region  saved by write-buffer-file instd of buffer region
+						 modification of deep up to mode
+		Character Encoding  (where the translation is after read and before write)
 www interface
     forms, anchors
 info readers
@@ -1268,6 +1308,25 @@ backup to isp  prhps tramp-like
 
 ** more
 
+db  Noticed Torsten =?iso-8859-1?Q?Irl=E4nder?= (torsten.irlaender@...
+dired cp  :tmp/*out to :tmp/dout treats * as wild because of dired:copy-file
+	  rename  " similar + err
+dired % r  :tmp/zou* to :tmp/dout  identities (verb)
+c-g rest prompt hang
+compile first n when midway down buff
+srch :tmp/ wild err
+self prompt on m-/ complete
+NIL.CKP  vc-cmp?
+dire ^  when dir gone
+update cv
+netnews  mixed msgs from earlier group?
+merge popup
+c-x s  lookup externally, hi
+
+goto set-dispatch-macro-character
+	(defun set-dispatch-macro-character
+		   (disp-char sub-char function &optional (rt *readtable*))
+dire  warn if dir changed on disk (when switch to dir)
 mail
   	incoming mail filtering
 	headers  threading
@@ -1356,7 +1415,6 @@ man  buffer name "Man Page name number"
 macro doc in c-hf  eg defconstant
 also auto set buffer package accordingly if defpackage first form in file
 meta-ctrl-x revert
-render line jump when switch win with trailing space on line
 u straight fs ops in dired for relative dired-file pathnames
 	eg "Copy File"
 Buff Changes  "also contains" msg
@@ -1378,6 +1436,7 @@ naming
 	find-object        edit-value?
 	browse folders
 	manage packages
+	evented
 spell  i insert into personal dict permanently
 c-uc-f /home/matt/src/nightshade/build/lisp/lisp:
 sometimes "bad address" on build
@@ -2249,11 +2308,8 @@ consider editor variable hooks that modify the code, instead of the code checkin
 	hard to implement for compiled code? when changed recompile? (and fixup? pervasive change?)
 	is this a performance issue at present?
 
-* 0
-** 1
-*** 2
-**** 3
-***** 4
-****** 5
-******* 6
-******** 7
+* debian package
+
+doc-base.ex
+
+* end

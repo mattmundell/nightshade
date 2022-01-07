@@ -717,7 +717,7 @@ doe(ptsname)
 /*  doe(shmctl) */
 /*  doe(shmdt) */
 /*  doe(shmget) */
-/*  doe(shutdown) */
+    doe(shutdown)
 /*  doe(sigaction) */
 /*  doe(sigaddset) */
 /*  doe(sigblock) */
@@ -930,6 +930,7 @@ doe(XBlackPixelOfScreen)
 doe(XChangeGC)
 doe(XChangeProperty)
 doe(XCheckMaskEvent)
+/*doe(XCheckIfEvent)*/
 doe(XCheckTypedWindowEvent)
 doe(XClearArea)
 doe(XClearWindow)
@@ -938,6 +939,7 @@ doe(XConfigureWindow)
 doe(XConnectionNumber)
 doe(XConvertSelection)
 doe(XCopyArea)
+doe(XCopyGC)
 doe(XCopyPlane)
 doe(XCreateFontCursor)
 doe(XCreateGC)
@@ -964,6 +966,7 @@ doe(XDrawPoint)
 doe(XDrawRectangle)
 doe(XDrawRectangles)
 doe(XEventMaskOfScreen)
+doe(XEventsQueued)
 doe(XFetchBytes)
 doe(XFetchBuffer)
 doe(XFetchName)
@@ -972,6 +975,7 @@ doe(XFillArcs)
 doe(XFillPolygon)
 doe(XFillRectangle)
 doe(XFillRectangles)
+doe(XFlush)
 doe(XFree)
 doe(XFreeCursor)
 doe(XFreeFont)
@@ -992,6 +996,7 @@ doe(XGetWMName)
 doe(XGetWMNormalHints)
 doe(XGetWindowAttributes)
 doe(XGetWindowProperty)
+/*doe(XIfEvent)*/
 doe(XInternAtom)
 doe(XInternAtoms)
 doe(XKeycodeToKeysym)

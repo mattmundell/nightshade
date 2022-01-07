@@ -4,7 +4,8 @@
 
 (export '(*global-variable-names* *mode-names* *buffer-names*
 	  *character-attribute-names* *command-names* *buffer-list*
-	  *window-list* *last-key-event-typed* after-editor-initializations))
+	  *window-list* *last-key-event-typed* after-editor-initializations
+	  catch-cancel))
 
 (in-package "EXTENSIONS")
 (export '(save-all-buffers))
@@ -346,7 +347,7 @@ This chapter describes auxillary utilities.
   (define-some-variables)
   ;;
   ;; FIX also in `site-init'
-  (setf (ext:search-list "ginfo:") '("/usr/share/info/"))
+  (setf (ext:search-list "info:") '("/usr/share/info/"))
   ;;
   ;; Site initializations such as window system variables.
   (site-init)
@@ -373,7 +374,7 @@ This chapter describes auxillary utilities.
 	       (declare (ignore buffer window))
 	       (if (zerop ed::*recursive-edit-count*)
 		   ""
-		   (format nil "Edit Level: ~2,'0D "
+		   (format () "Edit Level: ~2,'0D "
 			   ed::*recursive-edit-count*))))
 
 ;;; This is necessary to define "Default Status Line Fields" which belongs
@@ -506,7 +507,19 @@ This chapter describes auxillary utilities.
 		 (modeline-field :%)
 		 (modeline-field :space)
 		 ;(modeline-field :position)
-		 (modeline-field :buffer-directory)))
+		 (modeline-field :buffer-directory)
+		 (modeline-field :space)
+		 (modeline-field :space)
+		 (modeline-field :space)
+		 (modeline-field :open-buttons)
+		 (modeline-field :V)
+		 (modeline-field :^)
+		 (modeline-field :x)
+		 (modeline-field :space)
+		 (modeline-field :=)
+		 (modeline-field :.)
+		 (modeline-field :1)
+		 (modeline-field :close-buttons)))
   (defevar "Default Status Line Fields"
     "The initial list of modeline-fields for the echo area window
      modeline."
@@ -587,11 +600,11 @@ This chapter describes auxillary utilities.
   (defevar "Default Initial Window Width"
     "This is used when the editor first starts up to make its first window.
      The value is in characters."
-    :value 80)
+    :value 88)
   (defevar "Default Initial Window Height"
     "This is used when the editor first starts up to make its first window.
      The value is in characters."
-    :value 24)
+    :value 44)
   (defevar "Default Initial Window X"
     "This is used when the editor first starts up to make its first window.
      The value is in pixels."
@@ -685,7 +698,7 @@ This chapter describes auxillary utilities.
     "Function called whenever the region is pacified.")
 
   (setf *key-event-history* (make-ring 60))
-  (setf (ext:search-list "ginfo:") '("/usr/share/info/"))
+  (setf (ext:search-list "info:") '("/usr/share/info/"))
   ())
 
 
@@ -745,6 +758,16 @@ The [ Editor Extension ] Manual describes these functions in detail.
    uses."
   `(push #'(lambda () ,@forms) *after-editor-initializations-funs*))
 
+(defmacro catch-cancel (&rest forms)
+  "catch-cancel body
+
+   Run body, returning the result.  If the user cancels (usually via
+   control-g) then prevent the editor from going back to the editor top
+   level, and return ()."
+  `(handler-case
+       (progn ,@forms)
+     (editor-top-level-catcher () ())))
+
 #[ Entering and Leaving the Editor
 
 {function:ed:ed}
@@ -754,7 +777,6 @@ The [ Editor Extension ] Manual describes these functions in detail.
 ]#
 
 (defswitch "xoff")
-
 (defun ed (&optional arg
 	   &key (init t)
 	        (xoff (or (find "xoff" ext:*command-line-switches*
@@ -786,9 +808,10 @@ The [ Editor Extension ] Manual describes these functions in detail.
   (let ((*in-the-editor* t)
 	(*busy* t)
 	(display (unless *editor-has-been-entered*
-		   (to-file (out "conf:clean-exit")
+		   (to-file (out "conf:clean-exit"
+				 :if-does-not-exist :create)
 		     (write () :stream out) (terpri out))
-		   (setf (ext:search-list "ginfo:") '("/usr/share/info/"))
+		   (setf (ext:search-list "info:") '("/usr/share/info/"))
 		   ;; Hack the busy modeline field for X.
 		   #+clx
 		   (or xoff
@@ -859,21 +882,20 @@ The [ Editor Extension ] Manual describes these functions in detail.
 	     (invoke-hook ed::entry-hook)
 	     (unwind-protect
 		 (loop
-		   (with-simple-restart (ed "Return to editor.")
-		     (block ed-command-loop
-		       (handler-case
-			   ;(handler-case
-			   (handler-bind ((type-error #'lisp-error-error-handler)
-					  (error #'lisp-error-error-handler))
-			     (progn
-			       (invoke-hook ed::abort-hook)  ; control-g
-			       (%command-loop)))
-			 ;; FIX how to pass :internal to handler-bind?
-			 ;(error (condition)
-			 ;	(lisp-error-error-handler
-			 ;	 condition :internal)))
-			 (editor-top-level-catcher ()
-						   (return-from ed-command-loop))))))
+		   (block ed-command-loop
+		     (handler-case
+			 ;(handler-case
+			 (handler-bind ((type-error #'lisp-error-error-handler)
+					(error #'lisp-error-error-handler))
+			   (progn
+			     (invoke-hook ed::abort-hook)  ; control-g
+			     (%command-loop)))
+		       ;; FIX how to pass :internal to handler-bind?
+		       ;(error (condition)
+		       ;	(lisp-error-error-handler
+		       ;	 condition :internal)))
+		       (editor-top-level-catcher ()
+						 (return-from ed-command-loop)))))
 	       (setq continue ())
 	       (handler-case
 		   (invoke-hook ed::exit-hook)
@@ -884,7 +906,8 @@ The [ Editor Extension ] Manual describes these functions in detail.
 				       (window-hunk (current-window)))))
 			  (funcall (device-exit device) device))
 			(invoke-debugger condition))))))))))
-  (to-file (out "conf:clean-exit") (write t :stream out) (terpri out))
+  (to-file (out "conf:clean-exit" :if-does-not-exist :create)
+    (write t :stream out) (terpri out))
   (if (value ed::quit-on-exit) (quit)))
 
 (defun maybe-load-init (init)

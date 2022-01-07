@@ -14,7 +14,8 @@
           otherwise ; Sacred to CASE and related macros.  FIX?
 	  define-compiler-macro
 	  ;; FIX CLtL1 versions:
-	  define-setf-method get-setf-method get-setf-method-multiple-value))
+	  define-setf-method get-setf-method get-setf-method-multiple-value
+	  with-literal-pathnames))
 
 (in-package "EXTENSIONS")
 ;; FIX in-directory to in-dir
@@ -1472,6 +1473,14 @@ Docstrings.
 
 
 ;;;; With-*
+
+(defmacro with-literal-pathnames (&body body)
+  "with-literal-pathnames body
+
+   Evaluate $body, assuming pathnames to be literal."
+  `(let ((*literal-pathnames* t)
+	 (*ignore-wildcards* t))
+     ,@body))
 
 (defmacro with-open-file ((var &rest open-args) &body (forms decls))
   "Bindspec is of the form (Stream File-Name . Options).  The file whose

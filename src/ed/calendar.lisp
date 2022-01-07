@@ -524,7 +524,7 @@
       (elet ((flush-trailing-whitespace t))
 	(flush-trailing-whitespace buffer)))))
 
-(defun goto-date (date buffer)
+(defun go-to-date (date buffer)
   (or (string= (buffer-major-mode buffer) "Calendar")
       (editor-error "Buffer must be in Calendar mode."))
   (let ((point (buffer-point buffer)))
@@ -580,10 +580,10 @@
       "The number of months in the buffer."
       :buffer buffer
       :value 3)
-    (goto-date-command () date buffer)
+    (go-to-date-command () date buffer)
     (change-to-buffer buffer)))
 
-(defcommand "Goto Date" (p (date (prompt-for-date))
+(defcommand "Go To Date" (p (date (prompt-for-date))
 			   (buffer (current-buffer)))
   "Center the calendar buffer around a prompted date."
   "Center the calendar buffer around $date."
@@ -606,17 +606,17 @@
 					 :buffer buffer))
 	(elet ((flush-trailing-whitespace t))
 	  (flush-trailing-whitespace buffer)))))
-  (goto-date date buffer))
+  (go-to-date date buffer))
 
 (defcommand "Refresh Calendar" (p (buffer (current-buffer)))
   "Refresh the calendar buffer."
   "Refresh the calendar buffer Buffer."
-  (goto-date-command p (calendar-time-at-point) buffer))
+  (go-to-date-command p (calendar-time-at-point) buffer))
 
-(defcommand "Goto Today" (p (buffer (current-buffer)))
+(defcommand "Go To Today" (p (buffer (current-buffer)))
   "If in the calendar buffer move point to today."
   "Move point to today in calendar buffer Buffer."
-  (goto-date-command p (get-universal-time) buffer))
+  (go-to-date-command p (get-universal-time) buffer))
 
 (defcommand "Calendar Show Year" (p (buffer (current-buffer)))
   "Show the whole year."
@@ -770,7 +770,7 @@
 	  (insert-character point #\newline)
 	  (mark-before point))))))
 
-(defcommand "Goto Today in Diary"
+(defcommand "Go To Today in Diary"
 	    (&optional p (date (universal-time-to-diary-date
 				(get-universal-time))))
   "Move point to the end of the last diary entry for today."
@@ -792,18 +792,18 @@
 	    (mark-after point))
 	  (insert-today-command)))))
 
-(defcommand "Goto Date in Diary" ()
+(defcommand "Go To Date in Diary" ()
   "Switch to the diary with point at the end of the last diary entry for a
    prompted date."
-  (goto-today-in-diary-command () (universal-time-to-diary-date
-				   (prompt-for-date))))
+  (go-to-today-in-diary-command () (universal-time-to-diary-date
+				    (prompt-for-date))))
 
-(defcommand "Goto Current Date in Diary" ()
+(defcommand "Go To Current Date in Diary" ()
   "Switch to the diary with point at the end of the last diary entry for
    the date under point."
   (or (string= (buffer-major-mode (current-buffer)) "Calendar")
       (editor-error "Current buffer must be in Calendar mode."))
-  (goto-today-in-diary-command () (calendar-date-at-point)))
+  (go-to-today-in-diary-command () (calendar-date-at-point)))
 
 (defcommand "Insert Today"
 	    (&optional p (date (universal-time-to-diary-date
@@ -1041,7 +1041,7 @@
 
 ;; FIX get mh to do the headers?
 (defun write-diary-mail (stream to from date)
-  (format stream "To: ~A~%From: ~A~%Subject: Diary entries for ~A~%~%"
+  (format stream "To: ~A~%From: ~A~%Subject: [Diary] Entries for ~A~%~%"
 	  to
 	  from
 	  ; FIX merge time printing into format
@@ -1057,8 +1057,8 @@
    else signal an editor error."
   (let ((date (get-universal-time))
 	;; FIX
-	(to mh::*address*)
-	(from mh::*address*))
+	(to (user-name)) ; mh::*address*)
+	(from (user-name))) ; (user-name)))
     (multiple-value-bind
 	(success error)
 	(internet:smtp-mail to from
@@ -1075,24 +1075,23 @@
 (defun mail-diary-for-today (&optional seconds)
   "Mail diary for today if the diary was last mailed before today."
   (declare (ignore seconds))
-  (when (value online)
-    (let ((diary-mail-file (config:config-pathname "diary-date")))
-      (let ((last (with-open-file (stream diary-mail-file :direction :input
-					  :if-does-not-exist ())
-		    (if stream (read stream) 0)))
-	    (midnight
-	     (multiple-value-bind (sec min hr date month year)
-				  (get-decoded-time)
-	       (declare (ignore sec min hr))
-	       (parse-time (format () "~A ~A, ~A 0:00 am" month date year)))))
-	(and last midnight
-	     (> midnight last)
-	     (when (mail-diary-entries)
-	       (with-open-file (stream diary-mail-file
-				       :direction :output
-				       :if-exists :supersede
-				       :if-does-not-exist :create)
-		 (write (get-universal-time) :stream stream))))))))
+  (let ((diary-mail-file (config:config-pathname "diary-date")))
+    (let ((last (with-open-file (stream diary-mail-file :direction :input
+					:if-does-not-exist ())
+		  (if stream (read stream) 0)))
+	  (midnight
+	   (multiple-value-bind (sec min hr date month year)
+				(get-decoded-time)
+	     (declare (ignore sec min hr))
+	     (parse-time (format () "~A ~A, ~A 0:00 am" month date year)))))
+      (and last midnight
+	   (> midnight last)
+	   (when (mail-diary-entries)
+	     (with-open-file (stream diary-mail-file
+				     :direction :output
+				     :if-exists :supersede
+				     :if-does-not-exist :create)
+	       (write (get-universal-time) :stream stream)))))))
 
 
 ;;;; Initialization.

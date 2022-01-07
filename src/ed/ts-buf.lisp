@@ -357,6 +357,6 @@ allowing the editor to control the process which uses the typescript.
   (let* ((ts (typescript-data-or-lose))
 	 (wire (ts-data-wire ts))
 	 (socket (wire:wire-fd wire)))
-    (unless socket
-      (editor-error "The slave is no longer alive."))
+    (or socket
+	(editor-error "The slave is no longer alive."))
     (ext:send-character-out-of-band socket (schar string 0))))

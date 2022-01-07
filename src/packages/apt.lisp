@@ -5,7 +5,7 @@
 ;;; This file is public domain.
 
 (defpackage "APT"
-  (:version 1)
+  (:version 2)
   (:use "LISP" "EXTENSIONS" "ED")
   (:documentation "Apt interface."))
 
@@ -145,16 +145,17 @@
 
 ;;;; Bindings.
 
-(bind-key "Scroll Window Up" #k"delete" :mode "Apt")
-(bind-key "Scroll Window Down" #k"space" :mode "Apt")
-(bind-key "Rotate Buffers Forward" #k"q" :mode "Apt")
-(bind-key "Next Line" #k"tab" :mode "Apt")
-(bind-key "Next Line" #k"n" :mode "Apt")
-(bind-key "Previous Line" #k"meta-tab" :mode "Apt")
-(bind-key "Previous Line" #k"p" :mode "Apt")
-(bind-key "Apt Add" #k"a" :mode "Apt")
-(bind-key "Apt Remove" #k"r" :mode "Apt")
-(bind-key "Apt Info" #k"i" :mode "Apt")
-(bind-key "Apt Contents" #k"c" :mode "Apt")
-(bind-key "Apt Contents" #k"l" :mode "Apt")
-(bind-key "Apt Update" #k"u" :mode "Apt")
+(bind-key "Scroll Window Up"         #k"delete"     :mode "Apt")
+(bind-key "Scroll Window Down"       #k"space"      :mode "Apt")
+(bind-key "Rotate Buffers Forward"   #k"q"          :mode "Apt")
+(bind-key "Next Line"                #k"tab"        :mode "Apt")
+(bind-key "Next Line"                #k"n"          :mode "Apt")
+(bind-key "Previous Line"            #k"meta-tab"   :mode "Apt")
+(bind-key "Previous Line"            #k"p"          :mode "Apt")
+(bind-key "Apt Add"                  #k"a"          :mode "Apt")
+(bind-key "Apt Add"                  #k"i"          :mode "Apt")
+(bind-key "Apt Info"                 #k"e"          :mode "Apt")
+(bind-key "Apt Remove"               #k"r"          :mode "Apt")
+(bind-key "Apt Contents"             #k"c"          :mode "Apt")
+(bind-key "Apt Contents"             #k"l"          :mode "Apt")
+(bind-key "Apt Update"               #k"u"          :mode "Apt")

@@ -230,7 +230,9 @@ done.
 				   :must-exist nil
 				   :default-string
 				   (value source-compare-destination)))))
-	      (setq log-buffer (or output-buffer (make-buffer log-buffer)))
+	      (setq log-buffer (or output-buffer
+				   (make-buffer log-buffer
+						:modes '("Fundamental"))))
 	      (setf (value source-compare-destination)
 		    (buffer-name log-buffer))
 	      (change-to-buffer log-buffer)
@@ -426,13 +428,16 @@ done.
 			       :default-string
 			       (value source-compare-destination))))
   (if (stringp dest-buffer)
-      (setf dest-buffer (make-buffer dest-buffer))
+      (setf dest-buffer (make-buffer dest-buffer
+				     :modes '("Fundamental")))
       (buffer-end (buffer-point dest-buffer)))
   (setf (value source-compare-destination) (buffer-name dest-buffer))
   (change-to-buffer dest-buffer)
-  (let* ((alt-buffer-a (if p (make-buffer (prin1-to-string (gensym)))))
+  (let* ((alt-buffer-a (if p (make-buffer (prin1-to-string (gensym))
+					  :modes '("Fundamental"))))
 	 (alt-buffer-b (if alt-buffer-a
-			   (make-buffer (prin1-to-string (gensym))))))
+			   (make-buffer (prin1-to-string (gensym))
+					:modes '("Fundamental")))))
     (when alt-buffer-a
       (ninsert-region (buffer-point alt-buffer-a)
 		      (copy-region (if (mark< (buffer-point buffer-a)

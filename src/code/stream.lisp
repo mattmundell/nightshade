@@ -301,7 +301,8 @@
 ;;; so, except in this file, they are not inline by default, but they can be.
 ;;;
 (proclaim '(inline read-char unread-char read-byte listen))
-(defun read-char (&optional (stream *standard-input*) (eof-errorp t) eof-value
+(defun read-char (&optional (stream *standard-input*)
+			    (eof-errorp t) eof-value
 			    recursive-p)
   "Inputs a character from Stream and returns it."
   (declare (ignore recursive-p))
@@ -333,7 +334,7 @@
 			  :unread character))))
 	;; Fundamental-stream
 	(stream-unread-char stream character)))
-  nil)
+  ())
 
 (defun peek-char (&optional (peek-type nil) (stream *standard-input*)
 			    (eof-errorp t) eof-value recursive-p)
@@ -614,7 +615,7 @@
   "Attempt to ensure that all output sent to $stream has reached its
    destination, and only then return."
   (with-out-stream stream (lisp-stream-misc :finish-output)
-		   (stream-finish-output))
+		   (stream-finish-output)) ; FIX rqrs PCL (more around)
   nil)
 
 (defun force-output (&optional (stream *standard-output*))

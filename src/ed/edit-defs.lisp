@@ -14,7 +14,7 @@ functions defined in the environment.  The defining file is recorded as an
 absolute pathname.
 
 {command:Edit Definition}
-{command:Goto Definition}
+{command:Go To Definition}
 {command:Edit Command Definition}
 The definition editing commands have a directory translation mechanism that
 allow the sources to be found when they are not in the location where
@@ -149,7 +149,7 @@ source.
    is true in `Eval' and `Editor' modes."
   :value ())
 
-(defcommand "Goto Definition" ()
+(defcommand "Go To Definition" ()
   "Edit the definition of the symbol at the beginning of the current list.
 
    If the symbol is defined as a `defun' or `defmacro' form then go to the

@@ -82,13 +82,13 @@ beginning of the line or deleting backwards a word.
    input."
   (let ((help (typecase *parse-help*
 		(list (or *parse-help* (error "There is no parse help."))
-		      (apply #'format nil *parse-help*))
+		      (apply #'format () *parse-help*))
 		(string *parse-help*)
-		(t (error "Parse help is not a string or list: ~S" *parse-help*))))
-	(input (region-to-string *parse-input-region*)))
+		(t (error "Parse help is not a string or list: ~S" *parse-help*)))))
     (cond
      ((eq *parse-type* :keyword)
-      (let ((strings (find-all-completions input *parse-string-tables*)))
+      (let* ((input (region-to-string *parse-input-region*))
+	     (strings (find-all-completions input *parse-string-tables*)))
 	(with-pop-up-display (s :height (+ (length strings) 2))
 	  (write-line help s)
 	  (cond (strings
@@ -98,7 +98,8 @@ beginning of the line or deleting backwards a word.
 		(t
 		 (write-line
  "There are no possible completions." s))))))
-     ((and (eq *parse-type* :file) (not (zerop (length input))))
+     ((and (eq *parse-type* :file)
+	   (plusp (length (region-to-string *parse-input-region*))))
       (let ((pns (ambiguous-files (region-to-string *parse-input-region*)
 				  (or *parse-default* "") #| FIX |#)))
 	(declare (list pns))
@@ -255,7 +256,7 @@ beginning of the line or deleting backwards a word.
   ;; FIX check
   "Verify and terminate echo-area input.
 
-   Call `parse-verification-function' with the current input.  If it
+   Call `*parse-verification-function*' with the current input.  If it
    returns a true value then return that as value of the parse.  A parse
    may return () if the verification function returns a true second value."
   "If input has been given call the verification function, otherwise exit

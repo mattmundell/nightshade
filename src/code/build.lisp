@@ -131,9 +131,13 @@ Throughout this documentation the following terms are used:
 The build process involves
 
   - building the small C program,
+
   - compiling the Lisp sources with the builder,
+
   - building a minimal "kernel" core,
+
   - loading the compiled Lisp sources into the kernel core, and
+
   - saving the final core.
 
 [ Build Tools                     ]  Overview of build utilities.

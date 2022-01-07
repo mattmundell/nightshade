@@ -137,12 +137,11 @@
 
 (defun setup-vc-cmp-mode (buffer)
   (highlight-visible-vc-cmp-buffer buffer)
-  (pushnew '("VC Comparison" () highlight-visible-vc-cmp-buffer)
+  (pushnew '("VC Comparison" t highlight-visible-vc-cmp-buffer)
 	   *mode-highlighters*))
 
-(defmode "VC Comparison" :major-p ()
+(defmode "VC Comparison" :major-p t
   :short-name "VC-Cmp"
-  :precedence 5.0
   :setup-function 'setup-vc-cmp-mode
   :documentation
   "Mode for viewing version control file comparisons.")
@@ -191,8 +190,9 @@
 	  (and char (char= char #\=) (return))))
       (move-mark (current-point) mark))))
 
-(defcommand "Edit VC Comparison" ()
-  "Edit the file associated with the current point of the comparison."
+(defcommand "Edit VC Comparison" (p)
+  "Edit the file associated with the current point of the comparison.  With
+   a prefix edit the file in the next window."
   (let* ((point (current-point))
 	 (mark (copy-mark point)))
     (line-start mark)
@@ -201,38 +201,92 @@
       ;; Calculate the line number of the start of the comparison section.
       (or (and char (char= char #\@))
 	  (previous-vc-comparison-command () mark))
-      (or (and (find-character mark #\+)
-	       (character-offset mark 1)
-	       (setq line-number
-		     (with-input-from-region
-			 (in (region mark
-				     (let ((line (mark-line mark)))
-				       (mark line (line-length line)))))
-		       (read in)))
-	       (integerp line-number)
-	       (>= (decf line-number) 0))
-	  (message "Failed to calculate line number, going to line 0."))
-      ;; Calculate the line number under point.
-      (or (eq (mark-line mark) (mark-line point))
-	  (let ((region (region mark point)))
-	    (do-region-lines (line region)
-	      (case (char (line-string line) 0)
-		(#\-)
-		(t (incf line-number))))))
-      ;; Figure out which file.
-      (or (and char (char= char #\=))
-	  (previous-vc-file-command () mark))
-      (or (and (line-offset mark -1 0)
-	       (at* "Index: " mark)
-	       (character-offset mark 7))
-	  (editor-error
-	   "Failed to figure out which file is under comparison."))
+      (if (mark= mark (buffer-start-mark (current-buffer)))
+	  (progn
+	    (or (and (at* "Index: " mark)
+		     (character-offset mark 7))
+		(editor-error
+		 "Failed to figure out which file is under comparison."))
+	    (setq line-number 1))
+	  (progn
+	    (or (and (find-character mark #\+)
+		     (character-offset mark 1)
+		     (setq line-number
+			   (with-input-from-region
+			       (in (region mark
+					   (let ((line (mark-line mark)))
+					     (mark line (line-length line)))))
+			     (read in)))
+		     (integerp line-number)
+		     (>= line-number 0))
+		(message "Failed to calculate line number, going to line 0."))
+	    ;; Calculate the line number under point.
+	    (or (eq (mark-line mark) (mark-line point))
+		(progn
+		  (line-offset mark 1)
+		  (let ((region (region mark point)))
+		    (do-region-lines (line region)
+		      (case (char (line-string line) 0)
+			(#\-)
+			(t (incf line-number)))))))
+	    ;; Figure out which file.
+	    (or (and char (char= char #\=))
+		(previous-vc-file-command () mark))
+	    (or (and (line-offset mark -1 0)
+		     (at* "Index: " mark)
+		     (character-offset mark 7))
+		(editor-error
+		 "Failed to figure out which file is under comparison."))))
       ;; Edit the file.
-      (find-file-command ()
-			 (subseq (line-string (mark-line mark))
-				 (mark-charpos mark)))
-      (goto-absolute-line-command line-number)
+      (let ((vc-compare-pathname (value vc-compare-pathname)))
+	(if p
+	    (if (eq (next-window (current-window)) (current-window))
+		(split-window-command)
+		(next-window-command)))
+	(find-file-command ()
+			   (merge-pathnames
+			    (subseq (line-string (mark-line mark))
+				    (mark-charpos mark))
+			    vc-compare-pathname)))
+      (go-to-absolute-line-command line-number)
       (refresh-screen-command))))
+
+(defcommand "Edit VC Comparison Next Window" ()
+  "Edit the file associated with the current point of the comparison in the
+   next window."
+  (edit-vc-comparison-command t))
+
+(defun refresh-vc-comparison (buffer pathname &optional tag1 tag2)
+  (delete-region (buffer-region buffer))
+  (if (directory-namestring pathname)
+      (setf (buffer-pathname buffer) (directory-namestring pathname)))
+  (with-mark ((mark (buffer-start-mark buffer) :left-inserting))
+    (message "Comparing to repository...")
+    (let* ((vc-info (current-vc-info))
+	   (sss (make-editor-output-stream mark)))
+      (funcall (vc-info-compare-fun vc-info)
+	       vc-info
+	       sss
+	       (namestring pathname)
+	       tag1 tag2)))
+  (defevar "VC Compare Pathname"
+    "Pathname of the file under comparison."
+    :buffer buffer
+    :value (truename pathname))
+  (buffer-start (buffer-point buffer))
+  (setf (buffer-modified buffer) ())
+  (message "Comparing to repository... done."))
+
+(defcommand "Refresh VC Comparison" ()
+  "Refresh the version control comparison in the current buffer."
+  (let* ((buffer (current-buffer))
+	 (point (current-point))
+	 (pos (count-lines (region (buffer-start-mark buffer) point))))
+    (refresh-vc-comparison buffer (value vc-compare-pathname))
+    (if (and (plusp pos)
+	     (<= pos (count-lines (buffer-region buffer))))
+	(line-offset point (1- pos))
+	(buffer-end point))))
 
 
 ;;;; Interface (i.e. used in Dired).
@@ -573,8 +627,7 @@
     (or buffer
 	(progn
 	  (setf buffer (make-buffer (value vc-comparison-buffer)
-				    :modes '("Fundamental"
-					     "VC Comparison")))
+				    :modes '("VC Comparison")))
 	  (turn-auto-save-off buffer)))
     buffer))
 
@@ -583,29 +636,20 @@
    to compare."
   "Compare buffered file to repository.  If P is true prompt for versions
    to compare."
-  (let ((buffer (get-comparison-buffer))
-	(pathname (current-buffer-pathname)))
-    (delete-region (buffer-region buffer))
-    (with-mark ((mark (buffer-start-mark buffer) :left-inserting))
-      (message "Comparing to repository ...")
-      (let* ((vc-info (current-vc-info))
- 	     (tag1 (if p (prompt-for-string
-			  :prompt "First version: "
-			  :help "Version of first of files to compare."
-			  :default (vc-info-version vc-info))))
-	     (tag2 (if p (prompt-for-string
-			  :prompt "Second version: "
-			  :help "Version of second of files to compare."
-			  :default (vc-info-version vc-info)))))
-	(funcall (vc-info-compare-fun vc-info)
-		 vc-info
-		 (make-editor-output-stream mark)
-		 (namestring pathname)
-		 tag1 tag2)))
-    (change-to-buffer buffer)
-    (buffer-start (current-point))
-    (setf (buffer-modified buffer) nil)
-    (message "Done.")))
+  (let* ((buffer (get-comparison-buffer))
+	 (pathname (or (current-buffer-pathname)
+		       (editor-error "Buffer must have a file.")))
+	 (vc-info (current-vc-info))
+	 (tag1 (if p (prompt-for-string
+		      :prompt "First version: "
+		      :help "Version of first of files to compare."
+		      :default (vc-info-version vc-info))))
+	 (tag2 (if p (prompt-for-string
+		      :prompt "Second version: "
+		      :help "Version of second of files to compare."
+		      :default (vc-info-version vc-info)))))
+    (refresh-vc-comparison buffer pathname tag1 tag2)
+    (change-to-buffer buffer)))
 
 (defcommand "VC Compare File" (p file)
   "Compare a prompted file to the version in the repository."
@@ -614,7 +658,7 @@
 		  (prompt-for-file :prompt "Compare file: "
 				   :default (buffer-default-pathname
 					     (current-buffer))
-				   :must-exist nil)))
+				   :must-exist ())))
 	(buffer (get-comparison-buffer)))
     (delete-region (buffer-region buffer))
     (message "Comparing to repository ...")
@@ -624,9 +668,13 @@
 		 vc-info
 		 (make-editor-output-stream mark)
 		 (namestring file))))
+    (defevar "VC Compare Pathname"
+      "Pathname of the file under comparison."
+      :buffer buffer
+      :value (truename file))
     (change-to-buffer buffer)
     (buffer-start (current-point))
-    (setf (buffer-modified buffer) nil)
+    (setf (buffer-modified buffer) ())
     (message "Done.")))
 
 
@@ -709,7 +757,7 @@
    If tag1 and tag2 are given compare those versions of Pathname."
   (declare (ignore vc-info))
   (in-directory pathname
-    (do-vc-command nil "svn"
+    (do-vc-command () "svn"
 		   (if tag1
 		       (list "diff" "-r" (format () "~A:~A" tag1 tag2)
 			     (file-namestring pathname))

@@ -741,7 +741,7 @@
 (defmacro with-hash-table-iterator ((function hash-table) &body body)
   "WITH-HASH-TABLE-ITERATOR ((function hash-table) &body body)
    provides a method of manually looping over the elements of a hash-table.
-   function is bound to a generator-macro that, withing the scope of the
+   function is bound to a generator-macro that, within the scope of the
    invocation, returns three values.  First, whether there are any more objects
    in the hash-table, second, the key, and third, the value."
   (let ((n-function (gensym "WITH-HASH-TABLE-ITERRATOR-")))

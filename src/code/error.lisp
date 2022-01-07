@@ -113,7 +113,6 @@
 	    (res restart))))
       (res))))
 
-
 (defun restart-print (restart stream depth)
   (declare (ignore depth))
   (if *print-escape*
@@ -154,18 +153,19 @@
        ,@body)))
 
 (defmacro restart-bind (bindings &body forms)
-  "Executes forms in a dynamic context where the given restart bindings are
-   in effect.  Users probably want to use RESTART-CASE.  When clauses contain
-   the same restart name, FIND-RESTART will find the first such clause."
+  "Execute forms in a dynamic context where the given restart bindings are
+   in effect.  Users probably want to use `restart-case'.  When clauses
+   contain the same restart name, `find-restart' will find the first such
+   clause."
   `(let ((*restart-clusters*
 	  (cons (list
 		 ,@(mapcar #'(lambda (binding)
-			       (unless (or (car binding)
-					   (member :report-function
-						   binding :test #'eq))
-				 (warn "Unnamed restart does not have a ~
-					report function -- ~S"
-				       binding))
+			       (or (car binding)
+				   (member :report-function
+					   binding :test #'eq)
+				   (warn "Unnamed restart does not have a ~
+					  report function -- ~S"
+					 binding))
 			       `(make-restart
 				 :name ',(car binding)
 				 :function ,(cadr binding)
@@ -186,14 +186,14 @@
 	   (compute-restarts condition)))
 
 (defun invoke-restart (restart &rest values)
-  "Calls the function associated with the given restart, passing any given
-   arguments.  If the argument restart is not a restart or a currently
-   active true restart name, then a control-error is signalled."
+  "Call the function associated with the given restart, passing any given
+   arguments.  If $restart is not a restart or a currently active true
+   restart name, then a control-error is signalled."
   (let ((real-restart (find-restart restart)))
-    (unless real-restart
-      (error 'simple-control-error
-	     :format-control "Restart ~S is not active."
-	     :format-arguments (list restart)))
+    (or real-restart
+	(error 'simple-control-error
+	       :format-control "Restart ~S is not active."
+	       :format-arguments (list restart)))
     (apply (restart-function real-restart) values)))
 
 (defun invoke-restart-interactively (restart)
@@ -201,17 +201,16 @@
    necessary arguments.  If the argument restart is not a restart or a
    currently active true restart name, then a control-error is signalled."
   (let ((real-restart (find-restart restart)))
-    (unless real-restart
-      (error 'simple-control-error
-	     :format-control "Restart ~S is not active."
-	     :format-arguments (list restart)))
+    (or real-restart
+	(error 'simple-control-error
+	       :format-control "Restart ~S is not active."
+	       :format-arguments (list restart)))
     (apply (restart-function real-restart)
 	   (let ((interactive-function
 		  (restart-interactive-function real-restart)))
 	     (if interactive-function
 		 (funcall interactive-function)
 		 '())))))
-
 
 (eval-when (compile load eval)
 ;;; Wrap the restart-case expression in a with-condition-restarts if
@@ -245,14 +244,15 @@
 ); eval-when (compile load eval)
 
 (defmacro restart-case (expression &body clauses)
-  "(RESTART-CASE form {(case-name arg-list {keyword value}* body)}*)
+  "(restart-case expression {(case-name arg-list {keyword value}* body)}*)
 
-   The form is evaluated in a dynamic context where the clauses have special
-   meanings as points to which control may be transferred (see INVOKE-RESTART).
-   When clauses contain the same case-name, FIND-RESTART will find the first
-   such clause.  If Expression is a call to SIGNAL, ERROR, CERROR or WARN (or
-   macroexpands into such) then the signalled condition will be associated with
-   the new restarts."
+   The form is evaluated in a dynamic context where the clauses have
+   special meanings as points to which control may be transferred (see
+   `invoke-restart').  When clauses contain the same case-name,
+   `find-restart' will find the first such clause.  If $expression is a
+   call to `signal', `error', `cerror' or `warn' (or macroexpands into
+   such) then the signalled condition will be associated with the new
+   restarts."
   (flet ((transform-keywords (&key report interactive test)
 	   (let ((result '()))
 	     (when report
@@ -318,8 +318,9 @@
 (defmacro with-simple-restart ((restart-name format-string
 					     &rest format-arguments)
 			       &body forms)
-  "(WITH-SIMPLE-RESTART (restart-name format-string format-arguments)
-   body)
+  "with-simple-restart (restart-name format-string format-argument*)
+     forms
+
    If restart-name is not invoked, then all values returned by forms are
    returned.  If control is transferred to this restart, it immediately
    returns the values nil and t."
@@ -350,7 +351,7 @@
   ;; List of alternating initargs and initforms.
   (default-initargs () :type list)
   ;;
-  ;; CPL as a list of class objects, with all non-condition classes removed.
+  ;; CPL as (FIX is?) a list of class objects, with all non-condition classes removed.
   (cpl () :type list)
   ;;
   ;; A list of all the effective instance allocation slots of this class that

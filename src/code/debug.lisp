@@ -2405,7 +2405,7 @@ These commands manipulate breakpoints:
 
 (def-debug-command-alias "LL" "LIST-LOCATIONS")
 
-;;; set breakpoint at # given
+;;; set breakpoint at given number
 (def-debug-command "BREAKPOINT" ()
   (let ((index (read-prompting-maybe "Location number, :start, or :end: "))
 	(break t)

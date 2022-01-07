@@ -116,10 +116,6 @@ FIX lisp [ Editing Lisp ]
 			   (- (mark-column tem) (value indent-step))
 			   (mark-column tem)))))))))))))
 
-(defevar "Indent with Tabs"
-  "Whether `indent-for-c' indents with tabs."
-  :value t)
-
 (defun indent-for-c (mark)
   (line-start mark)
   (insert-c-indentation mark))
@@ -127,10 +123,7 @@ FIX lisp [ Editing Lisp ]
 (defun insert-c-indentation (mark)
   (let ((length (c-indentation mark)))
     (if (maybe-delete-horizontal-space mark length)
-	(funcall (if (value indent-with-tabs)
-		     (value tab-indenter)
-		     (value space-indenter))
-		 mark length))))
+	(indent mark length))))
 
 (defevar "Indent Function"
   "Indentation function invoked by the `Indent' command.  The function

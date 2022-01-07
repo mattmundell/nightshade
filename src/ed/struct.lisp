@@ -283,6 +283,8 @@ a local area network to determine information).
 {function:ed:modeline-field}
 {function:ed:modeline-field-function}
 {function:ed:modeline-field-width}
+{function:ed:modeline-field-primary-click}
+{function:ed:modeline-field-at}
 {function:ed:buffer-modeline-fields}
 {function:ed:buffer-modeline-field-p}
 {function:ed:update-modeline-fields}
@@ -293,11 +295,13 @@ a local area network to determine information).
 ;;;
 (defstruct (modeline-field (:print-function print-modeline-field)
 			   (:constructor %make-modeline-field
-					 (%name %function %width)))
+					 (%name %function %width
+					  primary-click)))
   "This is one item displayed in an editor window's modeline."
   %name		; EQL name of this field.
   %function	; Function that returns a string for this field.
-  %width)	; Width to display this field in.
+  %width	; Width to display this field in.
+  primary-click)  ; Function that handles a primary click.
 
 (setf (documentation 'modeline-field-p 'function)
   "Return true if $x d is a modeline-field, else return ().")
@@ -570,6 +574,8 @@ a local area network to determine information).
 			;       &optional modeline-string modeline-function
   delete-window		; fun to remove a window from the screen.
 			; args: window
+  set-window-height     ; fun to set height
+			; args: window height
   set-foreground-color  ; fun to set foreground color
 			; args: window color
   set-background-color  ; fun to set background color

@@ -33,10 +33,9 @@
 ;;; font index.  This allows the following function to translate everything
 ;;; with CHAR-CODE, and everybody's happy.
 ;;;
-;;; Actually, the editor can passes the line string when doing
-;;; random-typeout which does contain ^L's, tabs, etc.  Under X10 these
-;;; came out as funny glyphs, and under X11 the output is aborted without
-;;; this function.
+;;; Actually, the editor can pass the line string when doing random-typeout
+;;; which does contain ^L's, tabs, etc.  Under X10 these came out as funny
+;;; glyphs, and under X11 the output is aborted without this function.
 ;;;
 (defun editor-translate-default (src src-start src-end font dst dst-start)
   (declare (simple-string src)
@@ -58,41 +57,51 @@
 
 ;;; HUNK-PUT-STRING takes a character (x,y) pair and computes at which
 ;;; pixel coordinate to draw string with font from start to end.  This
-;;; macro assumes hunk, font-family and color-map to be bound by the caller.
+;;; macro assumes hunk, gcontext, font-family and FIX color-map to be bound
+;;; by the caller.
 ;;;
 (defmacro hunk-put-string (x y font fore-color back-color
 			     string start end)
-  (let ((gcontext (gensym)))
-    `(let ((,gcontext (bitmap-hunk-gcontext hunk)))
-#|
-       (format t "(hunk-put-string ~A ~A . ~A ~A ~A ~A ~A)~%"
-	       ,x ,y ,fore-color ,back-color ,string ,start ,end)
-|#
-       (xlib:with-gcontext (,gcontext :font ,font
-				      :function xlib:x-boole-copy)
-	 (if ,fore-color
-	     (setf (xlib:gcontext-foreground ,gcontext) ,fore-color))
-	 (if ,back-color
-	     (setf (xlib:gcontext-background ,gcontext) ,back-color))
-	 (xlib:draw-image-glyphs
-	  (bitmap-hunk-xwindow hunk) ,gcontext
-	  (+ hunk-left-border (* ,x (font-family-width font-family)))
-	  (+ hunk-top-border (* ,y (font-family-height font-family))
-	     (font-family-baseline font-family))
-	  ,string :start ,start :end ,end
-	  :translate *glyph-translate-function*)))))
-
+  `(progn
+     ;;(format t "(hunk-put-string ~A ~A . ~A ~A ~A ~A ~A)~%"
+     ;;          ,x ,y ,fore-color ,back-color ,string ,start ,end)
+     (xlib:with-gcontext (gcontext :background ,back-color
+				   :font ,font
+				   :foreground ,fore-color
+				   :function xlib:x-boole-copy)
+       ;;(if ,fore-color
+       ;;    (setf (xlib:gcontext-foreground gcontext) ,fore-color))
+       ;;(if ,back-color
+       ;;    (setf (xlib:gcontext-background gcontext) ,back-color))
+       (xlib:draw-image-string
+	(bitmap-hunk-xwindow hunk) gcontext
+	(+ hunk-left-border (* ,x (font-family-width font-family)))
+	(+ hunk-top-border (* ,y (font-family-height font-family))
+	   (font-family-baseline font-family))
+	,string ,start ,end
+	;,string :start ,start :end ,end
+	;:translate *glyph-translate-function*
+	))))
 ); eval-when (compile eval)
+
+#|
+(defun hunk-put-string-f (x y font fore-color back-color
+			  string start end hunk font-family gcontext)
+  (hunk-put-string x y font fore-color back-color string start end))
+|#
 
 ;;; Hunk-Write-String  --  Internal
 ;;;
 ;;; A historical vestige used by bitmap hunk streams.  Use default font (0)
-;;; and color, and bind font-family and color-map for HUNK-PUT-STRING.
+;;; and color, and bind font-family, gcontext and FIX color-map for
+;;; `hunk-put-string'.
 ;;;
 (defun hunk-write-string (hunk x y string start end)
-  (let* ((font-family (bitmap-hunk-font-family hunk))
-	 (font (svref (font-family-map font-family) 0)))
-    (hunk-put-string x y font :window-foreground :window-background
+  (let ((font-family (bitmap-hunk-font-family hunk))
+	(gcontext (bitmap-hunk-gcontext hunk)))
+    (hunk-put-string x y
+		     (svref (font-family-map font-family) 0)
+		     () () ; Colors.
 		     string start end)))
 
 ;;; Hunk-Write-Line  --  Internal
@@ -102,27 +111,53 @@
 ;;; the line is written at Position, and the position in the dis-line is
 ;;; ignored.
 ;;;
+(declaim (inline hunk-write-line))
 (defun hunk-write-line (hunk dl &optional
 			     (position (dis-line-position dl)))
   (let* ((font-family (bitmap-hunk-font-family hunk))
 	 (font-map (font-family-map font-family))
 	 (device (bitmap-hunk-device hunk))
 	 (chars (dis-line-chars dl))
-	 (length (dis-line-length dl)))
+	 (length (dis-line-length dl))
+	 (gcontext (bitmap-hunk-gcontext hunk)))
     (let ((last 0)
 	  (last-fore-color)
 	  (last-back-color)
-	  (last-font (svref font-map 0)))
-      (do ((change (dis-line-font-changes dl)
-		   (font-change-next change)))
-	  ((null change)
-	   (hunk-put-string last position last-font
-			    last-fore-color last-back-color
-			    chars last length))
+	  (last-font (svref font-map 0))
+	  (gcontext-font-id (xlib:font-id
+			     (xlib:gcontext-font gcontext))))
+      (while ((change (dis-line-font-changes dl)
+		      (font-change-next change)))
+	     (change
+	      (or (> last length) ;; TODO in [cached-]real-line-length.
+		  (hunk-put-string last position
+				   ;; FIX with-gcontext is much slower when
+				   ;; passed font.
+
+				   ;;; FIX something wrong here, still slow
+				   ;;; FIX much faster with h-p-s :font ()       c: - (when font ..)
+				   ;;; FIX expecting this to eval to () always   it does
+
+				   (fi (equal gcontext-font-id
+					      (xlib:font-id last-font))
+				       last-font)
+
+				   last-fore-color last-back-color
+				   chars last length
+				   ;hunk font-family gcontext
+				   )))
 	(let ((x (font-change-x change)))
-	  (hunk-put-string last position last-font
-			   last-fore-color last-back-color
-			   chars last x)
+	  (or (> x length) ;; TODO in [cached-]real-line-length.
+	      (hunk-put-string last position
+			       ;; FIX with-gcontext is much slower when
+			       ;; passed font.
+			       (fi (equal gcontext-font-id
+					  (xlib:font-id last-font))
+				   last-font)
+			       last-fore-color last-back-color
+			       chars last x
+			       ;hunk font-family gcontext
+			       ))
 	  (setq last x
 		last-font (svref font-map (font-change-font change))
 		last-fore-color (let ((color (font-change-fore-color change)))
@@ -147,6 +182,7 @@
 ;;;
 ;;; Similar to Hunk-Write-Line, but the line need not be clear.
 ;;;
+(declaim (inline hunk-replace-line))
 (defun hunk-replace-line (hunk dl &optional
 			       (position (dis-line-position dl)))
   (if *hack-hunk-replace-line*
@@ -160,39 +196,60 @@
 	 (device (bitmap-hunk-device hunk))
 	 (chars (dis-line-chars dl))
 	 (length (dis-line-length dl))
-	 (height (font-family-height font-family)))
+	 (height (font-family-height font-family))
+	 (gcontext (bitmap-hunk-gcontext hunk))
+	 (gcontext-font-id (xlib:font-id
+			    (xlib:gcontext-font gcontext))))
     (let ((last 0)
 	  (last-fore-color)
 	  (last-back-color)
 	  (last-font (svref font-map 0)))
-      (do ((change (dis-line-font-changes dl) (font-change-next change)))
-	  ((null change)
-	   (hunk-put-string last position last-font
-			    last-fore-color last-back-color
-			    chars last length)
-	   (let ((dx (+ hunk-left-border
-			(* (font-family-width font-family) length))))
-	     (xlib:clear-area (bitmap-hunk-xwindow hunk)
-			      :x dx
-			      :y (+ hunk-top-border (* position height))
-			      :width (- (bitmap-hunk-width hunk) dx)
-			      :height height)))
+      (while ((change (dis-line-font-changes dl)
+		      (font-change-next change)))
+	     (change
+	      (or (> last length) ;; TODO in [cached-]real-line-length.
+		  (hunk-put-string last position
+				   ;; FIX with-gcontext is much slower when
+				   ;; passed font.
+				   (fi (equal gcontext-font-id
+					      (xlib:font-id last-font))
+				       last-font)
+				   last-fore-color last-back-color
+				   chars last length))
+	      (let ((dx (+ hunk-left-border
+			   (* (font-family-width font-family) length))))
+		(xlib:clear-area (bitmap-hunk-xwindow hunk)
+				 :x dx
+				 :y (+ hunk-top-border
+				       (* position height))
+				 :width (- (bitmap-hunk-width hunk)
+					   dx)
+				 :height height)))
 	(let ((x (font-change-x change)))
-	  (hunk-put-string last position last-font
-			   last-fore-color last-back-color
-			   chars last x)
+	  (or (> x length) ;; TODO in [cached-]real-line-length.
+	      (hunk-put-string last position
+			       ;; FIX with-gcontext is much slower when
+			       ;; passed font.
+			       (fi (equal gcontext-font-id
+					  (xlib:font-id last-font))
+				   last-font)
+			       last-fore-color last-back-color
+			       chars last x))
 	  (setq last x
 		last-font (svref font-map (font-change-font change))
-		last-fore-color (let ((color (font-change-fore-color change)))
+		last-fore-color (let ((color (font-change-fore-color
+					      change)))
 				  (case color
 				    (:window-foreground)
 				    ((()))
 				    (t (device-color device color))))
-		last-back-color (let ((color (font-change-back-color change)))
+		last-back-color (let ((color (font-change-back-color
+					      change)))
 				  (case color
 				    (:window-background)
 				    ((()))
-				    (t (device-color device color))))))))))
+				    (t (device-color device
+						     color))))))))))
 
 (defvar *hunk-replace-line-pixmap* nil)
 
@@ -224,19 +281,17 @@
 
 ;;; HUNK-REPLACE-LINE-STRING takes a character (x,y) pair and computes at
 ;;; which pixel coordinate to draw string with font from start to end.
-;;; This macros assumes hunk, font-family and color-map to be bound by the
-;;; caller.  Draw the text on a pixmap and later blast it out to overcome
-;;; line flicker, for example, if the server clears the entire line before
-;;; drawing text.
+;;; This macros assumes hunk, gcontext, font-family and FIX color-map to be
+;;; bound by the caller.  FIX Draw the text on a pixmap and later blast it
+;;; out to overcome line flicker, for example, if the server clears the
+;;; entire line before drawing text.
 ;;;
 (defmacro hunk-replace-line-string (x y font fore-color back-color
 				      string start end)
   (declare (ignore y))
-  `(xlib:with-gcontext (gcontext :font ,font)
-     (if ,fore-color
-	 (setf (xlib:gcontext-foreground gcontext) ,fore-color))
-     (if ,back-color
-	 (setf (xlib:gcontext-background gcontext) ,back-color))
+  `(xlib:with-gcontext (gcontext :background ,back-color
+				 :font ,font
+				 :foreground ,fore-color)
      (xlib:draw-image-glyphs
       (hunk-replace-line-pixmap) gcontext
       (+ hunk-left-border (* ,x (font-family-width font-family)))
@@ -256,12 +311,20 @@
 	 (last-fore-color)
 	 (last-back-color)
 	 (last-font (svref font-map 0))
-	 (gcontext (bitmap-hunk-gcontext hunk)))
+	 (gcontext (bitmap-hunk-gcontext hunk))
+	 (gcontext-font-id (xlib:font-id
+			    (xlib:gcontext-font gcontext))))
     (do ((change (dis-line-font-changes dl) (font-change-next change)))
 	((null change)
-	 (hunk-replace-line-string last position last-font
-				   last-fore-color last-back-color
-				   chars last length)
+	 (or (> last length) ;; TODO in [cached-]real-line-length.
+	     (hunk-replace-line-string last position
+				       ;; FIX with-gcontext is much slower when
+				       ;; passed font.
+				       (fi (equal gcontext-font-id
+						  (xlib:font-id last-font))
+					   last-font)
+				       last-fore-color last-back-color
+				       chars last length))
 	 (let* ((dx (+ hunk-left-border
 		       (* (font-family-width font-family) length)))
 		(dy (+ hunk-top-border (* position height)))
@@ -273,9 +336,15 @@
 			    :width (- (bitmap-hunk-width hunk) dx)
 			    :height height)))
       (let ((x (font-change-x change)))
-	(hunk-replace-line-string last position last-font
-				  last-fore-color last-back-color
-				  chars last x)
+	(or (> x length) ;; TODO in [cached-]real-line-length.
+	    (hunk-replace-line-string last position
+				      ;; FIX with-gcontext is much slower
+				      ;; when passed font.
+				      (fi (equal gcontext-font-id
+						 (xlib:font-id last-font))
+					  last-font)
+				      last-fore-color last-back-color
+				      chars last x))
 	(setq last x
 	      last-font (svref font-map (font-change-font change))
 	      last-fore-color (let ((color (font-change-fore-color change)))
@@ -289,8 +358,9 @@
 				  ((()))
 				  (t (device-color device color)))))))))
 
-(defvar *hunk-replace-modeline-pixmap* nil)
+(defvar *hunk-replace-modeline-pixmap* ())
 
+(declaim (inline hunk-replace-modeline-pixmap))
 (defun hunk-replace-modeline-pixmap ()
   (if *hunk-replace-modeline-pixmap*
       *hunk-replace-modeline-pixmap*
@@ -319,6 +389,7 @@
 
 ;;; HUNK-REPLACE-MODELINE
 ;;;
+(declaim (inline hunk-replace-modeline))
 (defun hunk-replace-modeline (hunk)
   (if *hack-hunk-replace-line*
       (hunk-replace-modeline-on-a-pixmap hunk)
@@ -429,7 +500,7 @@
     (let* ((dx (+ hunk-left-border
 		  (* (font-family-width font-family) length)))
 	   (dy modeline-pos))
-      (xlib:with-gcontext (gcontext :exposures nil)
+      (xlib:with-gcontext (gcontext :exposures ())
 	(xlib:copy-area pixmap gcontext
 			0 0 dx height xwindow 0 dy))
       (xlib:with-gcontext (gcontext :foreground back-color)

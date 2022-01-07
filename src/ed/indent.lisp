@@ -10,6 +10,7 @@
 {evariable:Indent Function}
 {evariable:Tab Indenter}
 {evariable:Space Indenter}
+{evariable:Indent With Tabs}
 {evariable:Spaces per Tab}
 {function:ed:indent-region}
 {function:ed:indent-region-for-commands}
@@ -19,11 +20,23 @@
 (defun tab-to-tab-stop (mark)
   (insert-character mark #\tab))
 
+(defevar "Indent with Tabs"
+  "Whether `indent' indents with tabs or spaces."
+  :value t)
+
 (defevar "Indent Function"
   "Indentation function invoked by the `Indent' command.  The function
    takes a :left-inserting mark that may be moved, and indents the line
    that the mark is on."
   :value #'tab-to-tab-stop)
+
+(defun indent (mark length)
+  "Indent the text by $length characters from $mark, heeding *Indent with
+   Tabs*."
+  (funcall (if (value indent-with-tabs)
+	       (value tab-indenter)
+	       (value space-indenter))
+	   mark length))
 
 (defun update-spaces-per-tab (&optional name kind where value)
   "Update display to a new Value of *Spaces per Tab*."
@@ -80,11 +93,12 @@
 		(end (region-end region)))
       (line-start start)
       (line-start end)
-      (loop (when (mark= start end)
-	      (funcall indent-function start)
-	      (return))
-	    (funcall indent-function start)
-	    (line-offset start 1 0)))))
+      (loop
+	(when (mark= start end)
+	  (funcall indent-function start)
+	  (return))
+	(funcall indent-function start)
+	(line-offset start 1 0)))))
 
 (defun generic-indent (mark)
   (let* ((line (mark-line mark))
@@ -96,7 +110,7 @@
     (let ((indentation (mark-column mark)))
       (line-start mark line)
       (delete-horizontal-space mark)
-      (funcall (value tab-indenter) mark indentation))))
+      (indent mark indentation))))
 
 (defattribute "Space"
   "This attribute is used by the indentation commands to determine which
@@ -196,8 +210,7 @@ other features such as filling and commenting.
   "Indent the current line so that it is centered between the left margin
    and Fill Column.  With a prefix use the prefix as the width instead of
    `Fill Column'."
-  (let* ((indent-function (value tab-indenter))
-	 (region (if (region-active-p)
+  (let* ((region (if (region-active-p)
 		     (current-region)
 		     (region (current-point) (current-point))))
 	 (end (region-end region)))
@@ -210,8 +223,8 @@ other features such as filling and commenting.
 	       (spaces (- (or p (value fill-column)) len)))
 	  (if (and (plusp spaces)
 		   (not (zerop len)))
-	      (funcall indent-function temp (ceiling spaces 2)))
-	  (unless (line-offset temp 1) (return))
+	      (indent temp (ceiling spaces 2)))
+	  (or (line-offset temp 1) (return))
 	  (line-start temp))))))
 
 (defcommand "Quote Tab" (p)
@@ -344,5 +357,5 @@ indentation commands in section [ indentation ].
 		 (let ((new-column (+ p (mark-column mark1))))
 		   (delete-characters mark1 (- (mark-charpos mark1)))
 		   (if (plusp new-column)
-		       (funcall (value tab-indenter) mark1 new-column)))))
+		       (indent mark1 new-column)))))
 	(line-offset mark1 1 0)))))

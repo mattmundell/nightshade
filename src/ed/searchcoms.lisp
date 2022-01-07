@@ -222,8 +222,8 @@ search string.
 	    failure (eq direction :forward) string)))
 
 (defcommand "Incremental Search" ()
-  "Search, initially forward, for an input string according to successively
-   prompted characters.
+  "Search, initially forward, for an input string, according to
+   successively prompted characters.
 
    Dispatch on the following key-events as sub-commands:
 
@@ -269,20 +269,20 @@ search string.
    the starting position (before the search) on the mark stack.  If the
    current region was active when the search started, forego pushing a
    mark."
-  (setf (last-command-type) nil)
-  (%i-search-echo-refresh "" :forward nil)
+  (setf (last-command-type) ())
+  (%i-search-echo-refresh "" :forward ())
   (let* ((point (current-point))
 	 (save-start (copy-mark point :temporary))
-	 (previous-lss *last-search-pattern*))
+	 (previous-lss *last-search-switched*))
     (with-mark ((here point))
       (handler-case
-	    (when (eq (catch 'exit-i-search
-			(%i-search "" point here :forward nil))
-		      :control-g)
-	      (setq *last-search-switched* previous-lss)
-	      (move-mark point save-start)
-	      (invoke-hook abort-hook)
-	      (editor-error "Search exited."))
+	  (when (eq (catch 'exit-i-search
+		      (%i-search "" point here :forward ()))
+		    :control-g)
+	    (setq *last-search-switched* previous-lss)
+	    (move-mark point save-start)
+	    (invoke-hook abort-hook)
+	    (editor-error "Search exited."))
 	;; Now signalled in handler of C-g sigint.
 	(edi::editor-top-level-catcher ()
 	  (setq *last-search-switched* previous-lss)
@@ -339,15 +339,15 @@ search string.
    the starting position (before the search) on the mark stack.  If the
    current region was active when the search started, forego pushing a
    mark."
-  (setf (last-command-type) nil)
-  (%i-search-echo-refresh "" :backward nil)
+  (setf (last-command-type) ())
+  (%i-search-echo-refresh "" :backward ())
   (let* ((point (current-point))
 	 (save-start (copy-mark point :temporary))
 	 (previous-lss *last-search-switched*))
     (with-mark ((here point))
       (handler-case
 	  (when (eq (catch 'exit-i-search
-		      (%i-search "" point here :backward nil))
+		      (%i-search "" point here :backward ()))
 		    :control-g)
 	    (setq *last-search-switched* previous-lss)
 	    (move-mark point save-start)
@@ -400,7 +400,6 @@ search string.
   (declare (simple-string string))
   (cond ((let ((character (key-event-char key-event)))
 	   (and character (standard-char-p character)))
-	 (setq *last-search-switched* ())
 	 (%i-search-printed-char key-event string point trailer
 				 direction failure))
 	((or (logical-key-event-p key-event :forward-search)
@@ -415,11 +414,9 @@ search string.
 	   (throw 'exit-i-search :control-g))
 	 :control-g)
 	((logical-key-event-p key-event :quote)
-	 (setq *last-search-switched* ())
 	 (%i-search-printed-char (get-key-event *editor-input* t)
 				 string point trailer direction failure))
 	((equalp key-event #k"C-w")
-	 (setq *last-search-switched* ())
 	 (%i-search-copy-word string point trailer direction failure))
 	((and (zerop (length string)) (logical-key-event-p key-event :exit))
 	 (if (eq direction :forward)
@@ -497,7 +494,7 @@ search string.
 ;;; %I-SEARCH-EMPTY-STRING handles the empty string case when a ^S or ^R is
 ;;; typed.  If the direction and character typed do not agree, then merely
 ;;; switch directions.  If there was a previous string, search for it, else
-;;; flash at the guy.
+;;; beep.
 ;;;
 (defun %i-search-empty-string (point trailer direction forward-direction-p
 				     forward-character-p)
@@ -530,7 +527,7 @@ search string.
     (when (and (eq (value string-search-fold-case) :initially)
 	       (upper-case-p tchar))
       (setq *last-search-switched* t)
-      (setv string-search-fold-case nil))
+      (setv string-search-fold-case ()))
     (let ((new-string (concatenate 'simple-string string (string tchar))))
       (i-search-pattern new-string direction)
       (cond (failure (%i-search new-string point trailer direction failure))
@@ -848,6 +845,8 @@ search string.
     (with-mark ((bol-mark start-mark :left-inserting)
 		(eol-mark start-mark :right-inserting))
       (loop
+	(ed::msg "bol ~A" bol-mark)
+	(ed::msg "eol ~A" eol-mark)
 	(or (and (find-pattern bol-mark pattern) (mark< bol-mark end-mark))
 	    (return))
 	(move-mark eol-mark bol-mark)

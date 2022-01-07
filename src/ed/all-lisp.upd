@@ -11,7 +11,10 @@ buffer.lisp
 buildcoms.lisp
 c.lisp
 calendar.lisp
+changelog.lisp
+charcoms.lisp
 charmacs.lisp
+charsets.lisp
 command.lisp
 comments.lisp
 compile.lisp
@@ -25,6 +28,7 @@ defsyn.lisp
 dired.lisp
 diredcoms.lisp
 display.lisp
+doc.lisp
 doccoms.lisp
 doc-diff.lisp
 dylan.lisp
@@ -42,7 +46,6 @@ filecoms.lisp
 files.lisp
 fill.lisp
 font.lisp
-ginfo.lisp
 gosmacs.lisp
 group.lisp
 hacks.lisp

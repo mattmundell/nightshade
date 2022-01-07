@@ -66,7 +66,7 @@
 
 (proclaim '(special *character-attributes*))
 
-(defvar *utf8-hack* t)
+(defvar *utf-8-hack* t)
 
 ;;; %init-line-image  --  Internal
 ;;;
@@ -86,7 +86,7 @@
   (setf (attribute-descriptor-vector
 	 (gethash :print-representation *character-attributes*))
 	*print-representation-vector*)
-  (or *utf8-hack*
+  (or *utf-8-hack*
       (until ((code 128 (1+ code))
 	      (str (make-string 4) (make-string 4)))
 	     ((= code char-code-limit))
@@ -142,10 +142,33 @@
 ; 	    " ")
 ; 	 (logand xpos 7)))
 
-(defun redis-tab-display-fun (xpos)
-  (make-string (- (value ed::spaces-per-tab)
-		  (mod xpos (value ed::spaces-per-tab)))
-	       :initial-element #\ ))
+(defun redis-tab-display-fun (xpos line)
+  (let ((spaces-per-tab
+	 (or (and line
+		  (let ((buffer (line-%buffer line)))
+		    (or (bufferp buffer)
+			(error "weird line buffer: ~A" buffer))
+		    (and (bufferp buffer)
+			 ;; Check buffer.
+			 (if (editor-bound-p
+			      'ed::spaces-per-tab
+			      :buffer buffer)
+			     (variable-value
+			      'ed::spaces-per-tab
+			      :buffer buffer)
+			     ;; Check mode.
+			     (let ((mode (buffer-major-mode buffer)))
+			       (if (editor-bound-p
+				    'ed::spaces-per-tab
+				    :mode mode)
+				   (variable-value
+				    'ed::spaces-per-tab
+				    :mode mode)))))))
+	     ;; Globally.
+	     (variable-value 'ed::spaces-per-tab :global)
+	     4)))
+    (make-string (- spaces-per-tab (mod xpos spaces-per-tab))
+		 :initial-element #\ )))
 
 
 ;;;; The actual line image computing functions.
@@ -197,9 +220,10 @@
 ;;; This macro is called by the compute-line-image functions to display a
 ;;; group of losing characters.
 ;;;
-(defmacro display-losing-chars (line-chars index end dest xpos width
-					   string underhang access-fun
-					   &optional (done-p `(= ,index ,end)))
+(defmacro display-losing-chars (line
+				line-chars index end dest xpos width
+				string underhang access-fun
+				&optional (done-p `(= ,index ,end)))
   `(do ((last (or (%fcwa ,line-chars ,index ,end winning-char) ,end))
 	(len 0)
 	(zero 0)
@@ -207,7 +231,8 @@
        (())
      (declare (fixnum last len zero))
      (setq str (,access-fun ,line-chars ,index))
-     (unless (simple-string-p str) (setq str (funcall str ,xpos)))
+     (or (simple-string-p str)
+	 (setq str (funcall str ,xpos ,line)))
      (setq len (strlen str)  zero 0)
      (incf ,index)
      (display-some-chars str zero len ,dest ,xpos ,width ,done-p)
@@ -259,7 +284,7 @@
      ((= index end)
       (update-and-punt dis-line xpos nil nil index)))
     (setq losing (%fcwa line-chars index end losing-char))
-    (when (null losing)
+    (fi* losing
       (display-some-chars line-chars index end dest xpos width t)
       (if (or xpos (= index end))
 	  (update-and-punt dis-line xpos nil nil index)
@@ -275,12 +300,14 @@
       (setf (char dest (1- width)) *line-wrap-char*)
       (update-and-punt dis-line width nil 0 index))
      (t
-      (display-losing-chars line-chars index end dest xpos width string
+      (display-losing-chars line
+			    line-chars index end dest xpos width string
 			    underhang string-get-rep)))))
+
 
 ;;; compute-buffered-line-image  --  Internal
 ;;;
-;;; Compute the line image for a "Buffered" line, that is, one whose
+;;; Compute the line image for a "Buffered" line, that is, FIX one whose
 ;;; chars have not been consed yet.
 ;;;
 (defun compute-buffered-line-image (line start dis-line xpos width)
@@ -303,7 +330,7 @@
      ((= index end)
       (update-and-punt dis-line xpos nil nil index)))
     (setq losing (%fcwa line-chars index end losing-char))
-    (when (null losing)
+    (fi* losing
       (display-some-chars line-chars index end dest xpos width t)
       (if (or xpos (= index end))
 	  (update-and-punt dis-line xpos nil nil index)
@@ -319,7 +346,8 @@
       (setf (char dest (1- width)) *line-wrap-char*)
       (update-and-punt dis-line width nil 0 index))
      (t
-      (display-losing-chars line-chars index end dest xpos width string
+      (display-losing-chars line
+			    line-chars index end dest xpos width string
 			    underhang u-vec-get-rep)))))
 
 ;;; compute-cached-line-image  --  Internal
@@ -349,7 +377,8 @@
       (display-some-chars open-chars index losing dest xpos width nil)
       ;; If we we didn't wrap then display some losers...
       (if xpos
-	  (display-losing-chars open-chars index left-open-pos dest xpos
+	  (display-losing-chars (dis-line-line dis-line)
+				open-chars index left-open-pos dest xpos
 				width string underhang string-get-rep
 				(and done-p (= index left-open-pos)))
 	  (update-and-punt dis-line width nil 0 index)))
@@ -376,7 +405,8 @@
        ((null xpos)
 	(update-and-punt dis-line width nil 0 (- index gap)))
        (t
-	(display-losing-chars open-chars index line-cache-length dest xpos
+	(display-losing-chars (dis-line-line dis-line)
+			      open-chars index line-cache-length dest xpos
 			      width string underhang string-get-rep))))
      (t
       (display-some-chars open-chars index line-cache-length dest xpos width t)))
@@ -443,8 +473,8 @@
   ;;
   ;; If the line has any Font-Marks, add Font-Changes for them.
   (let ((marks (line-marks line)))
-    (when (dolist (m marks nil)
-	    (when (fast-font-mark-p m) (return t)))
+    (when (dolist (m marks)
+	    (if (fast-font-mark-p m) (return t)))
       (let ((prev nil))
 	;;
 	;; Find the last Font-Mark with charpos less than Offset.  If there is
@@ -470,16 +500,16 @@
 	(do ((bound (1- offset) min)
 	     (line-length (line-length* line))
 	     (min most-positive-fixnum most-positive-fixnum)
-	     (min-mark nil nil))
+	     (min-mark () ()))
 	    (())
 	  (dolist (m marks)
 	    (when (fast-font-mark-p m)
 	      (let ((charpos (mark-charpos m)))
 		(when (and (> charpos bound) (< charpos min))
 		  (setq min charpos  min-mark m)))))
-	  (or min-mark (return nil))
+	  (or min-mark (return))
 	  ;; In case of some weird font thing.
-	  (if (> min line-length) (return nil))
+	  (if (> min line-length) (return))
 	  (let ((len (if (eq line open-line)
 			 (cached-real-line-length line 10000 offset min)
 			 (real-line-length line 10000 offset min))))

@@ -1,5 +1,8 @@
 (in-package "LISP")
 
+;; FIX why `(a `,b c) => '(a b c)    like `(a ,'b c)
+;;        expect reader to evaluate b at `,b
+
 ;;; The flags passed back by BACKQUOTIFY can be interpreted as follows:
 ;;;
 ;;;   |`,|: [a] => a
@@ -35,38 +38,49 @@
 (defvar *bq-vector-flag* '(|bqv|))
 
 ;; This is the actual character macro.
-(defun backquote-macro (stream ignore)
-  (declare (ignore ignore))
-  (let ((*backquote-count* (1+ *backquote-count*)))
+(defun backquote-macro (stream char eof-errorp eof-value)
+  (declare (ignore char))
+  (let* ((*backquote-count* (1+ *backquote-count*))
+	 (form (read stream eof-errorp eof-value t)))
+    (or eof-errorp
+	(if (eq form eof-value)
+	    (return-from backquote-macro eof-value)))
     (multiple-value-bind (flag thing)
-			 (backquotify stream (read stream t nil t))
+			 (backquotify stream form)
       (if (eq flag *bq-at-flag*)
 	  (%reader-error stream ",@ after backquote in ~S" thing))
       (if (eq flag *bq-dot-flag*)
 	  (%reader-error stream ",. after backquote in ~S" thing))
       (values (backquotify-1 flag thing) 'list))))
 
-(defun comma-macro (stream ignore)
-  (declare (ignore ignore))
+(defun comma-macro (stream char eof-errorp eof-value)
+  (declare (ignore char))
   (unless (> *backquote-count* 0)
-    (when *read-suppress*
-      (return-from comma-macro nil))
-    (%reader-error stream "Comma not inside a backquote."))
-  (let ((c (read-char stream))
+    (if *read-suppress*
+	(return-from comma-macro ()))
+    (%reader-error stream "Comma outside a backquote."))
+  (let ((c (read-char stream eof-errorp eof-value))
 	(*backquote-count* (1- *backquote-count*)))
-    (values
-     (cond ((char= c #\@)
-	    (cons *bq-at-flag* (read stream t nil t)))
-	   ((char= c #\.)
-	    (cons *bq-dot-flag* (read stream t nil t)))
-	   (t (unread-char c stream)
-	      (cons *bq-comma-flag* (read stream t nil t))))
-     'list)))
+    (or eof-errorp
+	(if (eq c eof-value)
+	    (return-from comma-macro eof-value)))
+    (or (char= c #\@) (char= c #\.) (unread-char c stream))
+    (let ((form (read stream eof-errorp eof-value t)))
+      (or eof-errorp
+	  (if (eq form eof-value)
+	      (return-from comma-macro eof-value)))
+      (values
+       (cond ((char= c #\@)
+	      (cons *bq-at-flag* form))
+	     ((char= c #\.)
+	      (cons *bq-dot-flag* form))
+	     (t (cons *bq-comma-flag* form)))
+       'list))))
 
 ;;; This does the expansion from table 2.
 (defun backquotify (stream code)
   (cond ((atom code)
-	 (cond ((null code) (values nil nil))
+	 (cond ((null code) (values () ()))
 	       ((or (numberp code)
 		    (eq code t))
 		;; Keywords are self evaluating. Install after packages.
@@ -103,11 +117,11 @@
 				    (cons a d))
 				   (t (list a (backquotify-1 dflag d)))))))
 		((null dflag)
-		 (if (memq aflag '(quote t nil))
+		 (if (memq aflag '(quote t ()))
 		     (values 'quote (list a))
 		     (values 'list (list (backquotify-1 aflag a)))))
 		((memq dflag '(quote t))
-		 (if (memq aflag '(quote t nil))
+		 (if (memq aflag '(quote t ()))
 		     (values 'quote (cons a d ))
 		     (values 'list* (list (backquotify-1 aflag a)
 					  (backquotify-1 dflag d)))))
@@ -121,7 +135,7 @@
 (defun comma (code)
   (cond ((atom code)
 	 (cond ((null code)
-		(values nil nil))
+		(values () ()))
 	       ((or (numberp code) (eq code 't))
 		(values t code))
 	       (t (values *bq-comma-flag* code))))
@@ -136,7 +150,7 @@
 ;;; This handles table 1.
 (defun backquotify-1 (flag thing)
   (cond ((or (eq flag *bq-comma-flag*)
-	     (memq flag '(t nil)))
+	     (memq flag '(t ())))
 	 thing)
 	((eq flag 'quote)
 	 (list  'quote thing))
@@ -190,7 +204,7 @@
 
 (defun backq-unparse-expr (form splicing)
   (ecase splicing
-    ((nil)
+    ((())
      `(backq-comma ,form))
     ((t)
      `((backq-comma-at ,form)))
@@ -199,14 +213,14 @@
     ))
 
 (defun backq-unparse (form &optional splicing)
-  "Given a lisp form containing the magic functions BACKQ-LIST, BACKQ-LIST*,
-  BACKQ-APPEND, etc. produced by the backquote reader macro, will return a
-  corresponding backquote input form.  In this form, `,' `,@' and `,.' are
-  represented by lists whose cars are BACKQ-COMMA, BACKQ-COMMA-AT, and
-  BACKQ-COMMA-DOT respectively, and whose cadrs are the form after the comma.
-  SPLICING indicates whether a comma-escape return should be modified for
-  splicing with other forms: a value of T or :NCONC meaning that an extra
-  level of parentheses should be added."
+  "Given a lisp form containing the magic functions BACKQ-LIST,
+   BACKQ-LIST*, BACKQ-APPEND, etc. produced by the backquote reader macro,
+   will return a corresponding backquote input form.  In this form, `,'
+   `,@' and `,.' are represented by lists whose cars are BACKQ-COMMA,
+   BACKQ-COMMA-AT, and BACKQ-COMMA-DOT respectively, and whose cadrs are
+   the form after the comma.  SPLICING indicates whether a comma-escape
+   return should be modified for splicing with other forms: a value of T or
+   :NCONC meaning that an extra level of parentheses should be added."
   (cond
    ((atom form)
     (backq-unparse-expr form splicing))
@@ -218,7 +232,7 @@
        (mapcar #'backq-unparse (cdr form)))
       (backq-list*
        (do ((tail (cdr form) (cdr tail))
-	    (accum nil))
+	    (accum ()))
 	   ((null (cdr tail))
 	    (nconc (nreverse accum)
 		   (backq-unparse (car tail) t)))
@@ -230,7 +244,7 @@
        (mapcan #'(lambda (el) (backq-unparse el :nconc))
 	       (cdr form)))
       (backq-cons
-       (cons (backq-unparse (cadr form) nil)
+       (cons (backq-unparse (cadr form) ())
 	     (backq-unparse (caddr form) t)))
       (backq-vector
        (coerce (backq-unparse (cadr form)) 'vector))
@@ -263,7 +277,7 @@
 
 ;;; BACKQ-PP-INIT -- interface.
 ;;;
-;;; This is called by PPRINT-INIT.  This must be seperate from BACKQ-INIT
+;;; This is called by PPRINT-INIT.  This must be separate from BACKQ-INIT
 ;;; because SET-PPRINT-DISPATCH doesn't work until the compiler is loaded.
 ;;;
 (defun backq-pp-init ()

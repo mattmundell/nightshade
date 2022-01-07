@@ -150,7 +150,7 @@ If no \code{:initial-value} is specified, arrays are initialized to zero.
 		        (initial-element nil initial-element-p)
 			initial-contents adjustable fill-pointer
 			displaced-to displaced-index-offset)
-  "Creates an array of the specified Dimensions." ;; FIX details
+  "Create an array of $dimensions." ;; FIX details
   (let* ((dimensions (if (listp dimensions) dimensions (list dimensions)))
 	 (array-rank (length (the list dimensions)))
 	 (simple (and (null fill-pointer)

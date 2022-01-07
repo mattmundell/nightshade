@@ -6,12 +6,13 @@
 (export '(db-record-forename db-record-surname db-record-akas
 	  db-record-emails db-record-notes db-record-url
 	  db-record-full-name db-record-address
-	  add-record find-record free-record find-records
+	  add-record make-record find-record free-record find-records
 	  find-records-any get-record write-record
 	  field set-field subfields-p
 	  address-line-1 address-town address-code address-country
 	  ensure-db-read get-db-table
-	  read-db save-db set-db-modified ensure-db-saved))
+	  read-db save-db set-db-modified ensure-db-saved
+	  notice now))
 
 (defvar *db-records* ()
   "List of .db database records.")
@@ -24,6 +25,7 @@
 
 (declaim (special *db-records* *db-headings))
 
+;; FIX rename just table? (db:table)
 (defun get-db-table ()
   "Return the string table of .db names."
   (or *db-table* (read-db)))
@@ -82,7 +84,7 @@
   (aref address 5))
 
 (defun db-record-full-name (record)
-  "Return the emails field of .db Record."
+  "Return the full name of .db Record."
   (string-trim " " (format () "~A ~A"
 			   (db-record-forename record)
 			   (db-record-surname record))))
@@ -232,15 +234,33 @@
   *db-table*)
 |#
 
+;;; Internal
+;;;
+(defun add-to-table (record)
+  (setf (getstring (db-record-full-name record) *db-table*) record)
+  (dolist (aka (db-record-akas record))
+    (setf (getstring aka *db-table*) record)))
+
+;;; Internal
+;;;
+(defun subtract-from-table (record)
+  (delete-string (db-record-full-name record) *db-table*)
+  (dolist (aka (db-record-akas record))
+    (delete-string aka *db-table*)))
+
 (defun read-db ()
-  "Read the .db database into memory."
-  (setq *db-table* (make-string-table))
-  (load (config:config-pathname "db-data") :verbose ())
-  (dolist (record *db-records*)
-    (setf (getstring (db-record-full-name record) *db-table*) record)
-    (dolist (aka (db-record-akas record))
-      (setf (getstring aka *db-table*) record)))
-  *db-table*)
+  "Read the db database into memory.  Return db table on success, else ()."
+  (let ((ok))
+    (unwind-protect
+	(progn
+	  (setq *db-table* (make-string-table))
+	  (load (config:config-pathname "db-data") :verbose ())
+	  (dolist (record *db-records*)
+	    (add-to-table record))
+	  (setq ok t))
+      (or ok
+	  (setq *db-table* () *db-records* ())))
+    *db-table*))
 
 #|
 (defun save-db ()
@@ -299,12 +319,14 @@
 (defun add-record (record)
   "Add Record to .db, setting *db-modified*."
   (set-db-modified)
-  (push record *db-records*))
+  (push record *db-records*)
+  (add-to-table record))
 
 (defun free-record (record)
   "Release $record from .db, setting *db-modified*."
   (set-db-modified)
-  (setq *db-records* (delq record *db-records*)))
+  (setq *db-records* (delq record *db-records*))
+  (subtract-from-table record))
 
 (defun write-record (stream record)
   "Write .db $record to $stream."
@@ -385,7 +407,9 @@
     (if (eq record (car records)) (return records))))
 
 (defun find-record (name)
-  "Return record with Name in *db-records* if any, else ()."
+  "Return portion of *db-records* headed by first record with name matching
+   $name in *db-records*.  If that fails first with surname matching, else
+   first with AKAs matching, else ()."
   (let ((name-len (length name)))
     (nthcdr
      (or
@@ -432,7 +456,8 @@
      *db-records*)))
 
 (defun find-records (name)
-  "Return list of records with $name in *db-records* if any, else ()."
+  "Return list of records from *db-records* with name, surname or AKAs
+   matching $name if any, else ()."
   (let ((name (string-upcase name))
 	(name-len (length name)))
     (delete-duplicates
@@ -459,7 +484,7 @@
 
 (defun find-records-any (name)
   "Return a list of the records in *db-records* that contain the string
-   $name anywhere in the forename, surname or AKA fields."
+   $name anywhere in the forename, surname, AKA or notes fields."
   (let ((name (string-upcase name)))
     (delete-duplicates
      (append (keep-if (lambda (field)
@@ -483,3 +508,80 @@
 			(let ((db-notes (string-upcase (db-record-notes field))))
 			  (search name db-notes)))
 		      *db-records*)))))
+
+;;; Public
+;;;
+(defun now ()
+  "Return a string describing the current time for a db time entry."
+  (multiple-value-bind
+      (secs mins hours day month year)
+      (get-decoded-time)
+    (declare (ignore secs))
+    (format () "~2,'0D-~2,'0D-~2,'0D ~2,'0Dh~2,'0D"
+	    year month day hours mins)))
+
+;;; Public
+;;;
+(defun make-record (&key (name "") (surname "") email)
+  "Make a record for the contacts database.  The return is suitable for
+   `add-record'."
+  ;; FIX more fields, check input
+  (let ((date (now)))
+    (make-array 8
+		:initial-contents
+		(list name surname () ()
+		      ()
+		      ()
+		      (if email (list email))
+		      (list (cons 'CREATION-DATE date)
+			    (cons 'TIMESTAMP date))))))
+
+;;; Internal
+;;;
+;;; Return the first entry that has $name and $surname as name and surname,
+;;; or that has an AKA of "$name $surname".
+;;;
+(defun find-entry (name surname)
+  (find name *db-records*
+	:test
+	(lambda (name field)
+	  (let ((db-forename (db-record-forename field))
+		(db-surname (db-record-surname field)))
+	    (flet ((same (one two)
+		     (or (equal one two)
+			 (and (eq one ()) (equal two ""))
+			 (and (equal one "") (eq two ())))))
+	      (or (and (same db-forename name)
+		       (same db-surname surname))
+		  (member (format () "~A~@[ ~A~]"
+				  name
+				  (and surname
+				       (plusp (length surname)))
+				  surname)
+			  (db-record-akas field)
+			  :test #'string=)))))))
+
+(defun notice (name surname email &optional logger)
+  "Ensure that an entry with $name and $surname exists and that the entry
+   includes email address $email."
+  (let ((entry (find-entry name surname)))
+    (if entry
+	(let ((emails (db-record-emails entry)))
+	  (if emails
+	      (or (position email emails :test #'string=)
+		  (progn
+		    (set-field entry "EMAILS" ()
+			       (push email emails))
+		    (if logger
+			(funcall logger "Noticed email ~A for ~A ~A."
+				 email name surname))))
+	      (set-field entry "EMAILS" () email))
+	  entry)
+	(let ((record (make-record :name name
+				   :surname surname
+				   :email email)))
+	  (add-record record)
+	  (if logger
+	      (funcall logger "Noticed ~A ~A (~A)."
+		       name surname email))
+	  record))))

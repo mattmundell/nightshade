@@ -189,7 +189,7 @@ The next two variables determine the naming of checkpoint files.
 	     (cond ((or (not new-pn)
 			(zerop (length
 				(the simple-string (namestring new-pn)))))
-		    (setf (buffer-minor-mode buffer "Save") nil))
+		    (setf (buffer-minor-mode buffer "Save") ()))
 		   (t
 		    (when (write-checkpoint-file new-pn buffer)
 		      (reset-auto-save-state buffer)

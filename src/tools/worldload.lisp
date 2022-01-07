@@ -162,7 +162,8 @@
 
 ;;; Load random code sources that depend on the editor.
 ;;;
-#-runtime (maybe-byte-load "code:docnode")
+;#-(or no-editor runtime)
+(maybe-byte-load "code:docnode")
 
 ;;; Reset the "target" search list.
 ;;;

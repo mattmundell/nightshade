@@ -2,7 +2,8 @@
 
 (in-package "EDI")
 
-(export '(insert-character insert-string insert-region ninsert-region
+(export '(insert-character insert-format insert-region ninsert-region
+	  insert-string
 	  write-region))
 
 #[ Altering Text
@@ -15,6 +16,7 @@ are left pointing to the position where the text was.
 
 {function:ed:insert-character}
 {function:ed:insert-string}
+{function:ed:insert-format}
 {function:ed:insert-region}
 {function:ed:ninsert-region}
 {function:ed:delete-characters}
@@ -248,3 +250,8 @@ are left pointing to the position where the text was.
 	  ;; Fix up the marks in the line inserted into.
 	  (maybe-move-some-marks (this-charpos line last-line) charpos
 	    (+ last-charpos (- this-charpos charpos)))))))))
+
+
+(defmacro insert-format (mark control-string &rest args)
+  "Insert string at $mark.  `format' the string with $control-string and $args."
+  `(insert-string ,mark (format () ,control-string ,@args)))

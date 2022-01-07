@@ -77,8 +77,8 @@
 	  (typecase content
 	    (string)
 	    (t
-	     (loop for tnode = content then (parse:node-next tnode)
-	       while tnode do
+	     (while ((tnode content (parse:node-next tnode)))
+		    (tnode)
 	       (etypecase tnode
 		 (enriched-tag-node
 		  (let ((node (parse:node-next (parse:node-content tnode))))
@@ -105,31 +105,31 @@
 		   (let ((param (string-downcase (car *params*))))
 		     ;; FIX table? pass name to font-mark?
 		     (cond ((string= param "lightsalmon")
-			    (font-mark (mark-line ,mark)
-				       (mark-charpos parse:*mark*)
-				       *special-form-font*))
+			    (color-mark (mark-line ,mark)
+					(mark-charpos parse:*mark*)
+					:special-form))
 			   ((string= param "chocolate1")
-			    (font-mark (mark-line ,mark)
-				       (mark-charpos parse:*mark*)
-				       *preprocessor-font*))
+			    (color-mark (mark-line ,mark)
+					(mark-charpos parse:*mark*)
+					:preprocessor))
 			   ((string= param "yellow")
-			    (font-mark (mark-line ,mark)
-				       (mark-charpos parse:*mark*)
-				       *variable-font*))
+			    (color-mark (mark-line ,mark)
+					(mark-charpos parse:*mark*)
+					:variable))
 			   ((string= param "aquamarine")
-			    (font-mark (mark-line ,mark)
-				       (mark-charpos parse:*mark*)
-				       *function-font*))
+			    (color-mark (mark-line ,mark)
+					(mark-charpos parse:*mark*)
+					:function))
 			   ((string= param "palegreen")
-			    (font-mark (mark-line ,mark)
-				       (mark-charpos parse:*mark*)
-				       *string-font*))
+			    (color-mark (mark-line ,mark)
+					(mark-charpos parse:*mark*)
+					:string))
 			   ((string= param "lightgoldenrod")
-			    (font-mark (mark-line ,mark)
-				       (mark-charpos parse:*mark*)
-				       *variable-font*))
+			    (color-mark (mark-line ,mark)
+					(mark-charpos parse:*mark*)
+					:variable))
 			   (t
-			    (font-mark (mark-line ,mark)
+			    (color-mark (mark-line ,mark)
 				       (mark-charpos parse:*mark*)
 				       *error-font*)))))
 		 (render-enriched-node ,mark) ; text
@@ -155,7 +155,8 @@
 
 (defun render-enriched-nodes (parse:*mark*)
   "Render Enriched tag nodes in `nodes' at *MARK*."
-  (loop for node = node then (parse:node-next node) while node do
+  (while ((node node (parse:node-next node)))
+	 (node)
     (render-enriched-node-macro parse:*mark*)))
 
 (defun render-enriched (parse:*mark*)
@@ -197,8 +198,3 @@
     (setf (buffer-writable buffer) ())))
 
 (defmode "Enriched" :major-p t :setup-function #'setup-enriched-buffer)
-
-;; FIX ~ auto
-(defcommand "Enriched Mode" ()
-  "Put the current buffer into Enriched mode."
-  (setf (buffer-major-mode (current-buffer)) "Enriched"))

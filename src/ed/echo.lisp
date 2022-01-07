@@ -543,62 +543,93 @@ example:
 
 (defun refresh-completions ()
   (let* ((buffer *completions-buffer*)
-	 (mark (progn
-		 (delete-region (buffer-region buffer))
-		 (copy-mark (buffer-point buffer)
-			    :right-inserting))))
-    (buffer-start (buffer-point buffer))
-    (with-output-to-mark (s mark)
-      (let ((help (typecase *parse-help*
-		    (list (if *parse-help*
-			      (apply #'format nil *parse-help*)
-			      "There is no parse help."))
-		    (string *parse-help*)
-		    (t "Parse help is not a string or list: ~S" *parse-help*)))
-	    (input (region-to-string *parse-input-region*)))
-	(cond
-	 ((eq *parse-type* :keyword)
-	  (write-line help s)
-	  (if (plusp (length (string-trim '(#\space #\tab #\newline)
-					  input)))
-	      (let ((strings (ed::find-all-completions input *parse-string-tables*)))
-		(cond (strings
-		       (write-line "Possible completions:" s)
-		       (dolist (string strings)
-			 (write-char #\space s)
-			 (write-line string s)))
-		      (t
-		       (write-line
-			"There are no possible completions." s))))))
-	 ((and (eq *parse-type* :file) (plusp (length input)))
-	  (let ((pns (ambiguous-files (region-to-string *parse-input-region*)
+	 (point (buffer-point buffer)))
+    (delete-region (buffer-region buffer))
+    (setf (mark-kind point) :right-inserting)
+    (unwind-protect
+	(with-mark ((mark point :left-inserting))
+	  (with-output-to-mark (s mark)
+	    (let ((help (typecase *parse-help*
+			  (list (if *parse-help*
+				    (apply #'format () *parse-help*)
+				    "There is no parse help."))
+			  (string *parse-help*)
+			  (t "Parse help is not a string or list: ~S"
+			     *parse-help*)))
+		  (input (region-to-string *parse-input-region*)))
+	      (cond
+	       ((eq *parse-type* :keyword)
+		(write-line help s)
+		(if (or (plusp (length (string-trim '(#\space
+						      #\tab
+						      #\newline)
+						    input)))
+			(< (reduce #'+ *parse-string-tables*
+				   :key #'string-table-length)
+			   50))
+		    (let ((strings (ed::find-all-completions
+				    input
+				    *parse-string-tables*)))
+		      (cond (strings
+			     (write-line "Possible completions:" s)
+			     (dolist (string strings)
+			       (write-char #\space s)
+			       (write-line string s)))
+			    (t
+			     (write-line
+			      "There are no possible completions."
+			      s))))))
+	       ((and (eq *parse-type* :file) (plusp (length input)))
+		(block ()
+		  (handler-case
+		      (if (wild-pathname-p (region-to-string
+					    *parse-input-region*))
+			  (write-line "Wild pathname" s)
+			  (let ((pns (ambiguous-files
+				      (region-to-string
+				       *parse-input-region*)
 				      (or *parse-default* "") #| FIX |#)))
-	    (declare (list pns))
-	    (write-line help s)
-	    (cond (pns
-		   (write-line "Possible completions:" s)
-		   (let ((width (- (window-width (current-window)) 27)))
-		     (dolist (pn pns)
-		       (let* ((dir (directory-namestring pn))
-			      (len (length dir)))
-			 (unless (<= len width)
-			   (let ((slash (position #\/ dir
-						  :start (+ (- len width) 3))))
-			     (setf dir
-				   (if slash
-				       (concatenate 'string "..."
-						    (subseq dir slash))
-				       "..."))))
-			 (format s " ~A~25T ~A~%"
-				 (file-namestring pn) dir)))))
-		  (t
-		   (write-line
-		    "There are no possible completions." s)))))
-	 (t
-	  (insert-string mark help)
-	  (insert-character mark #\newline)))))
-    (buffer-start mark)
-    (let* ((*parse-input-string*  (region-to-string *parse-input-region*))
+			    (declare (list pns))
+			    (write-line help s)
+			    (cond
+			     (pns
+			      (write-line "Possible completions:"
+					  s)
+			      (let ((width (- (window-width
+					       (current-window))
+					      27)))
+				(dolist (pn pns)
+				  (let* ((dir (directory-namestring pn))
+					 (len (length dir)))
+				    (or (<= len width)
+					(let ((slash (position
+						      #\/ dir
+						      :start
+						      (+ (- len width)
+							 3))))
+					  (setf dir
+						(if slash
+						    (concatenate
+						     'string "..."
+						     (subseq dir
+							     slash))
+						    "..."))))
+				    (format s " ~A~25T ~A~%"
+					    (file-namestring pn) dir)))))
+			     (t
+			      (write-line
+			       "There are no possible completions."
+			       s)))))
+		    (lisp::namestring-parse-error
+		     ()
+		     (write-line "Namestring parse error, keep going."
+				 s)
+		     (return)))))
+	       (t
+		(insert-string mark help)
+		(insert-character mark #\newline))))))
+      (setf (mark-kind point) :left-inserting))
+    (let* ((*parse-input-string* (region-to-string *parse-input-region*))
 	   (*parse-input-words* (split *parse-input-string* #\space)))
       (highlight-visible-completions-buffer buffer))))
 
@@ -616,6 +647,7 @@ example:
     (setq *last-parse-input-string* nil)
     (display-prompt-nicely)
     (let ((start-window (current-window))
+	  (start-buffer (current-buffer))
 	  (previous-mode (buffer-major-mode *echo-area-buffer*)))
       (if (string= previous-mode "Echo Area")
 	  (setq previous-mode "Fundamental"))
@@ -623,28 +655,37 @@ example:
       (if initial
 	  (insert-string (buffer-point *echo-area-buffer*) initial))
       (if *parse-guide-p*
-	  (with-pop-up-window (*completions-buffer*
-			       *completions-window*
-			       :buffer-name "Guide"
-			       :modes '("Completions"))
+	  (let ((region-was-active-p (ed::region-active-p)))
 	    (unwind-protect
-		(progn
-		  (add-hook ed::after-command-hook #'refresh-completions)
-		  (refresh-completions)
-		  (setf (current-window) *echo-area-window*)
-		  (setf (buffer-major-mode *echo-area-buffer*) "Echo Area")
+		(with-pop-up-window (*completions-buffer*
+				     *completions-window*
+				     :buffer-name "Guide"
+				     :modes '("Completions"))
 		  (unwind-protect
-		      (use-buffer *echo-area-buffer*
-				  (recursive-edit nil))
-		    (setf (buffer-major-mode *echo-area-buffer*) previous-mode)
-		    (setf (current-window) start-window)))
-	      (remove-hook ed::after-command-hook #'refresh-completions)))
+		      (progn
+			(add-hook ed::after-command-hook #'refresh-completions)
+			(refresh-completions)
+			;; Get back the current region, so that it stays
+			;; highlighted during prompting.
+			(setf (current-window) start-window)
+			(setf (current-buffer) start-buffer)
+			;; FIX explain
+			(setf (current-window) *echo-area-window*)
+			(setf (buffer-major-mode *echo-area-buffer*) "Echo Area")
+			(if region-was-active-p (ed::activate-region))
+			(unwind-protect
+			    (use-buffer *echo-area-buffer*
+					(recursive-edit ()))
+			  (setf (buffer-major-mode *echo-area-buffer*) previous-mode)
+			  (setf (current-window) start-window)))
+		    (remove-hook ed::after-command-hook #'refresh-completions)))
+	      (if region-was-active-p (ed::activate-region))))
 	  (progn
 	    (setf (current-window) *echo-area-window*)
 	    (setf (buffer-major-mode *echo-area-buffer*) "Echo Area")
 	    (unwind-protect
 		(use-buffer *echo-area-buffer*
-			    (recursive-edit nil))
+			    (recursive-edit ()))
 	      (setf (buffer-major-mode *echo-area-buffer*) previous-mode)
 	      (setf (current-window) start-window)))))))
 
@@ -1152,7 +1193,7 @@ example:
 		     (return t))
 		    ((or (eq key-event #k"n")
 			 (eq key-event #k"N"))
-		     (return nil))
+		     (return ()))
 		    ((logical-key-event-p key-event :confirm)
 		     (if defaultp
 			 (return default)
@@ -1160,7 +1201,7 @@ example:
 		    ((logical-key-event-p key-event :help)
 		     (ed::help-on-parse-command))
 		    (t
-		     (unless must-exist (return key-event))
+		     (or must-exist (return key-event))
 		     (beep))))))
       (setf (current-window) old-window))))
 

@@ -459,11 +459,14 @@ message.
       (or quiet (message "Spawning slave ... "))
       (let ((proc
 	     (ext:run-program lisp
-			      `("-slave" ,(get-editor-name)
+			      ;; Switches variable first, to allow the
+			      ;; first switch to be the program and the
+			      ;; slave to be something else, like "sudo".
+			      `(,@(value slave-utility-switches)
+				"-slave" ,(get-editor-name)
 				,@(if slave (list "-slave-buffer" slave))
 				,@(if background
-				      (list "-background-buffer" background))
-				,@(value slave-utility-switches))
+				      (list "-background-buffer" background)))
 			      :wait nil
 			      :output "/dev/null"
 			      :if-output-exists :append))
@@ -580,9 +583,9 @@ commands only use this for compiling files.
 (defcommand "Select Slave" (p)
   "Change the current buffer to the current eval server's interactive
    buffer.  If the current eval server is something other than a slave,
-   then beep.  If there is current eval server is (), then create a slave
-   (as in [Slave Creation]).  If a prefix argument is supplied, then create
-   a new slave in any case.
+   then beep.  If the current eval server is (), then create a slave (as in
+   [Slave Creation]).  If a prefix argument is supplied, then create a new
+   slave in any case.
 
    Be the standard way to create a slave.
 
@@ -666,6 +669,40 @@ commands only use this for compiling files.
     (setf *accept-connections* accept)
     (message "~:[Inhibiting~;Accepting~] connections to ~S"
 	     accept (get-editor-name))))
+
+(defvar *root-slave* ())
+
+(defun get-root-slave ()
+  "Return the builder slave, creating it if required."
+  (if (and *root-slave*
+	   (let ((buffer (getstring (buffer-name *root-slave*)
+				    *buffer-names*)))
+	     (and buffer
+		  ;; Check if slave is alive.
+		  (editor-bound-p 'server-info
+				  :buffer *root-slave*))))
+      *root-slave*
+      (elet ((slave-utility "sudo")
+	     (slave-utility-switches
+	      (list (namestring (value slave-utility))))
+	     (confirm-slave-creation))
+	(let* ((name (unique-buffer-name "Root Slave"))
+	       (info (create-slave name)))
+	  (if info
+	      (setq *root-slave* (server-info-slave-buffer info)))))))
+
+(defcommand "Root Slave" ()
+  "Change the current buffer to the root slave buffer, creating it if
+   necessary (as in [Slave Creation]).
+
+   The slave buffer is a typescript ([typescripts]) that the slave uses for
+   its top-level read-eval-print loop."
+  (let* ((buffer (get-root-slave))
+	 (info (variable-value 'server-info :buffer buffer))
+	 (slave (server-info-slave-buffer info)))
+    (or slave
+	(editor-error "The root eval server must have a slave buffer."))
+    (change-to-buffer slave)))
 
 
 ;;;; Slave initialization.

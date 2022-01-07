@@ -475,9 +475,10 @@ the current value changes for any reason.
    shadowed value is affected (the global one is left the same)."
   (let ((desc (gethash attribute *character-attributes*))
 	(obj (getstring mode *mode-names*)))
-    (unless desc
-      (error "~S is not a defined Character Attribute." attribute))
-    (unless obj (error "~S is not a defined Mode." mode))
+    (or desc
+	(error "~S is not a defined Character Attribute." attribute))
+    (or obj
+	(error "~S is not a defined Mode." mode))
     (let* ((current (assq desc (mode-object-character-attributes obj)))
 	   (code (syntax-char-code character))
 	   (hooks (attribute-descriptor-hooks desc))

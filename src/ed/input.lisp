@@ -3,8 +3,8 @@
 (in-package "EDI")
 
 (export '(get-key-event unget-key-event clear-editor-input listen-editor-input
-	  *last-key-event-typed* *key-event-history* *editor-input*
-	  *real-editor-input* input-waiting last-key-event-cursorpos))
+			*last-key-event-typed* *key-event-history* *editor-input*
+			*real-editor-input* input-waiting last-key-event-cursorpos))
 ;;;
 ;;; INPUT-WAITING is exported solely as a hack for the kbdmac definition
 ;;; mechanism.
@@ -183,6 +183,8 @@ the low-level input loop when there is no available input from the user.
 (defmacro abort-key-event-p (key-event)
   `(member ,key-event editor-abort-key-events))
 
+(defvar *changed-buffers* nil)
+
 ;;; EDITOR-INPUT-METHOD-MACRO  --  Internal.
 ;;;
 ;;; WINDOWED-GET-KEY-EVENT and TTY-GET-KEY-EVENT use this.  Somewhat odd
@@ -200,41 +202,59 @@ the low-level input loop when there is no available input from the user.
 ;;; we should prompt the user using the input method (recursively even).
 ;;;
 (eval-when (compile eval)
-(defmacro editor-input-method-macro ()
-  `(handler-bind ((error #'(lambda (condition)
-			     (let ((device (device-hunk-device
-					    (window-hunk (current-window)))))
-			       (funcall (device-exit device) device))
-			     (invoke-debugger condition))))
-;     (when *in-editor-stream-input-method*
-;       (error "Entering editor stream input method recursively."))
-     (let ((*in-editor-stream-input-method* t)
-	   (nrw-fun (device-note-read-wait
-		     (device-hunk-device (window-hunk (current-window)))))
-	   key-event)
-       (loop
-	 (when (setf key-event (dq-event stream))
-	   (dolist (f (variable-value 'ed::input-hook)) (funcall f))
-	   (return))
+  (defmacro editor-input-method-macro ()
+    `(handler-bind ((error #'(lambda (condition)
+			       (with-screen
+				(with-simple-restart
+				    (ed "Return to editor.")
+				  (invoke-debugger condition))))))
+       ;(if *in-editor-stream-input-method*
+       ;    (error "Entering editor stream input method recursively."))
+       (let ((*in-editor-stream-input-method* t)
+	     (nrw-fun (device-note-read-wait
+		       (device-hunk-device (window-hunk (current-window)))))
+	     key-event)
+	 (loop
+	   (when (setf key-event (dq-event stream))
+	     (dolist (f (variable-value 'ed::input-hook)) (funcall f))
+	     (return))
 
-	 (invoke-scheduled-events)
-	 (or (system:serve-event 0)
-	     (internal-redisplay)
-	     (progn
-	       (if nrw-fun (funcall nrw-fun t))
-	       (let ((wait (next-scheduled-event-wait)))
-		 (if wait
-		     (system:serve-event wait)
-		     (system:serve-event))))))
-       (if nrw-fun (funcall nrw-fun ()))
-       (if (abort-key-event-p key-event)
-	   ;; ignore-abort-attempts-p must exist outside the macro.
-	   ;; in this case it is bound in GET-KEY-EVENT.
-	   (or ignore-abort-attempts-p
+	   ;; Invoke scheduled events.
+	   ;;
+	   ;; Setup some %command-loop context around the invocations, in
+	   ;; case the event handlers use any editor functions.
+	   (let* ((punt t)
+		  (count (catch 'command-loop-catcher
+			   (let ((*changed-buffers* ()))
+			     (prog1 (invoke-scheduled-events)
+			       (dolist (buffer *changed-buffers*)
+				 ; FIX macros compiles after input
+				 (if (member buffer *buffer-list*)
+				     (invoke-hook ed::after-change-hook
+						  buffer)))
+			       (setq punt ()))))))
+	     ; FIX macros compiles after input
+	     (if (and count (plusp count))
+		 (invoke-hook ed::after-command-hook))
+	     (if punt (invoke-hook ed::command-abort-hook)))
+
+	   (or (system:serve-event 0)
+	       (internal-redisplay)
 	       (progn
-		 (beep)
-		 (signal 'editor-top-level-catcher ()))))
-       key-event)))
+		 (if nrw-fun (funcall nrw-fun t))
+		 (let ((wait (next-scheduled-event-wait)))
+		   (if wait
+		       (system:serve-event wait)
+		       (system:serve-event))))))
+	 (if nrw-fun (funcall nrw-fun ()))
+	 (if (abort-key-event-p key-event)
+	     ;; ignore-abort-attempts-p must exist outside the macro.
+	     ;; in this case it is bound in GET-KEY-EVENT.
+	     (or ignore-abort-attempts-p
+		 (progn
+		   (beep)
+		   (signal 'editor-top-level-catcher ()))))
+	 key-event)))
 ) ;eval-when
 
 
@@ -270,7 +290,7 @@ the low-level input loop when there is no available input from the user.
    (let* ((head (editor-input-head stream))
 	  (next (input-event-next head)))
      (when next
-       (setf (input-event-next head) nil)
+       (setf (input-event-next head) ())
        (shiftf (input-event-next (editor-input-tail stream))
 	       *free-input-events* next)
        (setf (editor-input-tail stream) head)))))
@@ -284,7 +304,7 @@ the low-level input loop when there is no available input from the user.
     ;;
     ;; If nothing is pending, check the queued input.
     (or (system:serve-event 0)
-	(return (not (null (input-event-next (editor-input-head stream))))))))
+	(return (input-event-next (editor-input-head stream))))))
 
 
 ;;;; Editor input from a tty.
@@ -331,7 +351,7 @@ the low-level input loop when there is no available input from the user.
 	      (editor-tty-listen stream))
       (return t))
     ;; If nothing is pending, check the queued input.
-    (fi (system:serve-event 0)
+    (or (system:serve-event 0)
 	(return (not (null (input-event-next (editor-input-head stream))))))))
 
 
@@ -486,7 +506,7 @@ the low-level input loop when there is no available input from the user.
 	  (if (integerp (cadr reference))
 	      (progn
 		(ed::change-to-buffer (ed::find-file-buffer (car reference)))
-		(ed::goto-absolute-line-command (cadr reference)))
+		(ed::go-to-absolute-line-command (cadr reference)))
 	      (apply 'ed::go-to-definition reference))
 	  (unless (or (logical-key-event-p key-event :do-all)
 		      (logical-key-event-p key-event :exit)

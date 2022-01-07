@@ -729,6 +729,15 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
      * If $eof-error-p is true, signal an end-of-file condition if
        end-of-file is encountered before $requested bytes have been read.
 
+
+
+
+
+
+
+
+
+
      * If $eof-error-p is false, read as much data as is currently
        available (up to $requested bytes).  On pipes or similar devices,
        return as soon as any data is available, even if the amount read is

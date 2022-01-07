@@ -1,0 +1,50 @@
+This package was debianized by Matthew Mundell <matt@mundell.ukfsn.org> on
+Fri, 30 Jan 2009 23:27:20 +0000.
+
+It was downloaded from
+
+	http://www.mundell.ukfsn.org/nightshade/nightshade-1g.tar.bz2
+
+Upstream Authors: Many.
+
+Copyright: Public domain.
+
+License:
+
+    As of version 1b Nightshade is most probably entirely public domain.  It is
+    based on CMUCL 18c.
+
+    All parts of CMUCL 18c that were explicitly marked as copyrighted have been
+    removed.  This includes PCL, the CLX interface, the MIT version of the loop
+    macro and some of the contrib directory.
+
+    Everyone who committed to the CMUCL 18c repository after the CMU public
+    domain release has confirmed that the additions they made are public
+    domain.  They are Douglas Crosher (dtc), Robert MacLachlan (ram) and Paul
+    Werkowski (pw).
+
+    Contributions committed on behalf of the contributor after the CMU public
+    domain release were recorded in the CVS logs.  The status of these
+    additions is:
+
+      % confirmed public domain by contributor
+
+	Marco Antoniotti, Julian Dolby, Peter Van Eynde, Fred Gilham, Erica
+	Marsden, Mike McDonald, Timothy Miller, Tim Moore, Ken Olum, Raymond
+	Toy.
+
+      % reverted
+
+	Pierpaolo Bernardi, Casper Dik, Pierre Mai, Juergen Weiss.
+
+      % pending contact with the author
+
+	Casper Dik, Marcus Krummenacker, Simon.
+
+    Every new addition to the CMUCL 18c base is public domain.  A few of these
+    new additions come from outside the Nightshade project; their sources are
+    detailed in the file src/etc/AUTHORS.
+
+
+The Debian packaging was done by Matthew Mundell <matt@mundell.ukfsn.org>
+and is hereby released into the public domain.

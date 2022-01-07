@@ -44,15 +44,15 @@
 	  display display-default-screen display-fd
 	  display-finish-output display-force-output
 	  display-roots
-	  draw-arc draw-image-glyphs draw-line draw-lines
-	  draw-rectangle draw-rectangles
+	  draw-arc draw-image-glyphs draw-image-string draw-line
+	  draw-lines draw-rectangle draw-rectangles
 	  drawable-border-width drawable-class
 	  drawable-depth drawable-height
 	  drawable-override-redirect drawable-width
 	  drawable-x drawable-y
 	  drawable-display
 	  event-case event-listen
-	  font-ascent font-descent font-path
+	  font-ascent font-descent font-id font-path
 	  free-cursor free-gcontext free-pixmap
 	  get-best-authorization
 	  gcontext-background gcontext-foreground gcontext-function
@@ -292,23 +292,33 @@
   (display system-area-pointer) ; type Display*
   (discard boolean))
 
+(def-alien-routine ("XFlush" x-flush) int
+  (display system-area-pointer)) ; type Display*
+
 (def-alien-variable ("true" x-true) int)
 (def-alien-variable ("false" x-false) int)
 (def-alien-variable ("none" x-none) int)
 
 (defun display-finish-output (display)
-  ; FIX (x-flush (display-display display))?
-  (x-sync (int-sap (display-x-display display)) x-false)
-  ;(finish-output (display-input-stream display))
+  ; This led to lost events.
+  ;(x-sync (int-sap (display-x-display display)) x-false)
+  (x-flush (int-sap (display-x-display display)))
+#| requires PCL
+  (finish-output (x-connection-number
+		  (int-sap (display-x-display display))))
+|#
   )
 
 (defun display-force-output (display)
-  ; FIX (x-sync (display-display display))?
-  (x-sync (int-sap (display-x-display display)) x-false)
-  ;(force-output (display-input-stream display))
-  )
+  ; This also led to lost events.
+  ;(x-sync (int-sap (display-x-display display)) x-false)
+  (x-flush (int-sap (display-x-display display)))
+#| requires PCL
+  (force-output (x-connection-number
+		 (int-sap (display-x-display display))))
+|#
+)
 
-#|
 (def-alien-routine ("XWidthOfScreen" x-width-of-screen) int
   (display system-area-pointer)) ; type Screen*
 
@@ -317,7 +327,6 @@
 (defun screen-width (screen)
   "Return the width of $screen."
   (x-width-of-screen (int-sap screen)))
-|#
 
 
 ;;;; Fonts.
@@ -427,6 +436,12 @@
 (defun font-descent (font)
   "Return the ascent of $font."
   (slot font 'descent))
+
+;;; Public
+;;;
+(defun font-id (font)
+  "Return the ID of $font."
+  (slot font 'fid))
 
 (def-alien-routine ("XGetFontPath" x-get-font-path)
 		   system-area-pointer ; type char**
@@ -996,6 +1011,146 @@
 (defvar x-all-planes #xFFFFFFFFFFFFFFFF
   "Mask for all planes.")
 
+#|
+;(declaim (inline setup-gc-values))
+(defun setup-gc-values (mask
+			gc-values
+			background
+			exposures
+			fill-style
+			font
+			foreground
+			function
+			line-style
+			line-width
+			plane-mask
+			stipple)
+  (when plane-mask
+    (if (eq plane-mask :all)
+	(setf (slot (deref gc-values) 'plane-mask) x-all-planes)
+	(setf (slot (deref gc-values) 'plane-mask) plane-mask))
+    (setq mask (logior mask x-gc-plane-mask)))
+  (when background
+    (setf (slot (deref gc-values) 'background) background)
+    (setq mask (logior mask x-gc-background)))
+  (when exposures
+    (setf (slot (deref gc-values) 'graphics-exposures) exposures)
+    (setq mask (logior mask x-gc-graphics-exposures)))
+  (when fill-style
+    (setf (slot (deref gc-values) 'fill-style)
+	  (ecase fill-style
+	    (:opaque-stippled  x-fill-opaque-stippled)
+	    (:solid            x-fill-solid)
+	    (:stippled         x-fill-stippled)
+	    (:tiled            x-fill-tiled)))
+    (setq mask (logior mask x-gc-fill-style)))
+  (when font
+    (if (numberp font)
+	(progn
+	  (setf (slot gc-values 'font) font)
+	  (setq mask (logior mask x-gc-font)))
+	(or (null-alien font)
+	    (progn
+	      (setf (slot gc-values 'font)
+		    (slot (deref font) 'fid))
+	      (setq mask (logior mask x-gc-font))))))
+  (when foreground
+    (setf (slot (deref gc-values) 'foreground) foreground)
+    (setq mask (logior mask x-gc-foreground)))
+  (when function
+    (setf (slot (deref gc-values) 'function) function)
+    (setq mask (logior mask x-gc-function)))
+  (when line-style
+    (setf (slot (deref gc-values) 'line-style)
+	  (ecase line-style
+	    (:solid         x-line-solid)
+	    (:dashed        x-line-on-off-dash)
+	    (:double-dashed x-line-double-dash)))
+    (setq mask (logior mask x-gc-line-style)))
+  (when line-width
+    (setf (slot (deref gc-values) 'line-width) line-width)
+    (setq mask (logior mask x-gc-line-width)))
+  (when stipple
+    (setf (slot (deref gc-values) 'stipple)
+	  (int-sap (pixmap-x-drawable stipple)))
+    (setq mask (logior mask x-gc-stipple)))
+  mask)
+|#
+
+(defmacro setup-gc-values (mask
+			   gc-values
+			   background
+			   exposures
+			   fill-style
+			   font
+			   foreground
+			   function
+			   line-style
+			   line-width
+			   plane-mask
+			   stipple)
+  `(progn
+     ,(when plane-mask
+	`(when ,plane-mask
+	   (if (eq ,plane-mask :all)
+	       (setf (slot (deref ,gc-values) 'plane-mask) x-all-planes)
+	       (setf (slot (deref ,gc-values) 'plane-mask) ,plane-mask))
+	   (setq ,mask (logior ,mask x-gc-plane-mask))))
+     ,(when background
+	`(when ,background
+	   (setf (slot (deref ,gc-values) 'background) ,background)
+	   (setq ,mask (logior ,mask x-gc-background))))
+     ,(when exposures
+	`(when ,exposures
+	   (setf (slot (deref ,gc-values) 'graphics-exposures) ,exposures)
+	   (setq ,mask (logior ,mask x-gc-graphics-exposures))))
+     ,(when fill-style
+	`(when ,fill-style
+	   (setf (slot (deref ,gc-values) 'fill-style)
+		 (ecase ,fill-style
+		   (:opaque-stippled  x-fill-opaque-stippled)
+		   (:solid            x-fill-solid)
+		   (:stippled         x-fill-stippled)
+		   (:tiled            x-fill-tiled)))
+	   (setq ,mask (logior ,mask x-gc-fill-style))))
+     ,(when font
+	`(when ,font
+	   (if (numberp ,font)
+	       (progn
+		 (setf (slot ,gc-values 'font) ,font)
+		 (setq ,mask (logior ,mask x-gc-font)))
+	       (or (null-alien ,font)
+		   (progn
+		     (setf (slot ,gc-values 'font)
+			   (slot (deref ,font) 'fid))
+		     (setq ,mask (logior ,mask x-gc-font)))))))
+     ,(when foreground
+	`(when ,foreground
+	   (setf (slot (deref ,gc-values) 'foreground) ,foreground)
+	   (setq ,mask (logior ,mask x-gc-foreground))))
+     ,(when function
+	`(when ,function
+	   (setf (slot (deref ,gc-values) 'function) ,function)
+	   (setq ,mask (logior ,mask x-gc-function))))
+     ,(when line-style
+	`(when ,line-style
+	   (setf (slot (deref ,gc-values) 'line-style)
+		 (ecase ,line-style
+		   (:solid         x-line-solid)
+		   (:dashed        x-line-on-off-dash)
+		   (:double-dashed x-line-double-dash)))
+	   (setq ,mask (logior ,mask x-gc-line-style))))
+     ,(when line-width
+	`(when ,line-width
+	   (setf (slot (deref ,gc-values) 'line-width) ,line-width)
+	   (setq ,mask (logior ,mask x-gc-line-width))))
+     ,(when stipple
+	`(when ,stipple
+	   (setf (slot (deref ,gc-values) 'stipple)
+		 (int-sap (pixmap-x-drawable ,stipple)))
+	   (setq ,mask (logior ,mask x-gc-stipple))))
+     ,mask))
+
 ;;; Public
 ;;;
 (defun create-gcontext (&key background
@@ -1013,51 +1168,11 @@
   (or drawable (error "FIX need drawable"))
   (with-alien ((gc-values (struct x-gc-values))
 	       (mask unsigned-long :local 0))
-    (when plane-mask
-      (if (eq plane-mask :all)
-	  (setf (slot gc-values 'plane-mask) x-all-planes)
-	  (setf (slot gc-values 'plane-mask) plane-mask))
-      (setq mask (logior mask x-gc-plane-mask)))
-    (when background
-      (setf (slot gc-values 'background) background)
-      (setq mask (logior mask x-gc-background)))
-    (when exposures
-      (setf (slot gc-values 'graphics-exposures) exposures)
-      (setq mask (logior mask x-gc-graphics-exposures)))
-    (when fill-style
-      (setf (slot gc-values 'fill-style)
-	    (ecase fill-style
-	      (:opaque-stippled  x-fill-opaque-stippled)
-	      (:solid            x-fill-solid)
-	      (:stippled         x-fill-stippled)
-	      (:tiled            x-fill-tiled)))
-      (setq mask (logior mask x-gc-fill-style)))
-    (when font
-      (or (null-alien font)
-	  (progn
-	    (setf (slot gc-values 'font)
-		  (slot (deref font) 'fid))
-	    (setq mask (logior mask x-gc-font)))))
-    (when foreground
-      (setf (slot gc-values 'foreground) foreground)
-      (setq mask (logior mask x-gc-foreground)))
-    (when function
-      (setf (slot gc-values 'function) function)
-      (setq mask (logior mask x-gc-function)))
-    (when line-style
-      (setf (slot gc-values 'line-style)
-	    (ecase line-style
-	      (:solid         x-line-solid)
-	      (:dashed        x-line-on-off-dash)
-	      (:double-dashed x-line-double-dash)))
-      (setq mask (logior mask x-gc-line-style)))
-    (when line-width
-      (setf (slot gc-values 'line-width) line-width)
-      (setq mask (logior mask x-gc-line-width)))
-    (when stipple
-      (setf (slot gc-values 'stipple)
-	    (int-sap (pixmap-x-drawable stipple)))
-      (setq mask (logior mask x-gc-stipple)))
+    (setq mask
+	  (setup-gc-values mask (addr gc-values)
+			   background exposures fill-style font
+			   foreground function line-style line-width
+			   plane-mask stipple))
     (let ((display (drawable-display drawable)))
       (make-gcontext :x-gcontext
 		     (sap-int (x-create-gc
@@ -1079,6 +1194,125 @@
   (x-free-gc (int-sap (display-x-display (gcontext-display gcontext)))
 	     (int-sap (gcontext-x-gcontext gcontext))))
 
+(def-alien-routine ("XChangeGC" x-change-gc) int
+  (display system-area-pointer) ; type Display*
+  (gc system-area-pointer) ; type GC
+  (valuemask unsigned-long)
+  (values (* t))) ; type XGCValues*
+
+(def-alien-routine ("XGetGCValues" x-get-gc-values)
+		   system-area-pointer ; type Status
+  (display system-area-pointer) ; type Display*
+  (gc system-area-pointer) ; type GC
+  (valuemask unsigned-long)
+  (values-return (* t))) ; type XGCValues*
+
+#|
+(declaim (inline change-gcontext))
+(defun change-gcontext (x-display-sap x-gcontext-sap original-gc-values
+				      mask
+				      background exposures
+				      fill-style font foreground
+				      function line-style line-width
+				      plane-mask stipple)
+  "Update the given element(s) of $gcontext, storing the old values in
+   $original-gc-values.  Return the new mask."
+  (with-alien ((gc-values (struct x-gc-values)))
+    (let ((mask	(setup-gc-values mask (addr gc-values)
+				 background exposures fill-style
+				 font foreground function line-style
+				 line-width plane-mask stipple)))
+      (x-get-gc-values x-display-sap
+		       x-gcontext-sap
+		       mask
+		       original-gc-values)
+      (x-change-gc x-display-sap
+		   x-gcontext-sap
+		   mask
+		   (addr gc-values))
+      mask)))
+|#
+
+(defmacro change-gcontext (x-display-sap x-gcontext-sap original-gc-values
+					 mask
+					 background exposures
+					 fill-style font foreground
+					 function line-style line-width
+					 plane-mask stipple)
+  "Update the given element(s) of $gcontext, storing the old values in
+   $original-gc-values.  Return the new mask."
+  (let ((gc-values (gensym)) (new-mask (gensym)))
+    `(with-alien ((,gc-values (struct x-gc-values)))
+       (let ((,new-mask (setup-gc-values ,mask (addr ,gc-values)
+					 ,background ,exposures ,fill-style
+					 ,font ,foreground ,function ,line-style
+					 ,line-width ,plane-mask ,stipple)))
+	 (x-get-gc-values ,x-display-sap
+			  ,x-gcontext-sap
+			  ,new-mask
+			  ,original-gc-values)
+	 (x-change-gc ,x-display-sap
+		      ,x-gcontext-sap
+		      ,new-mask
+		      (addr ,gc-values))
+	 ,new-mask))))
+
+#|
+(def-alien-routine ("XCopyGC" x-copy-gc) int
+  (display system-area-pointer)
+  (src system-area-pointer) ; type GC
+  (dest system-area-pointer) ; type GC
+  (valuemask unsigned-long))
+|#
+
+;;; Public
+;;;
+(defmacro with-gcontext ((gcontext
+			  &key background
+			       exposures
+			       fill-style
+			       font
+			       foreground
+			       function
+			       line-style
+			       line-width
+			       plane-mask
+			       stipple)
+			 &body body)
+  (let ((gc-values (gensym))
+	(mask (gensym))
+	(x-display-sap (gensym))
+	(x-gcontext-sap (gensym)))
+  `(with-alien ((,gc-values (struct x-gc-values))
+		(,mask unsigned-long :local 0))
+     (let ((,x-display-sap (int-sap (display-x-display
+				    (gcontext-display ,gcontext))))
+	   (,x-gcontext-sap (int-sap (gcontext-x-gcontext ,gcontext))))
+       (unwind-protect
+	   (progn
+	     (setq ,mask
+		   (change-gcontext ,x-display-sap
+				    ,x-gcontext-sap
+				    (addr ,gc-values)
+				    ,mask
+				    ,background
+				    ,exposures
+				    ,fill-style
+				    ,font
+				    ,foreground
+				    ,function
+				    ,line-style
+				    ,line-width
+				    ,plane-mask
+				    ,stipple))
+	     ,@body)
+	 ;; Change back.
+	 (x-change-gc ,x-display-sap
+		      ,x-gcontext-sap
+		      ,mask
+		      (addr ,gc-values)))))))
+
+#| Version which allocates a new gc temporarily.
 ;;; Public
 ;;;
 (defmacro with-gcontext ((gcontext
@@ -1152,19 +1386,7 @@
 	 (unwind-protect
 	     (progn ,@body)
 	   (free-gcontext ,gcontext))))))
-
-(def-alien-routine ("XGetGCValues" x-get-gc-values)
-		   system-area-pointer ; type Status
-  (display system-area-pointer) ; type Display*
-  (gc system-area-pointer) ; type GC
-  (valuemask unsigned-long)
-  (values-return (* t))) ; type XGCValues
-
-(def-alien-routine ("XChangeGC" x-change-gc) int
-  (display system-area-pointer) ; type Display*
-  (gc system-area-pointer) ; type GC
-  (valuemask unsigned-long)
-  (values (* t))) ; type XGCValues
+|#
 
 ;;; Public
 ;;;
@@ -1840,6 +2062,9 @@
     (,x-visibility-notify :visibility-notify
 			  (struct x-visibility-event)
 			  ,x-visibility-notify-mask)
+    (,x-visibility-notify :visibility-change
+			  (struct x-visibility-event)
+			  ,x-visibility-notify-mask)
     (,x-create-notify  :create-notify  (struct x-create-window-event))
     (,x-destroy-notify :destroy-notify (struct x-destroy-window-event))
     (,x-unmap-notify   :unmap-notify   (struct x-unmap-event))
@@ -2047,7 +2272,7 @@
 			`(if ,timeout
 			     (if (event-listen ,display)
 				 (progn
-				   (format t "x-next-event~%")
+				   ;(format t "x-next-event~%")
 				   (let ((ret (x-next-event
 					       (int-sap (display-x-display
 							 ,display))
@@ -2102,19 +2327,23 @@
 		       *release-current-event*
 		       ,result
 		       (progn
-			 (format t "x-put-back-event~%")
+			 ;(format t "x-put-back-event~%")
 			 (x-put-back-event
 			  (int-sap (display-x-display ,display))
 			  (addr ,event))))
-		   t))))))))
+		   ;(print-events ,display)
+		   ,result))))))))
 
-(defun handle-event (event handler)
+(defun handle-event (display event handler)
   "Call $handler on the slots of $event according to the type of $event."
   (case (slot event 'type)
     ((#.x-key-press #.x-key-release)
      (with-alien ((event (struct x-key-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    (if (eq (slot event 'type) x-key-press)
 				  :key-press
 				  :key-release)
@@ -2136,11 +2365,13 @@
     ((#.x-button-press #.x-button-release)
      (with-alien ((event (struct x-button-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    (if (eq (slot event 'type) x-button-press)
 				  :button-press
 				  :button-release)
-		:window       (slot event 'window)
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
 		:serial       (slot event 'serial)
@@ -2159,9 +2390,15 @@
     (#.x-motion-notify
      (with-alien ((event (struct x-motion-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :motion-notify
-		:window       (slot event 'window)
+		:window       (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
 		:serial       (slot event 'serial)
@@ -2179,7 +2416,10 @@
     ((#.x-enter-notify #.x-leave-notify)
      (with-alien ((event (struct x-crossing-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    (if (eq (slot event 'type) x-enter-notify)
 				  :enter-notify
 				  :leave-notify)
@@ -2203,13 +2443,19 @@
     (#.x-exposure
      (with-alien ((event (struct x-expose-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :exposure
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
 		:serial       (slot event 'serial)
 		:send-event   (slot event 'send-event-p)
-		:window       (slot event 'window)
+		:window       (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:x            (slot event 'x)
 		:y            (slot event 'y)
 		:width        (slot event 'width)
@@ -2218,7 +2464,10 @@
     (#.x-graphics-exposure
      (with-alien ((event (struct x-graphics-expose-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :graphics-exposure
 		:drawable     (slot event 'window)
 		:display      (make-display (slot event 'display))
@@ -2235,7 +2484,10 @@
     (#.x-no-exposure
      (with-alien ((event (struct x-no-expose-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :no-exposure
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
@@ -2249,10 +2501,13 @@
 		:count        (slot event 'count)
 		:minor        (slot event 'minor)
 		:major        (slot event 'major))))
-    ((.#x-focus-in .#x-focus-out)
+    ((#.x-focus-in #.x-focus-out)
      (with-alien ((event (struct x-focus-change-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    (if (eq (slot event 'type) x-focus-in)
 				  :focus-in
 				  :focus-out)
@@ -2262,30 +2517,39 @@
 		:send-event   (slot event 'send-event-p)
 		:mode         (slot event 'mode)
 		:detail       (slot event 'detail))))
-    (.#x-keymap-notify
+    (#.x-keymap-notify
      (with-alien ((event (struct x-keymap-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :keymap-notify
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
 		:serial       (slot event 'serial)
 		:send-event   (slot event 'send-event-p)
 		:key-vector   (slot event 'key-vector))))
-    (.#x-visibility-notify
+    (#.x-visibility-notify
      (with-alien ((event (struct x-visibility-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :visibility-notify
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
 		:serial       (slot event 'serial)
 		:send-event   (slot event 'send-event-p)
 		:state        (slot event 'state))))
-    (.#x-create-notify
+    (#.x-create-notify
      (with-alien ((event (struct x-create-window-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :create-notify
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
@@ -2297,39 +2561,51 @@
 		:height       (slot event 'height)
 		:border-width (slot event 'border-width)
 		:override-redirect-p (slot event 'override-redirect-p))))
-    (.#x-destroy-notify
+    (#.x-destroy-notify
      (with-alien ((event (struct x-destroy-window-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :destroy-notify
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
 		:serial       (slot event 'serial)
 		:send-event   (slot event 'send-event-p))))
-    (.#x-unmap-notify
+    (#.x-unmap-notify
      (with-alien ((event (struct x-unmap-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :unmap-notify
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
 		:serial       (slot event 'serial)
 		:send-event   (slot event 'send-event-p)
 		:configure-p  (slot event 'configure-p))))
-    (.#x-map-notify
+    (#.x-map-notify
      (with-alien ((event (struct x-map-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :map-notify
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
 		:serial       (slot event 'serial)
 		:send-event   (slot event 'send-event-p)
 		:override-redirect-p (slot event 'override-redirect-p))))
-    (.#x-map-request
+    (#.x-map-request
      (with-alien ((event (struct x-map-request-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :map-request
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
@@ -2337,10 +2613,13 @@
 		:send-event   (slot event 'send-event-p)
 		;:window       (slot event 'window)
 		:parent       (slot event 'parent))))
-    (.#x-reparent-notify
+    (#.x-reparent-notify
      (with-alien ((event (struct x-reparent-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :reparent-notify
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
@@ -2350,10 +2629,13 @@
 		:x            (slot event 'x)
 		:y            (slot event 'y)
 		:override-redirect-p (slot event 'override-redirect-p))))
-    (.#x-configure-notify
+    (#.x-configure-notify
      (with-alien ((event (struct x-configure-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :configure-notify
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
@@ -2366,10 +2648,13 @@
 		:border-width         (slot event 'border-width)
 		:above-sibling        (slot event 'above-sibling)
 		:override-redirect-p  (slot event 'override-redirect-p))))
-    (.#x-gravity-notify
+    (#.x-gravity-notify
      (with-alien ((event (struct x-gravity-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :gravity-notify
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
@@ -2378,11 +2663,14 @@
 		:event        (slot event 'event)
 		:x            (slot event 'x)
 		:y            (slot event 'y))))
-    (.#x-resize-request
+    (#.x-resize-request
      (with-alien ((event (struct x-resize-request-event)
 			 :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :resize-request
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
@@ -2390,11 +2678,14 @@
 		:send-event   (slot event 'send-event-p)
 		:width        (slot event 'width)
 		:height       (slot event 'height))))
-    (.#x-configure-request
+    (#.x-configure-request
      (with-alien ((event (struct x-configure-request-event)
 			 :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :configure-request
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
@@ -2407,10 +2698,13 @@
 		:width        (slot event 'width)
 		:stack-mode   (slot event 'stack-mode)
 		:value-mask   (slot event 'value-mask))))
-    (.#x-circulate-notify
+    (#.x-circulate-notify
      (with-alien ((event (struct x-circulate-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :circulate-notify
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
@@ -2418,10 +2712,13 @@
 		:send-event   (slot event 'send-event-p)
 		:event        (slot event 'event)
 		:place        (slot event 'place))))
-    (.#x-circulate-request
+    (#.x-circulate-request
      (with-alien ((event (struct x-circulate-request-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :circulate-request
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
@@ -2429,10 +2726,13 @@
 		:send-event   (slot event 'send-event-p)
 		:event        (slot event 'event)
 		:place        (slot event 'place))))
-    (.#x-property-notify
+    (#.x-property-notify
      (with-alien ((event (struct x-property-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :property-notify
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
@@ -2440,10 +2740,13 @@
 		:send-event   (slot event 'send-event-p)
 		:atom         (slot event 'atom)
 		:state        (slot event 'state))))
-    (.#x-selection-clear
+    (#.x-selection-clear
      (with-alien ((event (struct x-selection-clear-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :selection-clear
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
@@ -2451,24 +2754,30 @@
 		:send-event   (slot event 'send-event-p)
 		:selection    (slot event 'selection)
 		:time         (slot event 'time))))
-    (.#x-selection-request
+    (#.x-selection-request
      (with-alien ((event (struct x-selection-request-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :selection-request
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
 		:serial       (slot event 'serial)
 		:send-event   (slot event 'send-event-p)
-		:event-window (slot event 'requestor)
+		:window       (slot event 'requestor)
 		:selection    (slot event 'selection)
 		:target       (slot event 'target)
 		:property     (slot event 'property)
 		:time         (slot event 'time))))
-    (.#x-selection-notify
+    (#.x-selection-notify
      (with-alien ((event (struct x-selection-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :selection-notify
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
@@ -2478,10 +2787,13 @@
 		:target       (slot event 'target)
 		:property     (slot event 'property)
 		:time         (slot event 'time))))
-    (.#x-colormap-notify
+    (#.x-colormap-notify
      (with-alien ((event (struct x-color-map-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :colormap-notify
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
@@ -2490,10 +2802,13 @@
 		:colormap     (slot event 'colormap)
 		:new-p        (slot event 'new-p)
 		:installed-p  (slot event 'installed-p))))
-    (.#x-mapping-notify
+    (#.x-mapping-notify
      (with-alien ((event (struct x-mapping-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :mapping-notify
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
@@ -2502,10 +2817,13 @@
 		:request      (slot event 'request)
 		:first-keycode (slot event 'first-keycode)
 		:count        (slot event 'count))))
-    (.#x-client-message
+    (#.x-client-message
      (with-alien ((event (struct x-client-message-event) :local event))
        (funcall handler
-		:event-window (slot event 'window)
+		:event-window (make-window
+			       :x-drawable (sap-int
+					    (slot event 'window))
+			       :display display)
 		:event-key    :client-message
 		:display      (make-display (slot event 'display))
 		:type         (slot event 'type)
@@ -2529,41 +2847,64 @@
 		           handler)
   "Process a single event on $display with $timeout, passing details of the
    event to $handler."
-  (or (zerop timeout)
-      (error "FIX implement timeout <> 0"))
-  (with-alien ((event (union x-event)))
-    (if (eq (x-check-mask-event
-	     (int-sap (display-x-display display))
-	     (x-event-mask-of-screen
-	      (int-sap
-	       (display-default-screen display)))
-	     (addr event))
-	    x-true)
-	(let (*release-current-event*)
-	  (format t "process-event in~%")
+  (or (and timeout (zerop timeout))
+      (error "FIX implement timeout <> 0 and timeout ()"))
+  (iterate %process-event ()
+    (when (event-listen display)
+      (with-alien ((event (union x-event)))
+	#|
+	(if (eq (x-check-mask-event
+		 (int-sap (display-x-display display))
+		 (x-event-mask-of-screen
+		  (int-sap
+		   (display-default-screen display)))
+		 (addr event))
+		x-true)
+	    ...
+	    )
+	|#
+	(x-next-event (int-sap (display-x-display display)) (addr event))
+	(let ((*release-current-event*)
+	      (done))
+	  ;(format t "process-event in~%")
 	  (unwind-protect
 	      ;(ed::msg "p-e event type ~A" (slot event 'type))
 	      ;(ed::msg "p-e event window ~A" (slot event 'window))
-	      (or (handle-event event handler)
-		  (progn
-		    (x-put-back-event
-		     (int-sap (display-x-display display))
-		     (addr event))
-		    (setq *release-current-event* ())
-		    ()))
-	    (if *release-current-event*
+	      (let ((handled (handle-event display event handler)))
+		(setq done t)
+		(or handled
+		    ;; Try with the next event.
+		    (prog1 (%process-event)
+		      (or *release-current-event*
+			  (x-put-back-event
+			   (int-sap (display-x-display display))
+			   (addr event))))))
+	    (or done
+		;; Respect the request to release the event, even though
+		;; `handle-event' threw after the request.
+		*release-current-event*
 		(x-put-back-event
 		 (int-sap (display-x-display display))
-		 (addr event))))))))
+		 (addr event)))))))))
 
 (def-alien-routine ("XPending" x-pending) int
   (display system-area-pointer)) ; type Display*
+
+(def-alien-routine ("XEventsQueued" x-events-queued) int
+  (display system-area-pointer) ; type Display*
+  (mode int))
+
+(def-alien-variable ("queuedAlready" x-queued-already) int)
+(def-alien-variable ("queuedAfterFlush" x-queued-after-flush) int)
+(def-alien-variable ("queuedAfterReading" x-queued-after-reading) int)
 
 ;;; Public
 ;;;
 (defun event-listen (display)
   "Return t if an event is available on $display."
-  (plusp (x-pending (int-sap (display-x-display display)))))
+  ;(plusp (x-pending (int-sap (display-x-display display))))
+  (plusp (x-events-queued (int-sap (display-x-display display))
+			  x-queued-after-reading)))
 
 (def-alien-variable ("button1Mask" x-button1-mask) int)
 (def-alien-variable ("button2Mask" x-button2-mask) int)
@@ -2607,6 +2948,27 @@
       (logior (cdr (or (assoc (car modifiers) *state-masks*)
 		       (error "Failed to match modifier ~A." (car modifiers))))
 	      (apply #'make-state-mask (cdr modifiers)))))
+
+(def-alien-routine ("x_print_events" x-print-events) void
+  (display system-area-pointer)) ; type Display*
+
+(defun print-events (display)
+  (x-print-events (int-sap (display-x-display display))))
+
+#|
+(def-alien-routine ("XCheckIfEvent" x-check-if-event) boolean
+  (display system-area-pointer) ; type Display*
+  (event (* (union x-event)))
+  (predicate system-area-pointer) ; type Bool (*)(Display*, XEvent*, XPointer)
+  (arg system-area-pointer)) ; type XPointer
+
+(defmacro do-events ((x-display x-event-var) &body)
+  `(with-alien ((,x-event-var (union x-event)))
+     (x-check-if-event x-display
+		       ,x-event-var
+		       predicate!
+		       arg)))
+|#
 
 
 ;;;; Windows.
@@ -4294,31 +4656,84 @@
 
 ;;; Public
 ;;;
-(defun translate-default (string)
-  "Return as many graphics character as there are from the front of
-   $string."
-  (loop for i from 0 do
-    (if (= i (length string))
-	(return-from translate-default string))
-    (or (graphic-char-p (aref string i))
-	(return-from translate-default (subseq string 0 i)))))
+(defun translate-default (src src-start src-end font dst dst-start)
+  "Copy from $src $src-start to $dst $dst-start, ending at $src $src-end."
+  (declare (simple-string src)
+	   (fixnum src-start src-end dst-start)
+	   (vector dst)
+	   (ignore font))
+  (until ((i src-start (1+ i))
+	  (j dst-start (1+ j)))
+	 ((>= i src-end) i)
+    (declare (fixnum i j))
+    (setf (aref dst j) (schar src i))))
 
 ;;; Public
 ;;;
+(declaim (inline draw-image-glyphs))
 (defun draw-image-glyphs (drawable gcontext x y string
-			  &key (start 0) end (translate #'translate-default))
+				   &key
+				   (start 0) end
+				   translate)
   "Draw the glyphs in $string from $start to $end onto $drawable at $x $y,
    translating the string with the function $translate-default first."
-  (let ((new-string (funcall translate (subseq string start end))))
-    (with-alien ((x-string c-string :local new-string))
+  (let* ((end (or end (length string)))
+	 (dest (make-string (- end start))))
+    (funcall translate string start end (gcontext-font gcontext) dest 0)
+    (with-alien ((x-string c-string :local dest))
       (x-draw-image-string (int-sap (display-x-display
 				     (drawable-display drawable)))
 			   (int-sap (drawable-x-drawable drawable))
 			   (int-sap (gcontext-x-gcontext gcontext))
 			   x y
 			   x-string
-			   (length new-string)))))
+			   (length x-string)))))
 
+(declaim (inline draw-image-string))
+(defun draw-image-string (drawable gcontext x y string start end)
+  "Draw the glyphs $from $start to $end of $string onto $drawable $x $y."
+#|
+  (declare (simple-string src)
+	   (fixnum start end))
+|#
+  (with-alien ;((x-string (* char) (make-alien char (- end start))))
+      ((x-string c-string :local (subseq string start end)))
+#|
+    ;; Copy the Lisp string into the C string.
+    (until ((i start (1+ i))
+	    (j 0 (1+ j)))
+	   ((>= i end))
+      (declare (fixnum i j))
+      (setf (deref x-string j) (schar string i)))
+|#
+    (prog1
+	(x-draw-image-string (int-sap (display-x-display
+				       (drawable-display drawable)))
+			     (int-sap (drawable-x-drawable drawable))
+			     (int-sap (gcontext-x-gcontext gcontext))
+			     x y
+			     x-string
+			     (- end start))
+      ;(free-alien x-string)
+      )))
+#|
+(defun draw-image-glyphs (drawable gcontext x y string
+			  &key
+			  (start 0) (end (length string))
+			  (translate #'translate-default))
+  "Draw the glyphs in $string from $start to $end onto $drawable at $x $y,
+   translating the string with the function $translate-default first."
+  (let ((dest (make-string (- end start))))
+    (funcall translate string start end (gcontext-font gcontext) dest 0)
+    (with-alien ((x-string c-string :local dest))
+      (x-draw-image-string (int-sap (display-x-display
+				     (drawable-display drawable)))
+			   (int-sap (drawable-x-drawable drawable))
+			   (int-sap (gcontext-x-gcontext gcontext))
+			   x y
+			   x-string
+			   (length x-string)))))
+|#
 
 
 ;;;; Key symbols.

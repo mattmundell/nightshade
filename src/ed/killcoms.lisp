@@ -37,12 +37,12 @@ importance, such as single characters or whitespace.
 #[ Active Regions
 
 Every buffer has a mark stack (page pagerefmark-stack) and a mark known as
-the point where most text altering nominally occurs.  Between the top of the
-mark stack, the current-mark, and the current-buffer's point, the
-current-point, is what is known as the current-region.  Certain
-commands signal errors when the user tries to operate on the current-region
-without its having been activated.  If the user turns off this feature, then
-the current-region is effectively always active.
+the point where most text altering nominally occurs.  Between the top of
+the mark stack, the current-mark, and the current-buffer's point, the
+current-point, is what is known as the current-region.  Certain commands
+signal errors when the user tries to operate on the current-region without
+its having been activated.  If the user turns off this feature, then the
+current-region is effectively always active.
 
 When writing a command that marks a region of text, the programmer should
 make sure to activate the region.  This typically occurs naturally from the
@@ -52,8 +52,8 @@ not require the user to separately mark an area and then activate it.
 Commands that modify regions do not have to worry about making the region
 passive since modifying a buffer automatically does it.  Commands that
 insert text often activate the region ephemerally; that is, the region is
-active for the immediately following command, allowing the user wants to
-delete the region inserted, fill it, or whatever.
+active for the immediately following command, allowing the user to delete
+the region inserted, fill it, or whatever.
 
 Once a marking command makes the region active, it remains active until:
 
@@ -63,9 +63,9 @@ Once a marking command makes the region active, it remains active until:
 
   - a command changes the current window or buffer,
 
-  - a command signals an editor-error,
+  - a command signals an editor-error, or
 
-  - or the user types C-g.
+  - the user types control-g.
 
 {evariable:Active Regions Enabled}
 {variable:ed:*ephemerally-active-command-types*}
@@ -87,8 +87,8 @@ Once a marking command makes the region active, it remains active until:
    be manipulated by a region command."
   :value t)
 
-(defvar *active-region-p* nil)
-(defvar *active-region-buffer* nil)
+(defvar *active-region-p* ())
+(defvar *active-region-buffer* ())
 (defvar *ephemerally-active-command-types* (list :ephemerally-active :yank)
   "A list of [command types] that permit the current region to be active
    for the immediately following command.
@@ -238,7 +238,7 @@ are useful for jumping to interesting places in a buffer without having to
 do a search.
 
 {command:Pop Mark}
-{command:Pop and Goto Mark}
+{command:Pop and Go To Mark}
 {command:Exchange Point and Mark}
 
 `Exchange Point and Mark' can be used to switch between two positions in a
@@ -297,28 +297,28 @@ buffer, since repeating it reverts to the previous setup.
 
    Push point as the mark, activating the current region.
 
-   With one prefix do a pop-and-goto, i.e. pop the mark, replace the point
+   With one prefix do a pop-and-go-to, i.e. pop the mark, replace the point
    with the popped mark, and make the current region passive.
 
    With two prefixes, pop the mark and throw it away, pacifying the current
    region."
   (cond ((fi p)
-	 (if (eq (last-command-type) :pop-and-goto-mark)
+	 (if (eq (last-command-type) :pop-and-go-to-mark)
 	     (progn
-	       (pop-and-goto-mark-command)
-	       (setf (last-command-type) :pop-and-goto-mark))
+	       (pop-and-go-to-mark-command)
+	       (setf (last-command-type) :pop-and-go-to-mark))
 	     (progn
 	       (push-buffer-mark (copy-mark (current-point)) t)
 	       (when (interactive)
 		 (message "Mark pushed.")))))
 	((= p (value universal-argument-fallback))
-	 (pop-and-goto-mark-command)
-	 (setf (last-command-type) :pop-and-goto-mark))
+	 (pop-and-go-to-mark-command)
+	 (setf (last-command-type) :pop-and-go-to-mark))
 	((= p (expt (value universal-argument-fallback) 2))
 	 (delete-mark (pop-buffer-mark)))
 	(t (editor-error "Prefix argument out of range."))))
 
-(defcommand "Pop and Goto Mark" ()
+(defcommand "Pop and Go To Mark" ()
   "Pop mark into point, making the current region passive."
   (let ((mark (pop-buffer-mark)))
     (move-mark (current-point) mark)
@@ -354,6 +354,60 @@ buffer, since repeating it reverts to the previous setup.
 	     (move-mark point end))
 	  (t (push-buffer-mark (copy-mark end) t)
 	     (move-mark point start)))))
+
+
+;;;; Kill browse primitives.
+
+(defun get-kill-browse-buffer ()
+  (let ((buffer (getstring "Kill Ring" *buffer-names*)))
+    (when (and buffer
+	       (string= (buffer-major-mode buffer) "Kill Browse"))
+      buffer)))
+
+;;; The complication here is that the point in the kill browse buffer must
+;;; stay on the same entry when text is added to the kill ring.
+;;;
+(defun update-kill-browse (&optional region-or-rotate appending)
+  (let ((kill-buffer (get-kill-browse-buffer)))
+    (when kill-buffer
+      (cond ((regionp region-or-rotate)
+	     ;; Adjust point for the new region.
+	     (line-offset (buffer-point kill-buffer)
+			  (+ (count-lines region-or-rotate)
+			     (if appending -1 1))))
+	    ((eq region-or-rotate t)
+	     ;; Adjust point for the rotation: in the first region move to
+	     ;; the start of the buffer, else move point up the size of the
+	     ;; first region.
+	     (let ((previous))
+	       ;; Search for a previous entry.
+	       (while ((line (mark-line
+			      (buffer-point kill-buffer))
+			     (line-previous line)))
+		      (line)
+		 (when (kill-on-line line)
+		   (setq previous line)
+		   (return)))
+	       (if previous
+		   (let ((size 1))
+		     ;; Count the size of the first entry.
+		     (while ((line (mark-line
+				    (buffer-start-mark kill-buffer))
+				   (line-next line)))
+			    (line)
+		       (if (kill-on-line line) (return))
+		       (incf size))
+		     ;; Move point up, as the first region is going to move
+		     ;; to the end of the buffer.
+		     (line-offset (buffer-point kill-buffer)
+				  (- size)))
+		   (buffer-start (buffer-point kill-buffer))))))
+      (refresh-kill-browse kill-buffer))))
+
+(defun push-kill (region)
+  (ring-push region *kill-ring*)
+  (update-kill-browse region)
+  (invoke-hook kill-ring-hook region))
 
 
 #[ Kill Ring
@@ -394,14 +448,16 @@ buffer, since repeating it reverts to the previous setup.
 	     (ring-push *delete-char-region* *kill-ring*)
 	     (setf *delete-char-region* nil))
 	   (setf region (kill-region-top-of-ring region current-type))
-	   (update-kill-browse)
+	   ;; FIX pass appending
+	   (update-kill-browse region)
 	   (invoke-hook kill-ring-hook region))
 	  ((zerop (ring-length *kill-ring*))
 	   (setf region (delete-and-save-region region))
 	   (push-kill region))
 	  ((or (eq last-type :kill-forward) (eq last-type :kill-backward))
 	   (setf region (kill-region-top-of-ring region current-type))
-	   (update-kill-browse)
+	   ;; FIX pass appending
+	   (update-kill-browse region)
 	   (invoke-hook kill-ring-hook region))
 	  (t
 	   (setf region (delete-and-save-region region))
@@ -491,20 +547,22 @@ buffer, since repeating it reverts to the previous setup.
 			   deleted-region)
 	   (setf (last-command-type) current-type))
 	  (t
-	   (when *delete-char-region*
-	     (ring-push *delete-char-region* *kill-ring*)
-	     (setf *delete-char-region* nil))
-	   (let ((r (ring-ref *kill-ring* 0)))
-	     (ninsert-region (if (eq current-type :char-kill-forward)
-				 (region-end r)
-				 (region-start r))
-			     deleted-region))
+	   (let ((appending t))
+	     (when *delete-char-region*
+	       (ring-push *delete-char-region* *kill-ring*)
+	       (setq appending ())
+	       (setf *delete-char-region* ()))
+	     (let ((r (ring-ref *kill-ring* 0)))
+	       (ninsert-region (if (eq current-type :char-kill-forward)
+				   (region-end r)
+				   (region-start r))
+			       deleted-region))
+	     (update-kill-browse deleted-region appending))
+	   (invoke-hook kill-ring-hook region)
 	   (setf (last-command-type)
 		 (if (eq current-type :char-kill-forward)
 		     :kill-forward
-		     :kill-backward))))
-    (update-kill-browse)
-    (invoke-hook kill-ring-hook region)))
+		     :kill-backward))))))
 
 
 #[ Killing Commands
@@ -532,22 +590,11 @@ by repeatedly using a killing command.
 		   :kill-backward
 		   :kill-forward)))
 
-(defun update-kill-browse ()
-  (let ((buffer (getstring "Kill Ring" *buffer-names*)))
-    (when (and buffer
-	       (string= (buffer-major-mode buffer) "Kill-Browse"))
-      (refresh-kill-browse buffer))))
-
-(defun push-kill (region)
-  (ring-push region *kill-ring*)
-  (update-kill-browse)
-  (invoke-hook kill-ring-hook region))
-
 (defcommand "Save Region" ()
   "Insert the region onto the kill ring.  If the region is passive and
    `Active Regions Enabled' is set then signal an error."
   (or (value active-regions-enabled) (activate-region))
-  ;; FIX this an make an option (make this an option?)
+  ;; FIX this an make an option (make this an option? fix this and make it an option?)
   (if (mark< (current-mark) (window-display-start (current-window)))
       (message "~A" (line-string (mark-line (current-mark))))
       (show-mark (current-mark) (current-window) 0.16)) ; FIX (value ..time)
@@ -668,9 +715,9 @@ to find a desired portion of text on the kill ring.
 ]#
 
 (defcommand "Yank" (p)
-  "Yank back the most recently killed piece of text, i.e. insert the top
-   item in the kill-ring at the point.  Leave the mark before the inserted
-   text and the point after it.
+  "Yank back the most recently killed piece of text, that is, insert the
+   top item in the kill-ring at the point.  Leave the mark before the
+   inserted text and the point after it.
 
    If a prefix argument is supplied, then yank back the text that distance
    into the kill ring."
@@ -707,7 +754,7 @@ to find a desired portion of text on the kill ring.
 	(insert-region point (ring-ref *kill-ring* 0))
 	(make-region-undo :delete "Yank"
 			  (region (copy-mark mark) (copy-mark point)))
-	(update-kill-browse)
+	(update-kill-browse t)
 	(setf (last-command-type) :yank))
       (yank-command p)))
 
@@ -738,9 +785,7 @@ to find a desired portion of text on the kill ring.
 	(let ((entry (ring-ref *kill-ring* index)))
 	  (insert-region mark entry)
 	  (insert-character mark #\newline)
-	  (setf (getf (line-plist (mark-line mark)) 'kill-entry)
-		entry)
-	  ;(insert-string mark "==================================")
+	  (setf (getf (line-plist (mark-line mark)) 'kill-entry) entry)
 	  (insert-string mark "------------")
 	  (insert-character mark #\newline))))
     (setf (buffer-major-mode buffer) "Kill Browse")
@@ -768,11 +813,25 @@ to find a desired portion of text on the kill ring.
   "Insert the kill entry under point at the current point of the next
    buffer."
   (do-lines-from-mark (line (current-point))
-    (let ((kill (kill-on-line line)))
+    (let ((kill (kill-on-line line))
+	  (previous))
       (when kill
+	;; Check for a previous entry before rotating buffers.
+	(do-lines-from-mark (line (current-point) :backwards t)
+	  (when (kill-on-line line)
+	    ;; Found a previous entry.
+	    (setq previous t)
+	    (return)))
 	(rotate-buffers-forward-command)
-	(insert-region (current-point) kill)
-	(return)))))
+	(let* ((point (current-point))
+	       (mark (copy-mark point)))
+	  (push-buffer-mark mark)
+	  (insert-region point kill)
+	  (make-region-undo :delete "Yank"
+			    (region (copy-mark mark) (copy-mark point)))
+	  (if previous (push-kill kill))
+	  (setf (last-command-type) :yank)
+	  (return))))))
 
 (defcommand "Refresh Kill Browse" ()
   "Refresh the browse of the kill ring entries."
@@ -780,16 +839,17 @@ to find a desired portion of text on the kill ring.
 
 (defcommand "Next Kill" (p)
   "Move to the next kill entry.  With a prefix move to the previous entry."
-  (setq p (if p -1 1))
-  (do-lines-from-mark (line (current-point) :backwards (minusp p))
-    (when (kill-on-line line)
-      (move-mark (current-point) (mark line 0))
-      (line-offset (current-point) p 0)
-      (return))))
+  (setq p (if p p 1))
+  (dotimes (time (abs p))
+    (do-lines-from-mark (line (current-point) :backwards (minusp p))
+      (when (kill-on-line line)
+	(move-mark (current-point) (mark line 0))
+	(line-offset (current-point) (if (minusp p) -1 1) 0)
+	(return)))))
 
 (defcommand "Previous Kill" (p)
   "Move to the previous kill entry.  With a prefix move to the next entry."
-  (next-kill-command (fi p)))
+  (next-kill-command (- (or p 1))))
 
 (defmacro rehighlight-kill-line (line info)
   `(progn

@@ -1,6 +1,7 @@
-;;; This file implements the reading of bulletin boards (i.e. newsgroups)
-;;; via a known NNTP server.  FIX Something should probably be done so that
-;;; when the server is down the editor doesn't hang as I suspect it will.
+;;; This file implements the reading of bulletin boards (that is,
+;;; newsgroups) via a known NNTP server.  FIX Something should probably be
+;;; done so that when the server is down the editor doesn't hang as I
+;;; suspect it will.
 ;;;
 ;;; FIX
 ;;; Warning:    Throughout this file, it may appear I should have bound
@@ -67,6 +68,19 @@ file containing the newsgroups you want to read.
 ]#
 
 
+(defvar *netnews-mess* ())
+(defvar *netnews-mess-level* 0)
+
+(defun nn-incf-mess () (incf *netnews-mess-level* 2))
+(defun nn-decf-mess () (decf *netnews-mess-level* 2))
+
+(defun nn-mess (format &rest args)
+  (when *netnews-mess*
+    (funcall *netnews-mess* "~A~A"
+	     (make-string *netnews-mess-level* :initial-element #\space)
+	     (apply #'funcall #'format () format args))))
+
+
 ;;;; Highlighting.
 
 (defun highlight-news-headers-line (line chi-info)
@@ -96,27 +110,27 @@ file containing the newsgroups you want to read.
 	       (declare (ignore nn d))
 	       (write-string "#<Netnews Info>" s))))
   (updatep (ext:required-argument) :type (or null t))
-  (from-end-p nil :type (or null t))
+  (from-end-p () :type (or null t))
   ;;
   ;; The string name of the current group.
   (current (ext:required-argument) :type simple-string)
   ;;
   ;; The number of the latest message read in the current group.
-  (latest nil :type (or null fixnum))
+  (latest () :type (or null fixnum))
   ;;
   ;; The cache of header info for the current group.  Each element contains
   ;; an association list of header fields to contents of those fields.  Indexed
   ;; by id offset by the first message in the group.
-  (header-cache nil :type (or null simple-vector))
+  (header-cache () :type (or null simple-vector))
   ;;
   ;; The number of HEAD requests currently waiting on the header stream.
-  (batch-count nil :type (or null fixnum))
+  (batch-count () :type (or null fixnum))
   ;;
   ;; The list of newsgroups to read.
   (groups (ext:required-argument) :type cons)
   ;;
   ;; A vector of message ids indexed by buffer-line for this headers buffer.
-  (message-ids nil :type (or null vector))
+  (message-ids () :type (or null vector))
   ;;
   ;; Where to insert the next batch of headers.
   mark
@@ -125,7 +139,7 @@ file containing the newsgroups you want to read.
   buffer
   ;;
   ;; A list of message buffers that have been marked as undeletable by the user.
-  (other-buffers nil :type (or null cons))
+  (other-buffers () :type (or null cons))
   ;;
   ;; The window used to display buffer when *Netnews Read Style* is :multiple.
   message-window
@@ -135,20 +149,20 @@ file containing the newsgroups you want to read.
   headers-window
   ;;
   ;; How long the message-ids and header-cache arrays are.  Reuse this array,
-  ;; but don't break if there are more messages than we can handle.
+  ;; but don't break if there are more messages than we can handle. FIX break what?
   (array-length default-netnews-headers-length :type fixnum)
   ;;
   ;; The id of the first message in the current group.
-  (first nil :type (or null fixnum))
+  (first () :type (or null fixnum))
   ;;
   ;; The id of the last message in the current-group.
-  (last nil :type (or null fixnum))
+  (last () :type (or null fixnum))
   ;;
   ;; Article number of the first visible header.
-  (first-visible nil :type (or null fixnum))
+  (first-visible () :type (or null fixnum))
   ;;
   ;; Article number of the last visible header.
-  (last-visible nil :type (or null fixnum))
+  (last-visible () :type (or null fixnum))
   ;;
   ;; Number of the message that is currently displayed in buffer.  Initialize
   ;; to -1 so I don't have to constantly check for the nullness of it.
@@ -156,11 +170,11 @@ file containing the newsgroups you want to read.
   ;;
   ;; T if the last batch of headers is waiting on the header stream.
   ;; This is needed so NN-WRITE-HEADERS-TO-MARK can set the messages-waiting
-  ;; slot to nil.
-  (last-batch-p nil :type (or null t))
+  ;; slot to ().
+  (last-batch-p () :type (or null t))
   ;;
-  ;; T if there are more headers in the current group. Nil otherwise.
-  (messages-waiting nil :type (or null t))
+  ;; T if there are more headers in the current group.  () otherwise.
+  (messages-waiting () :type (or null t))
   ;;
   ;; The stream on which we request headers from NNTP.
   header-stream
@@ -194,7 +208,7 @@ file containing the newsgroups you want to read.
   post-buffer
   ;; This is need because we want to display what message this is in the
   ;; modeline field of a message buffer.
-  (message-number nil :type (or null fixnum))
+  (message-number () :type (or null fixnum))
   ;;  Set to T when we do not want to reuse this buffer.
   keep-p)
 
@@ -294,7 +308,7 @@ commands in `News-Message' mode.
 			  (nn-info (variable-value 'netnews-info
 						   :buffer (nm-info-headers-buffer
 							    nm-info))))
-		     (format nil "~D of ~D"
+		     (format () "~A of ~A"
 			     (nm-info-message-number nm-info)
 			     (1+ (- (nn-info-last nn-info)
 				    (nn-info-first nn-info))))))))
@@ -307,15 +321,15 @@ commands in `News-Message' mode.
      #'(lambda (buffer window)
 	 (declare (ignore window))
 	 (let ((nn-info (variable-value 'netnews-info :buffer buffer)))
-	   (format nil "~D before, ~D after"
+	   (format () "~A before, ~A after"
 		   (- (nn-info-first-visible nn-info) (nn-info-first nn-info))
 		   (- (nn-info-last nn-info) (nn-info-last-visible nn-info)))))))
 
-(defvar *nn-headers-buffer* nil
+(defvar *nn-headers-buffer* ()
   "If `Netnews' was invoked without an argument an not exited, this holds
    the headers buffer for reading netnews.")
 
-(defvar *netnews-kill-strings* nil)
+(defvar *netnews-kill-strings* ())
 
 (defevar "Netnews Kill File"
   "This value is merged with your home directory to get the pathname of
@@ -366,10 +380,10 @@ commands in `News-Message' mode.
 					(value netnews-group-file)
 					(user-homedir-pathname))))
 		       (when (probe-file group-file)
-			 (let ((res nil))
+			 (let ((res ()))
 			   (with-open-file (s group-file :direction :input)
 			     (loop
-			       (let ((group (read-line s nil nil)))
+			       (let ((group (read-line s () ())))
 				 (or group (return (nreverse res)))
 				 (pushnew group res)))))))))))
       (or p groups
@@ -413,7 +427,7 @@ commands in `News-Message' mode.
 		   and the stream on which we request articles."
 		  :buffer buffer
 		  :value nn-info)
-		(setf (buffer-writable buffer) nil)
+		(setf (buffer-writable buffer) ())
 		(defevar "Netnews Browse Buffer"
 		  "This variable is the associated \"News Browse\" buffer
 		   in a \"News-Headers\" buffer created from
@@ -428,15 +442,15 @@ commands in `News-Message' mode.
     (when (probe-file filename)
       (with-open-file (s filename :direction :input)
 	(loop
-	  (let ((kill-string (read-line s nil nil)))
-	    (unless kill-string (return))
+	  (let ((kill-string (read-line s () ())))
+	    (or kill-string (return))
 	    (pushnew kill-string *netnews-kill-strings*)))))))
 
 ;;; NETNEWS-HEADERS-DELETE-HOOK closes the stream slots in netnews-info,
 ;;; deletes the bookkeeping mark into buffer, sets the headers slots of any
-;;; associated post-info or netnews-message-info structures to nil so
+;;; associated post-info or netnews-message-info structures to () so
 ;;; "Netnews Go To Headers Buffer" will not land you in a buffer that does
-;;; not exist, and sets *nn-headers-buffer* to nil so next time we invoke
+;;; not exist, and sets *nn-headers-buffer* to () so next time we invoke
 ;;; "Netnews" it will start over.
 ;;;
 (defun netnews-headers-delete-hook (buffer)
@@ -446,28 +460,28 @@ commands in `News-Message' mode.
     (dolist (buf (nn-info-other-buffers nn-info))
       (setf (nm-info-headers-buffer (variable-value 'netnews-message-info
 						    :buffer buf))
-	    nil))
+	    ()))
     (let ((message-buffer (nn-info-buffer nn-info)))
       (when message-buffer
 	(setf (nm-info-headers-buffer (variable-value 'netnews-message-info
 						      :buffer message-buffer))
-	      nil)))
+	      ())))
     (close (nn-info-stream nn-info))
     (close (nn-info-header-stream nn-info))
     (delete-mark (nn-info-mark nn-info))
     (when (eq *nn-headers-buffer* buffer)
-      (setf *nn-headers-buffer* nil))))
+      (setf *nn-headers-buffer* ()))))
 
 (defun nn-unique-headers-name (group-name)
   (let ((original-name (concatenate 'simple-string "Netnews " group-name)))
     (if (getstring original-name *buffer-names*)
-	(let ((name nil)
+	(let ((name ())
 	      (number 0))
 	  (loop
-	    (setf name (format nil "Netnews ~A ~D" group-name (incf number)))
-	    (unless (getstring name *buffer-names*)
-	      (return (values name original-name)))))
-	(values original-name nil))))
+	    (setf name (format () "Netnews ~A ~D" group-name (incf number)))
+	    (or (getstring name *buffer-names*)
+		(return (values name original-name)))))
+	(values original-name ()))))
 
 ;;; NN-ASSURE-DATABASE-EXISTS does just that.  If the file determined by the
 ;;; value of "Netnews Database Filename" does not exist, then it gets
@@ -489,12 +503,12 @@ commands in `News-Message' mode.
   "Prompt for the name of a newsgroup and read it, regardless of what is in
    FIX, leaving the *Netnews Database File* as it is."
   (declare (ignore p))
-  (netnews-command nil (prompt-for-string :prompt "Group to look at: "
+  (netnews-command () (prompt-for-string :prompt "Group to look at: "
 					  :help "Type the name of ~
 					  the group you want ~
 					  to look at."
 					  :trim t)
-		   nil nil nil))
+		   () () ()))
 
 ;;; SETUP-GROUP is the guts of this group reader.  It sets up a headers
 ;;; buffer in buffer for group group-name.  This consists of sending a group
@@ -511,6 +525,8 @@ commands in `News-Message' mode.
 	      (nn-info-header-stream nn-info))
   (let ((response (process-status-response (nn-info-header-stream nn-info)
 					   nn-info)))
+    ; FIX a guess 2009-04-20
+    (process-status-response (nn-info-stream nn-info) nn-info)
     (cond ((not response)
 	   (message "~A is not the name of a netnews group.~%"
 		    (nn-info-current nn-info))
@@ -520,9 +536,9 @@ commands in `News-Message' mode.
 				(group-response-args response)
 	     (declare (ignore first))
 	     (message "Setting up ~A" group-name)
-	     ;; If nn-info-updatep is nil, then we fool ourselves into
+	     ;; If nn-info-updatep is (), then we fool ourselves into
 	     ;; thinking we've never read this group before by making
-	     ;; last-read nil.  We determine first here because the first
+	     ;; last-read ().  We determine first here because the first
 	     ;; that NNTP gives us is way way out of line.
 	     ;;
 	     (let ((last-read (if (nn-info-updatep nn-info)
@@ -539,10 +555,16 @@ commands in `News-Message' mode.
 		 (setf (nn-info-latest nn-info) last)
 		 (change-to-next-group nn-info buffer))
 		(t
-		 (let ((latest (if (and last-read (> last-read first))
+		 (let ((latest (if (and last-read
+					(> last-read first)
+					;; 2008-04-23 I think this can
+					;; happen if a long time passes
+					;; between reads.
+					(<= last-read last))
 				   last-read
 				   first)))
-		   (if (or (and (eq (value netnews-new-group-style) :from-end)
+		   (if (or (and (eq (value netnews-new-group-style)
+				    :from-end)
 				(or (= latest first)
 				    (and (> (- last latest)
 					    (value
@@ -562,12 +584,12 @@ commands in `News-Message' mode.
 		       (setf (nn-info-from-end-p nn-info) t))
 
 		   (cond ((nn-info-from-end-p nn-info)
-			  (setf (nn-info-first-visible nn-info) nil)
+			  (setf (nn-info-first-visible nn-info) ())
 			  (setf (nn-info-last-visible nn-info) last))
 			 (t
 			  ; (setf (nn-info-first-visible nn-info) latest)
 			  (setf (nn-info-first-visible nn-info) (1+ latest))
-			  (setf (nn-info-last-visible nn-info) nil)))
+			  (setf (nn-info-last-visible nn-info) ())))
 		   (setf (nn-info-first nn-info) first)
 		   (setf (nn-info-last nn-info) last)
 		   (setf (nn-info-latest nn-info) latest))
@@ -585,7 +607,7 @@ commands in `News-Message' mode.
 			      (setf (nn-info-array-length nn-info) length)
 			      (values (make-array length :fill-pointer 0)
 				      (make-array length
-						  :initial-element nil)))
+						  :initial-element ())))
 			     (message-ids
 			      (setf (fill-pointer message-ids) 0)
 			      (values message-ids header-cache))
@@ -593,7 +615,7 @@ commands in `News-Message' mode.
 			      (values (make-array (nn-info-array-length nn-info)
 						  :fill-pointer 0)
 				      (make-array (nn-info-array-length nn-info)
-						  :initial-element nil)))))
+						  :initial-element ())))))
 		   (setf (nn-info-message-ids nn-info) message-ids)
 		   (setf (nn-info-header-cache nn-info) header-cache))
 		 (nn-write-headers-to-mark nn-info buffer)
@@ -608,10 +630,10 @@ commands in `News-Message' mode.
 				      (user-homedir-pathname))
 		     :direction :input :if-does-not-exist :error)
     (loop
-      (let ((read-group-name (read-line s nil nil)))
-	(or read-group-name (return nil))
+      (let ((read-group-name (read-line s () ())))
+	(or read-group-name (return ()))
 	(when (string-equal read-group-name group-name)
-	  (let ((last-read (read-line s nil nil)))
+	  (let ((last-read (read-line s () ())))
 	    (if last-read
 		(return (parse-integer last-read))
 		(error "Should have been a message number ~
@@ -624,8 +646,8 @@ commands in `News-Message' mode.
 		     :direction :io :if-does-not-exist :error
 		     :if-exists :overwrite)
     (unless (loop
-	      (let ((read-group-name (read-line s nil nil)))
-		(or read-group-name (return nil))
+	      (let ((read-group-name (read-line s () ())))
+		(or read-group-name (return ()))
 		(when (string-equal read-group-name group-name)
 		  ;; File descriptor streams do not do the right thing with
 		  ;; :io/:overwrite streams, so work around it by setting it
@@ -653,12 +675,12 @@ commands in `News-Message' mode.
 (defmacro with-input-from-nntp ((var stream) &body body)
   "Body is executed with var bound to successive lines of input from nntp.
    Exits at the end of a response, returning whatever the last execution of
-   Body returns, or nil if there was no input.
+   Body returns, or () if there was no input.
 
    Take note: this is only to be used for textual responses.  Status responses
    are of an entirely different nature."
   (let ((return-value (gensym)))
-    `(let ((,return-value nil)
+    `(let ((,return-value ())
 	   (,var ""))
        (declare (simple-string ,var))
        (loop
@@ -697,8 +719,8 @@ commands in `News-Message' mode.
 (defconstant netnews-space-string
   (make-string 70 :initial-element #\space))
 ;;;
-(defconstant missing-message (cons nil nil)
-  "Use this as a marker so nn-write-headers-to-mark doesn't try to insert
+(defconstant missing-message (cons () ())
+  "Use this as a marker so `nn-write-headers-to-mark' doesn't try to insert
    a message that is not really there.")
 
 ;;; NN-CACHE-HEADER-INFO stashes all header information into an array for
@@ -716,18 +738,21 @@ commands in `News-Message' mode.
     (when from-end-p
       (setf old-count (length message-ids))
       (do ((i (length message-ids) (1- i)))
-	  ((minusp i) nil)
+	  ((minusp i) ())
 	(setf (aref message-ids (+ i howmany)) (aref message-ids i)))
       (setf (fill-pointer message-ids) 0))
     (let ((missing-message-count 0)
 	  (offset (nn-info-first nn-info)))
       (dotimes (i howmany)
 	(let ((response (process-status-response stream)))
+	  (nn-mess "response: ~A" response)
 	  (if response
 	      (let* ((id (head-response-args response))
 		     (index (- id offset)))
+		(nn-mess "id: ~A" id)
+		(nn-mess "offset: ~A" id)
 		(vector-push id message-ids)
-		(setf (svref cache index) nil)
+		(setf (svref cache index) ())
 		(with-input-from-nntp (string stream)
 				      (let ((colonpos (position #\: string)))
 					(when colonpos
@@ -805,9 +830,9 @@ commands in `News-Message' mode.
 		     mark
 		     (if universal-date
 			 (string-capitalize
-			  (format-universal-time nil universal-date
+			  (format-universal-time () universal-date
 						 :style :government
-						 :print-weekday nil))
+						 :print-weekday ()))
 			 date-field)
 		     (value netnews-date-field-length)))
 		  (mark-to-pos mark line-start)
@@ -831,7 +856,7 @@ commands in `News-Message' mode.
 		   (setf (nn-info-last-visible nn-info)
 			 (1- (+ messages-waiting howmany))))
 	       (if (nn-info-last-batch-p nn-info)
-		   (setf (nn-info-messages-waiting nn-info) nil)
+		   (setf (nn-info-messages-waiting nn-info) ())
 		   (nn-request-next-batch nn-info fetch-rest-p))))
 	(if (mark= mark check-point)
 	    (message "All messages in last batch were missing, getting more."))
@@ -880,7 +905,7 @@ commands in `News-Message' mode.
       (setf (nn-info-last-batch-p nn-info) t))
     (setf (nn-info-batch-count nn-info) (1+ (- batch-end batch-start)))
     (setf (nn-info-messages-waiting nn-info) batch-start)
-    (nn-send-many-head-requests header-stream batch-start batch-end nil)))
+    (nn-send-many-head-requests header-stream batch-start batch-end ())))
 
 (defun nn-request-backward (nn-info fetch-rest-p
 				    &optional (use-header-stream-p t))
@@ -905,24 +930,25 @@ commands in `News-Message' mode.
     (nn-send-many-head-requests stream batch-start batch-end
 				(not use-header-stream-p))))
 
-;;; NN-REQUEST-OUT-OF-ORDER is called when the user is reading a group normally
-;;; and decides he wants to see some messages before the first one visible.
-;;; To accomplish this without disrupting the normal flow of things, we fool
-;;; ourselves into thinking we are reading the group from the end, remembering
-;;; several slots that could be modified in requesting thesse messages.
-;;; When we are done, return state to what it was for reading a group forward.
+;;; NN-REQUEST-OUT-OF-ORDER is called when the user is reading a group
+;;; normally and decides he wants to see some messages before the first one
+;;; visible.  To accomplish this without disrupting the normal flow of
+;;; things, we fool ourselves into thinking we are reading the group from
+;;; the end, remembering several slots that could be modified in requesting
+;;; these messages.  When we are done, return state to what it was for
+;;; reading a group forward.
 ;;;
 (defun nn-request-out-of-order (nn-info headers-buffer)
   (let ((messages-waiting (nn-info-messages-waiting nn-info))
 	(batch-count (nn-info-batch-count nn-info))
 	(last-batch-p (nn-info-last-batch-p nn-info)))
-    (nn-request-backward nn-info nil nil)
+    (nn-request-backward nn-info () ())
     (setf (nn-info-from-end-p nn-info) t)
-    (nn-write-headers-to-mark nn-info headers-buffer nil t)
+    (nn-write-headers-to-mark nn-info headers-buffer () t)
     (setf (nn-info-messages-waiting nn-info) messages-waiting)
     (setf (nn-info-batch-count nn-info) batch-count)
     (setf (nn-info-last-batch-p nn-info) last-batch-p)
-    (setf (nn-info-from-end-p nn-info) nil)))
+    (setf (nn-info-from-end-p nn-info) ())))
 
 (proclaim '(special *nn-last-command-issued*))
 
@@ -955,8 +981,8 @@ commands in `News-Message' mode.
 #[ Reading Messages
 
 A `News-Headers' buffer provides for reading messages, reply to messages
-via the the editor mailer and replying to messages via post.  There are
-also commands that ease getting from one header to another.
+via the editor mailer and replying to messages via post.  There are also
+commands that ease getting from one header to another.
 
 {command:Netnews Show Article}
 {command:Netnews Show Article in Other Window}
@@ -974,7 +1000,7 @@ also commands that ease getting from one header to another.
 {command:Netnews Message Scroll Down}
 {evariable:Netnews Scroll Show Next Message}
 {command:Netnews Message Quit}
-{command:Netnews Goto Headers Buffer}
+{command:Netnews Go To Headers Buffer}
 {command:Netnews Message Keep Buffer}
 {command:Netnews Select Message Buffer}
 {command:Netnews Append to File}
@@ -982,7 +1008,7 @@ also commands that ease getting from one header to another.
 {command:Netnews Headers File Message}
 {command:Netnews Message File Message}
 {command:Fetch All Headers}
-{command:Netnews Go to Next Group}
+{command:Netnews Go To Next Group}
 {command:Netnews Quit Starting Here}
 {command:Netnews Group Punt Messages}
 {command:Netnews Exit}
@@ -1027,7 +1053,7 @@ also commands that ease getting from one header to another.
 
 (defcommand "Netnews Next Article" ()
   "Show the next article in the current newsgroup in a message buffer."
-  (let* ((what-next (netnews-next-line-command nil (nn-get-headers-buffer))))
+  (let* ((what-next (netnews-next-line-command () (nn-get-headers-buffer))))
     (when (and (not (eq what-next :done))
 	       (or (eq what-next t)
 		   (eq (value netnews-last-header-style) :next-article)))
@@ -1041,11 +1067,11 @@ also commands that ease getting from one header to another.
 (defcommand "Netnews Previous Article" ()
   "Show the next article in the current newsgroup in a message buffer."
   (let ((buffer (nn-get-headers-buffer)))
-    (netnews-previous-line-command nil buffer)
+    (netnews-previous-line-command () buffer)
     (nn-show-article (variable-value 'netnews-info :buffer buffer) t)))
 
 ;;; NN-SHOW-ARTICLE checks first to see if we need to get more headers.  If
-;;; NN-MAYBE-GET-MORE-HEADERS returns nil then don't do anything because we
+;;; NN-MAYBE-GET-MORE-HEADERS returns () then don't do anything because we
 ;;; changed to the next group.  Then see if the message the user has
 ;;; requested is already in the message buffer.  If the it isn't, put it
 ;;; there.  If it is, and maybe-scroll-down is t, then scroll the window
@@ -1100,7 +1126,7 @@ also commands that ease getting from one header to another.
 	     (multiple-value-bind
 		 (headers-window message-window)
 		 (ecase (value netnews-read-style) ; Only need windows in
-		   (:single (values nil nil))      ; :multiple mode.
+		   (:single (values () ()))      ; :multiple mode.
 		   (:multiple (nn-assure-multi-windows nn-info)))
 	       (ecase (value netnews-read-style)
 		 (:multiple
@@ -1178,7 +1204,7 @@ also commands that ease getting from one header to another.
 			   (not override))
 		      (dolist (ele message-fields)
 			(etypecase ele
-			  (atom (setf key ele field-length nil))
+			  (atom (setf key ele field-length ()))
 			  (cons (setf key (car ele) field-length (cdr ele))))
 			(let ((field-string (cdr (assoc key info
 							:test #'string-equal))))
@@ -1230,7 +1256,7 @@ also commands that ease getting from one header to another.
   :value .25)
 
 (defun nn-assure-multi-windows (nn-info)
-  (let ((newp nil))
+  (let ((newp ()))
     (unless (and (member (nn-info-message-window nn-info) *window-list*)
 		 (member (nn-info-headers-window nn-info) *window-list*))
       (setf newp t)
@@ -1281,13 +1307,13 @@ also commands that ease getting from one header to another.
 					  :buffer buffer)))
 	 (nn-info (variable-value 'netnews-info :buffer headers-buffer))
 	 (nm-info (variable-value 'netnews-message-info :buffer buffer)))
-    (setf (nn-info-buffer nn-info) nil)
+    (setf (nn-info-buffer nn-info) ())
     (setf (nn-info-current-displayed-message nn-info) -1)
     (let ((post-buffer (nm-info-post-buffer nm-info)))
       (when post-buffer
 	(setf (post-info-message-buffer (variable-value
 					 'post-info :buffer post-buffer))
-	      nil)))))
+	      ())))))
 
 ;;; NN-UNIQUE-MESSAGE-BUFFER-NAME likes to have a simple name, i.e.
 ;;; "Netnews Message for rec.music.synth".  When there is already a buffer
@@ -1298,7 +1324,7 @@ also commands that ease getting from one header to another.
 	(number 0))
     (loop
       (unless (getstring name *buffer-names*) (return name))
-      (setf name (format nil "Netnews Message ~D" number))
+      (setf name (format () "Netnews Message ~D" number))
       (incf number))))
 
 ;;; INSERT-TEXTUAL-RESPONSE inserts a textual response from nntp at mark.
@@ -1318,7 +1344,7 @@ also commands that ease getting from one header to another.
 	 (nm-info-headers-buffer (value netnews-message-info)))
 	((editor-bound-p 'post-info)
 	 (post-info-headers-buffer (value post-info)))
-	(t nil)))
+	(t ())))
 
 (defcommand "Netnews Previous Line" (p (headers-buffer (current-buffer)))
   "Move the point to the last header before the point that is still alive.
@@ -1336,7 +1362,7 @@ also commands that ease getting from one header to another.
 	  (cond ((and (nn-info-from-end-p nn-info)
 		      (nn-info-messages-waiting nn-info))
 		 (nn-write-headers-to-mark nn-info headers-buffer)
-		 (netnews-previous-line-command nil headers-buffer))
+		 (netnews-previous-line-command () headers-buffer))
 		(t
 		 (cond ((= (nn-info-first-visible nn-info)
 			   (nn-info-first nn-info))
@@ -1345,7 +1371,7 @@ also commands that ease getting from one header to another.
 		       (t
 			(message "Requesting backward...")
 			(nn-request-out-of-order nn-info headers-buffer)
-			(netnews-previous-line-command nil headers-buffer))))))
+			(netnews-previous-line-command () headers-buffer))))))
 	(line-start (move-mark start point))
 	(character-offset (move-mark end start) 1)
 	(unless (string= (region-to-string (region start end)) "K")
@@ -1444,6 +1470,7 @@ also commands that ease getting from one header to another.
       (buffer-end (current-point))
       (netnews-next-line-command))))
 
+; FIX name vs mh Keep Message
 (defcommand "Netnews Message Keep Buffer" ()
   "Keep the current message buffer intact and start reading messages in
    another buffer.
@@ -1453,7 +1480,7 @@ also commands that ease getting from one header to another.
       (editor-error "Not in a News-Message buffer."))
   (setf (nm-info-keep-p (value netnews-message-info)) t))
 
-(defcommand "Netnews Goto Headers Buffer" ()
+(defcommand "Netnews Go To Headers Buffer" ()
   "When invoked from a `News Message' buffer with an associated
    `News Headers' buffer, place the associated `News Headers' buffer into
    the current window."
@@ -1463,7 +1490,7 @@ also commands that ease getting from one header to another.
     (or headers-buffer (editor-error "Headers buffer has been deleted"))
     (change-to-buffer headers-buffer)))
 
-(defcommand "Netnews Goto Post Buffer" ()
+(defcommand "Netnews Go To Post Buffer" ()
   "In a `News-Message' or `Draft' buffer with an associated `News Headers'
    buffer, change to the associated `News Headers' buffer."
   (or (editor-bound-p 'netnews-message-info)
@@ -1472,7 +1499,7 @@ also commands that ease getting from one header to another.
     (or post-buffer (editor-error "No associated post buffer."))
     (change-to-buffer post-buffer)))
 
-(defcommand "Netnews Goto Draft Buffer" ()
+(defcommand "Netnews Go To Draft Buffer" ()
   "In a `News-Message' buffer with an associated `Draft' buffer, change to the
    `Draft' buffer."
   (or (editor-bound-p 'netnews-message-info)
@@ -1525,7 +1552,7 @@ also commands that ease getting from one header to another.
 	       (message "This was the last group.  Exiting Netnews.")
 	       (message "Done with ~A.  Exiting Netnews."
 			(nn-info-current nn-info)))
-	   (netnews-exit-command nil t headers-buffer)
+	   (netnews-exit-command () t headers-buffer)
 	   :done))))
 
 (defun nn-update-database-file (latest group-name)
@@ -1584,7 +1611,7 @@ also commands that ease getting from one header to another.
 		     (array-element-from-mark (buffer-point headers-buffer)
 					      (nn-info-message-ids nn-info))
 		     (nn-info-current-displayed-message nn-info))))
-	    (:none nil)))
+	    (:none ())))
     ;; This clears out all headers that waiting on header-stream.
     ;; Must process each response in case a message is not really there.
     ;; If it isn't, then the call to WITH-INPUT-FROM-NNTP will gobble up
@@ -1640,8 +1667,8 @@ also commands that ease getting from one header to another.
 	  (multiple-value-bind (last first) (list-response-args group)
 	    (declare (ignore first))
 	    (insert-string point group 0 (position #\space group))
-	    (insert-string point (format nil ": ~D~%" last)))))
-      (setf (buffer-modified buffer) nil)
+	    (insert-string point (format () ": ~D~%" last)))))
+      (setf (buffer-modified buffer) ())
       (buffer-start point)
       (change-to-buffer buffer))
     (fi headers-buffer (close stream))))
@@ -1653,7 +1680,7 @@ also commands that ease getting from one header to another.
 	     (fixnum number))
     (loop
       (unless (getstring name *buffer-names*) (return name))
-      (setf name (format nil "Newsgroups List ~D" number))
+      (setf name (format () "Newsgroups List ~D" number))
       (incf number))))
 
 (defevar "Netnews Message File"
@@ -1706,7 +1733,7 @@ also commands that ease getting from one header to another.
   (let* ((filename (merge-pathnames (value netnews-message-file)
 				    (user-homedir-pathname)))
 	 (file (prompt-for-file :prompt "Append to what file: "
-				:must-exist nil
+				:must-exist ()
 				:default filename
 				:default-string (namestring filename))))
     (and p (probe-file file) (delete-file file))
@@ -1753,7 +1780,7 @@ also commands that ease getting from one header to another.
 						 (nn-info-message-ids nn-info)
 						 "No header under point."))
 	(folder (prompt-for-folder :prompt "MH Folder: "
-				   :must-exist nil)))
+				   :must-exist ())))
     (or (mh:folder-exists-p folder)
 	(if (prompt-for-y-or-n
 	     :prompt "Destination folder doesn't exist.  Create it? "
@@ -1770,7 +1797,7 @@ also commands that ease getting from one header to another.
 		  (with-input-from-nntp (string (nn-info-stream nn-info))
 		    (write-line string s :end (1- (length string))))))
       (:message (write-file (buffer-region (current-buffer)) "/tmp/temp.msg"
-			    :keep-backup nil)))
+			    :keep-backup ())))
     ;; FIX
     (mh "inc" `(,folder "-silent" "-file" "/tmp/temp.msg"))
     (message "Done.")))
@@ -1791,7 +1818,7 @@ replying to a message via mail in a `Draft' buffer.  In all cases, the same
 binding is used: H-y.
 ]#
 
-(defmode "Post" :major-p nil)
+(defmode "Post" :major-p ())
 
 ;; FIX unique-buffer-name
 (defun nn-unique-post-buffer-name ()
@@ -1799,7 +1826,7 @@ binding is used: H-y.
 	(number 0))
     (loop
       (or (getstring name *buffer-names*) (return name))
-      (setf name (format nil "Post ~D" number))
+      (setf name (format () "Post ~D" number))
       (incf number))))
 
 ;;; We usually know what the subject and newsgroups are, so keep these patterns
@@ -1825,7 +1852,7 @@ binding is used: H-y.
 				   (nn-info-current
 				    (variable-value
 				     'netnews-info :buffer headers-buf))))
-    (nn-post-message nil post-buf)))
+    (nn-post-message () post-buf)))
 
 (defcommand "Netnews Abort Post" ()
   "Delete the current `Post' buffer."
@@ -1850,7 +1877,7 @@ binding is used: H-y.
 ;;; buffer.
 ;;;
 (defun nn-post-message (message-buffer &optional (buffer (nn-make-post-buffer)))
-  (setf (buffer-modified buffer) nil)
+  (setf (buffer-modified buffer) ())
   (when message-buffer
     (setf (nm-info-post-buffer (variable-value 'netnews-message-info
 					       :buffer message-buffer))
@@ -1873,9 +1900,9 @@ binding is used: H-y.
     (write-line "Subject: " stream)
 ;   (write-string "Date: " stream)
 ;   (format stream "~A~%" (string-capitalize
-;			   (format-universal-time nil (get-universal-time)
+;			   (format-universal-time () (get-universal-time)
 ;						  :style :government
-;						  :print-weekday nil)))
+;						  :print-weekday ())))
     (write-char #\newline stream)
     (write-char #\newline stream)
     buffer))
@@ -1893,7 +1920,7 @@ binding is used: H-y.
       (when message-buffer
 	(setf (nm-info-post-buffer (variable-value 'netnews-message-info
 						   :buffer message-buffer))
-	      nil)))))
+	      ())))))
 
 #[ Replying to Messages
 
@@ -1906,8 +1933,8 @@ messages through the the editor Mailer or via `Post' mode.
 {command:Netnews Reply to Group in Other Window}
 {command:Netnews Post Message}
 {command:Netnews Forward Message}
-{command:Netnews Goto Post Buffer}
-{command:Netnews Goto Draft Buffer}
+{command:Netnews Go to Post Buffer}
+{command:Netnews Go to Draft Buffer}
 ]#
 
 ;;; NN-REPLY-USING-CURRENT-WINDOW makes sure there is only one window for a
@@ -2003,11 +2030,11 @@ messages through the the editor Mailer or via `Post' mode.
 		       (nn-setup-for-reply-by-mail)
     (with-mark ((mark (buffer-point draft-buffer) :left-inserting))
       (buffer-end mark)
-      (insert-string mark (format nil "~%------- Forwarded Message~%~%"))
-      (insert-string mark (format nil "~%------- End of Forwarded Message~%"))
+      (insert-string mark (format () "~%------- Forwarded Message~%~%"))
+      (insert-string mark (format () "~%------- End of Forwarded Message~%"))
       (line-offset mark -2 0)
       (insert-region mark (buffer-region message-buffer)))
-    (nn-reply-using-current-window nil draft-buffer)))
+    (nn-reply-using-current-window () draft-buffer)))
 
 (defun nn-reply-to-sender ()
   (let* ((headers-buffer (nn-get-headers-buffer))
@@ -2032,7 +2059,7 @@ messages through the the editor Mailer or via `Post' mode.
 				       *draft-subject-pattern*
 				       subject-field
 				       :end (1- (length subject-field)))))
-      (nn-reply-using-current-window nil draft-buffer)
+      (nn-reply-using-current-window () draft-buffer)
       (values draft-buffer message-buffer))))
 
 (defcommand "Netnews Reply to Sender" ()
@@ -2067,7 +2094,7 @@ messages through the the editor Mailer or via `Post' mode.
 ;;; CLEANUP-NETNEWS-DRAFT-BUFFER replaces the normal draft buffer delete hook
 ;;; because the generic one tries to set some slots in the related message-info
 ;;; structure which doesn't exist.  This function just sets the draft buffer
-;;; slot of netnews-message-info to nil so it won't screw you when you try
+;;; slot of netnews-message-info to () so it won't screw you when you try
 ;;; to change to the associated draft buffer.
 ;;;
 (defun cleanup-netnews-draft-buffer (buffer)
@@ -2076,7 +2103,7 @@ messages through the the editor Mailer or via `Post' mode.
 	   (variable-value 'netnews-message-info
 			   :buffer (variable-value 'message-buffer
 						   :buffer buffer)))
-	  nil)))
+	  ())))
 
 ;;; NN-REPLYIFY-SUBJECT simply adds "Re: " to the front of a string if it is
 ;;; not already there.
@@ -2121,7 +2148,7 @@ messages through the the editor Mailer or via `Post' mode.
 
 (defun nn-get-one-field (nn-info field article)
   (cdr (assoc field (svref (nn-info-header-cache nn-info)
-			  (- article (nn-info-first nn-info)))
+			   (- article (nn-info-first nn-info)))
 	      :test #'string-equal)))
 
 (defvar *nntp-timeout-handler* 'nn-recover-from-timeout
@@ -2129,7 +2156,7 @@ messages through the the editor Mailer or via `Post' mode.
    to PROCESS-STATUS-RESPONSE.  The default assumes the note is an NN-INFO
    structure and tries to recover from the timeout.")
 
-(defvar *nn-last-command-issued* nil
+(defvar *nn-last-command-issued* ()
   "The last string issued to one of the NNTP streams.  Used to recover from
    a nntp timeout.")
 
@@ -2145,7 +2172,7 @@ messages through the the editor Mailer or via `Post' mode.
     (process-status-response stream)))
 
 (defevar "Netnews Reply Address"
-  "What the From: field will be when you post messages.  If this is nil,
+  "What the From: field will be when you post messages.  If this is (),
    the From: field will be determined using the association of :USER
    in *environment-list* and your machine name.")
 
@@ -2178,12 +2205,12 @@ messages through the the editor Mailer or via `Post' mode.
 	(or winp (editor-error "Posting prohibited in this group."))
 	(let ((buffer (current-buffer))
 	      (username (value netnews-reply-address)))
-	  (nn-write-line (format nil "From: ~A"
+	  (nn-write-line (format () "From: ~A"
 				 (if username
 				     username
 				     (string-downcase
 				      ;; FIX should be std way to this
-				      (format nil "~A@~A"
+				      (format () "~A@~A"
 					      (cdr (assoc :user
 							  ext:*environment-list*))
 					      (machine-instance)))))
@@ -2200,7 +2227,7 @@ messages through the the editor Mailer or via `Post' mode.
 	    (when (probe-file filename)
 	      (with-open-file (istream filename :direction :input)
 		(loop
-		  (let ((line (read-line istream nil nil)))
+		  (let ((line (read-line istream () ())))
 		    (or line (return))
 		    (nn-write-line line stream))))))
 	  (write-line nntp-eof stream)
@@ -2249,9 +2276,9 @@ n and p in this mode.
    file specified by *Netnews Group File*."
   (let ((buffer (make-buffer "Netnews Browse")))
     (cond (buffer
-	   (list-all-groups-command nil buffer)
+	   (list-all-groups-command () buffer)
 	   (setf (buffer-major-mode buffer) "News Browse")
-	   (setf (buffer-writable buffer) nil))
+	   (setf (buffer-writable buffer) ()))
 	  (t (change-to-buffer (getstring "Netnews Browse" *buffer-names*))))))
 
 (defcommand "Netnews Quit Browse" ()
@@ -2263,9 +2290,9 @@ n and p in this mode.
    modify the contents of the *Netnews Database File*, otherwise present
    the last few messages in the group."
   (let ((group-info-string (line-string (mark-line mark))))
-    (netnews-command nil (subseq group-info-string
+    (netnews-command () (subseq group-info-string
 				 0 (position #\: group-info-string))
-		     nil (current-buffer) p)))
+		     () (current-buffer) p)))
 
 (defcommand "Netnews Browse Pointer Read Group" (p)
   "Read the group on the line under the mouse pointer.  With a prefix use
@@ -2306,6 +2333,7 @@ n and p in this mode.
 
 (defun streams-for-nntp ()
   (clear-echo-area)
+  ; FIX message
   (format *echo-area-stream* "Connecting to NNTP...~%")
   (force-output *echo-area-stream*)
   (values (connect-to-nntp) (connect-to-nntp)))
@@ -2315,29 +2343,53 @@ n and p in this mode.
 
 (defevar "Netnews NNTP Server"
   "The hostname of the NNTP server to use for reading Netnews."
-  :value "news.datemas.de")
+  :value "news")
 
 (defevar "Netnews NNTP Timeout Period"
   "The number of seconds to wait while trying to connect to the NNTP
    server.  After time period the connection will time out with an error."
   :value 30)
 
-(defun raw-connect-to-nntp ()
+(defun raw-connect-to-nntp (server)
+  (nn-mess " nn raw connect to ~A:~A" server *nntp-port*)
   (let ((stream (system:make-fd-stream
-		 (ext:connect-to-inet-socket (value netnews-nntp-server)
-					     *nntp-port*)
+		 (ext:connect-to-inet-socket server *nntp-port*)
 		 :input t :output t :buffering :line :name "NNTP"
 		 :timeout (value netnews-nntp-timeout-period))))
     (process-status-response stream)
     stream))
 
 (defun connect-to-nntp ()
+  (or (value netnews-nntp-server)
+      (editor-error
+       "Need the name of a news server in *Netnews NNTP Server*."))
   (handler-case
-      (raw-connect-to-nntp)
+      (let ((account (internet:make-inet-account
+		      (value netnews-nntp-server))))
+	;(setf (internet:inet-account-protocol account) "nntp")
+	(internet:fill-from-netrc account)
+	(let ((stream (raw-connect-to-nntp
+		       (internet:inet-account-server account))))
+	  (when (internet:account-user account)
+	    (nn-mess " nn auth as ~A" (internet:account-user account))
+	    ;; Authenticate.
+	    (write-nntp-command (format () "AUTHINFO user ~A"
+					(internet:account-user
+					 account))
+				stream
+				:auth)
+	    (process-status-response stream)
+	    (write-nntp-command (format () "AUTHINFO pass ~A"
+					(internet:account-password
+					 account))
+				stream
+				:auth)
+	    (process-status-response stream))
+	  stream))
     (io-timeout ()
       (editor-error "Connection to NNTP timed out.  Try again later."))))
 
-(defvar *nn-last-command-type* nil
+(defvar *nn-last-command-type* ()
   "Used to recover from a nntp timeout.")
 
 (defun write-nntp-command (command stream type)
@@ -2346,7 +2398,8 @@ n and p in this mode.
   (write-string command stream)
   (write-char #\return stream)
   (write-char #\newline stream)
-  (force-output stream))
+  (prog1 (force-output stream)
+    (nn-mess ">nn ~A" command)))
 
 
 ;;;; PROCESS-STATUS-RESPONSE and NNTP error handling.
@@ -2354,7 +2407,7 @@ n and p in this mode.
 (defconstant nntp-error-codes '(#\4 #\5)
   "These codes signal that NNTP could not complete the request you asked for.")
 
-(defvar *nntp-error-handlers* nil)
+(defvar *nntp-error-handlers* ())
 
 ;;; PROCESS-STATUS-RESPONSE makes sure a response waiting at the server is
 ;;; valid.  If the response code starts with a 4 or 5, then look it up in
@@ -2364,6 +2417,7 @@ n and p in this mode.
 ;;;
 (defun process-status-response (stream &optional note)
   (let ((str (read-line stream)))
+    (nn-mess "<nn  ~A" str)
     (if (member (schar str 0) nntp-error-codes :test #'char=)
 	(let ((error-handler (cdr (assoc str *nntp-error-handlers*
 					 :test #'(lambda (string1 string2)
@@ -2413,7 +2467,7 @@ n and p in this mode.
 ;;; across one of these error codes, then FUNCALL the appropriate handler.
 ;;;
 (defun def-nntp-error-handler (code function)
-  (pushnew (cons (format nil "~D" code) function) *nntp-error-handlers*))
+  (pushnew (cons (format () "~D" code) function) *nntp-error-handlers*))
 
 ;;; 503 is an NNTP timeout.  The code I wrote reconnects and recovers
 ;;; completely.
@@ -2431,34 +2485,34 @@ n and p in this mode.
 				again later.")))
 
 ;;; Some functions just need to know that something went wrong so they can
-;;; do something about it, so let them know by returning nil.
+;;; do something about it, so let them know by returning ().
 ;;;
 ;;; 411  -   The group you tried to read is not a netnews group.
 ;;; 423  -   You requested a message that wasn't really there.
 ;;; 440  -   Posting is not allowed.
 ;;; 441  -   Posting is allowed, but the attempt failed for some other reason.
 ;;;
-(flet ((nil-function (ignore)
+(flet ((false-function (ignore)
 	 (declare (ignore ignore))
-	 nil))
-  (def-nntp-error-handler 423 #'nil-function)
-  (def-nntp-error-handler 411 #'nil-function)
-  (def-nntp-error-handler 440 #'nil-function)
-  (def-nntp-error-handler 441 #'nil-function))
+	 ()))
+  (def-nntp-error-handler 423 #'false-function)
+  (def-nntp-error-handler 411 #'false-function)
+  (def-nntp-error-handler 440 #'false-function)
+  (def-nntp-error-handler 441 #'false-function))
 
 
 ;;;; Implementation of NNTP response argument parsing.
 
 ;;; DEF-NNTP-ARG-PARSER returns a form that parses a string for arguments
-;;; corresponding to each element of types.  For instance, if types is
+;;; corresponding to each element of $types.  For instance, if $types is
 ;;; (:integer :string :integer :integer), this function returns a form that
-;;; parses an integer, a string, and two more integers out of an nntp status
-;;; response.
+;;; parses an integer, a string, and two more integers out of an nntp
+;;; status response.
 ;;;
 (defmacro def-nntp-arg-parser (types)
   (let ((form (gensym))
 	(start (gensym))
-	(res nil))
+	(res ()))
     (do ((type types (cdr type)))
 	((endp type) form)
       (ecase (car type)
@@ -2518,11 +2572,11 @@ n and p in this mode.
 ;;;; Functions that send standard NNTP commands.
 
 ;;; NNTP-XHDR sends an XHDR command to the NNTP server.  We think this is a
-;;; local extension, but not using it is not pragmatic.  It takes over three
+;;; local extension, but using it is pragmatic.  It takes over three
 ;;; minutes to HEAD every message in a newsgroup.
 ;;;
 (defun nntp-xhdr (field start end stream)
-  (write-nntp-command (format nil "xhdr ~A ~D-~D"
+  (write-nntp-command (format () "xhdr ~A ~D-~D"
 			      field
 			      (if (numberp start) start (parse-integer start))
 			      (if (numberp end) end (parse-integer end)))
@@ -2538,13 +2592,13 @@ n and p in this mode.
   (write-nntp-command "list" stream :list))
 
 (defun nntp-head (article stream)
-  (write-nntp-command (format nil "head ~D" article) stream :head))
+  (write-nntp-command (format () "head ~D" article) stream :head))
 
 (defun nntp-article (number stream)
-  (write-nntp-command (format nil "article ~D" number) stream :article))
+  (write-nntp-command (format () "article ~D" number) stream :article))
 
 (defun nntp-body (number stream)
-  (write-nntp-command (format nil "body ~D" number) stream :body))
+  (write-nntp-command (format () "body ~D" number) stream :body))
 
 (defun nntp-post (stream)
   (write-nntp-command "post" stream :post))
@@ -2586,12 +2640,12 @@ Key bindings for the editor [Netnews] interface.
 
     Netnews Message Scroll Down               Space
     Scroll Window Up                          Backspace
-    Netnews Goto Headers Buffer               H-h, ^
+    Netnews Go To Headers Buffer               H-h, ^
     Netnews Message Keep Buffer               k
     Netnews Message Quit                      q
     Netnews Message File Message              o
-    Netnews Goto Post Buffer                  H-p
-    Netnews Goto Draft Buffer                 H-d
+    Netnews Go To Post Buffer                  H-p
+    Netnews Go To Draft Buffer                 H-d
     Insert Message Region                     H-y
 
 == Post mode bindings ==

@@ -3681,7 +3681,7 @@ forbids redefinition.
 [ Numbers                          ]
 [ General Efficiency Hints         ]
 [ Efficiency Notes                 ]
-[ The Profiler                     ]
+[ Profiler                         ]
 ]#
 
 #[ Advanced Compiler Introduction
@@ -5408,11 +5408,11 @@ note like this:
     Note: Return type not fixed values, so can't use known return convention:
       (VALUES (OR (INTEGER -536870912 -1) NULL) &REST T)
 
+In order to implement proper [tail recursion] in the presence of known
+values return (\pxlref{tail-recursion}), the compiler sometimes must prove
+that multiple functions all return the same number of values.  When this
+can't be proven, the compiler will print a note like this:
 
-In order to implement proper tail recursion in the presence of known values
-return (\pxlref{tail-recursion}), the compiler sometimes must prove that
-multiple functions all return the same number of values.  When this can't
-be proven, the compiler will print a note like this:
     In: DEFUN BLUE
       (DEFUN BLUE (X) (DECLARE (FIXNUM X)) (COND (# #) (# #) (# #) (T #)))
     Note: Return value count mismatch prevents known return from
@@ -6764,6 +6764,7 @@ One of the traditional Lisp programming styles is a highly applicative one,
 involving the use of mapping functions and many lists to store intermediate
 results.  To compute the sum of the square-roots of a list of numbers, one
 might say:
+
     (apply #'+ (mapcar #'sqrt list-of-numbers))
 
 This programming style is clear and elegant, but results in slow code.
@@ -6777,11 +6778,12 @@ There are two reasons why:
     long as a straightforward iterative version.
 
 An example of an iterative version of the same code:
+
     (do ((num list-of-numbers (cdr num))
          (sum 0 (+ (sqrt (car num)) sum)))
         ((null num) sum))
 
-See sections \ref{variable-type-inference} and \ref{let-optimization} for a
+See sections \ref{variable-type-inference} and [Let Optimization] for a
 discussion of the interactions of iteration constructs with type inference
 and variable optimization.  Also, section \ref{local-tail-recursion}
 discusses an alternative applicative style of iteration.  ; FIX maybe show this eg there
@@ -6917,6 +6919,7 @@ In other words, the default efficiency notes only suggest that you add
 declarations, not that you change the semantics of your program so that an
 efficient implementation will apply.  For example, compilation of this form
 will not give an efficiency note:
+
     (elt (the list l) i)
 
 even though a vector access is more efficient than indexing a list.
@@ -6927,7 +6930,7 @@ even though a vector access is more efficient than indexing a list.
 \cpsubindex{efficiency}{of type checking}
 \cpsubindex{optimization}{type check}
 
-It is important that the `eff-note' example above (in (Efficiency Notes])
+It is important that the `eff-note' example above (in [Efficiency Notes])
 used \code{(safety 0)}.  When type checking is enabled, you may get
 apparently spurious efficiency notes.  With \code{(safety 1)}, the note has
 this extra line on the end:

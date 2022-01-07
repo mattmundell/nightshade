@@ -11,6 +11,7 @@
 	  in-recursive-edit exit-recursive-edit abort-recursive-edit
 	  recursive-edit defmode mode-major-p mode-variables mode-documentation
 	  parse-unique-name unique-buffer-name make-unique-buffer
+	  make-major-buffer
 	  make-buffer delete-buffer copy-buffer with-writable-buffer
 	  buffer-start-mark buffer-end-mark recursive-edit))
 
@@ -504,7 +505,7 @@ character.
   (buffer-point *current-buffer*))
 
 (defun current-line ()
-  "Return the line of the Buffer-Point of the current buffer."
+  "Return the line of the buffer-point of the current buffer."
   (mark-line (buffer-point *current-buffer*)))
 
 ;;; %SET-CURRENT-BUFFER  --  Internal
@@ -851,7 +852,7 @@ calls editor-error.
 
     (if precedence
 	(if major-p
-	    (error "Precedence ~S is meaningless for a major mode." precedence)
+	    (error "Precedence given for major mode.")
 	    (check-type precedence number))
 	(setq precedence 0))
 
@@ -898,8 +899,8 @@ calls editor-error.
 {variable:ed:*buffer-history*}
 {function:ed:change-to-buffer}
 {function:ed:previous-buffer}
-{function:ed:after-buffer}
 ]#
+;{function:ed:after-buffer} FIX export?
 
 (defvar *current-buffer* ()
   "Internal variable which might contain the current buffer." )
@@ -1141,6 +1142,35 @@ calls editor-error.
 			       :delete-hook delete-hook
 			       :position position)))
 	 (buffer buffer)))
+
+(defun make-major-buffer (name
+			  &key
+			  (modes (value ed::default-modes))
+			  (modeline-fields
+			   (value ed::default-modeline-fields))
+			  delete-hook
+			  position)
+  "Make a buffer with the given $name and $modes, with `make-buffer'.  If a
+   buffer with $name exists already and the buffer has the same major mode
+   as $modes then return the buffer and t, else make a unique buffer and
+   return the buffer."
+  (until* ((num 1 (1+ num))
+	   (name name (format () "~A ~D" name num))
+	   (buffer (make-buffer name
+				:modes modes
+				:modeline-fields modeline-fields
+				:delete-hook delete-hook
+				:position position)
+		   (make-buffer name
+				:modes modes
+				:modeline-fields modeline-fields
+				:delete-hook delete-hook
+				:position position)))
+	  (buffer (values buffer t))
+    (let ((buffer (getstring name *buffer-names*)))
+      (and buffer
+	   (string= (buffer-major-mode buffer) (car modes))
+	   (return buffer)))))
 
 
 ;;;; Buffer start and end marks.

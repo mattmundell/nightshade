@@ -146,7 +146,7 @@ command; otherwise, it will wait for the user to type more key-events.
   "Return the key translation for $key if there is one, else ().
 
    $key is either a key-event or a sequence of key-events.  If $key is a
-   prefix of a translation, then returns :prefix.
+   prefix of a translation, then return :prefix.
 
    A key translation is either a key or modifier bit specification.  A bit
    translation is a list (:bits {bit-name}*).  In this case, the named bits
@@ -156,7 +156,7 @@ command; otherwise, it will wait for the user to type more key-events.
    manipulation functions, that portion will be replaced with the
    translation.
 
-   This form is setf'able.  Setting the form registers a key translations
+   This form is setf'able.  Setting the form registers a key translation
    that the command interpreter will use on receiving key-events."
   (let ((entry (get-table-entry *key-translations* (crunch-key key))))
     (etypecase entry
@@ -213,14 +213,15 @@ command; otherwise, it will wait for the user to type more key-events.
 (defun crunch-key (key)
   (typecase key
     (ext:key-event (vector key))
-    ((or list vector) ;List thrown in gratuitously.
-     (when (zerop (length key))
-       (error "A zero length key is illegal."))
+    ((or list vector) ; List thrown in gratuitously.
+     (if (zerop (length key))
+	 (error "Key must have length."))
      (or (every #'ext:key-event-p key)
 	 (error "A Key ~S must contain only key-events." key))
      (coerce key 'simple-vector))
     (t
-     (error "Key ~S is not a key-event or sequence of key-events." key))))
+     (error "Key must be either a key-event or sequence of key-events: ~S"
+	    key))))
 
 
 ;;;; Exported Primitives.
@@ -743,24 +744,28 @@ command interpreter recursively using the function `recursive-edit'.
 		 (let ((punt t))
 		   (setq *busy* t)
 		   (if (buffer-modeline-field-p *echo-area-buffer* :busy)
-		       (update-modeline-field *echo-area-buffer* *echo-area-window*
+		       (update-modeline-field *echo-area-buffer*
+					      *echo-area-window*
 					      (modeline-field :busy)))
-		   (if (buffer-modeline-field-p *echo-area-buffer* :busy-or-menu)
-		       (update-modeline-field *echo-area-buffer* *echo-area-window*
-					      (modeline-field :busy-or-menu)))
-		   (redisplay)
+		   (if (buffer-modeline-field-p *echo-area-buffer*
+						:busy-or-menu)
+		       (update-modeline-field *echo-area-buffer*
+					      *echo-area-window*
+					      (modeline-field
+					       :busy-or-menu)))
+		   (internal-redisplay)
 		   (catch 'command-loop-catcher
-		     (let ((*changed-buffers* nil))
+		     (let ((*changed-buffers* ()))
 		       (dolist (c t-bindings)
 			 (funcall *invoke-hook* c *prefix-argument*))
 		       (funcall *invoke-hook* res *prefix-argument*)
 		       (dolist (buffer *changed-buffers*)
-			 (when (member buffer *buffer-list*)
-			   (invoke-hook ed::after-change-hook buffer))))
-		     (setf punt nil))
+			 (if (member buffer *buffer-list*)
+			     (invoke-hook ed::after-change-hook buffer))))
+		     (setf punt ()))
 		   (clearf *busy*)
 		   (invoke-hook ed::after-command-hook)
-		   (when punt (invoke-hook ed::command-abort-hook)))
+		   (if punt (invoke-hook ed::command-abort-hook)))
 		 (if *command-type-set*
 		     (setq *command-type-set* nil)
 		     (setq *last-command-type* nil))

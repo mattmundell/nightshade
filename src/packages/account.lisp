@@ -3,9 +3,10 @@
 ;; This file is public domain.
 
 (defpackage "ACCOUNT"
-  (:version 0)
+  (:version 1)
   (:use "LISP" "EXTENSIONS" "ED")
   (:export "SUMMARISE")
+  (:require "CSV")
   (:documentation "Simple bank statement parsing and summary.
 
 Command `Summarise Account' prompts for a bank statement in comma
@@ -202,7 +203,7 @@ Bank statement format:
       (insert-string point header-text)
       (insert-character point #\newline)
       (ed::insert-file-command nil pn) ; FIX
-      (break)
+;      (break)
       (let* ((statement (csv:parse-buffer b))
 	     (statement2 (csv:parse-buffer b))
 	     statement-unique summary)

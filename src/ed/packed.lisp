@@ -104,7 +104,7 @@
 
 (defcommand "Packdired Edit Package" ()
   "Edit the package at point."
-  (packed-command nil (package-at-mark (current-point))))
+  (packed-command () (package-at-mark (current-point))))
 
 (defcommand "Packdired Edit Package in Other Window" ()
   "Edit the package at point in the other window."
@@ -112,7 +112,7 @@
     (if (eq (next-window (current-window)) (current-window))
 	(split-window-command)
 	(next-window-command))
-    (packed-command nil package)))
+    (packed-command () package)))
 
 
 ;;;; Packed mode.
@@ -121,10 +121,19 @@
   :documentation
   "Packed is a mode for editing packages.")
 
-(defcommand "Edit Package" (p)
-  "Edit a prompted package in a buffer."
-  "Edit $package in a buffer, prompting for a package if $package is nil."
-  (packed-command p))
+(defcommand "Packed Edit Package" ()
+  "Edit the source of the package that is in the current buffer."
+  (let* ((package (value package))
+	 (name (if (packagep package)
+		   (package-name package)
+		   (lisp::pkg-info-name package))))
+    (or (package::installed-p name)
+	;; FIX offer to install
+	(editor-error "Install ~A first." name))
+    (let ((pathname (package:local-file name)))
+      (if pathname
+	  (find-file-command () pathname)
+	  (editor-error "Failed to find source for package ~A." name)))))
 
 ;; FIX prompt
 (defcommand "Packed" (p package)
@@ -343,6 +352,32 @@
 (defun package-managed-at-mark (mark)
   (or (getf (line-plist (mark-line mark)) 'package)
       (editor-error "Point must be on a package line.")))
+
+(defcommand "Add Package" ()
+  "Add a package."
+  ;; FIX rem update .manifest
+  (let* ((name (prompt-for-string
+		:prompt "New package name: "
+		:help "Enter the name for the new package."))
+	 (name (string-downcase name))
+	 (dir (ensure-trailing-slash
+	       ;; FIX this is server pathname (n:src/...)
+	       (package:package-pathname (merge-pathnames name "*.pkg"))))
+	 (file (merge-pathnames (merge-pathnames dir name) "*.lisp")))
+    (ensure-directories-exist dir)
+    (touch-file file)
+    (change-to-buffer (find-file-buffer file))
+    (insert-string (current-point)
+		   (format () ";;; One line description of ~A.
+
+(defpackage \"~A\"
+  (:version 0)
+  (:use \"LISP\" \"EXT\")
+  (:documentation \"FIX.\"))
+
+"
+			   name
+			   (string-upcase name)))))
 
 (defcommand "Install Package" ()
   "Install the package listed on the current line."

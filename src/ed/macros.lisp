@@ -1237,11 +1237,12 @@ the debugger to be entered in the slave buffer.
   (handler-bind ((editor-error #'(lambda (condx)
 				   (declare (ignore condx))
 				   (beep)
-				   (throw 'command-loop-catcher nil)))
+				   (throw 'command-loop-catcher ())))
 		 (error #'(lambda (condition)
 ;			    (declare (ignore condition))
 			    (with-screen
-			     (invoke-debugger condition)))))
+			     (with-simple-restart (ed "Return to editor.")
+			       (invoke-debugger condition))))))
 ;  			    (invoke-debugger
 ;  			     (make-condition
 ;  			      'simple-condition

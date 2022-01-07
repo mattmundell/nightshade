@@ -304,8 +304,9 @@
    "c~" (("l" "b/D")) (("l-to-c" "c")))
   ""
   (".a" ".a.ext" "Ccccc" "a.dir/" "b/" "c" "c.BAK" "c.CKP" "c.c" "c~"
-   "l-to-c" "l/")
-  ("a.dir/" "b/" "l/"))
+   ;; FIX "l" because follow-links is () even though check-for-subdirs is t
+   "l-to-c" "l")
+  ("a.dir/" "b/" "l"))
 
 (def-file-iterator-tests 3
   ("a.dir/" "b/D/e/" "c" "Ccccc" "c.c" ".a" ".a.ext" "c.BAK" "c.CKP"
@@ -321,8 +322,8 @@
    "c~" (("l" "b/D")) (("l-to-c" "c")))
   ""
   (".a" ".a.ext" "Ccccc" "a.dir/" "b/" "b/D/" "b/D/e/" "c" "c.BAK"
-   "c.CKP" "c.c" "c~" "l-to-c" "l/")
-  ("a.dir/" "b/" "b/D/" "b/D/e/" "l/")
+   "c.CKP" "c.c" "c~" "l-to-c" "l")
+  ("a.dir/" "b/" "b/D/" "b/D/e/" "l")
   (:recurse t))
 
 (def-file-iterator-tests 7
@@ -341,8 +342,8 @@
    "c~" (("l" "b/D")) (("l-to-c" "c")))
   ""
   ("Ccccc" "a.dir/" "b/" "c" "c.BAK" "c.CKP" "c.c" "c~"
-   "l-to-c" "l/")
-  ("a.dir/" "b/" "l/")
+   "l-to-c" "l")
+  ("a.dir/" "b/" "l")
   (:all ()))
 
 (def-file-iterator-tests 11
@@ -359,8 +360,8 @@
    "c~" (("l" "b/D")) (("l-to-c" "c")))
   ""
   ("Ccccc" "a.dir/" "b/" "b/D/" "b/D/e/" "c" "c.BAK" "c.CKP" "c.c"
-   "c~" "l-to-c" "l/")
-  ("a.dir/" "b/" "b/D/" "b/D/e/" "l/")
+   "c~" "l-to-c" "l")
+  ("a.dir/" "b/" "b/D/" "b/D/e/" "l")
   (:all () :recurse t))
 
 (def-file-iterator-tests 15
@@ -379,8 +380,8 @@
    "c~" (("l" "b/D")) (("l-to-c" "c")))
   ""
   (".a" ".a.ext" "Ccccc" "a.dir/" "b/" "c" "c.c"
-   "l-to-c" "l/")
-  ("a.dir/" "b/" "l/")
+   "l-to-c" "l")
+  ("a.dir/" "b/" "l")
   (:backups ()))
 
 (def-file-iterator-tests 19
@@ -397,8 +398,8 @@
    (("l" "b/D")) (("l-to-c" "c")))
   ""
   (".a" ".a.ext" "Ccccc" "a.dir/" "b/" "b/D/" "b/D/e/" "c" "c.c"
-   "l-to-c" "l/")
-  ("a.dir/" "b/" "b/D/" "b/D/e/" "l/")
+   "l-to-c" "l")
+  ("a.dir/" "b/" "b/D/" "b/D/e/" "l")
   (:recurse t :backups ()))
 
 (def-file-iterator-tests 23
@@ -417,7 +418,7 @@
    (("l" "b/D")) (("l-to-c" "c")))
   ""
   ("Ccccc" "a.dir/" "b/" "c" "c.c" "l-to-c" "l/")
-  ("a.dir/" "b/" "l/")
+  ("a.dir/" "b/" "l")
   (:all () :backups ()))
 
 (def-file-iterator-tests 27
@@ -432,8 +433,9 @@
   ("a.dir/" "b/D/e/" "c" "Ccccc" "c.c" ".a" ".a.ext" "c.BAK" "c.CKP"
    (("l" "b/D")) (("l-to-c" "c")))
   ""
-  ("Ccccc" "a.dir/" "b/" "b/D/" "b/D/e/" "c" "c.c" "l-to-c" "l/")
-  ("a.dir/" "b/" "b/D/" "b/D/e/" "l/")
+  ("Ccccc" "a.dir/" "b/" "b/D/" "b/D/e/" "c" "c.c" "l-to-c" "l")
+  ;; FIX surely "l" is a file if the / is being left off
+  ("a.dir/" "b/" "b/D/" "b/D/e/" "l")
   (:all () :recurse t :backups ()))
 
 (def-file-iterator-tests 31
@@ -611,7 +613,7 @@
   "a/c"
   ;; "a/c~" is a file on its own.
   ("a/c" "a/c.BAK" "a/c.CKP" "a/c.c")
-  ("a/a.dir/" "a/b/" "a/l/"))
+  ("a/a.dir/" "a/b/" "a/l"))
 
 (def-file-iterator-tests 113
   ("a/a.dir/" "a/b/D/e/" "a/c" "a/Ccccc" "a/c.c" "a/.a" "a/.a.ext"
@@ -619,7 +621,7 @@
   "a/c"
   ;; "a/c~" is a file on its own.
   ("a/c" "a/c.c")
-  ("a/a.dir/" "a/b/" "a/l/")
+  ("a/a.dir/" "a/b/" "a/l")
   (:backups ()))
 
 (def-file-iterator-tests 115
@@ -628,7 +630,7 @@
   "a/c"
   ;; "a/.c~" is a file on its own.
   ("a/c.BAK" "a/c.c")
-  ("a/a.dir/" "a/b/" "a/l/")
+  ("a/a.dir/" "a/b/" "a/l")
   (:all ()))
 
 
@@ -653,22 +655,31 @@
 (def-file-iterator-tests 131
   ("a/" "a/c" "a/c.CKP" "a/c~" (("a/l" "a/")) (("a/l-to-c" "a/c")))
   "a/l"
-  ("a/l/")
-  ("a/l/"))
+  ("a/l")
+  ("a/l"))
 
 (def-file-iterator-tests 133
   ("a/" "a/c" "a/c.CKP" "a/c~" (("a/l" "a/")) (("a/l-to-c" "a/c")))
   "a/l/"
-  ("a/l/c" "a/l/c.CKP" "a/l/c~" "a/l/l-to-c" "a/l/l/")
-  ("a/l/l/")
+  ("a/l/c" "a/l/c.CKP" "a/l/c~" "a/l/l-to-c" "a/l/l")
+  ;; FIX surely a file
+  ("a/l/l")
   (:follow-links ()))
 
 (def-file-iterator-tests 135
   ("a/" "a/.b/" "a/c.CKP" "a/c~" (("a/l" "a/.b/")))
   "a/l"
-  ("a/l/")
+  ("a/l")
+  ;; FIX fails expecting "a/l", which is a file.
   ("a/.b/" "a/l/")
   (:all ()))
+
+(def-file-iterator-tests 137
+  ("a/" "a/c" "a/c.CKP" "a/c~" (("a/l" "a/")) (("a/l-to-c" "a/c")))
+  "a/l"
+  ("a/l")
+  ("a/l/")
+  (:follow-links t))
 
 
 ;;;; Symlink into subdirectory.

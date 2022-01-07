@@ -194,6 +194,7 @@ output or error file descriptor, otherwise they return ().
 ;;; PROCESS-KILL -- public
 ;;;
 (defun process-kill (proc signal &optional (whom :pid))
+  ;; FIX list names unix::*unix-signals*
   "Send the Unix $signal to process $proc.  $signal should be the number of
    the signal or a keyword with the Unix name (for example, :sigsegv).
 
@@ -634,7 +635,7 @@ output or error file descriptor, otherwise they return ().
   "Run $program in a child process.
 
    $program should be a pathname or string naming the program.  $args
-   should be a list of strings to passes to $program as normal Unix
+   should be a list of strings to pass to $program as normal Unix
    parameters.
 
    Return either a process structure (which is accessible via [process
@@ -925,21 +926,21 @@ output or error file descriptor, otherwise they return ().
 		      (multiple-value-bind
 			  (line no-cr)
 			  (read-line object nil nil)
-			(unless line
-			  (return))
+			(or line
+			    (return))
 			(unix:unix-write fd line 0 (length line))
 			(if no-cr
-			  (return)
-			  (unix:unix-write fd newline 0 1)))))
+			    (return)
+			    (unix:unix-write fd newline 0 1)))))
 		  (unix:unix-lseek fd 0 unix:l_set)
 		  (push fd *close-in-parent*)
-		  (return (values fd nil))))))
+		  (return (values fd ()))))))
 	   (:output
 	    (multiple-value-bind (read-fd write-fd)
 				 (unix:unix-pipe)
-	      (unless read-fd
-		(error "Failed to create pipe: ~A"
-		       (unix:get-unix-error-msg write-fd)))
+	      (or read-fd
+		  (error "Failed to create pipe: ~A"
+			 (unix:get-unix-error-msg write-fd)))
 	      (copy-descriptor-to-stream read-fd object cookie)
 	      (push read-fd *close-on-error*)
 	      (push write-fd *close-in-parent*)

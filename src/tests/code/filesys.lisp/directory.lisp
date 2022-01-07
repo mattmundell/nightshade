@@ -251,7 +251,8 @@
    (), :follow-links () and :absolute ()."
   (let* ((spec '("a" "dir1/" "dir1/end" "b" "dir2/" ("dl" "dir1/")
 		 "c" ("l" "c")))
-	 (expect '("./a" "./dir1/" "./b" "./dir2/" ("./dl/" "./dir1/")
+	 ;; ./dl instead of ./dl/ because follow-links is ().
+	 (expect '("./a" "./dir1/" "./b" "./dir2/" ("./dl" "./dir1/")
 		   "./c" ("./l" "./c")))
 	 (dir (apply #'deftest:make-test-dir spec)))
     (unwind-protect
@@ -279,7 +280,7 @@
    t, :follow-links t and :absolute ()."
   (let* ((spec '("a" "dir1/" "dir1/end" "b" "dir2/" ("dl" "dir1/")
 		 "c" ("l" "c")))
-	 (expect '("a" "dir1/" "b" "dir2/" ("dl" "dir1/")
+	 (expect '("a" "dir1/" "b" "dir2/" ("dl/" "dir1/")
 		   "c" ("l" "c")))
 	 (dir (apply #'deftest:make-test-dir spec)))
     (unwind-protect
@@ -433,7 +434,7 @@
    (), :follow-links () and :absolute t."
   (let* ((spec '("a" "dir1/" "dir1/end" "b" "dir2/" ("dl" "dir1/")
 		 "c" ("l" "c")))
-	 (expect '("./a" "./dir1/" "./b" "./dir2/" ("./dl/" "dir1/")
+	 (expect '("./a" "./dir1/" "./b" "./dir2/" ("./dl" "dir1/")
 		   "./c" ("./l" "c")))
 	 (dir (apply #'deftest:make-test-dir spec)))
     (unwind-protect

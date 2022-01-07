@@ -41,7 +41,7 @@ be talking to a PTY whose speed is initialized to infinity.  In reality,
 the terminal will be much slower, resulting in the editor's output getting
 way ahead of the terminal.  This prevents the editor from briefly stopping
 redisplay to allow the terminal to catch up.  This is also affected by
-*Scroll Redraw Ratio*, as described in [ Terminal Redisplay].
+*Scroll Redraw Ratio*, as described in [Terminal Redisplay].
 
 == Capabilities ==
 
@@ -55,6 +55,8 @@ for
 
   * the file specified by edi::*termcap-file*
 
+  * the file conf:termcap
+
   * the file library:termcap
 
   * the file /etc/termcap.
@@ -62,7 +64,7 @@ for
 
 A prepared termcap file is available at
 
-    http://www.mundell.ukfsn.org/nightshade/termcap.bz2
+    http://www.mundell.ukfsn.org/nightshade/termcap
 
 Alternatively the same file can be generated with a command such as
 
@@ -138,7 +140,7 @@ completion of the command.
     konsole           xterm
     kterm             kterm        -- FIX paints fore,back same; bit better w xterm
     linux             linux        -- smooth scroll needs *Scroll Redraw Ratio* (FIX)
-                                   -- use TERM=xterm for color
+                                   -- use TERM=xterm for color and reverse modeline
     mrxvt             rxvt
     powershell        xterm-debian
     pterm             xterm
@@ -153,10 +155,18 @@ completion of the command.
                                                  (device-hunk-device
                                                   (window-hunk (current-window))))
                                                 #'space-to-eol)
-    xterm             xterm        -- how FIX alt?
+    xterm             xterm        -- unset TERMCAP
+                                   -- how FIX Alt keys?
+                                          xmodmap -e "keycode 64 = Meta_L"
+                                          xmodmap -e "keycode 113 = Meta_R"
+                                          XTerm*eightBitInput: false
+                                          XTerm*eightBitOutput: false
                                    -- smooth scroll needs *Scroll Redraw Ratio* (FIX)
+                                   -- FIX modeline jump on enter
     xvt               xterm-r6
     yakuake           xterm        -- (drop down kde terminal, F12 to drop/raise)
+
+FIX check special keys
 ]#
 
 
@@ -166,41 +176,152 @@ completion of the command.
   "File of terminal capability descriptions.  Overridden if there is a
    TERMCAP environment variable.")
 
+#|
+(defun generate-termcap ()
+  (ignore-errors
+   (run-program
+    "/bin/sh"
+    (list "-c"
+	  (format ()
+		  "for f in `find /lib/terminfo/`; do infocmp -Cr `basename $f` 2> /dev/null; done > ~A/termcap && sync"
+		  (namify
+		   (namestring (car (search-list
+				     "library:"))))))
+    :output *standard-output*))
+  (unix:unix-sync)
+  (shell:cat "library:termcap")
+  (probe-file "library:termcap"))
+|#
+
+(defun generate-termcap (&optional (dest "library:termcap"))
+  (to-file (out dest :if-exists :error)
+    (do-files (file "/lib/terminfo/"
+		    :recurse t :check-for-subdirs t :all ())
+      (or (directory-name-p file)
+	  (run-program "infocmp"
+		       (list "-Cr" (file-namestring file))
+		       :output out
+		       :error ())))
+    (finish-output out))
+  (probe-file dest))
+
+(defconstant termcap-last-resort
+  "Failed to find, read or generate a termcap file.
+
+   The terminal version of the editor needs a termcap file to run.
+   For some reason the editor has failed to find, read or create such a
+   file.  This could be due to restrictions on reading an existing termcap
+   file, restrictions on writing to the directories conf: and library:, or
+   the lack of an infocmp program (provided by packages like ncurses-bin).
+
+   There is a termcap file available at
+
+       http://www.mundell.ukfsn.org/nightshade/termcap
+
+   for copying to conf: (which is usually ~~/.nightshade/), library: or
+   /etc/.")
+
+(defun find-termcap-file (name)
+  (cond (*termcap-file*
+	 (with-open-file (s *termcap-file*)
+	   (if (find-termcap-entry name s)
+	       *termcap-file*
+	       (error "Unknown Terminal ~S in file ~S."
+		      name *termcap-file*))))
+	((file-readable "conf:termcap")
+	 (with-open-file (s "conf:termcap")
+	   (if (find-termcap-entry name s)
+	       "conf:termcap"
+	       (error "Unknown Terminal ~S in file ~S."
+		      name "conf:termcap"))))
+	((file-readable "library:termcap")
+	 (with-open-file (s "library:termcap")
+	   (if (find-termcap-entry name s)
+	       "library:termcap"
+	       (error "Unknown Terminal ~S in file ~S."
+		      name "library:termcap"))))
+	((file-readable termcap-file)
+	 (with-open-file (s termcap-file)
+	   (if (find-termcap-entry name s)
+	       termcap-file
+	       (error "Unknown Terminal ~S in file ~S."
+		      name termcap-file))))
+	((ignore-errors (generate-termcap))
+	 (with-open-file (s "library:termcap")
+	   (if (find-termcap-entry name s)
+	       "library:termcap"
+	       (error "Unknown Terminal ~S in file ~S."
+		      name "library:termcap"))))
+	((ignore-errors (generate-termcap "conf:termcap"))
+	 (with-open-file (s "conf:termcap")
+	   (if (find-termcap-entry name s)
+	       "conf:termcap"
+	       (error "Unknown Terminal ~S in file ~S."
+		      name "conf:termcap"))))
+	(t
+	 (error termcap-last-resort))))
+
 (defun get-termcap (name)
+  ;; FIX
   "Look in TERMCAP environment variable for terminal capabilities or a file
    to use.  If it is a file, look for $name in it.  If it is a description
-   of the capabilities, use it, and don't look for $name anywhere.  If
-   TERMCAP is undefined, look for $name in termcap-file.  Signal an error
-   on failure to find the terminal capabilities."
+   of the capabilities, load the capabilities of $name and add those in
+   TERMCAP.  If TERMCAP is undefined, look for $name in termcap-file and
+   various standard locations.  Signal an error on failure to find the
+   terminal capabilities."
   (let ((termcap-env-var (get-termcap-env-var)))
-    (if (and termcap-env-var
-	     (> (length termcap-env-var) 0))
-	(if (char= (schar termcap-env-var 0) #\/) ; hack for filenamep
-	    (with-open-file (s termcap-env-var)
-	      (if (find-termcap-entry name s)
-		  (parse-fields s)
-		  (error "Unknown Terminal ~S in file ~S."
-			 name termcap-env-var)))
-	    (with-input-from-string (s termcap-env-var)
-	      (skip-termcap-names s)
-	      (parse-fields s)))
-	(if *termcap-file*
-	    (with-open-file (s *termcap-file*)
-	      (if (find-termcap-entry name s)
-		  (parse-fields s)
-		  (error "Unknown Terminal ~S in file ~S."
-			 name *termcap-file*)))
-	    (if (probe-file "library:termcap")
-		(with-open-file (s "library:termcap")
-		  (if (find-termcap-entry name s)
-		      (parse-fields s)
-		      (error "Unknown Terminal ~S in file ~S."
-			     name "library:termcap")))
-		(with-open-file (s termcap-file)
-		  (if (find-termcap-entry name s)
-		      (parse-fields s)
-		      (error "Unknown Terminal ~S in file ~S."
-			     name termcap-file))))))))
+    (flet ((load-termcap ()
+	     (cond (*termcap-file*
+		    (with-open-file (s *termcap-file*)
+		      (if (find-termcap-entry name s)
+			  (parse-fields s)
+			  (error "Unknown Terminal ~S in file ~S."
+				 name *termcap-file*))))
+		   ((file-readable "conf:termcap")
+		    (with-open-file (s "conf:termcap")
+		      (if (find-termcap-entry name s)
+			  (parse-fields s)
+			  (error "Unknown Terminal ~S in file ~S."
+				 name "conf:termcap"))))
+		   ((file-readable "library:termcap")
+		    (with-open-file (s "library:termcap")
+		      (if (find-termcap-entry name s)
+			  (parse-fields s)
+			  (error "Unknown Terminal ~S in file ~S."
+				 name "library:termcap"))))
+		   ((file-readable termcap-file)
+		    (with-open-file (s termcap-file)
+		      (if (find-termcap-entry name s)
+			  (parse-fields s)
+			  (error "Unknown Terminal ~S in file ~S."
+				 name termcap-file))))
+		   ((ignore-errors (generate-termcap))
+		    (with-open-file (s "library:termcap")
+		      (if (find-termcap-entry name s)
+			  (parse-fields s)
+			  (error "Unknown Terminal ~S in file ~S."
+				 name "library:termcap"))))
+		   ((ignore-errors (generate-termcap "conf:termcap"))
+		    (with-open-file (s "conf:termcap")
+		      (if (find-termcap-entry name s)
+			  (parse-fields s)
+			  (error "Unknown Terminal ~S in file ~S."
+				 name "conf:termcap"))))
+		   (t
+		    (error termcap-last-resort)))))
+      (if (and termcap-env-var
+	       (> (length termcap-env-var) 0))
+	  (if (char= (schar termcap-env-var 0) #\/) ; hack for filenamep
+	      (with-open-file (s termcap-env-var)
+		(if (find-termcap-entry name s)
+		    (parse-fields s)
+		    (error "Unknown Terminal ~S in file ~S."
+			   name termcap-env-var)))
+	      (with-open-file (termcap (find-termcap-file name))
+		(with-input-from-string (s termcap-env-var)
+		  (skip-termcap-names s)
+		  (parse-fields s termcap))))
+	  (load-termcap)))))
 
 (proclaim '(inline termcap))
 (defun termcap (name termcap)
@@ -478,7 +599,7 @@ xterm-xfree86|XFree86 xterm:\
 ;;; is a similar terminal to be parsed, and when we are really done, we replace
 ;;; all the :negated's with nil's.
 ;;;
-(defun parse-fields (stream)
+(defun parse-fields (stream &optional other-stream) ; FIX explain other-stream
   (prog ((termcap-name (make-string 2))
 	 (termcap ())
 	 char termcap-def)
@@ -604,11 +725,20 @@ xterm-xfree86|XFree86 xterm:\
     (let* ((similar-terminal (assoc :similar-terminal termcap :test #'eq))
 	   (name (cdr similar-terminal)))
       (when name
-	(file-position stream :start)
 	(setf (car similar-terminal) :was-similar-terminal)
-	(if (find-termcap-entry name stream)
-	    (go GET-NAME)
-	    (error "Unknown similar terminal name -- ~S." name))))
+	(if other-stream
+	    (progn
+	      (setq stream other-stream)
+	      (file-position stream :start)
+	      (if (find-termcap-entry name stream)
+		  (go GET-NAME)
+		  (error "Unknown similar terminal name (other) -- ~S."
+			 name)))
+	    (progn
+	      (file-position stream :start)
+	      (if (find-termcap-entry name stream)
+		  (go GET-NAME)
+		  (error "Unknown similar terminal name -- ~S." name))))))
     (dolist (ele termcap)
       (when (eq (cdr ele) :negated)
 	(setf (cdr ele) nil)))

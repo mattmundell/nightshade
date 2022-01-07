@@ -50,7 +50,7 @@
       (redisplay-all)))
 
 
-;;;; Terminal screen initialization
+;;;; Terminal screen initialization.
 
 (proclaim '(special *echo-parse-starting-mark*))
 
@@ -144,6 +144,7 @@
     (setf (device-previous-window device) #'tty-previous-window)
     (setf (device-make-window device) #'tty-make-window)
     (setf (device-delete-window device) #'tty-delete-window)
+    (setf (device-set-window-height device) #'tty-set-window-height)
     (setf (device-set-foreground-color device) #'tty-set-foreground-color)
     (setf (device-set-background-color device) #'tty-set-background-color)
     (setf (device-random-typeout-setup device) #'tty-random-typeout-setup)
@@ -318,7 +319,7 @@
 
 
 
-;;;; Making a window
+;;;; Making a window.
 
 (defun tty-make-window (device start modelinep window font-family
 			       ask-user x y width height proportion)
@@ -373,7 +374,7 @@
 	new-window))))
 
 
-;;;; Deleting a window
+;;;; Deleting a window.
 
 (defun tty-delete-window (window)
   (let* ((hunk (window-hunk window))
@@ -402,6 +403,47 @@
       (setf (device-hunks device) next)))
   (setf *currently-selected-hunk* nil)
   (setf *screen-image-trashed* t))
+
+
+;;;; Resizing a window.
+
+(defun tty-set-window-height (window height)
+  (let ((next-window (next-window window)))
+    (or (eq next-window window)
+	(zerop height)
+	(minusp height)
+	(let* ((hunk (window-hunk window))
+	       (prev (device-hunk-previous hunk))
+	       (next (device-hunk-next hunk))
+	       ;; FIX check for modelines?
+	       (increase (- height (tty-hunk-text-height hunk))))
+	  (cond ((eq hunk (device-hunks (device-hunk-device next)))
+		 (when (< increase (1- (tty-hunk-text-height next)))
+		   (decf (device-hunk-height next) increase)
+		   (decf (tty-hunk-text-height next) increase)
+		   (incf (device-hunk-height hunk) increase)
+		   (incf (tty-hunk-text-height hunk) increase)
+		   (incf (device-hunk-position hunk) increase)
+		   (incf (tty-hunk-text-position hunk) increase)
+		   (let ((w (device-hunk-window next)))
+		     (change-window-image-height w (- (window-height w)
+						      increase)))
+		   (change-window-image-height window height)
+		   (setf *currently-selected-hunk* ())
+		   (setf *screen-image-trashed* t)))
+		((< increase (1- (tty-hunk-text-height prev)))
+		 (decf (device-hunk-height prev) increase)
+		 (decf (tty-hunk-text-height prev) increase)
+		 (decf (device-hunk-position prev) increase)
+		 (decf (tty-hunk-text-position prev) increase)
+		 (incf (device-hunk-height hunk) increase)
+		 (incf (tty-hunk-text-height hunk) increase)
+		 (let ((w (device-hunk-window prev)))
+		   (change-window-image-height w (- (window-height w)
+						    increase)))
+		 (change-window-image-height window height)
+		 (setf *currently-selected-hunk* ())
+		 (setf *screen-image-trashed* t)))))))
 
 
 
@@ -471,7 +513,7 @@
 		  7)))))))
 
 
-;;;; Random typeout support
+;;;; Random typeout support.
 
 (defun tty-random-typeout-setup (device stream height)
   (declare (fixnum height))

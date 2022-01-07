@@ -141,9 +141,9 @@
 
 ;;; Prepare-For-Fast-Read-Char  --  Internal
 ;;;
-;;;    This macro sets up some local vars for use by the
-;;; Fast-Read-Char macro within the enclosed lexical scope. The stream
-;;; is assumed to be a lisp-stream.
+;;; This macro sets up some local vars for use by the Fast-Read-Char macro
+;;; within the enclosed lexical scope. The stream is assumed to be a
+;;; lisp-stream.
 ;;;
 (defmacro prepare-for-fast-read-char (stream &body forms)
   `(let* ((%frc-stream% ,stream)
@@ -156,16 +156,16 @@
 
 ;;; Done-With-Fast-Read-Char  --  Internal
 ;;;
-;;;    This macro must be called after one is done with fast-read-char
-;;; inside it's scope to decache the lisp-stream-in-index.
+;;; This macro must be called after one is done with fast-read-char inside
+;;; it's scope to decache the lisp-stream-in-index.
 ;;;
 (defmacro done-with-fast-read-char ()
   `(setf (lisp-stream-in-index %frc-stream%) %frc-index%))
 
 ;;; Fast-Read-Char  --  Internal
 ;;;
-;;;    This macro can be used instead of Read-Char within the scope of
-;;; a Prepare-For-Fast-Read-Char.
+;;; This macro can be used instead of Read-Char within the scope of a
+;;; Prepare-For-Fast-Read-Char.
 ;;;
 (defmacro fast-read-char (&optional (eof-errorp t) (eof-value ()))
   `(cond
@@ -183,8 +183,8 @@
 
 ;;; Prepare-For-Fast-Read-Byte  --  Internal
 ;;;
-;;;    Just like Prepare-For-Fast-Read-Char except that we get the Bin
-;;; method. The stream is assumed to be a lisp-stream.
+;;; Just like Prepare-For-Fast-Read-Char except that we get the Bin method.
+;;; The stream is assumed to be a lisp-stream.
 ;;;
 (defmacro prepare-for-fast-read-byte (stream &body forms)
   `(let* ((%frc-stream% ,stream)
@@ -197,9 +197,9 @@
 
 ;;; Fast-Read-Byte, Done-With-Fast-Read-Byte  --  Internal
 ;;;
-;;;    Similar to fast-read-char, but we use a different refill routine & don't
-;;; convert to characters.  If ANY-TYPE is true, then this can be used on any
-;;; integer streams, and we don't assert the result type.
+;;; Similar to fast-read-char, but we use a different refill routine &
+;;; don't convert to characters.  If ANY-TYPE is true, then this can be
+;;; used on any integer streams, and we don't assert the result type.
 ;;;
 (defmacro fast-read-byte (&optional (eof-errorp t) (eof-value ()) any-type)
   `(truly-the

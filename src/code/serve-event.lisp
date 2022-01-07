@@ -1,5 +1,7 @@
 ;;; Port and X event handling.
 
+(in-package "LISP")
+
 (in-package "SYSTEM")
 
 (export '(with-fd-handler add-fd-handler remove-fd-handler invalidate-descriptor
@@ -55,6 +57,7 @@ external to the internal representation.
 {function:system:make-object-set}
 {function:system:object-set-operation}
 {function:system:add-xwindow-object}
+{function:system:remove-xwindow-object}
 ]#
 
 ;;; Hashtable from ports to objects.  Each entry is a cons (object . set).
@@ -99,6 +102,7 @@ external to the internal representation.
   (error "You lose, object: ~S" object)) ; FIX
 
 ; FIX enable port version?
+; FIX hard to find with editor.
 
 ;;; MAP-XWINDOW and MAP-PORT return as multiple values the object and
 ;;; object set mapped to by a xwindow or port in *xwindow-table* or
@@ -147,7 +151,7 @@ external to the internal representation.
 					    "REMOVE-" (symbol-name name)
 					    "-OBJECT"))
 		      (,name)
-		 ,(format nil
+		 ,(format ()
 			  "Remove ~A and its associated object/object-set pair."
 			  (string-downcase (symbol-name name)))
 		 (remhash ,name ,table))))
@@ -207,13 +211,13 @@ descriptor as it's single argument.
 	    (:print-function %print-handler)
 	    (:constructor make-handler (direction descriptor function)))
   ;; Reading or writing...
-  (direction nil :type (member :input :output))
+  (direction () :type (member :input :output))
   ;;
   ;; File descriptor this handler is tied to.
   (descriptor 0 :type (mod #.unix:fd-setsize))
 
   active		      ; T iff this handler is running.
-  (function nil :type function) ; Function to call.
+  (function () :type function) ; Function to call.
   bogus			      ; T if this descriptor is bogus.
   )
 
@@ -225,7 +229,7 @@ descriptor as it's single argument.
 	  (handler-descriptor handler)
 	  (handler-function handler)))
 
-(defvar *descriptor-handlers* nil
+(defvar *descriptor-handlers* ()
   "List of all the currently active handlers for file descriptors")
 
 ;;; ADD-FD-HANDLER -- public
@@ -467,7 +471,7 @@ then other applications will get events.
 		   (when (and (eql (handler-descriptor hand) disp-fd)
 			      (not (eq (handler-function hand)
 				       #'ext::call-display-event-handler)))
-		     (return nil)))
+		     (return ())))
 		 (xlib::event-listen d))
 	(handler-bind ((error #'(lambda (condx)
 				  (declare (ignore condx))
@@ -479,8 +483,8 @@ then other applications will get events.
 	(return-from handle-queued-clx-event t)))))
 
 ;;; These macros are chunks of code from SUB-SERVE-EVENT.  They randomly
-;;; reference the READ-FDS and WRITE-FDS Alien variables (which wold be consed
-;;; if passed as function arguments.)
+;;; reference the READ-FDS and WRITE-FDS Alien variables (which would be
+;;; consed if passed as function arguments.)
 ;;;
 (eval-when (compile eval)
 
@@ -496,21 +500,21 @@ then other applications will get events.
      (let ((count 0))
        (declare (type index count))
        (dolist (handler *descriptor-handlers*)
-	 (unless (or (handler-active handler)
-		     (handler-bogus handler))
-	   (let ((fd (handler-descriptor handler)))
-	     (ecase (handler-direction handler)
-	       (:input (unix:fd-set fd read-fds))
-	       (:output (unix:fd-set fd write-fds)))
-	     (when (> fd count)
-	       (setf count fd)))))
+	 (or (handler-active handler)
+	     (handler-bogus handler)
+	     (let ((fd (handler-descriptor handler)))
+	       (ecase (handler-direction handler)
+		 (:input (unix:fd-set fd read-fds))
+		 (:output (unix:fd-set fd write-fds)))
+	       (when (> fd count)
+		 (setf count fd)))))
        (1+ count))))
 
 ;;; Call file descriptor handlers according to the readable and writable masks
 ;;; returned by select.
 ;;;
 (defmacro call-fd-handler ()
-  '(let ((result nil))
+  '(let ((result ()))
      (dolist (handler *descriptor-handlers*)
        (let ((desc (handler-descriptor handler)))
 	 (when (ecase (handler-direction handler)
@@ -518,10 +522,12 @@ then other applications will get events.
 		 (:output (unix:fd-isset desc write-fds)))
 	   (unwind-protect
 	       (progn
-		 ;; Doesn't work -- ACK
+		 ;; FIX --
+		 ;; Doesn't work -- ACK   (FIX Akira Kurihara?)
 		 ;(setf (handler-active handler) t)
+		 ;; -- FIX
 		 (funcall (handler-function handler) desc))
-	     (setf (handler-active handler) nil))
+	     (setf (handler-active handler) ()))
 	   (ecase (handler-direction handler)
 	     (:input (unix:fd-clr desc read-fds))
 	     (:output (unix:fd-clr desc write-fds)))
@@ -549,9 +555,9 @@ then other applications will get events.
 (defun sub-serve-event (to-sec to-usec)
   (declare (type (or null (unsigned-byte 29)) to-sec to-usec))
 
-  (when (handle-queued-clx-event) (return-from sub-serve-event t))
+  (if (handle-queued-clx-event) (return-from sub-serve-event t))
 
-  (let ((call-polling-fn nil))
+  (let ((call-polling-fn ()))
     (when (and *periodic-polling-function*
 	       ;; Enforce a maximum timeout.
 	       (or (null to-sec)
@@ -571,14 +577,14 @@ then other applications will get events.
 	    (unix:unix-fast-select
 	     count
 	     (alien:addr read-fds) (alien:addr write-fds)
-	     nil to-sec to-usec)
+	     () to-sec to-usec)
 
-	  ;; Now see what it was (if anything)
+	  ;; Now see what it was (if anything).
 	  (cond (value
 		 (cond ((zerop value)
 			;; Timed out.
-			(when call-polling-fn
-			  (funcall *periodic-polling-function*)))
+			(if call-polling-fn
+			    (funcall *periodic-polling-function*)))
 		       (t
 			(call-fd-handler))))
 		((eql err unix:eintr)
@@ -587,7 +593,7 @@ then other applications will get events.
 		(t
 		 ;; One of the file descriptors is bad.
 		 (handler-descriptors-error)
-		 nil)))))))
+		 ())))))))
 
 
 #[ Using SERVE-EVENT with the CLX Interface to X

@@ -19,7 +19,7 @@
 (defvar src "./src/"
   "Location of the source.")
 
-(defvar target (if src (format nil "~A/../build/" src) "./build/")
+(defvar target (if src (format () "~A/../build/" src) "./build/")
   "Destination directory for the build.")
 
 (defvar systems '(:lisp :compiler :ed :kernel)
@@ -29,10 +29,10 @@
 (defun preserve-logs (dir)
   "Backup previous log files."
   (format t "Preserving log files in ~A as .OLD...~%" dir)
-  (dolist (file (lisp::enumerate-names (format nil "~A/*.log" dir)
-				       nil nil nil nil))
+  (dolist (file (lisp::enumerate-names (format () "~A/*.log" dir)
+				       () () () ()))
     ;; FIX original appended the log to any existing old log
-    (let ((old (format nil "~A.OLD" file)))
+    (let ((old (format () "~A.OLD" file)))
       (if (probe-file old)
 	  (delete-file old))
       (rename-file file old))))
@@ -43,7 +43,7 @@
   "Build Systems from Src into Target."
   (if src
       (or (eq (char src (1- (length src))) #\/)
-	  (setq src (format nil "~A/" src)))
+	  (setq src (format () "~A/" src)))
       ;; FIX set to ../../src relative to location of current script
       (setq src "./src/"))
   (or (probe-file src)
@@ -54,7 +54,7 @@
 
   (if target
       (or (eq (char target (1- (length target))) #\/)
-	  (setq target (format nil "~A/" target)))
+	  (setq target (format () "~A/" target)))
       (setq target "./build/"))
   (or (probe-file target)
       (progn
@@ -63,8 +63,8 @@
   (format t "Target: ~A~%" target)
 
   (preserve-logs target)
-  (when (find-package "INTERFACE")
-    (set (intern "*INTERFACE-STYLE*" "INTERFACE") :tty))
+  (if (find-package "INTERFACE")
+      (set (intern "*INTERFACE-STYLE*" "INTERFACE") :tty))
 
   (setf (search-list "target:") `(,target ,src))
 
@@ -74,9 +74,9 @@
   ;(format t "*features*: ~A~%" *features*)
 
   (format t "Loading setup...~%")
-  (setq *compile-verbose* nil *compile-print* nil)
+  (setq *compile-verbose* () *compile-print* ())
   (load "target:tools/setup" :if-source-newer :load-source)
-  (setf *interactive* nil *gc-verbose* nil)
+  (setf *interactive* () *gc-verbose* ())
   ;; FIX quiet warning about def of comf
   (comf "target:tools/setup" :load t)
 

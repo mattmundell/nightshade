@@ -175,41 +175,50 @@
 		 :default ""
 		 :trim t
 		 :prompt "Email: "
-		 :help "Enter email address of the person or entity.")))
-    (multiple-value-bind
-	(secs mins hours day month year)
-	(get-decoded-time)
-      (declare (ignore secs))
-      (let ((date (format nil "~D-~D-~D ~Dh~:[0~;~]~D"
-			  year month day hours (> mins 9) mins)))
-	(assert (eq (length db::*db-headings*) 8))
-	(db:add-record (make-array 8
-				   :initial-contents
-				   (list forename surname nil nil
-					 (list (make-array 2
-							   :initial-contents
-							   `("phone" ,phone)))
-					 ()
-					 `(,email)
-					 (list (cons 'CREATION-DATE date)
-					       (cons 'TIMESTAMP date)))))))))
+		 :help "Enter email address of the person or entity."))
+	 (date (db:now)))
+    (assert (eq (length db::*db-headings*) 8))
+    (db:add-record (make-array 8
+			       :initial-contents
+			       (list forename surname () ()
+				     (list (make-array 2
+						       :initial-contents
+						       `("phone" ,phone)))
+				     ()
+				     `(,email)
+				     (list (cons 'CREATION-DATE date)
+					   (cons 'TIMESTAMP date)))))))
 
 (defcommand "Save DB" ()
   "Save the .db database to disk."
   (db:ensure-db-saved))
 
 (defcommand "Next Record" (p)
-  "Move to the next entry.  With a prefix move to the previous entry."
-  (setq p (if p -1 1))
-  (do-lines-from-mark (line (current-point) :backwards (minusp p))
-    (when (db-entry-on-line line)
-      (move-mark (current-point) (mark line 0))
-      (line-offset (current-point) p 0)
-      (return))))
+  "Move to the next entry.  With a prefix move that many entries down (up
+   if negative)."
+  (or p (setq p 1))
+  (cond ((zerop p))
+	((minusp p)
+	 (dotimes (time (- p))
+	   (fi* (do-lines-from-mark (line (current-point) :backwards t)
+		  (when (db-entry-on-line line)
+		    (move-mark (current-point) (mark line 0))
+		    (line-offset (current-point) p 0)
+		    (return t)))
+	     (buffer-start (current-point))
+	     (return))))
+	((plusp p)
+	 (dotimes (time p)
+	   (do-lines-from-mark (line (current-point))
+	     (when (db-entry-on-line line)
+	       (move-mark (current-point) (mark line 0))
+	       (line-offset (current-point) p 0)
+	       (return)))))))
 
 (defcommand "Previous Record" (p)
-  "Move to the previous entry.  With a prefix move to the next entry."
-  (next-record-command (fi p)))
+  "Move to the previous entry.  With a prefix move that many entries up
+   (down if negative)."
+  (next-record-command (if p (- p) -1)))
 
 (defcommand "Edit Contact" ()
   "Edit the Lisp description of the contact under point."
@@ -319,11 +328,12 @@
 					      '(#\space #\tab #\:)
 					      field))
 				    (db:db-record-notes record)
-				    value))))
+				    value)))
+	       (field (string-trim '(#\space #\tab #\:) field)))
 	  (if (and subfield (string= field "ADDRESSES"))
 	      (let ((addrs (address-from-string value)))
 		(db:set-field record
-			      (string-trim '(#\space #\tab #\:) field)
+			      field
 			      (if subfield
 				  (string-trim '(#\space #\tab #\:)
 					       subfield))
@@ -332,12 +342,22 @@
 			      (aref addrs 2)
 			      (aref addrs 3)
 			      (aref addrs 4)))
-	      (setf (db:field record
-			   (string-trim '(#\space #\tab #\:) field)
-			   (if subfield
-			       (string-trim '(#\space #\tab #\:)
-					    subfield)))
-		    value))
+	      (if (fi subfield (string= field "AKAS"))
+		  (setf (db:field record
+				  field
+				  (if subfield
+				      (string-trim '(#\space #\tab #\:)
+						   subfield)))
+			(mapcar (lambda (ele)
+				  (ed::msg "e ~A" ele)
+				  (string-trim '(#\space #\tab #\:) ele))
+				(split value #\,)))
+		  (setf (db:field record
+				  field
+				  (if subfield
+				      (string-trim '(#\space #\tab #\:)
+						   subfield)))
+			value)))
 	  (refresh-record-buffer (current-buffer)
 				 (value name)
 				 (value records)))
@@ -355,8 +375,9 @@
       ;; Insert the field.
       (let* ((record (car (db:get-record
 			   (car (db-entry-on-line line)))))
-	     (field (prompt-for-string
-		     :prompt "Add field named: "))
+	     (field (string-trim '(#\space #\tab #\:)
+				 (prompt-for-string
+				  :prompt "Add field named: ")))
 	     (subfield (if (db:subfields-p field)
 			   (prompt-for-string
 			    :prompt "Subfield name: ")))
@@ -367,7 +388,7 @@
 	(if (string= field "ADDRESSES")
 	    (let ((addrs (address-from-string value)))
 	      (db:set-field record
-			    (string-trim '(#\space #\tab #\:) field)
+			    field
 			    (if subfield
 				(string-trim '(#\space #\tab #\:)
 					     subfield))
@@ -377,7 +398,7 @@
 			    (aref addrs 3)
 			    (aref addrs 4)))
 	    (setf (db:field record
-			    (string-trim '(#\space #\tab #\:) field)
+			    field
 			    (if subfield
 				(string-trim '(#\space #\tab #\:)
 					     subfield)))
@@ -466,8 +487,9 @@
 	    (editor-error "Entry must have an email address.")))
       (return))))
 
-(defcommand "WWW Contact" ()
-  "Browse the URL associated with the contact under point."
+(defcommand "WWW Contact" (p)
+  "Browse the URL associated with the contact under point.  With a prefix
+   open the URL externally."
   (or (editor-bound-p 'name :buffer (current-buffer))
       (editor-error "Must be in a Record buffer."))
   ;; Search for the next separator line.
@@ -477,10 +499,15 @@
     (when (db-entry-on-line line)
       (let ((url (db:db-record-url (car (db-entry-on-line line)))))
 	(if url
-	    (www-command () url)
+	    (if p (view-url url) (www-command () url))
 	    ;; FIX offer to add one?
 	    (editor-error "Entry must have an URL field.")))
       (return))))
+
+(defcommand "WWW Contact Externally" (p)
+  "Browse the URL associated with the contact under point in an external
+   program.  With a prefix browse with WWW."
+  (www-contact-command (fi p)))
 
 
 ;;; FIX instance, value?

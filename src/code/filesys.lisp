@@ -36,7 +36,7 @@
 	  ;         print-files-from-list? pass list arg as key to directory?
 	  print-files
 	  complete-file ambiguous-files
-	  current-directory file-writable os-namestring
+	  current-directory file-readable file-writable os-namestring
 	  ; FIX *-entities *-ent
 	  map-files do-files list-files
 	  map-dirs do-dirs list-dirs
@@ -74,6 +74,7 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 
 {function:ext:current-directory}
 {function:ext:file-writable}
+{function:ext:file-readable}
 {function:ext:os-namestring}
 ]#
 
@@ -1240,7 +1241,7 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 ;;;
 (defun copy-file (file new-file &key check-for-links)
   "Copy $file to $new-file, signalling a file-error on failure or if $file
-   names a directory (i.e. ends in a slash) or is a directory.
+   names a directory (ends in a slash) or is a directory.
 
    If $check-for-links is true, then preserve symbolic links."
   (if (directory-name-p file)
@@ -1286,7 +1287,8 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 				  unix:o_rdonly 0)
 		(or fd
 		    (error "Opening ~S failed: ~A."
-			   (os-namestring file) err))
+			   (os-namestring file)
+			   (unix:get-unix-error-msg err)))
 		(unwind-protect
 		    (multiple-value-bind (data byte-count mode)
 					 (fs-read-file fd file)
@@ -1832,6 +1834,13 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 	(enumerate-matches (,name ,pn () :follow-links ,follow-links
 				  :check-for-subdirs ,check-for-subdirs)
 	  (cond ((and ,backups ,all)
+		 ;; Depth first.  FIX should do the dir name first?
+		 (if (and ,recurse
+			  (eq (unix:unix-file-kind
+			       (namify ,name)
+			       (fi ,follow-links))
+			      :directory))
+		     (do-dir (concatenate 'string ,name "/")))
 		 ,@body)
 		(,backups
 		 ;; Filter out hidden files.
@@ -2138,7 +2147,8 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
      $check-for-subdirs
          If true then append a slash ('/') to directory names.  Overridden
          if $truenamep is true (the truename of a directory always has the
-         slash).
+         slash).  Only append to symlinks to directories when $follow-links
+         is true.
 
      $recurse
          If set then include pathnames of subdirectories, recursively.
@@ -2179,7 +2189,9 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
       ;; FIX Surely this is a slow way.  rather use do-files directly?
       (mapcar #'(lambda (name)
 		  (if truenamep
-		      (truename name)
+		      (let ((lisp::*literal-pathnames* t)
+			    (lisp::*ignore-wildcards* t))
+			(truename name))
 		      (if absolute
 			  (merge-pathnames name merge-dir)
 			  (pathname name))))
@@ -2292,17 +2304,17 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 
 ;;; PRINT-MODE is internal.
 ;;;
-(defun print-mode (mode)
+(defun print-mode (mode &optional stream)
   (macrolet ((frob (bit name &optional sbit sname negate)
 	       `(if ,(if negate
 			 `(not (logbitp ,bit mode))
 			 `(logbitp ,bit mode))
 		    ,(if sbit
 			 `(if (logbitp ,sbit mode)
-			      (write-char ,sname)
-			      (write-char ,name))
-			 `(write-char ,name))
-		    (write-char #\-))))
+			      (write-char ,sname stream)
+			      (write-char ,name stream))
+			 `(write-char ,name stream))
+		    (write-char #\- stream))))
     (frob 15 #\d () () t)
     (frob 8 #\r)
     (frob 7 #\w)
@@ -2803,6 +2815,8 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 		 :check-for-subdirs ())))
 
 
+;;;; File permissions.
+
 ;;; File-writable -- exported from extensions.
 ;;;
 (defun file-writable (pathname)
@@ -2838,6 +2852,37 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 					  (or (position #\/ pathname :from-end t)
 					      0))
 				  (logior unix:w_ok unix:x_ok))))))))
+
+;;; File-readable -- exported from extensions.
+;;;
+(defun file-readable (pathname)
+  "Return #t if the current user can read $pathname, else ().
+
+   If $pathname is a symbolic link then check the destination of the link.
+
+   If $pathname is missing, return ()."
+  (if (and (lisp::extract-search-list pathname ())
+	   (fi (search-list-defined-p pathname)))
+      (let ((protocol
+	     (lisp::search-list-name
+	      (lisp::extract-search-list (pathname pathname) ()))))
+	(case= protocol
+	  (t
+	   ;;; Try connect to a host named like the search list.
+	   (let ((account (internet:make-inet-account protocol)))
+	     (internet:fill-from-netrc account)
+; 	     (if (internet:ftp-probe-file account (host-path pathname))
+; 		 pathname)
+	     ;; FIX check access
+	     ;; (internet:remote-file-readable file)?
+	     t))))
+      (let ((pathname (os-namestring pathname ())))
+	(cond ((null pathname)
+	       ())
+	      ((unix:unix-file-kind pathname)
+	       (values (unix:unix-access pathname unix:r_ok)))
+	      (t
+	       ())))))
 
 
 ;;; Pathname-Order  --  Internal
@@ -2962,14 +3007,19 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
    trailing slash."
   (if (remote-pathname-p pathname)
       pathname
-      (let ((directory (ext:os-namestring (common-prefix pathname))))
-	(if directory
-	    (if (directory-name-p directory)
-		directory
-		(if (directoryp directory)
-		    (pathname (concatenate 'simple-string (namestring directory) "/"))
-		    directory))
-	    pathname))))
+      (if (wild-pathname-p pathname)
+	  pathname
+	  (let ((directory (ext:os-namestring
+			    (common-prefix pathname))))
+	    (if directory
+		(if (directory-name-p directory)
+		    directory
+		    (if (directoryp directory)
+			(pathname (concatenate 'simple-string
+					       (namestring directory)
+					       "/"))
+			directory))
+		pathname)))))
 
 ;; FIX rename dir-namify ensure-trailing-/ ensure-/
 ;; FIX another like this somewhere?
@@ -3105,8 +3155,8 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
    Produce the file name by passing $base and two numeric arguments to
    `format'.
 
-   Signal an error if $base contains wildcards, or if $base contains any
-   format directives other than two ~D's."
+   Signal an error if $base contains wildcards, or if $base contains less
+   or more than two ~D `format' directives."
   (or (eq (format:directive-count base "~D") 2)
       (error "$base must have two ~~D `format' directives: ~A"
 	     base))

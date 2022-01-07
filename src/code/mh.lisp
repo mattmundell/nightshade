@@ -4,6 +4,9 @@
 
 (export '(*address* *alternate-addresses* *body-scan-length*
 	  *html-handler* *from-name* *mailer*
+	  *reply-reply-to-rules* *reply-from-rules*
+
+	  parse-address
 
 	  profile-component root-pathname folder-pathname
 	  draft-folder current-folder trash-folder
@@ -108,29 +111,45 @@
 (defvar *alternate-addresses* ()
   "A list of alternate addresses, as strings.")
 
+;;; Public
+;;;
+(defvar *reply-reply-to-rules* ()
+  "A list of rules that determine the Reply-To address used for replies.")
+
 ;;; Internal
 ;;;
 ;;; Return the address for the reply-to header of a reply to $message from
 ;;; $folder.
 ;;;
-(defun address-for-reply-to (folder message)
-  (declare (ignore message))
-  (let ((folder (strip-folder-name folder)))
-    (case= folder
-      ("inbox" *address*)
-      (t *address*))))
+(defun address-for-reply-reply-to (folder message)
+  (or (dolist (rule *reply-reply-to-rules*)
+	(when (cadr rule)
+	  (let ((pick (pick-messages folder
+				     (list message)
+				     (cadr rule))))
+	    (when pick
+	      (return (car rule))))))
+      *address*))
+
+;;; Public
+;;;
+(defvar *reply-from-rules* ()
+  "A list of rules that determine the From address used for replies.")
 
 ;;; Internal
 ;;;
 ;;; Return the address for the from header of a reply to $message from
 ;;; $folder.
 ;;;
-(defun address-for-from (folder message)
-  (declare (ignore message))
-  (let ((folder (strip-folder-name folder)))
-    (case= folder
-      ("inbox" *address*)
-      (t *address*))))
+(defun address-for-reply-from (folder message)
+  (or (dolist (rule *reply-from-rules*)
+	(when (cadr rule)
+	  (let ((pick (pick-messages folder
+				     (list message)
+				     (cadr rule))))
+	    (when pick
+	      (return (car rule))))))
+      *address*))
 
 
 ;;;; General variables.
@@ -878,8 +897,8 @@
 ;;; the current directory.
 ;;;
 (defun get-sequences ()
-  (collect ((sequences))
-    (when (probe-file ".mh_sequences")
+  (when (probe-file ".mh_sequences")
+    (collect ((sequences))
       (with-open-file (stream ".mh_sequences" :direction :input)
 	(loop
 	  (multiple-value-bind (name text)
@@ -1483,12 +1502,13 @@
 			      (add-highest-sequence folder dir)
 			    (setq sequences (get-sequences)))))
 	     (index (if messages
-			(let ((m-h (messages-highest messages
-						     sequences)))
-			  (case m-h
-			    (:highest highest)
-			    (:lowest 1)
-			    (t m-h)))
+			(fi (eq messages :sequences)
+			    (let ((m-h (messages-highest messages
+							 sequences)))
+			      (case m-h
+				(:highest highest)
+				(:lowest 1)
+				(t m-h))))
 			highest))
 	     (lowest (if messages
 			 (let ((m-l (messages-lowest messages
@@ -1514,7 +1534,8 @@
 				       highest
 				       ()
 				       sequences)))
-	  ;; Index can be () for an empty or missing sequence.
+	  ;; Index can be () for an empty or missing sequence, or when
+	  ;; $messages is :sequences.
 	  (when index
 	    (setf (folder-info-end descr)
 		  (if messages
@@ -1573,10 +1594,11 @@
 ;;; ID in $messages and the $range messages after the lowest message in
 ;;; $messages (or before the highest if $range is negative)."
 ;;;
+(declaim (inline folder-info-includes))
 (defun folder-info-includes (folder-info messages &optional range)
   (mess "(folder-info-includes . ~A ~A)" messages range)
-  (or (eq (folder-info-end folder-info) t)
-      (eq messages :sequences)
+  (or (eq messages :sequences)
+      (eq (folder-info-end folder-info) t)
       (let* ((sequences (progn
 			  (incf-mess)
 			  (folder-info-sequences folder-info)))
@@ -1585,6 +1607,11 @@
 	     (lowest (or (messages-lowest messages sequences)
 			 :lowest)))
 	(mess "sequences: ~A" sequences)
+	(or (and (folder-info-start folder-info)
+		 (folder-info-end folder-info))
+	    ;; Either empty or previously cached only :sequences.  Force
+	    ;; recaching either way.
+	    (return-from folder-info-includes))
 	(case highest
 	  (:highest
 	   (setq highest
@@ -1606,10 +1633,6 @@
 	(mess "lowest requested: ~A" lowest)
 	(mess "start: ~A" (folder-info-start folder-info))
 	(mess "end: ~A" (folder-info-end folder-info))
-	(or (and (folder-info-start folder-info)
-		 (folder-info-end folder-info))
-	    ;; Probably empty, force cache anyway.
-	    (return-from folder-info-includes))
 	(if (> lowest highest) (swap lowest highest))
 	(decf-mess)
 	(if range
@@ -2175,13 +2198,15 @@
 
 ;;; Public
 ;;;
-(defun summarize-message (pathname stream &optional (width 80) current)
+(defun summarize-message (pathname stream &optional
+				   (width 80) current hold new)
   "If $pathname contains a message with headers then summarize the message
    on $stream and return #t, else return ().
 
    Limit the width of the summary to $width characters.
 
-   Mark the message with a + after the ID if $current is true."
+   Mark the message with a + after the ID if $current is true.  Mark the
+   message with a & or - before the subject if $hold or $new is true."
   ;; 293   10-Dec   837 Anacron           Anacron job 'cron.daily' on cspcz01   <</etc/cron.daily/logrotate: apac
   (let ((pathname (string pathname)))
     (with-open-file (input pathname :direction :input)
@@ -2202,7 +2227,8 @@
 					   :test #'string=)))))
 		(return)))
 	    (format stream
-		    "~4<~A~>~:[ ~;+~]~:[ ~;-~] ~6<~A~>~:[*~; ~] ~5<~A~> ~@17<~A~> ~@37<~A~>"
+		    ;                         D
+		    "~4<~A~>~:[ ~;+~]~:[ ~;-~] ~6<~A~>~:[*~; ~] ~5<~A~> ~@17<~A~> ~C ~@35<~A~>"
 		    (safe-subseq (file-namestring pathname) 0 4)
 		    current
 		    (cdr (assoc "Replied" alist :test #'string=))
@@ -2219,13 +2245,14 @@
 			(format () "~DK" (truncate (/ size 1024))))
 		       (t size)))
 		    (safe-subseq from 0 17)
+		    (if hold #\& (if new #\- #\space))
 		    ;; FIX This can leave trailing space if it is the last
 		    ;;     output.
 		    (safe-subseq (replace-newlines
 				  (or (cdr (assoc "Subject" alist
 						  :test #'string=))
 				      ""))
-				 0 37))
+				 0 35))
 	    ;; pre-width is the length of string produced by format above.
 	    (let ((pre-width 77))
 	      (if (and body (> width pre-width))
@@ -2308,7 +2335,10 @@
 		    messages
 		    (folder-info-sequences folder-info)))
 	 ;; Scan again to cache messages.
-	 (folder-info (scan-folder folder messages range)))
+	 (folder-info (scan-folder folder messages range))
+	 (holds (sequence-list folder "hold"))
+	 (in-sequence-name (profile-component "unseen-sequence"))
+	 (ins (sequence-list folder (or in-sequence-name "in"))))
     (in-directory dir
       (cond (range
 	     (let ((info-messages (folder-info-messages folder-info))
@@ -2329,12 +2359,16 @@
 		     (or (minusp (incf range)) (return)))))
 	       (dolist (message msgs)
 		 (mess "summarize ~A" message)
-		 (summarize-message message stream width)
+		 (summarize-message message stream width ()
+				    (sequence-member-p message holds)
+				    (sequence-member-p message ins))
 		 (mess "summarize ~A done" message))))
 	    (t
 	     (do-messages (message entry messages folder folder-info)
 	       (mess "summarize ~A" message)
-	       (summarize-message message stream width)
+	       (summarize-message message stream width ()
+				  (sequence-member-p message holds)
+				  (sequence-member-p message ins))
 	       (mess "summarize ~A done" message))))))
   (decf-mess))
 
@@ -2368,7 +2402,7 @@
     #x00 #x00 #x00 #x00 #x00 #x00 #x00 #x00
     #x00 #x00 #x00 #x00 #x00 #x00 #x00 #x00))
 
-;;; to-quoted  --  Internal
+;;; from-quoted  --  Internal
 ;;;
 ;;; Return a plain text string translated from quoted-printable $string, or
 ;;; () if there is an error.
@@ -2941,11 +2975,11 @@ Examples:
    then include the message in the return list.
 
    A few functions are predefined for use in $expression. `mh::to',
-   `mh::cc', `mh::from', `mh::subject', `mh::content' and `mh::date' search
-   for a given string in the respective headers of the message.
-   `mh::after' and `mh::before' check if the message is after or before a
-   given date string.  `mh::--' searches for a given string in a given
-   header.
+   `mh::cc', `mh::from', `mh::subject', and `mh::date' search for a given
+   string in the respective headers of the message.  `mh::content' searches
+   for the string anywhere in the message.  `mh::after' and `mh::before'
+   check if the message is after or before a given date string.  `mh::--'
+   searches for a given string in a given header.
 
    For example,
 
@@ -3014,7 +3048,9 @@ Examples:
 
 ;;; Public
 ;;;
-(defun draft-new (&optional (components-name "components") components)
+(defun draft-new (&key (components-name "components") components
+		       (from-address *address*)
+		       (reply-to-address *address*))
   "Draft a new message, returning the number of the draft.  Insert in the
    message $components if $components is set, otherwise the contents of the
    file named $components-name in the mail directory if the file exists,
@@ -3042,10 +3078,24 @@ Examples:
 	     (with-open-file (in comppath :direction :input)
 	       (create-draft dir new in)))
 	    (t
-	     (with-input-from-string (in #.(format () "To: ~%~
-						       Cc: ~%~
-						       Subject: ~%~
-						       --------~%"))
+	     ; To:
+	     ; Fcc: archive/misc
+	     ; From: A B <a@b.org>
+	     ; Reply-To: a@b.org
+	     ; Subject:
+	     ; --------
+	     (with-input-from-string
+		 (in (format () "To: ~%~
+				 Fcc: archive/misc~%~
+				 From: ~A <~A>~%~
+				 Reply-To: ~A~%~
+				 Subject:~%~
+				 --------~%"
+			     ;; From:
+			     *from-name*
+			     from-address
+			     ;; Reply-To:
+			     reply-to-address))
 	       (create-draft dir new in)))))
     ;;
     ;; Update cache.
@@ -3086,7 +3136,7 @@ Examples:
 ;;;
 (defun draft-resend ()
   "Create a resend draft."
-  (draft-new () (format () "Resent-To: ~%Resent-Cc: ~%")))
+  (draft-new :components (format () "Resent-To: ~%Resent-Cc: ~%")))
 
 ;;; Public
 ;;;
@@ -3104,7 +3154,7 @@ Examples:
 		     (merge-pathnames (string message)
 				      (folder-pathname folder))
 		     :direction :input)
-      (let ((new (draft-new "forwcomps")))
+      (let ((new (draft-new :components-name "forwcomps")))
 	(with-open-file (out
 			 (merge-pathnames
 			  (string new)
@@ -3154,7 +3204,7 @@ Examples:
 	  (decf end))
 	(values (subseq string start end) end)))))
 
-;;; Internal
+;;; Public
 ;;;
 ;;; Return the name and address of the email address in $string.
 ;;;
@@ -3189,7 +3239,7 @@ Examples:
 (defun draft-reply (folder message &optional cc)
   "Draft a reply to $message from $folder.
 
-   Carbon copy according $cc, as follows.
+   Carbon copy according to $cc, as follows.
 
      :all     copy message to all To and Cc addresses
 
@@ -3217,7 +3267,7 @@ Examples:
     ; Reply-To: address2@eg.org
     ; --------
     (draft-new
-     ()
+     :components
      (format () "To: ~A~%~
 		 ~A~
 		 Fcc: ~A~%~
@@ -3337,7 +3387,8 @@ Examples:
 	     ;; Fcc:
 	     (archive-for-reply folder message)
 	     ;; Subject:
-	     (let ((subject (cdr (get-header entry "Subject"))))
+	     (let ((subject (or (cdr (get-header entry "Subject"))
+				"")))
 	       (if (and (> (length subject) 2)
 			(string= (string-upcase subject) "RE:"
 				 :end1 3))
@@ -3354,9 +3405,9 @@ Examples:
 	       (if id (format () "          ~A~%" id) ""))
 	     ;; From:
 	     *from-name*
-	     (address-for-from folder message)
+	     (address-for-reply-from folder message)
 	     ;; Reply-To:
-	     (address-for-reply-to folder message)))))
+	     (address-for-reply-reply-to folder message)))))
 
 ;;; Internal
 ;;;
@@ -3610,7 +3661,7 @@ Examples:
 ;;;
 (defun parse-content-type (parse:*stream*)
   "Parse the content type at parse:*stream*.  Return the type, subtype and
-   a alist of parameters."
+   an alist of parameters."
   (when parse:*stream*
     (let* ((parse:*streams* `((,parse:*stream* 0)))
 	   (node (or (parse-mime-header)
@@ -3829,6 +3880,7 @@ Examples:
 ;;; nested messages onto *attachments*.
 ;;;
 (defun transfer-part (in out enc out-headers boundary boundary-len)
+  (mess "(transfer-part . . ~A . ~A .)" enc boundary)
   (cond ((and enc (string= (string-downcase enc) "base64"))
 	 (let (continue-p)
 	   (write-string (base64:base64-decode
@@ -4044,15 +4096,15 @@ Examples:
 				out-headers
 				boundary boundary-len))
 	  (html-p
-	   (when *html-handler*
-	     (let ((tem-file (pick-new-file "/tmp/mh-~D-~D.html")))
-	       (with-open-file (tem tem-file :direction :output)
-		 (let ((cont-p (transfer-part in tem enc
-					      out-headers boundary
-					      boundary-len)))
-		   (or cont-p (setq continue-p ()))))
-	       ;; FIX perhaps move www to code:
-	       (funcall *html-handler* out tem-file))))
+	   (let ((tem-file (pick-new-file "/tmp/mh-~D-~D.html")))
+	     (with-open-file (tem tem-file :direction :output)
+	       (let ((cont-p (transfer-part in tem enc
+					    out-headers boundary
+					    boundary-len)))
+		 (or cont-p (setq continue-p ()))))
+	     ;; FIX perhaps move www to code:
+	     (if *html-handler*
+		 (funcall *html-handler* out tem-file))))
 	  ((or displayp inlinep)
 	   (let ((cont-p (transfer-part in out enc out-headers
 					boundary boundary-len)))
@@ -4257,6 +4309,7 @@ Examples:
   "Write $message in $folder to $stream.  Return #t on success, else () and
    an error message.  Return a third value, the list of attachment parts,
    which is suitable for passing as the fourth argument to `get-part'.
+   Return as fourth value the value of the Content-Type header.
 
    If $headers is t write all headers, otherwise expect $headers to be a
    list of capitalized header names and write those headers in that order.
@@ -4296,7 +4349,9 @@ Examples:
 		  (when *attachments*
 		    (setq parts (nreverse *attachments*))
 		    (pushnew (cons :parts parts) (cdr entry)))
-		  (values ret err parts)))))))))
+		  (values ret err parts
+			  (cdr (get-header entry
+					   "Content-Type")))))))))))
 
 ;;; Public
 ;;;
@@ -4405,7 +4460,8 @@ Examples:
 	 (message (clean-message-spec message folder))
 	 ;; Scan folder again to cache message.
 	 (folder-info (scan-folder folder message))
-	 (new (string (draft-new (merge-pathnames
+	 (new (string (draft-new :components-name
+				 (merge-pathnames
 				  (string draft-message)
 				  (folder-pathname draft-folder)))))
 	 (folder-messages (folder-info-messages folder-info))
@@ -4447,7 +4503,7 @@ Examples:
 		 ;; Write the from and date resent headers.
 		 (or (get-header entry "Resent-From")
 		     (format out "Resent-From: ~A~%"
-			     (address-for-from folder message)))
+			     (address-for-reply-from folder message)))
 		 (or (get-header entry "Resent-Date")
 		     (write-date-header "Resent-Date" out))
 		 (terpri out)
@@ -4545,6 +4601,7 @@ Examples:
 	       (or (cdr (assoc :mail ext:*environment-list*))
 		   (cdr (assoc :maildrop ext:*environment-list*))
 		   (profile-component "MailDrop") ; FIX
+		   ; FIX (user-name)?
 		   (let* ((user (cdr (assoc :user
 					    ext:*environment-list*)))
 			  (mbox (merge-pathnames
@@ -4555,6 +4612,20 @@ Examples:
 				      user "/usr/spool/mail/")))
 			   (if (probe-file mbox) mbox)))))))))
   location)
+
+;;; A command drop: a drop that runs a program to fetch mail.  The idea is
+;;; for the command (for example, getmail) to put the mail somewhere for a
+;;; following drop to notice and incorporate.
+;;;
+(defstruct (command-drop
+	    (:include drop
+		      (new-fun #'new-command-mail-p)
+		      (inc-fun))
+	    (:constructor
+	     make-command-drop (&optional (command "getmail")
+					  arguments)))
+  command
+  arguments)
 
 ;;; A POP drop.
 ;;;
@@ -4577,6 +4648,7 @@ Examples:
 ;;; Interface
 ;;;
 (defvar *drop-makers* '((:local . make-local-drop)
+			(:command . make-command-drop)
 			(:pop . make-pop-drop))
   "List of type and maker associations for mail drops.")
 
@@ -4628,7 +4700,18 @@ Examples:
 
 ;;; Internal
 ;;;
-;;; Return true if there is mail in local drop $drop.
+;;; Run the drop command, then return ().
+;;;
+(defun new-command-mail-p (drop)
+  (let ((command (command-drop-command drop)))
+    (if command
+	(run-program command (command-drop-arguments drop)
+		     :input () :output ()))
+    ()))
+
+;;; Internal
+;;;
+;;; Return true if there is mail in POP drop $drop.
 ;;;
 (defun new-pop-mail-p (drop)
   (let* ((account (fill-from-netrc (pop-drop-account drop)))
@@ -4646,25 +4729,29 @@ Examples:
 
 ;;; Public
 ;;;
-(defun incorporate (drops &optional folder stream)
+(defun incorporate (drops &optional folder stream hook)
   "Incorporate into $folder all mail from the mail drops listed in $drops.
    Return true if all mail was incorporated.
 
    If $stream is true log progress on $stream."
   (let ((all t))
     (dolist (drop drops all)
-      (or (funcall (drop-inc-fun drop) drop folder stream)
-	  (setq all ())))))
+      (if (drop-inc-fun drop)
+	  (or (funcall (drop-inc-fun drop) drop folder stream hook)
+	      (setq all ()))))))
 
 ;;; Internal
 ;;;
 ;;; Incorporate mail from local mail $drop into $folder.  Return true on
 ;;; successfully incorporating all mail.
 ;;;
-;;; If $log-stream is given log any progress on the stream.
+;;; If $log-stream is given then log any progress on the stream.
+;;;
+;;; Call each of the functions in hook for each incorporated message,
+;;; passing the function folder and the id of the message.
 ;;;
 ;;; FIX actually always errs on failure
-(defun incorporate-local (drop &optional folder log-stream)
+(defun incorporate-local (drop &optional folder log-stream hook)
   (let ((location (local-drop-location drop)))
     ;; FIX unix-stat does this in one call
     (when (and (probe-file location)
@@ -4734,6 +4821,8 @@ Examples:
 				(get-sequences))
 			  (setf (folder-info-write-date folder-info)
 				(file-write-date pathname))))
+		      (dolist (function hook)
+			(funcall function folder new-id))
 		      (if log-stream
 			  (format log-stream "Added message ~D to ~A."
 				  new-id folder))))))
@@ -4748,7 +4837,10 @@ Examples:
 ;;;
 ;;; If $log-stream is true, log progress on $log-stream.
 ;;;
-(defun incorporate-pop (drop &optional folder log-stream)
+;;; Call each of the functions in hook for each incorporated message,
+;;; passing the function folder and the id of the message.
+;;;
+(defun incorporate-pop (drop &optional folder log-stream hook)
   ;; FIX Orig inc logs progress, for Inc New Mail.
   (declare (ignore log-stream))
   (let* ((account (fill-from-netrc (pop-drop-account drop)))
@@ -4812,6 +4904,8 @@ Examples:
 				    (get-sequences))
 			      (setf (folder-info-write-date folder-info)
 				    (file-write-date pathname))
+			      (dolist (function hook)
+				(funcall function folder new-id))
 			      ;; Flush message.
 			      (or (pop-dele pop-stream pop-id)
 				  ;; FIX try get rest anyway?

@@ -1,4 +1,6 @@
 ;;; Interim sharp macro.
+;;;
+;;; FIX Sort out eof-errorp for fundamental streams.
 
 (in-package "LISP")
 
@@ -12,56 +14,85 @@
   (when numarg
     (warn "Numeric argument ignored in #~D~A." numarg sub-char)))
 
-(defun sharp-left-bracket (stream bracket numarg)
+(defun sharp-left-bracket (stream bracket numarg eof-errorp eof-value)
   (ignore-numarg bracket numarg)
   (let* ((stream (in-synonym-of stream))
-	 (pos (file-position stream)))
+	 (pos (file-position stream))
+	 (doc (with-output-to-string (out)
+		(if (lisp-stream-p stream)
+		    (prepare-for-fast-read-char stream
+		      (do ((level 1)
+			   (prev (fast-read-char eof-errorp eof-value)
+				 char)
+			   (char (fast-read-char eof-errorp eof-value)
+				 (fast-read-char eof-errorp
+						 eof-value)))
+			  (())
+			(or eof-errorp
+			    (when (eq char eof-value)
+			      (done-with-fast-read-char)
+			      (return-from sharp-left-bracket
+					   eof-value)))
+			;; FIX any reason for nesting?
+			;; FIX should be ok to #[ in doc.
+			;; FIX how to ]# in doc?
+			(cond ((and (char= prev #\])
+				    (char= char #\#))
+			       (setq level (1- level))
+			       (when (zerop level)
+				 (done-with-fast-read-char)
+				 (return (values)))
+			       (setq char
+				     (fast-read-char eof-errorp
+						     eof-value))
+			       (or eof-errorp
+				   (when (eq char eof-value)
+				     (done-with-fast-read-char)
+				     (return-from sharp-left-bracket
+						  eof-value))))
+			      ((and (char= prev #\#) (char= char #\[))
+			       (%reader-error stream "Nested #[.")
+			       (setq char
+				     (fast-read-char eof-errorp
+						     eof-value))
+			       (or eof-errorp
+				   (when (eq char eof-value)
+				     (done-with-fast-read-char)
+				     (return-from sharp-left-bracket
+						  eof-value)))
+			       (setq level (1+ level))))
+			(write-char prev out)))
+		    ;; Fundamental-stream.
+		    (do ((level 1)
+			 (prev (read-char stream t) char)
+			 (char (read-char stream t) (read-char stream t)))
+			(())
+		      (cond ((and (char= prev #\]) (char= char #\#))
+			     (setq level (1- level))
+			     (when (zerop level)
+			       (return (values)))
+			     (setq char (read-char stream t)))
+			    ((and (char= prev #\#) (char= char #\[))
+			     (%reader-error stream "Nested #[.")
+			     (setq char (read-char stream t))
+			     (setq level (1+ level))))
+			(write-char prev out))))))
     `(add-documentation
-      ,(string-trim '(#\space #\tab)
-		    (with-output-to-string (out)
-		      (if (lisp-stream-p stream)
-			  (prepare-for-fast-read-char stream
-		            (do ((level 1)
-				 (prev (fast-read-char) char)
-				 (char (fast-read-char) (fast-read-char)))
-				(())
-			      (cond ((and (char= prev #\]) (char= char #\#))
-				     (setq level (1- level))
-				     (when (zerop level)
-				       (done-with-fast-read-char)
-				       (return (values)))
-				     (setq char (fast-read-char)))
-				    ((and (char= prev #\#) (char= char #\[))
-				     (%reader-error stream "Nested #[.")
-				     (setq char (fast-read-char))
-				     (setq level (1+ level))))
-			      (write-char prev out)))
-			  ;; Fundamental-stream.
-			  (do ((level 1)
-			       (prev (read-char stream t) char)
-			       (char (read-char stream t) (read-char stream t)))
-			      (())
-			    (cond ((and (char= prev #\]) (char= char #\#))
-				   (setq level (1- level))
-				   (when (zerop level)
-				     (return (values)))
-				   (setq char (read-char stream t)))
-				  ((and (char= prev #\#) (char= char #\[))
-				   (%reader-error stream "Nested #[.")
-				   (setq char (read-char stream t))
-				   (setq level (1+ level))))
-			    (write-char prev out)))))
+      ,(string-trim '(#\space #\tab) doc)
       ,(let ((pathname (pathname stream)))
 	 (if pathname
 	     (subseq (namestring pathname)
 		     (length (namestring (truename "n:src/"))))))
       ,pos)))
 
-(defun sharp-backslash (stream backslash numarg)
+(defun sharp-backslash (stream backslash numarg eof-errorp eof-value)
   (ignore-numarg backslash numarg)
-  (let ((charstring (read-extended-token-escaped stream)))
-    (declare (simple-string charstring))
-    (cond (*read-suppress* nil)
+  (let ((charstring (read-extended-token-escaped stream *readtable*
+						 eof-errorp eof-value)))
+    (or eof-errorp
+	(if (eq charstring eof-value)
+	    (return-from sharp-backslash eof-value)))
+    (cond (*read-suppress* ())
 	  ((= (the fixnum (length charstring)) 1)
 	   (char charstring 0))
 	  ((name-char charstring))
@@ -69,47 +100,52 @@
 	   (%reader-error stream "Unrecognized character name: ~S"
 			  charstring)))))
 
-(defun sharp-quote (stream sub-char numarg)
+(defun sharp-quote (stream sub-char numarg eof-errorp eof-value)
   (ignore-numarg sub-char numarg)
   ;; 4th arg tells read that this is a recursive call.
-  `(function ,(read stream t nil t)))
+  (let ((symbol (read stream eof-errorp eof-value t)))
+    (if (fi eof-errorp (eq symbol eof-value))
+	eof-value
+	`(function ,symbol))))
 
-(defun sharp-left-paren (stream ignore length)
-  (declare (ignore ignore) (special *backquote-count*))
-  (let* ((list (read-list stream nil))
-	 (listlength (length list)))
-    (declare (list list)
-	     (fixnum listlength))
-    (cond (*read-suppress* nil)
-	  ((zerop *backquote-count*)
-	   (if length
-	       (cond ((> listlength (the fixnum length))
-		      (%reader-error
-		       stream
-		       "Vector longer than specified length: #~S~S"
-		       length list))
-		     (t
-		      (fill (the simple-vector
-				 (replace (the simple-vector
-					       (make-array length))
-					  list))
-			    (car (last list))
-			    :start listlength)))
-	       (coerce list 'vector)))
-	  (t (cons *bq-vector-flag* list)))))
+(defun sharp-left-paren (stream char length eof-errorp eof-value)
+  (declare (ignore char) (special *backquote-count*))
+  (let ((list (read-list stream () eof-errorp eof-value)))
+    (if (fi eof-errorp (eq list eof-value))
+	eof-value
+	(let ((listlength (length list)))
+	  (declare (fixnum listlength))
+	  (cond (*read-suppress* ())
+		((zerop *backquote-count*)
+		 (if length
+		     (cond ((> listlength (the fixnum length))
+			    (%reader-error
+			     stream
+			     "Vector longer than specified length: #~S~S"
+			     length list))
+			   (t
+			    (fill (the simple-vector
+				       (replace (the simple-vector
+						     (make-array length))
+						list))
+				  (car (last list))
+				  :start listlength)))
+		     (coerce list 'vector)))
+		(t (cons *bq-vector-flag* list)))))))
 
-(defun sharp-star (stream ignore numarg)
-  (declare (ignore ignore))
+(defun sharp-star (stream char numarg eof-errorp eof-value)
+  (declare (ignore char eof-errorp eof-value))
   (multiple-value-bind (bstring escape-appearedp)
 		       (read-extended-token stream)
     (declare (simple-string bstring))
-    (cond (*read-suppress* nil)
+    (cond (*read-suppress* ())
 	  (escape-appearedp
 	   (%reader-error stream "Escape character appeared after #*"))
+	  ;; FIX This could be due to reaching EOF.
 	  ((and numarg (zerop (length bstring)) (not (zerop numarg)))
 	   (%reader-error
 	    stream
-	    "You have to give a little bit for non-zero #* bit-vectors."))
+	    "A bit vector with length requires at least one bit."))
 	  ((or (null numarg) (>= (the fixnum numarg) (length bstring)))
 	   (let* ((len1 (length bstring))
 		  (last1 (1- len1))
@@ -136,15 +172,17 @@
 			  "Bit vector is longer than specified length #~A*~A"
 			  numarg bstring)))))
 
-(defun sharp-colon (stream sub-char numarg)
+(defun sharp-colon (stream sub-char numarg eof-errorp eof-value)
+  (declare (ignore eof-errorp eof-value))
   (ignore-numarg sub-char numarg)
   (multiple-value-bind (token escapep colon)
 		       (read-extended-token stream)
     (declare (simple-string token) (ignore escapep))
     (cond
-     (*read-suppress* nil)
+     (*read-suppress* ())
      (colon
-      (%reader-error stream "Symbol following #: contains a package marker: ~S"
+      (%reader-error stream
+		     "Symbol following #: contains a package marker: ~S"
 		     token))
      (t
       (make-symbol token)))))
@@ -155,55 +193,71 @@
 (defvar *read-eval* t
   "If true, then the #. read macro is enabled.")
 
-(defun sharp-dot (stream sub-char numarg)
+(defun sharp-dot (stream sub-char numarg eof-errorp eof-value)
   (ignore-numarg sub-char numarg)
-  (let ((token (read stream t nil t)))
-    (unless *read-suppress*
-      (or *read-eval*
-	  (%reader-error stream
-			 "Attempt to read #. while *READ-EVAL* is bound to NIL."))
-      (eval token))))
+  (let ((token (read stream eof-errorp eof-value t)))
+    (if (fi eof-errorp (eq token eof-value))
+	eof-value
+	(unless *read-suppress*
+	  (or *read-eval*
+	      (%reader-error
+	       stream
+	       "Attempt to read #. while *READ-EVAL* is bound to ()."))
+	  (eval token)))))
 
 
 ;;;; Numeric radix stuff.
 
-(defun sharp-R (stream sub-char radix)
+(defun sharp-R (stream sub-char radix eof-errorp eof-value)
   (cond (*read-suppress*
 	 (read-extended-token stream)
-	 nil)
+	 ())
 	((not radix)
-	 (%reader-error stream "Radix missing in #R."))
+	 ;; Could be due to EOF, if stream ends in "#R".
+	 (if eof-errorp
+	     (%reader-error stream "Radix missing in #R.")
+	     (if (eq (peek-char () stream () :eof) :eof)
+		 eof-value
+		 (%reader-error stream "Radix missing in #R."))))
 	((not (<= 2 radix 36))
 	 (%reader-error stream "Illegal radix for #R: ~D." radix))
 	(t
 	 (let ((res (let ((*read-base* radix))
-		      (read stream t nil t))))
-	   (or (typep res 'rational)
-	       (%reader-error stream "#~A (base ~D) value is not a rational: ~S."
-			      sub-char radix res))
+		      (read stream eof-errorp eof-value t))))
+	   (if (fi eof-errorp (eq res eof-value))
+	       eof-value
+	       (or (typep res 'rational)
+		   (%reader-error stream
+				  "#~A (base ~D) value is not a rational: ~S."
+				  sub-char radix res)))
 	   res))))
 
-(defun sharp-B (stream sub-char numarg)
+(defun sharp-B (stream sub-char numarg eof-errorp eof-value)
   (ignore-numarg sub-char numarg)
-  (sharp-r stream sub-char 2))
+  (sharp-r stream sub-char 2 eof-errorp eof-value))
 
-(defun sharp-O (stream sub-char numarg)
+(defun sharp-O (stream sub-char numarg eof-errorp eof-value)
   (ignore-numarg sub-char numarg)
-  (sharp-r stream sub-char 8))
+  (sharp-r stream sub-char 8 eof-errorp eof-value))
 
-(defun sharp-X (stream sub-char numarg)
+(defun sharp-X (stream sub-char numarg eof-errorp eof-value)
   (ignore-numarg sub-char numarg)
-  (sharp-r stream sub-char 16))
+  (sharp-r stream sub-char 16 eof-errorp eof-value))
 
-(defun sharp-A (stream ignore dimensions)
-  (declare (ignore ignore))
+(defun sharp-A (stream char dimensions eof-errorp eof-value)
+  (declare (ignore char))
   (when *read-suppress*
-    (read stream t nil t)
-    (return-from sharp-A nil))
+    (let ((form (read stream eof-errorp eof-value t)))
+      (return-from sharp-A
+		   (if (fi eof-errorp (eq form eof-value))
+		       eof-value))))
   (cond (dimensions
 	 (collect ((dims))
-	   (let* ((contents (read stream t nil t))
+	   (let* ((contents (read stream eof-errorp eof-value t))
 		  (seq contents))
+	     (or eof-errorp
+		 (if (eq contents eof-value)
+		     (return-from sharp-A eof-value)))
 	     (dotimes (axis dimensions
 		       (make-array (dims) :initial-contents contents))
 	       (or (typep seq 'sequence)
@@ -220,48 +274,58 @@
 				    dimensions axis))
 		   (setq seq (elt seq 0))))))))
 	(t
-	 (destructuring-bind (element-type dims contents)
-	     (read stream t nil t)
-	   (make-array dims :element-type element-type
-		       :initial-contents contents)))))
+	 (let ((list (read stream eof-errorp eof-value t)))
+	   (if (fi eof-errorp (eq list eof-value))
+	       eof-value
+	       (destructuring-bind (element-type dims contents) list
+		 (make-array dims :element-type element-type
+			     :initial-contents contents)))))))
 
-(defun sharp-S (stream sub-char numarg)
+(defun sharp-S (stream sub-char numarg eof-errorp eof-value)
   (ignore-numarg sub-char numarg)
   ;; This needs to know about defstruct implementation.
   (when *read-suppress*
-    (read stream t nil t)
-    (return-from sharp-S nil))
-  (let ((body (if (char= (read-char stream t) #\( )
-		  (read-list stream nil)
-		  (%reader-error stream "Non-list following #S"))))
+    (let ((form (read stream eof-errorp eof-value t)))
+      (return-from sharp-S
+		   (if (fi eof-errorp (eq form eof-value))
+		       eof-value))))
+  (let ((char (read-char stream eof-errorp eof-value))) ; FIX recursivep t?
+    (or eof-errorp
+	(if (eq char eof-value)
+	    (return-from sharp-S eof-value)))
+    (or (char= char #\( )
+	(%reader-error stream "A list must follow #S")))
+  (let ((body (read-list stream () eof-errorp eof-value)))
+    (or eof-errorp
+	(if (eq body eof-value)
+	    (return-from sharp-S eof-value)))
     (or (listp body)
-	(%reader-error stream "Non-list following #S: ~S" body))
+	(%reader-error stream "A list must follow #S: ~S" body))
     (or (symbolp (car body))
-	(%reader-error stream "Structure type is not a symbol: ~S" (car body)))
-    (let ((class (find-class (car body) nil)))
+	(%reader-error stream "Structure type must be a symbol: ~S" (car body)))
+    (let ((class (find-class (car body) ())))
       (or (typep class 'structure-class)
-	  (%reader-error stream "~S is not a defined structure type."
+	  (%reader-error stream "~S must be a defined structure type."
 			 (car body)))
       (let ((def-con (dd-default-constructor
-		      (layout-info
-		       (class-layout class)))))
+		      (layout-info (class-layout class)))))
 	(or def-con
 	    (%reader-error
-	     stream "The ~S structure does not have a default constructor."
+	     stream "The ~S structure must have a default constructor."
 	     (car body)))
 	(apply (fdefinition def-con) (rest body))))))
 
 
 ;;;; #=/##
 
-;;; Holds objects already seen by CIRCLE-SUBST.
+;;; Holds values already seen by CIRCLE-SUBST.
 ;;;
 (defvar *sharp-equal-circle-table*)
 
-;; This function is kind of like to NSUBLIS, but checks for circularities
-;; and substitutes in arrays and structures as well as lists.  The first
-;; arg is an alist of the things to be replaced assoc'd with the things to
-;; replace them.
+;; This function is kind of like FIX to NSUBLIS, but checks for
+;; circularities and substitutes in arrays and structures as well as lists.
+;; The first arg is an alist of the things to be replaced assoc'd with the
+;; things to replace them.
 ;;
 (defun circle-subst (old-new-alist tree)
   (cond ((not (typep tree '(or cons (array t) structure-object)))
@@ -313,30 +377,34 @@
 ;;;
 (defvar *sharp-sharp-alist* ())
 ;;;
-(defun sharp-equal (stream ignore label)
-  (declare (ignore ignore))
-  (when *read-suppress* (return-from sharp-equal (values)))
+(defun sharp-equal (stream char label eof-errorp eof-value)
+  (declare (ignore char))
+  (if *read-suppress* (return-from sharp-equal (values)))
   (or label
       (%reader-error stream "Missing label for #=." label))
-  (when (or (assoc label *sharp-sharp-alist*)
-	    (assoc label *sharp-equal-alist*))
-    (%reader-error stream "Multiply defined label: #~D=" label))
+  (if (or (assoc label *sharp-sharp-alist*)
+	  (assoc label *sharp-equal-alist*))
+      (%reader-error stream "Multiply defined label: #~D=" label))
   (let* ((tag (gensym))
 	 (*sharp-sharp-alist* (acons label tag *sharp-sharp-alist*))
-	 (obj (read stream t nil t)))
-    (when (eq obj tag)
-      (%reader-error stream "Have to tag something more than just #~D#."
-		     label))
+	 (obj (read stream eof-errorp eof-value t)))
+    (or eof-errorp
+	(if (eq obj eof-value)
+	    (return-from sharp-equal eof-value)))
+    (if (eq obj tag)
+	(%reader-error stream
+		       ; FIX
+		       "Have to tag something more than just #~D#."
+		       label))
     (push (list label tag obj) *sharp-equal-alist*)
     (let ((*sharp-equal-circle-table* (make-hash-table :test #'eq :size 20)))
       (circle-subst *sharp-equal-alist* obj))))
 ;;;
 (defun sharp-sharp (stream ignore label)
   (declare (ignore ignore))
-  (when *read-suppress* (return-from sharp-sharp nil))
+  (when *read-suppress* (return-from sharp-sharp ()))
   (or label
       (%reader-error stream "Missing label for ##." label))
-
   (let ((entry (assoc label *sharp-equal-alist*)))
     (if entry
 	(third entry)
@@ -348,55 +416,81 @@
 
 ;;;; #+/-
 
-(flet ((guts (stream not-p)
-	 (or (if (handler-case
-		     (let ((*package* *keyword-package*)
-			   (*read-suppress* nil))
-		       (featurep (read stream t nil t)))
-		   (reader-package-error
-		    (condition)
-		    (declare (ignore condition))
-		    nil))
-		 (not not-p)
-		 not-p)
-	     (let ((*read-suppress* t))
-	       (read stream t nil t)))
-	 (values)))
+(flet ((guts (stream not-p eof-errorp eof-value)
+	 (block ()
+	   (or (if (handler-case
+		       (let* ((*package* *keyword-package*)
+			      (*read-suppress*)
+			      (form (read stream eof-errorp
+					  eof-value t)))
+			 (or eof-errorp
+			     (if (eq form eof-value)
+				 (return (values eof-value))))
+			 (featurep form))
+		     (reader-package-error
+		      (condition)
+		      (declare (ignore condition))
+		      ()))
+		   (not not-p)
+		   not-p)
+	       (let* ((*read-suppress* t)
+		      (form (read stream eof-errorp eof-value t)))
+		 (or eof-errorp
+		     (if (eq form eof-value)
+			 (return (values eof-value))))))
+	   (values))))
 
-  (defun sharp-plus (stream sub-char numarg)
+  (defun sharp-plus (stream sub-char numarg eof-errorp eof-value)
     (ignore-numarg sub-char numarg)
-    (guts stream nil))
+    (guts stream () eof-errorp eof-value))
 
-  (defun sharp-minus (stream sub-char numarg)
+  (defun sharp-minus (stream sub-char numarg eof-errorp eof-value)
     (ignore-numarg sub-char numarg)
-    (guts stream t)))
+    (guts stream t eof-errorp eof-value)))
 
-(defun sharp-C (stream sub-char numarg)
+(defun sharp-C (stream sub-char numarg eof-errorp eof-value)
   (ignore-numarg sub-char numarg)
   ;; Next thing better be a list of two numbers.
-  (let ((cnum (read stream t nil t)))
-    (when *read-suppress* (return-from sharp-c nil))
+  (let ((cnum (read stream eof-errorp eof-value t)))
+    (or eof-errorp
+	(if (eq cnum eof-value)
+	    (return-from sharp-C eof-value)))
+    (if *read-suppress* (return-from sharp-c ()))
     (if (and (listp cnum) (= (length cnum) 2))
 	(complex (car cnum) (cadr cnum))
 	(%reader-error stream "Illegal complex number format: #C~S" cnum))))
 
-(defun sharp-vertical-bar (stream sub-char numarg)
+(defun sharp-vertical-bar (stream sub-char numarg eof-errorp eof-value)
   (ignore-numarg sub-char numarg)
   (let ((stream (in-synonym-of stream)))
     (if (lisp-stream-p stream)
 	(prepare-for-fast-read-char stream
           (do ((level 1)
-	       (prev (fast-read-char) char)
-	       (char (fast-read-char) (fast-read-char)))
+	       (prev (fast-read-char eof-errorp eof-value)
+		     char)
+	       (char (fast-read-char eof-errorp eof-value)
+		     (fast-read-char eof-errorp eof-value)))
 	      (())
+	    (or eof-errorp
+		(when (eq char eof-value)
+		  (done-with-fast-read-char)
+		  (return-from sharp-vertical-bar eof-value)))
 	    (cond ((and (char= prev #\|) (char= char #\#))
 		   (setq level (1- level))
 		   (when (zerop level)
 		     (done-with-fast-read-char)
 		     (return (values)))
-		   (setq char (fast-read-char)))
+		   (setq char (fast-read-char eof-errorp eof-value))
+		   (or eof-errorp
+		       (when (eq char eof-value)
+			 (done-with-fast-read-char)
+			 (return-from sharp-vertical-bar eof-value))))
 		  ((and (char= prev #\#) (char= char #\|))
-		   (setq char (fast-read-char))
+		   (setq char (fast-read-char eof-errorp eof-value))
+		   (or eof-errorp
+		       (when (eq char eof-value)
+			 (done-with-fast-read-char)
+			 (return-from sharp-vertical-bar eof-value)))
 		   (setq level (1+ level))))))
 	;; Fundamental-stream.
 	(do ((level 1)
@@ -412,13 +506,18 @@
 		 (setq char (read-char stream t))
 		 (setq level (1+ level))))))))
 
-(defun sharp-exclaim (stream sub-char numarg)
+(defun sharp-exclaim (stream sub-char numarg eof-errorp eof-value)
   (ignore-numarg sub-char numarg)
   (let ((stream (in-synonym-of stream)))
     (if (lisp-stream-p stream)
 	(prepare-for-fast-read-char stream
-          (do ((char (fast-read-char) (fast-read-char)))
+          (do ((char (fast-read-char eof-errorp eof-value)
+		     (fast-read-char eof-errorp eof-value)))
 	      (())
+	    (or eof-errorp
+		(when (eq char eof-value)
+		  (done-with-fast-read-char)
+		  (return (values eof-value))))
 	    (cond ((char= char #\newline)
 		   (done-with-fast-read-char)
 		   (return (values))))))
@@ -432,22 +531,25 @@
   (declare (ignore ignore))
   (%reader-error stream "Illegal sharp character ~S" sub-char))
 
-(defun sharp-P (stream sub-char numarg)
+(defun sharp-P (stream sub-char numarg eof-errorp eof-value)
   (ignore-numarg sub-char numarg)
-  (let ((namestring (read stream t () t)))
+  (let ((namestring (read stream eof-errorp eof-value t)))
+    (or eof-errorp
+	(if (eq namestring eof-value)
+	    (return-from sharp-P eof-value)))
     (if namestring
 	(if (eq namestring t)
 	    (if (pathname stream) (namestring (pathname stream)))
 	    ;; FIX make relative to root? (n:src/)
 	    (parse-namestring namestring)))))
 
-(defun sharp-true (stream sub-char numarg)
-  (declare (ignore stream))
+(defun sharp-true (stream sub-char numarg eof-errorp eof-value)
+  (declare (ignore stream eof-errorp eof-value))
   (ignore-numarg sub-char numarg)
   t)
 
-(defun sharp-false (stream sub-char numarg)
-  (declare (ignore stream))
+(defun sharp-false (stream sub-char numarg eof-errorp eof-value)
+  (declare (ignore stream eof-errorp eof-value))
   (ignore-numarg sub-char numarg)
   ())
 

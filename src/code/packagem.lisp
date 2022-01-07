@@ -12,6 +12,7 @@
 	  load-package loaded-p
 	  local-file local-requires local-version
 	  meta-version
+	  package-pathname
 	  test-dir
 	  update-meta-from-server))
 

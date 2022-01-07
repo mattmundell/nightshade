@@ -182,6 +182,13 @@
 
 	  )))))
 
+(defcommand "Edit Frame Source Other Window" ()
+  "Edit the source of the frame at point in the other window."
+  (if (<= (length *window-list*) 2)
+      (split-window-command)
+      (setf (current-window) (next-window (current-window))))
+  (edit-frame-source-command))
+
 (defcommand "Step Forward" (p)
   "Step forward in the program."
   (setf debug::*number-of-steps* (or p 1))

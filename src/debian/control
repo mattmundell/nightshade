@@ -1,0 +1,17 @@
+Source: nightshade
+Section: devel
+Priority: optional
+Maintainer: Matthew Mundell <matt@mundell.ukfsn.org>
+Build-Depends: debhelper (>= 5), libx11-dev
+Standards-Version: 3.7.2
+
+Package: nightshade
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Lisp environment with Emacs-like editor
+ A Lisp runtime environment derived from the public domain parts of CMUCL.
+ .
+ Includes a native compiler, a byte compiler, a profiler, a run time inspector
+ and some programming libraries.
+ .
+ User interface centers around an Emacs-like editor derived from Hemlock.

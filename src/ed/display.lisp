@@ -213,8 +213,8 @@ redisplay.
 ;;;; Internal redisplay entry points.
 
 (defun internal-redisplay ()
-  "The main internal entry into redisplay.  This is just like REDISPLAY, but it
-   doesn't call the device's after-redisplay method."
+  "The main internal entry into redisplay.  This is just like `redisplay',
+   but it doesn't call the device's after-redisplay method."
   (when *things-to-do-once*
     (dolist (thing *things-to-do-once*) (apply (car thing) (cdr thing)))
     (setf *things-to-do-once* nil))

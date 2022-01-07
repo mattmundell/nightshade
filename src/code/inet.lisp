@@ -1344,6 +1344,27 @@
 		   (filter (cadr pair))))))
       (params))))
 
+;; FIX merge to above
+(defun parse-http-get-args (args)
+  (when (plusp (length args))
+    (mapcar (lambda (ele)
+	      (let ((pos (position #\= ele)))
+		(if pos
+		    (cons (subseq ele 0 pos)
+			  (subseq ele (1+ pos)))
+		    (list ele))))
+	    (split args #\&))))
+#|
+(parse-http-get-args "a=1&b=2")
+(parse-http-get-args "a&b=2")
+(parse-http-get-args "a")
+(parse-http-get-args "")
+(parse-http-get-args "  ")
+(parse-http-get-args "a&&b")
+|#
+
+
+
 (defun encode-query-string (string)
   "Return a string like $string, encoding special characters."
   (while ((index 0 (1+ index))
@@ -1963,7 +1984,7 @@ FIX parse session user  1213495500-24881
   (declare (ignore line string)))
 
 (defun serve-ftp-login (socket)
-  (let* ((stream (get-session-stream *ftp-server-sessions* socket))
+  (let* ((stream (session-stream *ftp-server-sessions* socket))
 	 (line (read-line stream ())))
     ;; FIX if line () close session
     (if (starts line "USER")
@@ -1997,7 +2018,9 @@ FIX parse session user  1213495500-24881
     (setq *ftp-server* ())))
 
 
-;;;; Echo Service
+;;;; File Transfer Protocol (FTP) Service
+
+;; FIX same as above
 
 ;;; Internal
 ;;;
@@ -2012,7 +2035,7 @@ FIX parse session user  1213495500-24881
 (defvar *ftp-server-sessions* ())
 
 (defun serve-ftp-login (socket)
-  (let* ((stream (get-session-stream *ftp-server-sessions* socket))
+  (let* ((stream (session-stream *ftp-server-sessions* socket))
 	 (line (read-line stream ())))
     ;; FIX if line () close session
     (if (starts line "USER")
@@ -2036,11 +2059,28 @@ FIX parse session user  1213495500-24881
   prober
   handler)
 
+(defvar *log-directory* "/var/log/ni/")
+
+(defun log-now ()
+  (format-time
+   ()
+   :style :iso8601))
+
+(defun log-service (service format &rest args)
+  (let ((service-info (getstring service *services*)))
+    (when service-info
+      (with-open-file (log (merge-pathnames (string-downcase service)
+					    *log-directory*)
+			   :direction :output
+			   :if-does-not-exist :create
+			   :if-exists :append)
+	(format log "~A  " (log-now))
+	(apply #'funcall #'format log format args)))))
+
 (defun accept-session (socket handler sessions-var)
   (multiple-value-bind
       (newconn addr)
       (ext:accept-tcp-connection socket)
-    (declare (ignore addr))
     (when newconn
       (let ((stream (make-inet-stream newconn
 				      :input t :output t
@@ -2048,14 +2088,24 @@ FIX parse session user  1213495500-24881
 	(set sessions-var
 	     (cons (list newconn
 			 stream
-			 (system:add-fd-handler newconn :input handler))
-		   (symbol-value sessions-var)))))))
+			 (system:add-fd-handler newconn :input handler)
+			 ()) ; Service specific.
+		   (symbol-value sessions-var)))
+	(values t addr stream)))))
 
-(defun get-session-stream (sessions socket)
+(defun session-stream (sessions socket)
   (cadr (assoc socket sessions)))
 
-(defun get-session-handler (sessions socket)
+(defun session-handler (sessions socket)
   (caddr (assoc socket sessions)))
+
+(defun session-extra (sessions socket)
+  (cadddr (assoc socket sessions)))
+
+(defun %set-session-extra (sessions socket value)
+  (setf (car (cdddr (assoc socket sessions))) value))
+
+(defsetf session-extra %set-session-extra)
 
 (defun end-session (sessions-var socket)
   (let* ((sessions (symbol-value sessions-var))
@@ -2063,9 +2113,10 @@ FIX parse session user  1213495500-24881
     (system:remove-fd-handler (caddr assoc))
     (set sessions-var (delete assoc sessions))
     ;; FIX do something if err
-    (unix:unix-close socket)))
+    ;(unix:unix-close socket)
+    ))
 
-(defmacro defservice (name port handler)
+(defmacro defservice (name port handler &optional acceptor)
   (let* ((restartp (gensym))
 	 (name (string-upcase name))
 	 (starter-name (intern (format ()
@@ -2098,9 +2149,16 @@ FIX parse session user  1213495500-24881
 		       (system:add-fd-handler
 			socket :input
 			(lambda (socket)
-			  (accept-session socket
-					  ,handler
-					  ',sessions-var)))))))
+			  (multiple-value-bind
+			      (ok addr ,@(if acceptor (list 'stream)))
+			      (accept-session socket
+					      ,handler
+					      ',sessions-var)
+			    (if ok
+				(log-service ,name
+					     "+ ~A~%" addr))
+			    ,(if acceptor
+				 `(funcall ,acceptor stream)))))))))
 	 (defun ,stopper-name ()
 	   (when ,service-defvar-name
 	     (let ((socket (lisp::handler-descriptor
@@ -2122,31 +2180,120 @@ FIX parse session user  1213495500-24881
 
 (defun start-service (name)
   (let ((service (getstring name *services*)))
-    (if service (funcall (service-starter service)))))
+    (when service
+      (prog1 (funcall (service-starter service))
+	(log-service name "start~%")))))
 
 
 ;;;; Echo service.
 
 (defun serve-echo (socket)
   ;; FIX if first listen () close session
-  (while ((stream (get-session-stream *echo-service-sessions* socket)))
+  (while ((stream (session-stream *echo-service-sessions* socket)))
 	 ((listen stream))
     ;; FIX will this read block if something else reads the data here?
-    (let ((line (read-line stream ())))
+    (multiple-value-bind (line eofp)
+			 (read-line stream ())
       (or line (return))
-      (write-line line stream))))
+      (write-line line stream)
+      (or eofp (write-char #\newline stream)))))
 
 (defservice "echo" 7777 #'serve-echo)
 
 
 ;;;; HTTP service.
 
+(defun print-directory-html (stream &optional (pathname ""))
+  (let ((contents (sort (delete-duplicates
+			 (list-files pathname #'identity
+				     :all t
+				     :check-for-subdirs t
+				     :follow-links t  :backups ()
+				     :recurse ()))
+			#'string<)))
+    (format stream "<HTML><BODY><TABLE>~%")
+    (if (probe-file "HEADER.html")
+	(from-file (in "HEADER.html") (transfer in stream)))
+    (format stream "<TR>~
+		    <TD>Mode</TD>~
+		    <TD>Owner</TD>~
+		    <TD>Size</TD>~
+		    <TD>Mod_time</TD>~
+		    <TD>Name</TD>~
+		    </TR>~%")
+    (dolist (entry contents)
+      (multiple-value-bind (res dev ino mode nlink uid gid rdev size atime mtime)
+			   (file-stats entry)
+	(declare (ignore dev ino nlink gid rdev atime))
+	(if res
+	    (format stream "<TR>~
+			    <TD>~A</TD>~
+			    <TD>~A</TD>~
+			    <TD>~A</TD>~
+			    <TD>~12A</TD>~
+			    <TD><A HREF=\"~A\">~A</A></TD>~
+			    </TR>~%"
+		    (with-output-to-string (out)
+		      (lisp::print-mode mode out))
+		    (format () "~A"
+			    (if uid
+				(or (lisp::lookup-login-name uid)
+				    uid)
+				""))
+		    size
+		    (multiple-value-bind (sec min hr date month year day ds tz)
+					 (get-decoded-time)
+		      (declare (ignore sec min hr date month day ds))
+		      (lisp::decode-universal-time-for-files mtime year tz))
+		    entry entry))))
+    (format stream "</TABLE>")
+    (if (probe-file "FOOTER.html")
+	(from-file (in "FOOTER.html") (transfer in stream)))
+    (format stream "</BODY></HTML>~%")))
+
+(declaim (special *args* *headers*))
+
+(defun serve-http-entity (stream name)
+  (log-service "http" " >> ~A~%" name)
+  (let ((pathname (merge-pathnames name "http:")))
+    (multiple-value-bind (exists kind)
+			 (probe-file pathname)
+      (if exists
+	  (if (eq kind :directory)
+	      ;; FIX Even with the directorify the browser asks for
+	      ;; http:website/style.css instead of
+	      ;; http:website/cv/style.css for http:website/cv (which is a
+	      ;; dir).  It asks for the right css with apache.  Maybe
+	      ;; apache replies with a redirect?
+	      (in-directory (directorify pathname)
+		(cond ((probe-file "index.html")
+		       (from-file (in "index.html")
+			 (transfer in stream)))
+		      ((probe-file "index.htm")
+		       (from-file (in "index.htm")
+			 (transfer in stream)))
+		      (t
+		       (print-directory-html stream))))
+	      (if (string= (pathname-type pathname) "nids")
+		  (ignore-errors
+		   (let ((*standard-output* stream))
+		     ;; FIX NB this runs in the server lisp so any
+		     ;; changes to the state of the server lisp remain
+		     ;; FIX at least run in temporary current package
+		     ;; FIX maybe run in slave?
+		     (load pathname :verbose () :print ())))
+		  (from-file (in pathname) (transfer in stream))))
+	  (format stream
+		  "404 Error: failed to probe file: \"~A\".~%"
+		  name)))))
+
 (defun serve-http (socket)
-  (let ((stream (get-session-stream *http-service-sessions* socket)))
+  (let ((stream (session-stream *http-service-sessions* socket)))
     ;; FIX if listen is () close session
     (when (listen stream)
       ;; FIX will this read block if something else reads the data here?
       (let ((line (read-line stream ())))
+	(log-service "http" " <- ~A~%" line)
 	(cond
 	 ((and line
 	       (> (length line) 4)
@@ -2154,34 +2301,257 @@ FIX parse session user  1213495500-24881
 	  (let* ((rest (string-trim '(#\space #\tab
 					      #\newline #\return)
 				    (subseq line 4)))
-		 (full-name (subseq rest 0 (position #\space rest)))
+		 (full-name (subseq rest 0
+				    (or (position #\? rest)
+					(position #\space rest))))
+		 (args-pos (position #\? rest))
+		 (*args* (if args-pos
+			     (parse-query-string
+			      (subseq rest
+				      (1+ args-pos)
+				      (position #\space rest)))))
 		 (name (if (char= (char full-name 0) #\/)
 			   (subseq full-name 1)
-			   full-name))
-		 (pathname (merge-pathnames name "http:")))
-	    (multiple-value-bind (exists type)
-				 (probe-file pathname)
-	      (if exists
-		  (if (eq type :directory)
-		      (in-directory pathname
-			(if (probe-file "index.html")
-			    (from-file (in "index.html")
-			      (transfer in stream))
-			    (print-directory "" stream
-					     :all t :verbose t)))
-		      (from-file (in pathname) (transfer in stream)))
-		  (format stream
-			  "404 Error: failed to probe file: \"~A\".~%"
-			  name)))))
+			   full-name)))
+	    (collect ((headers))
+	      (while ()
+		     ((listen stream))
+		(let ((line (read-line stream ())))
+		  (log-service "http" " <- ~A~%" line)
+		  (if (or (zerop (length line))
+			  (string= line (string #\return)))
+		      (return)
+		      (let ((colon (search ": " line)))
+			(headers (cons (subseq line 0 colon)
+				       (subseq line (+ colon 2)
+					       (1- (length line)))))))))
+	      (let ((*headers* (headers)))
+		(serve-http-entity stream name)))))
+	 ((and line
+	       (> (length line) 5)
+	       (string= (string-upcase line :end 4) "POST" :end1 4))
+	  (let* ((rest (string-trim '(#\space #\tab #\newline #\return)
+				    (subseq line 5)))
+		 (full-name (subseq rest 0
+				    (or (position #\? rest)
+					(position #\space rest))))
+		 (args-pos (position #\? rest))
+		 (*args* (if args-pos
+			     (parse-query-string
+			      (subseq rest
+				      (1+ args-pos)
+				      (position #\space rest)))))
+		 (name (if (char= (char full-name 0) #\/)
+			   (subseq full-name 1)
+			   full-name)))
+	    (collect ((headers))
+	      (while ()
+		     ((listen stream))
+		(let ((line (read-line stream ())))
+		  (log-service "http" " <- ~A~%" line)
+		  (if (or (zerop (length line))
+			  (string= line (string #\return)))
+		      (return)
+		      (let ((colon (search ": " line)))
+			(headers (cons (subseq line 0 colon)
+				       (subseq line (+ colon 2)
+					       (1- (length line)))))))))
+	      (let ((content-length (assoc "Content-Length" (headers)
+					   :test #'string=))
+		    (content-type (assoc "Content-Type" (headers)
+					 :test #'string=)))
+		(when (and (cdr content-type)
+			   (string= (string-downcase (cdr content-type))
+				    "application/x-www-form-urlencoded")
+			   (cdr content-length))
+		  (let ((length (parse-integer (cdr content-length))))
+		    (when length
+		      (let* ((buffer (make-string length))
+			     (count (lisp::read-n-bytes
+				     stream buffer 0 length)))
+			(when count
+			  (log-service "http" " <= ~A~%"
+				       (subseq buffer 0 count))
+			  (setq *args*
+				(append (parse-query-string
+					 (subseq buffer 0 count))
+					*args*))))))))
+	      (let ((*headers* (headers)))
+		(serve-http-entity stream name)))))
 	 (t
 	  (format stream
 		  "400 Error: failed to parse request: \"~A\".~%"
 		  line)))
-	(end-session '*http-service-sessions* socket)))))
+	;; FIX Sleeping between close prevents connection broken errs in
+	;; browsers.  Err prbly due to removing fd from handlers in
+	;; end-session.  Why?
+	(unix:unix-close socket)
+	(end-session '*http-service-sessions* socket)
+	(sleep 0.1)))))
 
 (setf (search-list "http:") "/var/www/")
 
-(defservice "http" 8080 #'serve-http)
+(defservice "http" 80 #'serve-http)
+
+
+;;;; SMTP service.
+
+(defstruct (smtp-session-info)
+  mail-from
+  rcpt-to
+  state
+  data)
+
+(defvar smtp-cache-directory "/var/cache/ni/smtp/")
+
+(defvar *smtp-next*
+  (from-file (in (merge-pathnames "next" smtp-cache-directory))
+    (read in)))
+
+(defun serve-smtp (socket)
+  (handler-bind ((error #'(lambda (condition)
+			    (log-service "smtp" "Error: ~A~%" condition)
+			    (unix:unix-close socket)
+			    (end-session '*smtp-service-sessions*
+					 socket)
+			    ;; FIX Sleeping between close prevents
+			    ;; connection broken errs in browsers.  Err
+			    ;; prbly due to removing fd from handlers in
+			    ;; end-session.  Why?
+			    (sleep 0.1)
+			    (return-from serve-smtp))))
+    (let ((stream (session-stream *smtp-service-sessions* socket)))
+      ;; FIX if listen is () close session
+      (when (listen stream)
+	;; FIX will this read block if something else reads the data here?
+	(let ((line (read-line stream ()))
+	      (extra (or (session-extra *smtp-service-sessions* socket)
+			 (setf (session-extra *smtp-service-sessions* socket)
+			       (make-smtp-session-info)))))
+	  (log-service "smtp" " <- ~A~%" line)
+	  (cond
+	   ((and line (eq (smtp-session-info-state extra) :data))
+	    (fi (string= (string-trim '(#\newline #\return) line) ".")
+		(push line (smtp-session-info-data extra))
+		(let* ((address (string-trim
+				 '(#\< #\>)
+				 (smtp-session-info-rcpt-to extra)))
+		       (addr (split address #\@)))
+		  ;(assert (and addr (< (length addr) 3))
+		  (catch 'done
+		    (if (eq (length addr) 2)
+			(or (member (cadr addr)
+				    '("localhost" "127.0.0.1")
+				    :test #'string=)
+			    (progn
+			      (format stream "400 Local delivery only.~%")
+			      (throw 'done ()))))
+		    (let* ((drop-pathname (merge-pathnames
+					   (car addr)
+					   "/var/spool/mail/"))
+			   (lock (concatenate 'simple-string
+					      (namestring drop-pathname)
+					      ".lock")))
+		      ;; Lock the location, at least from other Nightshades.
+		      (system:block-interrupts
+		       (if (probe-file lock)
+			   (progn
+			     ;; FIX queue
+			     (format stream "400 Mail drop locked.~%")
+			     (throw 'done ()))
+			   (with-open-file
+			       (lock-stream lock :if-exists :error
+					    :if-does-not-exist :create))))
+		      (unwind-protect
+			  (let ((exists (probe-file drop-pathname)))
+			    (with-open-file
+				(out drop-pathname
+				     :direction :output
+				     :if-does-not-exist :create
+				     :if-exists :append)
+			      (if exists
+				  (or (zerop (file-size drop-pathname))
+				      (terpri out)))
+			      (format out "From ~A~%" address)
+			      (format out "Date: ~A~%"
+				      (format-time () :style :rfc1123))
+			      (dolist (line (nreverse
+					     (smtp-session-info-data extra)))
+				(write-line (string-trim '(#\return) line)
+					    out)))
+			    (format stream "200 Message sent.~%"))
+			(delete-file lock))))
+		  #|
+		  (to-file (out (merge-pathnames (string *smtp-next*)
+						 smtp-cache-directory)
+				:if-exists :error
+				:if-does-not-exist :create)
+		    (format out "~A~%~A"
+			    (get-universal-time)
+			    (smtp-session-info-data extra)))
+		  |#
+		  (setf (smtp-session-info-mail-from extra) ())
+		  (setf (smtp-session-info-rcpt-to extra) ())
+		  (setf (smtp-session-info-data extra) ())
+		  (setf (smtp-session-info-state extra) ()))))
+	   ((and line
+		 (> (length line) 3)
+		 (string= (string-upcase line :end 4) "EHLO" :end1 4))
+	    (let* ((rest (string-trim '(#\space #\tab
+						#\newline #\return)
+				      (subseq line 4))))
+	      (format stream "250 EHLO ~A~%" rest)))
+	   ((and line
+		 (> (length line) 3)
+		 (string= (string-upcase line :end 4) "HELO" :end1 4))
+	    (let* ((rest (string-trim '(#\space #\tab
+						#\newline #\return)
+				      (subseq line 4))))
+	      (format stream "250 HELO ~A~%" rest)))
+	   ((and line
+		 (> (length line) 3)
+		 (string= (string-upcase line :end 4) "QUIT" :end1 4))
+	    (format stream "250 BYE~%")
+	    ;; FIX Sleeping between close prevents connection broken errs in
+	    ;; browsers.  Err prbly due to removing fd from handlers in
+	    ;; end-session.  Why?
+	    (unix:unix-close socket)
+	    (end-session '*smtp-service-sessions* socket)
+	    (sleep 0.1))
+	   ((and line
+		 (> (length line) 10)
+		 (string= (string-upcase line :end 10) "MAIL FROM:" :end1 10))
+	    (let* ((rest (string-trim '(#\space #\tab #\newline #\return)
+				      (subseq line 10))))
+	      (setf (smtp-session-info-mail-from extra) rest)
+	      (format stream "250 MAIL FROM OK~%")))
+	   ((and line
+		 (> (length line) 8)
+		 (string= (string-upcase line :end 8) "RCPT TO:" :end1 8))
+	    (let* ((rest (string-trim '(#\space #\tab #\newline #\return)
+				      (subseq line 8))))
+	      (setf (smtp-session-info-rcpt-to extra) rest)
+	      (format stream "250 RCPT TO OK~%")))
+	   ((and line
+		 (> (length line) 4)
+		 (string= (string-upcase line :end 4) "DATA" :end1 4))
+	    (fi (smtp-session-info-mail-from extra)
+		(format stream "400 Error: send MAIL FROM first.~%")
+		(fi (smtp-session-info-rcpt-to extra)
+		    (format stream "400 Error: send RCPT TO first.~%")
+		    (progn
+		      (setf (smtp-session-info-state extra) :data)
+		      (format stream
+			      "354 OK Send message data followed by '.'~%")))))
+	   (t
+	    (format stream
+		    "400 Error: failed to parse request: \"~A\".~%"
+		    line))))))))
+
+(defun accept-smtp (stream)
+  (format stream "220 SMTP service on ~A~%" (machine-instance)))
+
+(defservice "smtp" 25 #'serve-smtp #'accept-smtp)
 
 
 ;;;; More service support.
@@ -2193,7 +2563,9 @@ FIX parse session user  1213495500-24881
 (defun stop-service (name)
   "Stop service $name."
   (let ((service (getstring name *services*)))
-    (if service (funcall (service-stopper service)))))
+    (when service
+      (prog1 (funcall (service-stopper service))
+	(log-service name "stop~%")))))
 
 (defun probe-service (name)
   "Return true if service $name is running."

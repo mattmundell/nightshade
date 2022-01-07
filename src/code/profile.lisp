@@ -653,7 +653,7 @@ have to wait for the result.  The only valid uses for run time are:
 
 ;;; COMPUTE-TIME-OVERHEAD-AUX  --  Internal
 ;;;
-;;;    Dummy function we profile to find profiling overhead.  Declare
+;;; Dummy function we profile to find profiling overhead.  Declare
 ;;; debug-info to make sure we have arglist info.
 ;;;
 (proclaim '(notinline compute-time-overhead-aux))

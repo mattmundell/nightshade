@@ -12,7 +12,7 @@ beginning of a lines, so those quoted in string literals do not get in the way.
 {command:Previous Page}
 {command:Next Page}
 {command:Mark Page}
-{command:Goto Next Page}
+{command:Go To Next Page}
 {command:View Page Directory}
 {command:Insert Page Directory}
 ]#
@@ -33,9 +33,9 @@ beginning of a lines, so those quoted in string literals do not get in the way.
     (line-start mark)
     (with-input-from-region (stream (region mark (buffer-end-mark (current-buffer))))
       (change-to-buffer (value page-buffer))
-      (goto-next-page-command (read stream)))))
+      (go-to-next-page-command (read stream)))))
 
-(defcommand "Goto Next Page" (p)
+(defcommand "Go To Next Page" (p)
   "Go to the next page.
 
    With a positive argument go to an absolute page number, moving that many
@@ -52,29 +52,29 @@ beginning of a lines, so those quoted in string literals do not get in the way.
 	   (page-offset point 1)
 	   (setf (last-command-type) :next-page))
 	  ((zerop p)
-	   (let* ((againp (eq (last-command-type) :goto-page-zero))
+	   (let* ((againp (eq (last-command-type) :go-to-page-zero))
 		  (name (prompt-for-string :prompt "Substring of page title: "
 					   :default (if againp
-							*goto-page-last-string*
+							*go-to-page-last-string*
 							*parse-default*)))
 		  (dir (page-directory (current-buffer)))
 		  (i 1))
 	     (declare (simple-string name))
 	     (cond ((not againp)
 		    (push-buffer-mark (copy-mark point)))
-		   ((string-equal name *goto-page-last-string*)
-		    (setf dir (nthcdr *goto-page-last-num* dir))
-		    (setf i (1+ *goto-page-last-num*))))
+		   ((string-equal name *go-to-page-last-string*)
+		    (setf dir (nthcdr *go-to-page-last-num* dir))
+		    (setf i (1+ *go-to-page-last-num*))))
 	     (loop
 	       (or dir
 		   (editor-error "Failed to find a page title containing ~S."
 				 name))
 	       (when (search name (the simple-string (car dir))
 			     :test #'char-equal)
-		 (goto-page point i)
-		 (setf (last-command-type) :goto-page-zero)
-		 (setf *goto-page-last-num* i)
-		 (setf *goto-page-last-string* name)
+		 (go-to-page point i)
+		 (setf (last-command-type) :go-to-page-zero)
+		 (setf *go-to-page-last-num* i)
+		 (setf *go-to-page-last-string* name)
 		 (return t))
 	       (incf i)
 	       (setf dir (cdr dir))))
@@ -82,18 +82,18 @@ beginning of a lines, so those quoted in string literals do not get in the way.
 	  ((minusp p)
 	   (page-offset point p)
 	   (setf (last-command-type) :previous-page))
-	  (t (goto-page point p)
+	  (t (go-to-page point p)
 	     (setf (last-command-type) :next-page)))
     (line-start (move-mark (window-display-start (current-window)) point))))
 
-(defcommand "Goto Page" ()
-  "Prompt for a page number and goto that page.
+(defcommand "Go To Page" ()
+  "Prompt for a page number and go to that page.
 
    Prompt for string and go to the page with that string in its title.
    Repeated invocations in this manner continue searching from the point of
    the last find, and a first search with a particular pattern pushes a
    buffer mark."
-  (goto-next-page-command 0))
+  (go-to-next-page-command 0))
 
 (defcommand "View Page Directory" ()
   "Pop up a listing of the number and title of each page in the current

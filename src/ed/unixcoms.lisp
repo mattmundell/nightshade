@@ -257,14 +257,32 @@
 
 ;;;; Man pages.
 
-(defmode "Manual" :major-p nil
+(defun highlight-man-page-line (line chi-info)
+  (let ((mark (mark line 0)))
+    (if (next-character mark)
+	(or (member (next-character mark) '(#\space #\tab))
+	    (chi-mark line 0 *variable-font* :variable chi-info)))))
+
+(defun highlight-man-page-buffer (buffer)
+  (highlight-chi-buffer buffer highlight-man-page-line))
+
+(defun highlight-visible-man-page-buffer (buffer)
+  (highlight-visible-chi-buffer buffer highlight-man-page-line))
+
+(defun setup-man-page-mode (buffer)
+  (highlight-visible-man-page-buffer buffer)
+  (pushnew '("Manual" () highlight-visible-man-page-buffer)
+	   *mode-highlighters*))
+
+(defmode "Manual" :major-p ()
   :precedence 4.0
+  :setup-function #'setup-man-page-mode
   :documentation
   "Manual Page Mode.")
 
 (defcommand "Manual Page from Point" (p)
-  "Read the Unix manual pages named at point in a View buffer.
-   If given an argument, this will put the man page in a Pop-up display."
+  "Read the Unix manual pages named at point in a View buffer.  If given an
+   argument, put the man page in a Pop-up display."
   (manual-page-command p (or (manual-name-at-point) nil)))
 
 (defcommand "Refresh Manual Page" ()
@@ -442,16 +460,28 @@
   (ext:run-program
    "/bin/sh"
    (list "-c"
-	 (format nil "kill -~A ~A" signal pid))))
+	 (format () "kill -~A ~A" signal pid))))
 
-(defvar *sp-list-buffer* nil
+(defvar *sp-list-buffer* ()
   "The name of the buffer used to list system processes.")
 
 (defun get-sp-list-buffer ()
   "Return the name of the buffer used to list system processes."
   (or *sp-list-buffer*
-      ;; FIX exported
-      (edi::unique-buffer-name "System Processes")))
+      (let ((buffer (make-unique-buffer
+		     "System Processes"
+		     :modes '("Fundamental" "View" "SysProc")
+		     :delete-hook
+		     (list (lambda ()
+			     (setq *sp-list-buffer* ()))))))
+	(setf (variable-value 'view-return-function
+			      :buffer buffer)
+	      #'(lambda ()))
+	(defevar "User"
+	  "User of processes to list; nil for all users."
+	  :value (value list-system-processes-user)
+	  :buffer buffer)
+	(setq *sp-list-buffer* buffer))))
 
 (defun refresh-system-processes (buffer)
   (let ((line-num (1- (count-lines (region (buffer-start-mark buffer)
@@ -475,20 +505,15 @@
 
 (defcommand "Edit System Processes" ()
   "Edit system processes."
-  (let* ((new-buffer (make-buffer (get-sp-list-buffer)
-				  :modes '("Fundamental" "View" "SysProc")))
-	 (buffer (or new-buffer
-		     (getstring (get-sp-list-buffer) *buffer-names*))))
+  (let ((buffer (get-sp-list-buffer)))
     (change-to-buffer buffer)
-    (when new-buffer
-      (setf (value view-return-function) #'(lambda ()))
-      (defevar "User"
-	"User of processes to list; nil for all users."
-	:value (value list-system-processes-user)
-	:buffer buffer)
-      (refresh-system-processes buffer))))
+    (refresh-system-processes buffer)))
 
 (defcommand "System Processes" ()
+  "Edit system processes."
+  (edit-system-processes-command))
+
+(defcommand "TOP" ()
   "Edit system processes."
   (edit-system-processes-command))
 
@@ -503,11 +528,10 @@
   (or (buffer-minor-mode (current-buffer) "SysProc")
       (editor-error "SysProc mode must be active in the current buffer."))
   (setv user
-	(prompt-for-string :prompt "User: "
-			   :default (cdr (assoc (lisp::make-keyword
-						 (intern "USER"))
-						*environment-list*
-						:test #'eq))))
+	(prompt-for-string :prompt "User (* for all): "
+			   :trim t
+			   :default (user-name)))
+  (if (string= (value user) "*") (setv user ()))
   (refresh-system-processes (current-buffer)))
 
 (defcommand "Signal Process" ()
@@ -535,7 +559,7 @@
 (defcommand "Describe Word" ()
   "Describe a prompted word in a pop-up display."
   (let ((word (prompt-for-string
-	       :default (word-at-point)
+	       :default (or (word-at-point) "")
 	       :trim t
 	       :prompt "Word: "
 	       :help "Word to describe from dictionary.")))
@@ -587,6 +611,9 @@
 (defevar "Suspend Hook"
   "Hook called by `Suspend', before suspending.")
 
+(defevar "Resume Hook"
+  "Hook called by `Suspend', after resuming.")
+
 (defcommand "Suspend" ()
   "Suspend to disk."
   (when (prompt-for-y-or-n
@@ -596,4 +623,5 @@
     (elet ((save-all-files-confirm ()))
       (save-all-files-command ()))
     (invoke-hook suspend-hook)
-    (ext::run-program "sudo" '("s2disk"))))
+    (ext::run-program "sudo" '("s2disk"))
+    (invoke-hook resume-hook)))

@@ -472,6 +472,16 @@ the first value will always be true, often t.
    one time.)"
   (int-syscall ("getdtablesize")))
 
+#|
+(defconstant shut-rd   0)
+(defconstant shut-wr   1)
+(defconstant shut-rdwr 2)
+(defun unix-shutdown (fd how)
+  "Shut down a socket.  How is one of shut-rd, shut-wr or shut-rdwr."
+  (declare (type unix-fd fd))
+  (int-syscall ("close" int int) fd how))
+|#
+
 ;;; Unix-close accepts a file descriptor and attempts to close the file
 ;;; associated with it.
 

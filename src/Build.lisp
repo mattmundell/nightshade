@@ -245,12 +245,19 @@
       (symlink-file "builder" new-builder)
       (format t "Cloning build as new builder... done.~%"))))
 
+(defvar user::*dist-dir* ())
+
 (deftarget "dist" ( #| "kernel" "lisp" "ed" |#)
   "Build a binary and source distribution.  Return the name of the
-   resulting archive."
+   resulting archive.
+
+   If *dist-dir* is true, build into that directory and stop before
+   creating the actual archive."
   (format t "Updating manifest...~%")
+  (format t "user::*dist-dir* ~A~%" user::*dist-dir*)
+  (format t "*package* ~A~%" *package*)
   (sync:update-manifest-times "n:")
-  (let* ((base (pick-new-dir))
+  (let* ((base (or user::*dist-dir* (pick-new-dir)))
 	 (bin (concatenate 'simple-string
 			   base
 			   "bin/"))
@@ -377,36 +384,41 @@
 				  (get-build-directory)
 				  "/spell-dictionary.bin")
 		     "spell-dictionary.bin")))
-      (format t "Creating archive...~%")
-      (let* ((name (format () "~A/../../nightshade-~A--~A.tar.bz2"
-			   (get-build-directory)
-			   (read-line (open (format ()
-						    "~A/VERSION"
-						    (get-source-directory))))
-			   ;; FIX get build time from core
-			   ;; FIX improve format-time or format
-			   (multiple-value-bind
-			       (secs mins hours day month year)
-			       (decode-universal-time (get-universal-time))
-			     (declare (ignore secs))
-			     (string-downcase
-			      ;; FIX ~2D  so that prints 08 for 8
-			      (format () "~2,'0D-~2,'0D-~2,'0D-~2,'0Dh~2,'0D"
-				      year
-				      month
-				      day
-				      hours
-				      mins)))))
-	     (cmd (format () "tar jcvf ~A ." name)))
-	(format t "Shell command: ~A" cmd)
-	(in-directory base
-	  (ext::run-program
-	   "/bin/sh" (list "-c" cmd)
-	   :wait t :input ()
-	   :output *standard-output* :error :output))
-	(dired:delete-file base :clobber t :recurse t)
-	(format t "Done.~%")
-	name))))
+      (if user::*dist-dir*
+	  (progn
+	    (format t "Done.~%")
+	    t)
+	  (progn
+	    (format t "Creating archive...~%")
+	    (let* ((name (format () "~A/../../nightshade-~A--~A.tar.bz2"
+				 (get-build-directory)
+				 (read-line (open (format ()
+							  "~A/VERSION"
+							  (get-source-directory))))
+				 ;; FIX get build time from core
+				 ;; FIX improve format-time or format
+				 (multiple-value-bind
+				     (secs mins hours day month year)
+				     (decode-universal-time (get-universal-time))
+				   (declare (ignore secs))
+				   (string-downcase
+				    ;; FIX ~2D  so that prints 08 for 8
+				    (format () "~2,'0D-~2,'0D-~2,'0D-~2,'0Dh~2,'0D"
+					    year
+					    month
+					    day
+					    hours
+					    mins)))))
+		   (cmd (format () "tar jcvf ~A ." name)))
+	      (format t "Shell command: ~A" cmd)
+	      (in-directory base
+		(ext::run-program
+		 "/bin/sh" (list "-c" cmd)
+		 :wait t :input ()
+		 :output *standard-output* :error :output))
+	      (dired:delete-file base :clobber t :recurse t)
+	      (format t "Done.~%")
+	      name))))))
 
 
 ;;; Tests.

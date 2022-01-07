@@ -235,16 +235,16 @@
 ;;; in the body of the function, and this is actually done in the support
 ;;; routines for other reasons (see above).
 (defun subseq (sequence start &optional end)
-  "Returns a copy of a subsequence of SEQUENCE starting with element number
-   START and continuing to the end of SEQUENCE or the optional END element
-   number."
+  "Return a copy of a subsequence of $sequence starting with element number
+   $start and continuing to the end of $sequence or the optional $end
+   element number."
   (seq-dispatch sequence
 		(list-subseq* sequence start end)
 		(vector-subseq* sequence start end)))
 
 (defun safe-subseq (sequence start &optional end)
-  "Return the subsequence of SEQUENCE from element number START to the end
-   of sequence or to END if END is before the end of the sequence."
+  "Return the subsequence of $sequence from element number $start to the
+   end of $sequence or to $end if $end is before the end of the sequence."
   (if (and end (< (length sequence) end))
       (subseq sequence start (length sequence))
       (subseq sequence start end)))
@@ -527,8 +527,8 @@
   (vector-nreverse sequence))
 
 (defun nreverse (sequence)
-  "Returns a sequence of the same elements in reverse order; the argument
-   is destroyed."
+  "Return a sequence of the same elements in reverse order; destroying the
+   argument."
   (seq-dispatch sequence
 		(list-nreverse* sequence)
 		(vector-nreverse* sequence)))
@@ -589,9 +589,9 @@
 )
 
 (defun concatenate (output-type-spec &rest sequences)
-  "Returns a new sequence of all the argument sequences concatenated together
-  which shares no structure with the original argument sequences of the
-  specified OUTPUT-TYPE-SPEC."
+  "Returns a new sequence of all the argument sequences concatenated
+   together which shares no structure with the original argument sequences
+   of the specified OUTPUT-TYPE-SPEC."
   (case (type-specifier-atom output-type-spec)
     ((simple-vector simple-string vector string array simple-array
 		    bit-vector simple-bit-vector base-string
@@ -1601,6 +1601,9 @@ FIX
 	(list-delete-duplicates* sequence test test-not key from-end start end))
   (vector-delete-duplicates* sequence test test-not key from-end start end)))
 
+
+;;;; Substitution.
+
 (defun list-substitute* (pred new list start end count key test test-not old)
   (declare (fixnum start end count))
   (let* ((result (list nil))
@@ -1691,9 +1694,6 @@ FIX
 	   start end count key test test-not old))))
 
 )
-
-
-;;;; Substitution.
 
 ;;; Public.
 ;;;
@@ -2527,7 +2527,9 @@ FIX in resulting build, on c-x r
       (result))))
 
 #|
+TODO any sequence
 TODO consider updating `search' to treat list $sequence1 as multiple searches
+     FIX similar issues to (substitute #\a "ab" seq)
 (defun split (separator sequence
 			&key
 			(start 0) end

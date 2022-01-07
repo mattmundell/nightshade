@@ -208,7 +208,7 @@
   (let ((chars (python-indentation mark)))
     (line-start mark)
     (delete-horizontal-space mark)
-    (funcall (value tab-indenter) mark chars)))
+    (indent mark chars)))
 
 (defevar "Indent Function"
   "Indentation function invoked by the `Indent' command.  The function

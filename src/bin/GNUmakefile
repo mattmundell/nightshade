@@ -48,7 +48,7 @@ internals.h:
 	@false
 
 clean:
-	rm -f Depends *.o nightshade nightshade.nm core
+	rm -f Depends *.o nightshade core
 
 depend: Depends
 

@@ -31,20 +31,21 @@
 
 
 
-(declaim (special *with-screen-hooks* *caller-standar-input*))
+(declaim (special *with-screen-hooks*
+		  *caller-standar-input*)) ; FIX ?
 ;; FIX put in site-init below?
 (push (cons #'(lambda ()
 		(when *in-the-editor*
-		  (or debug::*in-the-debugger*
+		  ;(or debug::*in-the-debugger*
 		      (let ((device (device-hunk-device
 				     (window-hunk (current-window)))))
-			(funcall (device-exit device) device)))))
+			(funcall (device-exit device) device))));)
 	    #'(lambda ()
 		(when *in-the-editor*
-		  (or debug::*in-the-debugger*
+		  ;(or debug::*in-the-debugger*
 		      (let ((device (device-hunk-device
 				     (window-hunk (current-window)))))
-			(funcall (device-init device) device))))))
+			(funcall (device-init device) device)))));)
       system:*with-screen-hooks*)
 
 
@@ -65,7 +66,8 @@
 (eval-when (compile load eval)
   (makunbound 'group-interesting-xevents) ; FIX for + :resize-request
   (defconstant group-interesting-xevents
-    '(:visibility-notify :resize-request :structure-notify :key-press)))
+    '( #| :visibility-notify :resize-request |# :structure-notify :key-press
+      :key-release :destroy-notify)))
 #+clx
 (defconstant group-interesting-xevents-mask
   (apply #'xlib:make-event-mask group-interesting-xevents))
@@ -76,7 +78,7 @@
   (defconstant child-interesting-xevents
     '(:key-press :button-press :button-release :structure-notify :exposure
 		 :enter-window :leave-window :focus-in
-		 :visibility-notify :resize-request)))
+		 #| :visibility-notify :resize-request |# :destroy-notify)))
 #+clx
 (defconstant child-interesting-xevents-mask
   (apply #'xlib:make-event-mask child-interesting-xevents))
@@ -86,7 +88,7 @@
   (makunbound 'random-typeout-xevents) ; FIX for + :resize-request
   (defconstant random-typeout-xevents
     '(:key-press :button-press :button-release :enter-window :leave-window
-		 :exposure :visibility-notify :resize-request)))
+		 :exposure #| :visibility-notify :resize-request |# :destroy-notify)))
 #+clx
 (defconstant random-typeout-xevents-mask
   (apply #'xlib:make-event-mask random-typeout-xevents))
@@ -362,8 +364,9 @@
 		      ,@body)
 	       #-clx ()
 	       ,@body)))
-     (let ((device (device-hunk-device (window-hunk (current-window)))))
-       (funcall (device-exit device) device))))
+     (if *editor-has-been-entered*
+	 (let ((device (device-hunk-device (window-hunk (current-window)))))
+	   (funcall (device-exit device) device)))))
 
 (defun standard-device-init ()
   (setup-input))
@@ -390,9 +393,9 @@
 	     (setf (xlib:window-priority xparent) :below))))
   (xlib:display-force-output display))
 
-(defvar *editor-window-mngt* nil ;#'default-editor-window-mngt
+(defvar *editor-window-mngt* () ;#'default-editor-window-mngt
   "This function is called by EDITOR-WINDOW, passing its arguments.  This may
-   be nil.")
+   be ().")
 
 (defun editor-window (display on)
   "Calls *editor-window-mngt* on the argument $on when *current-window* is
@@ -505,29 +508,34 @@ auto-saving files, reminding the user, etc.
 ;;; off *editor-input* or cancels itself.
 ;;;
 (defun invoke-scheduled-events ()
-  (or *invoking-event*
-      (let ((time (get-internal-real-time)))
-	(loop
-	  (or *time-queue* (return))
-	  (let* ((event (car *time-queue*))
-		 (event-time (tq-event-time event)))
-	    (cond ((>= time event-time)
-		   (let ((*suicide*))
+  (if *invoking-event* (return-from invoke-scheduled-events 0))
+  (let ((time (get-internal-real-time))
+	(count 0))
+    (loop
+      (or *time-queue* (return count))
+      (let* ((event (car *time-queue*))
+	     (event-time (tq-event-time event)))
+	(cond ((>= time event-time)
+	       (incf count)
+	       (let ((*suicide*))
+		 (unwind-protect
 		     (let ((*invoking-event* event))
 		       (funcall (tq-event-function event)
-				(round (- time (tq-event-last-time event))
+				(round (- time
+					  (tq-event-last-time event))
 				       internal-time-units-per-second)))
-		     (block-interrupts
-		      (pop *time-queue*)
-		      (or *suicide*
-			  (let ((interval (tq-event-interval event)))
-			    (when interval
-			      (setf (tq-event-time event) (+ time interval))
-			      (setf (tq-event-last-time event) time)
-			      (queue-time-event event)))))))
-		  (t (return))))))))
+		   (block-interrupts
+		    (pop *time-queue*)
+		    (or *suicide*
+			(let ((interval (tq-event-interval event)))
+			  (when interval
+			    (setf (tq-event-time event)
+				  (+ time interval))
+			    (setf (tq-event-last-time event) time)
+			    (queue-time-event event))))))))
+	      (t (return count)))))))
 
-(defun schedule-event (time function &optional (repeat t) (absolute nil))
+(defun schedule-event (time function &optional (repeat t) (absolute ()))
   "Schedule $function to be called at some time.
 
    Return the event, or () if time is absolute and in the past.
@@ -567,7 +575,9 @@ auto-saving files, reminding the user, etc.
 				   (if repeat itime)
 				   function))))
     (queue-time-event event)
-    (invoke-hook ed::schedule-event-hook event)
+    ;; FIX Bound check is for loading editor into core first time.
+    (if (editor-bound-p 'ed::schedule-event-hook)
+	(invoke-hook ed::schedule-event-hook event))
     event))
 
 (defun remove-scheduled-event (event)

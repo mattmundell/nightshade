@@ -47,20 +47,28 @@
     (decf *last-compile-buffers-len*)
     (pop *last-compile-buffers*)))
 
+;;; Internal
+;;;
+;;; Get the root directory of a referenced file.  That is, get the
+;;; directory to which the file is relative.
+;;;
 (defun get-root (name)
   (if (editor-bound-p 'compile-root :buffer (current-buffer))
+      ;; FIX should be merged with pn?
       (value compile-root)
       (let* ((dir (prompt-for-file
 		   :prompt "Root of referenced file: "
 		   :help "Enter the root directory of the referenced file."
 		   :default (current-directory)))
 	     (pn (merge-pathnames (file-namestring name) dir)))
-	(when (probe-file pn)
-	  (defevar "Compile Root"
-	    "Root of references in compile buffer."
-	    :buffer (current-buffer)
-	    :value pn)
-	  pn))))
+	(if (probe-file pn)
+	    (progn
+	      (defevar "Compile Root"
+		"Root of references in compile buffer."
+		:buffer (current-buffer)
+		:value pn)
+	      pn)
+	    (get-root (string-trim '(#\space #\tab) name))))))
 
 (defun parse-reference-line (line buffer)
   "Return the name and line number of the reference on Line, if there is
@@ -78,9 +86,22 @@
 	      (if (numberp offset)
 		  (if (probe-file name)
 		      (values name offset)
-		      (values (get-root name) offset))
+		      (let* ((trim (string-trim '(#\space #\tab)
+					       (subseq chars 0 pos1)))
+			     (name (merge-pathnames
+				    trim
+				    (directory-namestring
+				     (buffer-pathname buffer)))))
+			(if (probe-file name)
+			    (values name offset)
+			    (values (get-root name) offset))))
 		  (if (or (probe-file field)
-			  ;; FIX this needs checking
+			  (setq field
+				(let ((trim (string-trim '(#\space #\tab)
+							 field)))
+				  (if (probe-file trim)
+				      trim)))
+			  ;; FIX check this
 			  (setq field (get-root name)))
 		      (let ((pos1 (position #\: chars :start (1+ pos2))))
 			(when pos1
@@ -184,27 +205,27 @@
 		       (t (setq p 1)))))
     (let ((point (current-point))
 	  (buffer (current-buffer)))
-      (do* ((line
-	     (if (value compile-referenced)
-		 (if forward
-		     (line-next (mark-line point))
-		     (line-previous (mark-line point)))
-		 (progn
-		   (setv compile-referenced t)
-		   (mark-line (if forward
-				  (buffer-start-mark buffer)
-				  (buffer-end-mark buffer)))))
-	     (if forward
-		 (line-next line)
-		 (line-previous line)))
-	    (buffer-edge-line (mark-line
-			       (if forward
-				   (buffer-end-mark buffer)
-				   (buffer-start-mark buffer)))))
-	   ((equal line buffer-edge-line)
-	    (if forward
-		(message "On last reference or past any references.")
-		(message "On first reference or before any references.")))
+      (until ((line
+	       (if (value compile-referenced)
+		   (if forward
+		       (line-next (mark-line point))
+		       (line-previous (mark-line point)))
+		   (progn
+		     (setv compile-referenced t)
+		     (mark-line (if forward
+				    (buffer-start-mark buffer)
+				    (buffer-end-mark buffer)))))
+	       (if forward
+		   (line-next line)
+		   (line-previous line)))
+	      (buffer-edge-line (mark-line
+				 (if forward
+				     (buffer-end-mark buffer)
+				     (buffer-start-mark buffer)))))
+	     ((if line (equal line buffer-edge-line) t)
+	      (if forward
+		  (message "On last reference or past any references.")
+		  (message "On first reference or before any references.")))
 	(multiple-value-bind (name offset)
 			     (parse-reference-line line buffer)
 	  (declare (ignore offset))
@@ -239,11 +260,38 @@
 ;;;; Highlighting.
 
 (defun highlight-compile-line (line chi-info)
+  ;; /usr/include/stdint.h:37: error: expected ...
+  (when (plusp (line-length line))
+    (let* ((string (line-string line))
+	   (line-length (length string))
+	   (one (position #\: string)))
+      (when (and one (< one (- line-length 1)))
+	(let ((two (position #\: string :start (1+ one))))
+	  (when (and two
+		     (< two (- line-length 1))
+		     (parse-integer string
+				    :start (1+ one)
+				    :end two
+				    :junk-allowed ()
+				    :errorp ()))
+	    (chi-mark line 0 *special-form-font* :special-form
+		      chi-info)
+	    (chi-mark line (1+ one) *variable-font* :variable chi-info)
+	    (chi-mark line (1+ two) *original-font* :window-foreground
+		      chi-info)))))))
+
+#| Old mark version.
+(defun highlight-compile-line (line chi-info)
   (when (plusp (line-length line))
     (let ((mark (mark line 0)))
       (when (find-character mark #\:)
 	(let ((mark2 (copy-mark mark)))
-	  (when (and (mark-after mark2) (find-character mark2 #\:))
+	  (when (and (mark-after mark2)
+		     (find-character mark2 #\:)
+		     (parse-integer (region-to-string (region mark
+							      mark2))
+				    :junk-allowed t
+				    :errorp ()))
 	    (chi-mark line 0 *special-form-font* :special-form
 		      chi-info)
 	    (mark-after mark)
@@ -252,6 +300,7 @@
 	    (mark-after mark2)
 	    (chi-mark line (mark-charpos mark2) *original-font*
 		      :window-foreground chi-info)))))))
+|#
 
 (defun highlight-compile-buffer (buffer)
   (highlight-chi-buffer buffer highlight-compile-line))

@@ -392,6 +392,9 @@ directories in the directory.
 
 FIX This is still very rough.
 
+[ read
+]
+
 Lisp is a language for defining computer programs.  There are many dialects
 and variations of Lisp.  Nightshade Lisp is a modified subset of Common
 Lisp.
@@ -855,7 +858,7 @@ Evaluate a call to `f',
 
     (f)
 
-The call returns 3.  The call is also list.
+The call returns 3.  The call is also a list.
 
 Define another function `g', which takes an argument, uses the return from
 `f' and has a documentation string.

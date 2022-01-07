@@ -755,7 +755,11 @@
 			  url)
 		      (prompt-for-string
 		       :prompt "URL: "
-		       :default (value www-home)))))
+		       :default (if (editor-bound-p
+				     'www-url
+				     :buffer (current-buffer))
+				    (value www-url)
+				    (value www-home))))))
     (let* ((name (or buffer-name "WWW"))
 	   (new (if p
 		    (make-unique-buffer name
@@ -795,6 +799,12 @@
     (www-refresh (current-buffer) location)
     (update-modeline-field (current-buffer) (current-window)
 			   (modeline-field :www-title))))
+
+(defcommand "WWW Externally" ()
+  "Browse a prompted URL in an external program."
+  (view-url (prompt-for-string
+	     :prompt "URL: "
+	     :default (value www-home))))
 
 (defcommand "Forward WWW Page" ()
   "Show the next page from the history of pages."
@@ -860,8 +870,23 @@
 	   (buffer-end point)))))))
 
 (defcommand "WWW Resource from Point in New Buffer" ()
-  "Follow the URL at Point."
+  "Open the URL at Point in a new buffer."
   (www-resource-from-point-command t))
+
+(defcommand "WWW Resource from Point Externally" ()
+  "If there is an URL at point then open the URL in an external program,
+   otherwise open the current URL in an external program."
+  (multiple-value-bind (url type)
+		       (www-url-at-mark (current-point))
+    (if url
+	(case type
+	  (:image
+	   (view url))
+	  (:http
+	   (view-url url))
+	  (:mailto
+	   (view url)))
+	(view-url (value www-url)))))
 
 (defcommand "WWW Refresh" ()
   "Refresh WWW page in current buffer."
@@ -883,10 +908,13 @@
 	     *kill-ring*))
 
 (defcommand "Switch to WWW" ()
-  "Switch to WWW buffer if there is one, else prompt for an URL."
+  "Switch to WWW buffer if there is one, else WWW a prompted URL.  If the
+   current buffer go to a prompted URL in the current buffer."
   (let ((buffer (getstring "WWW" *buffer-names*)))
     (if buffer
-	(change-to-buffer buffer)
+	(if (eq buffer (current-buffer))
+	    (www-command)
+	    (change-to-buffer buffer))
 	(www-command))))
 
 (defcommand "View URL" ()
@@ -902,7 +930,7 @@
   (let ((url (concatenate 'simple-string
 			 "http://en.wikipedia.org/wiki/"
 			 (prompt-for-string
-			  :default (word-at-point)
+			  :default (or (word-at-point) "")
 			  :trim t
 			  :prompt (if p
 				      "External encyclopedia: "
@@ -982,6 +1010,15 @@
   "Find the current link."
   (let ((link (line-link (current-line))))
     (if link (find-command () link))))
+
+(defcommand "Links Find Next Window" ()
+  "Find the current link."
+  (let ((link (line-link (current-line))))
+    (when link
+      (if (eq (next-window (current-window)) (current-window))
+	  (split-window-command)
+	  (next-window-command))
+      (find-command () link))))
 
 (defcommand "Links Edit" ()
   "Edit the buffer."

@@ -208,6 +208,8 @@
 		  (stash-a-mark end 0 ())))))))
   (setf *active-region-font-marks* (nreverse *active-region-font-marks*)))
 
+(defvar *active-chi-mark-info* ())
+
 (defun kill-active-region-font-marks ()
   (dolist (mark *active-region-font-marks*)
     (delete-font-mark mark))
@@ -505,8 +507,6 @@
 		      (delete-font-mark mark)))
 		(setf (chi-info-font-marks chi-info) ()))))))))
 
-(defvar *active-chi-mark-info* ())
-
 ;;; note-and-free-chi-marks  --  Internal.
 ;;;
 ;;; Note and free any chi-marks in $region.
@@ -715,11 +715,11 @@
 		   (if (line-same-p previous) (return))
 		   (setq previous (line-previous previous)))
 		 (if previous
-		   (let ((chi-info (getf (line-plist previous) 'chi-info)))
-		     (if chi-info
-			 (setq *context* (chi-info-end-context chi-info)))
-		     (setq line (line-next previous)))
-		   (setq line (mark-line (buffer-start-mark buffer)))))
+		     (let ((chi-info (getf (line-plist previous) 'chi-info)))
+		       (if chi-info
+			   (setq *context* (chi-info-end-context chi-info)))
+		       (setq line (line-next previous)))
+		     (setq line (mark-line (buffer-start-mark buffer)))))
 	       ;; Call the highlighter on each line.
 	       (catch 'highlight-exit
 		 (loop while (and line (line<= line end)) do

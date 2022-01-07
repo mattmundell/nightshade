@@ -66,7 +66,7 @@
     check-region-active read-buffer-file fill-region-by-paragraphs
     forward-up-list define-file-option buffer-mark region-active-p
     inside-defun-p activate-region start-defun-p delete-buffer-if-possible
-    get-current-eval-server goto-page write-buffer-file save-for-undo
+    get-current-eval-server go-to-page write-buffer-file save-for-undo
     eval-form-in-server eval-form-in-server-1 indent-region in-lisp
     pathname-to-buffer-name page-offset defun-region
     delete-definition-dir-translation delete-horizontal-space

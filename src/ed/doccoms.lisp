@@ -32,7 +32,7 @@ key by typing a key.
 
 (defcommand "Welcome" ()
   "Echo the welcome message."
-  (info-command () "Welcome"))
+  (doc-command () "Welcome"))
 
 
 ;;;; Help.
@@ -51,7 +51,7 @@ key by typing a key.
 
 (defcommand "Tutorial" ()
   "Switch to the tutorial documentation node."
-  (info-command)
+  (doc-command)
   (show-node "Editor Tutorial"))
 
 ;; FIX these should just be bindings
@@ -108,7 +108,7 @@ key by typing a key.
     (#\c "describe a Command, given its name."
      (describe-command-command p))
     (#\d "switch to the Documentation system."
-     (info-command p))
+     (doc-command p))
 ;   (#\d "generic Describe, any editor thing (e.g. variable, key, attribute)."
 ;    (generic-describe-command p))
     (#\e "describe an Editor variable and show its values."
@@ -119,7 +119,7 @@ key by typing a key.
      (help "Choose a form of help by typing one of:")
      (reprompt))
     (#\i "switch to the GNU Info directory buffer."
-     (ginfo-command p))
+     (info-command p))
 ;   (#\j )
     (#\k "describe the command bound to a Character."
      (describe-key-command p))
@@ -772,33 +772,32 @@ key by typing a key.
 This section contains assorted helpful information which may be useful in
 staying out of trouble or getting out of trouble.
 
-
   - It is possible to get some sort of help nearly everywhere by typing
-     Home or C-_.
+    Home or C-_.
 
   - Various commands take over the keyboard and insist that you type the key-events
-     that they want as input.  If you get in such a situation and want to get out,
-     you can usually do so by typing C-g some small number of times.  If this
-     fails you can try typing C-x C-z to exit the editor and then "(ed)"
-     to re-enter it.
+    that they want as input.  If you get in such a situation and want to get out,
+    you can usually do so by typing C-g some small number of times.  If this
+    fails you can try typing C-x C-z to exit the editor and then "(ed)"
+    to re-enter it.
 
   - Before you quit, make sure you have saved all your changes.  C-u C-x C-b
-     will display a list of all modified buffers.  If you exit using C-x
-     C-z, then the editor will save all modified buffers with associated files.
+    will display a list of all modified buffers.  If you exit using C-x
+    C-z, then the editor will save all modified buffers with associated files.
 
   - If you lose changes to a file due to a crash or accidental failure to save,
-     look for backup ("file.BAK") or checkpoint ("file.CKP") files
-     in the same directory where the file was.
+    look for backup ("file.BAK") or checkpoint ("file.CKP") files
+    in the same directory where the file was.
 
   - If the screen changes unexpectedly, you may have accidentally typed an
-     incorrect command.  Use Home l to see what it was.  If you are
-     not familiar with the command, use Home c to see what it is so that
-     you know what damage has been done.  Many interesting commands can be found
-     in this fashion.
+    incorrect command.  Use Home l to see what it was.  If you are
+    not familiar with the command, use Home c to see what it is so that
+    you know what damage has been done.  Many interesting commands can be found
+    in this fashion.
 
   - If you accidentally type a "killing" command such as C-w, you can
-     get the lost text back using C-y.  The `Undo' command is also
-     useful for recovering from this sort of problem.
+    get the lost text back using C-y.  The `Undo' command is also
+    useful for recovering from this sort of problem.
 
 {evariable:Region Query Size}
 {command:Undo}
@@ -809,25 +808,28 @@ staying out of trouble or getting out of trouble.
 
 Welcome to the Nightshade text editor.
 
+This is a computer program for editing plain text and plain text files.
+This program supports many other tasks, like emailing, file management and
+programming.
+
 Some useful commands:
+
+    control-h              Help
+
+       ("control-h" means press "h" while holding down the "control" key.)
 
     control-x control-z    Save All Files and Exit
 
-        ?  "control-x control-z" means press "x" while holding down
-           "control", then press "z" while holding down "control".
+    control-x control-f    Find File      (open a file for editing)
 
-    control-h              Help
-    control-h t            Tutorial
-    control-h d            Info
-
-    control-x control-f    Find File  (open a file)
+                           Menu
 
 This buffer is part of the documentation system, so type
 
-    q  to  drop the buffer, exiting this message,
+    q  to  exit this message,
     d  to  go to the [documentation] contents,
-    i  to  summon the index prompt, and
-    e  to  edit this text.
+    i  to  summon the documentation index prompt, and
+    e  to  edit the source of this text.
 ]#
 #|
 

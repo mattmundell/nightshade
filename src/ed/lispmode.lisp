@@ -699,15 +699,15 @@ attribute, as described in [System Defined Character Attributes].
 	   ,(if forwardp
 		`(line-start ,mark line)
 		`(line-end ,mark line))
-	   (return (goto-correct-paren-char ,mark unbal-paren ,forwardp)))
+	   (return (go-to-correct-paren-char ,mark unbal-paren ,forwardp)))
 
 	 ,(if forwardp
 	      `(incf ,paren-count (lisp-info-net-open-parens line-info))
 	      `(decf ,paren-count (lisp-info-net-close-parens line-info)))))))
 
-(defmacro goto-correct-paren-char (mark paren-count forwardp)
-  "Expand to a form that will leave MARK on the correct balancing paren matching
-   however many are indicated by COUNT."
+(defmacro go-to-correct-paren-char (mark paren-count forwardp)
+  "Expand to a form that will leave $mark on the correct balancing paren
+   matching however many are indicated by $count."
   `(with-mark ((m ,mark))
      (let ((count ,paren-count))
        (loop
@@ -951,7 +951,6 @@ attribute, as described in [System Defined Character Attributes].
 (defindent "do-strings" 1)
 (defindent "elet" 1)
 (defindent "frob" 1) ; cover silly FLET and MACROLET names for Rob and Bill.
-(defindent "in-directory" 1)
 (defindent "save-for-undo" 1)
 (defindent "with-headers-mark" 1)
 (defindent "with-input-from-region" 1)
@@ -1002,6 +1001,7 @@ attribute, as described in [System Defined Character Attributes].
 (defindent "fi*" 1)
 (defindent "flet" 1)
 (defindent "from-file" 1)
+(defindent "in-directory" 1)
 (defindent "iterate" 1)
 (defindent "labels" 1)
 (defindent "lambda" 1)
@@ -1016,6 +1016,7 @@ attribute, as described in [System Defined Character Attributes].
 (defindent "multiple-value-call" 1)
 (defindent "multiple-value-prog1" 1)
 (defindent "multiple-value-setq" 1)
+(defindent "prog" 1)
 (defindent "prog1" 1)
 (defindent "progv" 2)
 (defindent "progn" 0)
@@ -1029,6 +1030,7 @@ attribute, as described in [System Defined Character Attributes].
 (defindent "while" 2)
 (defindent "while*" 2)
 (defindent "with-input-from-string" 1)
+;(defindent "with-literal-pathnames" 0) FIX
 (defindent "with-open-file" 1)
 (defindent "with-temp-file" 1)
 (defindent "with-open-stream" 1)
@@ -1110,7 +1112,7 @@ attribute, as described in [System Defined Character Attributes].
 (defindent "event-case" 1)
 (defindent "xlib:event-case" 1)
 
-;;; CLOS forms.
+;;; CLOS forms.  FIX
 ;;;
 (defindent "with-slots" 1)
 (defindent "with-slots*" 2) ; obsolete
@@ -1378,7 +1380,7 @@ attribute, as described in [System Defined Character Attributes].
 
 (defun insert-lisp-indentation (m)
   (delete-horizontal-space m)
-  (funcall (value tab-indenter) m (lisp-indentation m)))
+  (indent m (lisp-indentation m)))
 
 
 #[ Form Manipulation
@@ -1841,8 +1843,7 @@ rules:
 	   (undo-region (copy-region string-region))
 	   (hack (make-empty-region)))
       ;; Generate prefix.
-      (funcall (value tab-indenter)
-	       (region-end hack) (1+ (mark-column mark)))
+      (indent (region-end hack) (1+ (mark-column mark)))
       ;; Skip opening double quote and fill string starting on its own line.
       (mark-after mark)
       (insert-character mark #\newline)

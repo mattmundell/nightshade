@@ -99,8 +99,10 @@ To resume a saved file, type:
 				     ;; *command-line-utility-name*.
 				     (car lisp::lisp-command-line-list))
 				    "../lib/nightshade/")))
+#|
 	      (format t "loc: ~A~%" loc)
 	      (format t "probe-file loc: ~A~%" (probe-file loc))
+|#
 	      ;; If loc is relative the current dir must be the same as it
 	      ;; was when the program started.
 	      (if (probe-file loc) (list (truename loc))))
@@ -176,7 +178,7 @@ To resume a saved file, type:
   (labels
       ((%restart-lisp ()
 	 (let (*script-mode*)
-	   (with-simple-restart (abort "Exit Nightshade.")
+	   (with-simple-restart (exit "Exit Nightshade.")
 	     (catch 'top-level-catcher
 	       (reinit)
 	       (environment-init)
@@ -219,7 +221,9 @@ To resume a saved file, type:
 		     *batch-mode*
 		     (when (stringp (car *command-line-words*))
 		       (setq *script-mode* t)))
-		 (or *script-mode* (if print-herald (print-herald)))))
+		 (or *script-mode*
+		     *batch-mode*
+		     (if print-herald (print-herald)))))
 	     (if *editor-lisp-p*
 		 (restart-case
 		     (catch 'top-level-catcher
@@ -230,7 +234,7 @@ To resume a saved file, type:
 		   (top () :report "Exit to the Top-Level.")))
 	     (or *script-mode* *batch-mode* (funcall init-function)))
 	   (when (or *script-mode* *batch-mode*)
-	     (if *script-mode* (ext::quiet-switch-demon :dummy))
+	     (ext::quiet-switch-demon :dummy)
 	     (handler-bind
 		 ((error #'(lambda (condition)
 			     (format *error-output*
@@ -241,7 +245,9 @@ To resume a saved file, type:
 			     (throw '%end-of-the-world 1))))
 	       (catch 'top-level-catcher
 		 ;; Load any files that were given as arguments.
-		 (loop for word in ext:*command-line-words* while (stringp word) do
+		 (while* ((words ext:*command-line-words* (cdr words))
+			  (word (car words) (car words)))
+			 ((and word (stringp word)))
 		   (load word :verbose () :restart-p ()))
 		 (if *batch-mode* (funcall init-function))))))
 	 0)

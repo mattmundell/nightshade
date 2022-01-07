@@ -154,7 +154,6 @@
 ;;; people from being screwed by interrupting when the buffer structure
 ;;; is in an inconsistent state.
 ;;;
-(defvar *changed-buffers* nil)
 (defmacro modifying-buffer (buffer &body forms)
   "Does groovy stuff for modifying buffers." ; FIX
   `(progn

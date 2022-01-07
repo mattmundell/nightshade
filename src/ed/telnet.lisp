@@ -2,6 +2,7 @@
 
 (in-package "ED")
 
+;; FIX gensym this symbol in case input hook uses a *insertp*
 (declaim (special *insertp*))
 
 (defvar *telnet-mess* ())
@@ -71,7 +72,7 @@
   (declare (ignore buffer))
   (apply #'internet:inet-para-command stream command command-args))
 
-(defun telnet-command (buffer stream command &rest command-args)
+(defun telnet-normal-command (buffer stream command &rest command-args)
   (declare (ignore buffer))
   (apply #'internet:inet-command stream command command-args))
 
@@ -104,8 +105,12 @@
     (defevar "Telnet Port" ; FIX s/b in stream
       "Inet port."
       :buffer buffer)
+    (defevar "Telnet Expect Response"
+      "True if a response follows each command."
+      :value t
+      :buffer buffer)
     (defevar "Telnet Prompt"
-      "Prompt."
+      "The prompt string."
       :value (value telnet-prompt)
       :buffer buffer)
     (defevar "Telnet Account"
@@ -206,20 +211,20 @@
 (defun telnet-insert-array (mark array stream filters)
   (let ((count (length array)))
     (when (plusp count)
-      (let* ((line (map
-		    'string #'code-char
-		    (subseq
-		     array 0
-		     (if (and (> count 1)
-			      (eq (aref array (- count 1))
-				  (char-code #\newline))
-			      (eq (aref array (- count 2))
-				  (char-code #\return)))
-			 (progn
-			   (setf (aref array (- count 2))
+      (let* ((line
+	      (map 'string #'code-char
+		   (subseq
+		    array 0
+		    (if (and (> count 1)
+			     (eq (aref array (- count 1))
 				 (char-code #\newline))
-			   (- count 1))
-			 count)))))
+			     (eq (aref array (- count 2))
+				 (char-code #\return)))
+			(progn
+			  (setf (aref array (- count 2))
+				(char-code #\newline))
+			  (- count 1))
+			count)))))
 	(dolist (function filters
 		 (when *insertp*
 		   (insert-string mark line)))
@@ -346,9 +351,16 @@ To specify the port, follow the host name with space and a port number."))
 	 (point (current-point))
 	 (command (region-to-string input-region)))
     (insert-character point #\newline)
-    (move-mark (value server-mark) point)
-    (insert-string point (value telnet-prompt))
-    (setf (mark-charpos (value server-mark)) 0)
+    (if (value telnet-expect-response)
+	(progn
+	  (insert-character point #\newline)
+	  (move-mark (value server-mark) point)
+	  (insert-string point (value telnet-prompt))
+	  (line-offset (value server-mark) -1 0))
+	(progn
+	  (move-mark (value server-mark) point)
+	  (insert-string point (value telnet-prompt))
+	  (line-start (value server-mark))))
     ;; Move "Buffer Input Mark" to end of buffer.
     (move-mark (region-start input-region) (region-end input-region))
     (or (open-stream-p stream)
@@ -369,8 +381,7 @@ To specify the port, follow the host name with space and a port number."))
 	  (window (current-window)))
       (setf (buffer-modified buffer) ())
       ;; The telnet-commander may change current buffer and window.
-      (if (plusp (length command))
-	  (funcall (value telnet-commander) buffer stream command))
+      (funcall (value telnet-commander) buffer stream command)
       (update-modeline-field buffer window
 			     (modeline-field :telnet-status)))
     (or (open-stream-p stream)
@@ -528,7 +539,7 @@ To specify the port, follow the host name with space and a port number."))
       (internet:fill-from-netrc account)
       (change-to-buffer buf)
       (setv telnet-connector #'internet:smtp-init)
-      (setv telnet-commander #'telnet-command)
+      (setv telnet-commander #'telnet-normal-command)
       (multiple-value-bind
 	  (stream response)
 	  (internet:smtp-init account port (value telnet-timeout))
@@ -569,10 +580,10 @@ The `IRC' command enters the Internet Relay Chat (IRC) client.
   "Directory in which logs are stored."
   :value "home:IRC/")
 
-(defun irc-para-command (stream account command)
+(defun irc-para-command (stream account command line)
   (when (open-stream-p stream)
-    (log-irc :out account command)
-    (internet::inet-para-command stream command)))
+    (log-irc :out account line command)
+    (internet::inet-para-command stream line)))
 
 (defun irc-name (account)
   (safe-subseq (or (internet::inet-account-user account)
@@ -614,7 +625,7 @@ The `IRC' command enters the Internet Relay Chat (IRC) client.
 	    (dolist (channel (cadr assoc))
 	      (if (plusp (length channel))
 		  (irc-para-command
-		   stream account
+		   stream account :JOIN
 		   (concatenate 'simple-string
 				"JOIN "
 				(if (char= (char channel 0) #\#)
@@ -711,6 +722,7 @@ The `IRC' command enters the Internet Relay Chat (IRC) client.
 	  (variable-value 'telnet-stream :buffer parent))
     (setf (variable-value 'telnet-connector :buffer buffer) #'init-irc)
     (setf (variable-value 'telnet-commander :buffer buffer) #'send-irc)
+    (setf (variable-value 'telnet-expect-response :buffer buffer) ())
     (setf (variable-value 'telnet-prompt :buffer buffer)
 	  (format () "~A ~15<~A~>> "
 		  *dummy-irc-now*
@@ -768,7 +780,7 @@ The `IRC' command enters the Internet Relay Chat (IRC) client.
 	 (multiple-value-bind (sec min hr day month year)
 			      (get-decoded-time)
 	   (declare (ignore sec min hr))
-	   (let* ((name (format () "~A/~A/~A/~A"
+	   (let* ((name (format () "~A/~A/~2,'0D/~2,'0D"
 				(internet:inet-account-server account)
 				year month day))
 		  (pathname (merge-pathnames name (value irc-dir))))
@@ -832,7 +844,7 @@ The `IRC' command enters the Internet Relay Chat (IRC) client.
 	(cond ((and account
 		    (eq command :ping))
 	       (irc-para-command
-		stream account
+		stream account :PONG
 		(format () "PONG ~A :~A"
 			(subseq line 6)
 			(irc-name account))))
@@ -971,7 +983,7 @@ The `IRC' command enters the Internet Relay Chat (IRC) client.
 					  (+ (length (car split))
 					     2))))
 			   (irc-para-command
-			    stream account
+			    stream account :PRIVMSG
 			    (format ()
 				    "PRIVMSG ~A :~A"
 				    (car split) msg))
@@ -979,18 +991,20 @@ The `IRC' command enters the Internet Relay Chat (IRC) client.
 			     (insert-string mark (value telnet-prompt))
 			     (insert-string mark msg)
 			     (insert-character mark #\newline)))))))))
-	    (t (irc-para-command stream account
-				 (concatenate 'simple-string
-					      name " " rest)))))
+	    (t (irc-para-command
+		stream account
+		(intern (string-upcase name) *keyword-package*)
+		(concatenate 'simple-string
+			     name " " rest)))))
 	(let ((account (variable-value 'telnet-account :buffer buffer)))
 	  (if (variable-value 'irc-channel :buffer buffer)
 	      (irc-para-command
-	       stream account
+	       stream account :PRIVMSG
 	       (format ()
 		       "PRIVMSG ~A :~A"
 		       (variable-value 'irc-channel :buffer buffer)
 		       command))
-	      (irc-para-command stream account command))))))
+	      (irc-para-command stream account () command))))))
 
 (defun highlight-irc-line (line chi-info)
   (let* ((line-string (line-string line))
@@ -1032,7 +1046,7 @@ The `IRC' command enters the Internet Relay Chat (IRC) client.
 	      ;;; Channel buffer.
 	      (ignore-errors
 	       (irc-para-command
-		stream account
+		stream account :PART
 		(format () "PART ~A" channel))))
 	  (setf (variable-value 'irc-channels :buffer parent-buffer)
 		(delq buffer
@@ -1044,7 +1058,7 @@ The `IRC' command enters the Internet Relay Chat (IRC) client.
 		   (variable-value 'irc-channels :buffer buffer))
 	    (kill-buffer-command () (buffer-name buffer)))
 	  (ignore-errors
-	   (irc-para-command stream account "QUIT")))))
+	   (irc-para-command stream account :QUIT "QUIT")))))
   (cleanup-telnet-buffer buffer)
   (setq *irc-buffers* (delq buffer *irc-buffers*))
   (delete-string (parse-unique-name (buffer-name buffer))
@@ -1072,12 +1086,15 @@ The `IRC' command enters the Internet Relay Chat (IRC) client.
       ;; Move "Buffer Input Mark" to end of buffer.
       (let ((input-region (get-interactive-input)))
 	(move-mark (region-start input-region) (region-end input-region)))
-      (setv telnet-connector #'init-irc)
-      (setv telnet-commander #'send-irc)
+      (defevar "Telnet Expect Response"
+	"Channel or personal conversation in buffer."
+	:buffer buffer)
       (setv telnet-prompt
 	    (format () "~A ~15<~A~>> "
 		    *dummy-irc-now*
 		    (irc-name account)))
+      (setv telnet-connector #'init-irc)
+      (setv telnet-commander #'send-irc)
       (setv telnet-account account)
       (setv telnet-port port)
       (setv telnet-input-hook (list #'handle-irc-input))

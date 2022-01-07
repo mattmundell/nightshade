@@ -5,7 +5,9 @@
 (in-package "EDI")
 
 (export '(current-window window-buffer modeline-field-width
-	  modeline-field-function make-modeline-field update-modeline-fields
+	  modeline-field-function modeline-field-primary-click
+	  modeline-field-at
+	  make-modeline-field update-modeline-fields
 	  update-modeline-field modeline-field-name modeline-field
 	  update-modeline-column-field update-modeline-position-field
 	  update-modeline-buffer-state-field
@@ -143,16 +145,24 @@ user error.
   (add-hook ed::window-buffer-hook 'queue-window-change)
 
   ;; FIX rename :normal/standard (original sounds like tty original pair)
-  (defcolor :original     '(0.0 0.0 0.0) "Normal text.")
-  (defcolor :comment      '(1.0 0.0 0.0) "Comments.")
-  (defcolor :string       '(0.0 0.7 0.0) "Strings.")
-  (defcolor :variable     '(1.0 1.0 0.0) "Variable names.")
-  (defcolor :function     '(0.0 0.0 1.0) "Function names.")
+  (defcolor :original     '(1.0 1.0 1.0)
+    "Normal text.")
+  (defcolor :comment      '(1.0 0.0 0.0)
+    "Comments and comment-like text (for example, annotations).")
+  (defcolor :string       '(0.0 0.7 0.0)
+    "Strings.")
+  (defcolor :variable     '(1.0 0.8 0.0)
+    "Variable names.  Headings.")
+  (defcolor :function     '(0.0 0.0 1.0)
+    "Function names.")
   (defcolor :preprocessor '(1.0 0.0 1.0)
-    "Preprocessor and reader macro directives.")
-  (defcolor :special-form '(0.0 1.0 1.0) "Special forms.")
-  ;; FIX red for limited tty, should be pink (maybe drop :variable?)
-  (defcolor :error        '(1.0 0.0 0.0) "Errors.")
+    "Preprocessor and reader macro directives.  Prompts.  Dired links.")
+  (defcolor :special-form '(0.0 1.0 1.0)
+    "Special forms.  Links.  Dired dirs.")
+  ;; FIX red for limited tty, should be pink
+  ;;     (maybe drop :variable? how important is an error color?)
+  (defcolor :error        '(1.0 0.0 0.0)
+    "Errors.")
   ;(defcolor :error        '(1.0 0.5 1.0) "Errors.")
 
   (let ((device (device-hunk-device (window-hunk (current-window)))))
@@ -215,13 +225,16 @@ recursive edits, whether new mail has arrived, etc.
 
 (defvar *modeline-field-names* (make-hash-table))
 
-(defun make-modeline-field (&key name width function (replace nil))
+(defun make-modeline-field (&key name width function replace
+				 primary-click)
   "Return a modeline-field with $name, $width, and $function.
 
    If width is () the field is of variable width.
 
    $function must take a buffer and window as arguments and return a
    simple-string containing only standard characters.
+
+   $orimary-click must take a buffer and window as arguments.
 
    If $name already names a modeline-field, then signal an error."
   (if width
@@ -234,7 +247,7 @@ recursive edits, whether new mail has arrived, etc.
 	    (error "Modeline field ~S already exists."
 		   (gethash name *modeline-field-names*)))))
   (setf (gethash name *modeline-field-names*)
-	(%make-modeline-field name function width)))
+	(%make-modeline-field name function width primary-click)))
 
 (defun modeline-field (name)
   "Return the modeline-field named $name if such a field exists, else
@@ -326,10 +339,10 @@ recursive edits, whether new mail has arrived, etc.
     (declare (simple-string ml-buffer))
     (when ml-buffer
       (let* ((ml-buffer-len
-	      (do ((finfos (buffer-%modeline-fields buffer) (cdr finfos))
-		   (start 0 (blt-modeline-field-buffer
-			     ml-buffer (car finfos) buffer window start)))
-		  ((null finfos) start)))
+	      (while ((finfos (buffer-%modeline-fields buffer) (cdr finfos))
+		      (start 0 (blt-modeline-field-buffer
+				ml-buffer (car finfos) buffer window start)))
+		     (finfos start)))
 	     (dis-line (window-modeline-dis-line window))
 	     (len (min (window-width window) ml-buffer-len)))
 	(replace (the simple-string (dis-line-chars dis-line)) ml-buffer
@@ -468,6 +481,19 @@ recursive edits, whether new mail has arrived, etc.
 	      (frob (ml-field-info-end f)))
 	    (frob (window-modeline-buffer-len window)))))))))
 
+(defun modeline-field-at (buffer window x-position)
+  (let ((start) (end 0))
+    (dolist (finfo (buffer-%modeline-fields buffer))
+      (let* ((f (ml-field-info-field finfo))
+	     (width (or (modeline-field-width f)
+			(length (funcall (modeline-field-function f)
+					 buffer window)))))
+	(setq start end)
+	(setq end (+ start width))
+	(and (>= x-position start)
+	     (< x-position end)
+	     (return f))))))
+
 
 ;;;; Pre-defined modeline and update hooks.
 
@@ -481,7 +507,7 @@ recursive edits, whether new mail has arrived, etc.
 		   (let ((val (variable-value 'ed::current-package
 					      :buffer buffer)))
 		     (if val
-			 (format nil "~A:  " val)
+			 (format () "~A:  " val)
 			 " "))
 		   " ")))
 
@@ -490,7 +516,7 @@ recursive edits, whether new mail has arrived, etc.
  :function #'(lambda (buffer window)
 	       "Return $buffer's modes."
 	       (declare (ignore window))
-	       (format nil "~A"
+	       (format () "~A"
 		       (mapcar (lambda (mode)
 				 (let ((mode (getstring mode
 							*mode-names*)))
@@ -519,9 +545,9 @@ recursive edits, whether new mail has arrived, etc.
 	       (let ((pn (buffer-pathname buffer))
 		     (name (buffer-name buffer)))
 		 (cond ((not pn)
-			(format nil "~A: " name))
+			(format () "~A: " name))
 		       ((string/= (ed::pathname-to-buffer-name pn) name)
-			(format nil "~A: " name))
+			(format () "~A: " name))
 		       (t "")))))
 
 ;;; MAXIMUM-MODELINE-PATHNAME-LENGTH-HOOK is called whenever "Maximum Modeline
@@ -648,7 +674,7 @@ recursive edits, whether new mail has arrived, etc.
  :function #'(lambda (buffer window)
 	       "Return the point positions \"(<column>,<$buffer line $number>)\"."
 	       (let ((point (buffer-point buffer)))
-		 (format nil "(~2,'0D,~D)"
+		 (format () "(~2,'0D,~D)"
 			 (mark-column point)
 			 (window-line-number window)))))
 
@@ -658,7 +684,7 @@ recursive edits, whether new mail has arrived, etc.
  :function #'(lambda (buffer window)
 	       "Return the column $buffer's point is on, prefixed with a 'C'."
 	       (declare (ignore window))
-	       (format nil "C~2,'0D" (mark-column (buffer-point buffer)))))
+	       (format () "C~2,'0D" (mark-column (buffer-point buffer)))))
 
 (make-modeline-field
  :replace t
@@ -666,7 +692,7 @@ recursive edits, whether new mail has arrived, etc.
  :function #'(lambda (buffer window)
 	       "Return the line $buffer's point is on, prefixed with an 'L'."
 	       (declare (ignore buffer))
-	       (format nil "L~A" (window-line-number window))))
+	       (format () "L~A" (window-line-number window))))
 
 (make-modeline-field
  :replace t
@@ -674,7 +700,7 @@ recursive edits, whether new mail has arrived, etc.
  :function #'(lambda (buffer window)
 	       "Return the percent of the $buffer before point, suffixed
 		with a '%'."
-	       (format nil "~A%"
+	       (format () "~A%"
 		       (if (zerop (buffer-line-count buffer))
 			   100
 			   (truncate
@@ -697,6 +723,102 @@ recursive edits, whether new mail has arrived, etc.
 	       "Return two spaces."
 	       (declare (ignore buffer window))
 	       "  "))
+
+(make-modeline-field
+ :replace t
+ :name :x
+ :width 1
+ :function #'(lambda (buffer window)
+	       "Return \"x\"."
+	       (declare (ignore buffer window))
+	       "x")
+ :primary-click #'(lambda (buffer window)
+		    "Kill $buffer."
+		    (declare (ignore window))
+		    (ed::kill-buffer-command () (buffer-name buffer))))
+
+(make-modeline-field
+ :replace t
+ :name :1
+ :width 1
+ :function #'(lambda (buffer window)
+	       "Return \"1\"."
+	       (declare (ignore buffer window))
+	       "1")
+ :primary-click #'(lambda (buffer window)
+		    "Call `Go To One Window'."
+		    (declare (ignore buffer window))
+		    (ed::go-to-one-window-command)))
+
+(make-modeline-field
+ :replace t
+ :name :.
+ :width 1
+ :function #'(lambda (buffer window)
+	       "Return \".\"."
+	       (declare (ignore buffer window))
+	       ".")
+ :primary-click #'(lambda (buffer window)
+		    "Call `Delete Window'."
+		    (declare (ignore buffer window))
+		    (ed::delete-window-command)))
+
+(make-modeline-field
+ :replace t
+ :name :=
+ :width 1
+ :function #'(lambda (buffer window)
+	       "Return \"=\"."
+	       (declare (ignore buffer window))
+	       "=")
+ :primary-click #'(lambda (buffer window)
+		    "Call `Split Window'."
+		    (declare (ignore buffer window))
+		    (ed::split-window-command)))
+
+(make-modeline-field
+ :replace t
+ :name :v
+ :width 1
+ :function #'(lambda (buffer window)
+	       "Return \"v\"."
+	       (declare (ignore buffer window))
+	       "v")
+ :primary-click #'(lambda (buffer window)
+		    "Call `Rotate Buffers Backwards'."
+		    (declare (ignore buffer window))
+		    (ed::rotate-buffers-backward-command)))
+
+(make-modeline-field
+ :replace t
+ :name :^
+ :width 1
+ :function #'(lambda (buffer window)
+	       "Return \"v\"."
+	       (declare (ignore buffer window))
+	       "^")
+ :primary-click #'(lambda (buffer window)
+		    "Call `Rotate Buffers Forwards'."
+		    (declare (ignore buffer window))
+		    (ed::rotate-buffers-forward-command)))
+
+(make-modeline-field
+ :replace t
+ :name :open-buttons
+ :width 1
+ :function #'(lambda (buffer window)
+	       "Return \"[\"."
+	       (declare (ignore buffer window))
+	       "["))
+
+(make-modeline-field
+ :replace t
+ :name :close-buttons
+ :width 1
+ :function #'(lambda (buffer window)
+	       "Return \"]\"."
+	       (declare (ignore buffer window))
+	       "]"))
 
 (defun update-modeline-column-field (window)
   (or (eq window *echo-area-window*)
@@ -793,7 +915,11 @@ recursive edits, whether new mail has arrived, etc.
  :function #'(lambda (buffer window)
 	       "Return the user name associated with the current process."
 	       (declare (ignore buffer window))
-	       (user-name)))
+	       (user-name))
+ :primary-click #'(lambda (buffer window)
+		    "Edit the home: directory."
+		    (declare (ignore buffer window))
+		    (ed::home-command)))
 
 (make-modeline-field
  :replace t
@@ -801,7 +927,11 @@ recursive edits, whether new mail has arrived, etc.
  :function #'(lambda (buffer window)
 	       "Return the machine instance (the hostname)."
 	       (declare (ignore buffer window))
-	       (machine-instance)))
+	       (machine-instance))
+ :primary-click #'(lambda (buffer window)
+		    "Edit the root of the file system."
+		    (declare (ignore buffer window))
+		    (ed::/-command)))
 
 (make-modeline-field
  :replace t
@@ -810,7 +940,11 @@ recursive edits, whether new mail has arrived, etc.
 	       "Return the current user name at the machine name, e.g.
 	        name@host."
 	       (declare (ignore buffer window))
-	       (format () "~A@~A" (user-name) (machine-instance))))
+	       (format () "~A@~A" (user-name) (machine-instance)))
+ :primary-click #'(lambda (buffer window)
+		    "Edit the home: directory."
+		    (declare (ignore buffer window))
+		    (ed::home-command)))
 
 (make-modeline-field
  :replace t
@@ -828,7 +962,11 @@ recursive edits, whether new mail has arrived, etc.
  :function #'(lambda (buffer window)
 	       "Return \"BUSY\" if *busy*, else \"Menu\"."
 	       (declare (ignore buffer window))
-	       (if *busy* "BUSY" "Menu")))
+	       (if *busy* "BUSY" "Menu"))
+ :primary-click #'(lambda (buffer window)
+		    "Bring up the Menu."
+		    (declare (ignore buffer window))
+		    (ed::menu-command)))
 
 (make-modeline-field
  :replace t
@@ -842,7 +980,11 @@ recursive edits, whether new mail has arrived, etc.
 		 (multiple-value-bind (sec min hr date month yr day ds tz)
 				      (get-decoded-time (- (* tz 60)))
 		   (declare (ignore sec date month yr day ds tz))
-		   (format () "~2Dh~2,'0D" hr min)))))
+		   (format () "~2Dh~2,'0D" hr min))))
+ :primary-click #'(lambda (buffer window)
+		    "Bring up the clock."
+		    (declare (ignore buffer window))
+		    (ed::clock-command)))
 
 (make-modeline-field
  :replace t
@@ -853,11 +995,15 @@ recursive edits, whether new mail has arrived, etc.
 	       (multiple-value-bind (sec min hr date month yr day ds tz)
 				    (get-decoded-time)
 		 (declare (ignore sec min hr yr ds tz))
-		 (format nil
+		 (format ()
 			 "~A ~A ~A~A "
 			 (svref extensions::abbrev-weekday-table day)
 			 (svref extensions::abbrev-month-table (1- month))
-			 (if (> date 9) "" "0") date))))
+			 (if (> date 9) "" "0") date)))
+ :primary-click #'(lambda (buffer window)
+		    "Bring up the calendar."
+		    (declare (ignore buffer window))
+		    (ed::calendar-command)))
 
 (declaim (special ed::*new-mail-p*))
 
@@ -868,7 +1014,24 @@ recursive edits, whether new mail has arrived, etc.
  :function #'(lambda (buffer window)
 	       "Return \"Mail\" if there is new mail."
 	       (declare (ignore buffer window))
-	       (if ed::*new-mail-p* "Mail" "    ")))
+	       (if ed::*new-mail-p* "Mail" "    "))
+ :primary-click #'(lambda (buffer window)
+		    "Incorporate and read new mail."
+		    (declare (ignore buffer window))
+		    (ed::incorporate-and-read-new-mail-command)))
+
+(make-modeline-field
+ :replace t
+ :name :c-g
+ :width 3
+ :function #'(lambda (buffer window)
+	       "Return \"c-g\"."
+	       (declare (ignore buffer window))
+	       "c-g")
+ :primary-click #'(lambda (buffer window)
+		    "Return to the editor top-level."
+		    (declare (ignore buffer window))
+		    (throw-to-top)))
 
 
 ;;;; Bitmap setting up new windows and modifying old.
@@ -887,9 +1050,9 @@ recursive edits, whether new mail has arrived, etc.
 	(first (cons dummy-line the-sentinel))
 	(width (bitmap-hunk-char-width hunk))
 	(height (bitmap-hunk-char-height hunk)))
-    (when (or (< height minimum-window-lines)
-	      (< width minimum-window-columns))
-      (error "Window too small."))
+    (if (or (< height minimum-window-lines)
+	    (< width minimum-window-columns))
+	(error "Window too small."))
     (or buffer (error "Window start must be in a buffer."))
     (let ((window
 	   (internal-make-window
@@ -984,7 +1147,7 @@ recursive edits, whether new mail has arrived, etc.
 	    (let ((dl (window-modeline-dis-line window))
 		  (chars (make-string new-width))
 		  (len (min new-width (window-modeline-buffer-len window))))
-	      (setf (dis-line-old-chars dl) nil)
+	      (setf (dis-line-old-chars dl) ())
 	      (setf (dis-line-chars dl) chars)
 	      (replace chars ml-buffer :end1 len :end2 len)
 	      (setf (dis-line-length dl) len)
@@ -1020,7 +1183,7 @@ recursive edits, whether new mail has arrived, etc.
   (check-type start mark)
   (let ((buffer (line-buffer (mark-line start)))
 	(first (cons dummy-line the-sentinel)))
-    (unless buffer (error "Window start is not in a buffer."))
+    (or buffer (error "Window start is not in a buffer."))
     (setf (window-display-start window) (copy-mark start :right-inserting)
 	  (window-old-start window) (copy-mark start :temporary)
 	  (window-display-end window) (copy-mark start :right-inserting)
@@ -1051,17 +1214,17 @@ recursive edits, whether new mail has arrived, etc.
 ;;;
 (defun change-window-image-height (window new-height)
   ;; Nuke all the lines in the window image.
-  (unless (eq (cdr (window-first-line window)) the-sentinel)
-    (shiftf (cdr (window-last-line window))
-	    (window-spare-lines window)
-	    (cdr (window-first-line window))
-	    the-sentinel))
+  (or (eq (cdr (window-first-line window)) the-sentinel)
+      (shiftf (cdr (window-last-line window))
+	      (window-spare-lines window)
+	      (cdr (window-first-line window))
+	      the-sentinel))
   ;; Add some new spare lines if needed.
   (let* ((res (window-spare-lines window))
 	 (width (length (the simple-string (dis-line-chars (car res))))))
     (declare (list res))
     (setf (window-height window) new-height)
-    (do ((i (- (* new-height 2) (length res)) (1- i)))
-	((minusp i))
+    (until ((i (- (* new-height 2) (length res)) (1- i)))
+	   ((minusp i))
       (push (make-window-dis-line (make-string width)) res))
     (setf (window-spare-lines window) res)))

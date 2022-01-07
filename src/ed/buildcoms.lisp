@@ -40,6 +40,9 @@
 		 :help "Name of builder directory."
 		 :default (value builder-directory)))))
 
+(defvar *builder-slave* ()
+  "Slave for building build.")
+
 (defcommand "Set Builder Slave" ()
   "Set the slave used for building."
   (let ((info (nth-value
@@ -65,9 +68,6 @@
   "Return the builder directory."
   (namestring (truename (namify (or (value builder-directory)
 				    build:*builder-directory*)))))
-
-(defvar *builder-slave* ()
-  "Slave for building build.")
 
 (defun get-builder-slave ()
   "Return the builder slave, creating it if required."
@@ -158,7 +158,8 @@
   "Return the buffer for use in Build Core."
   (or (and *build-core-buffer*
 	   (car (memq *build-core-buffer* *buffer-list*)))
-      (setq *build-core-buffer* (make-unique-buffer "Build Core"))))
+      (setq *build-core-buffer* (make-unique-buffer "Build Core"
+						    :modes '("Lisp")))))
 
 (defcommand "Build Core" ()
   "Build final Lisp core."

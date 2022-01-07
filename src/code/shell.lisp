@@ -98,8 +98,26 @@
       (transfer *standard-input* *standard-output*)))
 
 (defun she (command)
-  "Pass the string $command to a subshell."
-  (run-program "/bin/sh" (list "-c" command) :output *standard-output*))
+  "Run the string $command in a subshell."
+  (let ((process))
+    (unwind-protect
+	(setq process
+	      (run-program "/bin/sh" (list "-c" command)
+			   :pty t
+			   :wait ()
+			   :output *standard-output*))
+      (if process
+	  (progn
+	    ;; This is to ensure the process is killed after QUIT in the
+	    ;; RTI, as the RTI is invoked on control-c.
+	    ;; FIX control-c should just quit?
+	    (catch 'lisp::top-level-catcher
+	      (ext:process-wait process))
+	    (prog1
+		(ext:process-exit-code process)
+	      (if (ext:process-alive-p process)
+		  (ext:process-kill process :sigkill
+				    :pty-process-group))))))))
 
 (defmacro ] (destination &body body)
   "Run $body with *standard-output* bound to a stream open on the file

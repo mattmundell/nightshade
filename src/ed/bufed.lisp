@@ -16,8 +16,8 @@ them, going to one, etc., all in a key stroke.
 {command:Bufed Undelete}
 {command:Bufed Expunge}
 {command:Bufed Quit}
-{command:Bufed Goto}
-{command:Bufed Goto and Quit}
+{command:Bufed Go To}
+{command:Bufed Go To and Quit}
 {command:Bufed Save File}
 ]#
 
@@ -153,12 +153,12 @@ them, going to one, etc., all in a key stroke.
     (save-file-command () buf))
   (delete-buffer-if-possible buf))
 
-(defcommand "Bufed Goto" ()
+(defcommand "Bufed Go To" ()
   "Change to the buffer under point."
   (change-to-buffer
    (bufed-buffer (array-element-from-mark (current-point) (value bufed-buffers)))))
 
-(defcommand "Bufed Goto in Next Window" ()
+(defcommand "Bufed Go To in Next Window" ()
   "Change to the buffer under point in the next window."
   (let* ((point (current-point))
 	 (buffer (bufed-buffer (array-element-from-mark point
@@ -168,7 +168,7 @@ them, going to one, etc., all in a key stroke.
 	(next-window-command))
     (change-to-buffer buffer)))
 
-(defcommand "Bufed Goto and Quit" ()
+(defcommand "Bufed Go To and Quit" ()
   "Change to the buffer under point, quitting Bufed.  This supplies a
    function for `Generic Pointer Up' which is a no-op."
   (expunge-bufed-buffers)
@@ -395,17 +395,19 @@ them, going to one, etc., all in a key stroke.
 				:test #'eq :end (variable-value 'bufed-buffers-end
 								:buffer ,buffer-var))))
 	   (when ,pos
-	     (let ((,point (buffer-point ,buffer-var)))
-	       (or (line-offset (buffer-start ,point) ,pos 0)
-		   (error "Failed to line-offset in bufed buffer."))
-	       (with-writable-buffer (,buffer-var) ,@body))))))))
+	     (let ((,point (copy-mark (buffer-point ,buffer-var))))
+	       (unwind-protect
+		   (progn
+		     (or (line-offset (buffer-start ,point) ,pos 0)
+			 (error "Failed to line-offset in bufed buffer."))
+		     (with-writable-buffer (,buffer-var) ,@body))
+		 (delete-mark ,point)))))))))
 ) ;eval-when
 
 (defun bufed-modified-hook (b modified)
   (do-bufed-points (point buffer b)
-    (setf (next-character (mark-after point)) (if modified
-						  *bufed-modified-char*
-						  #\space))))
+    (setf (next-character (mark-after point))
+	  (if modified *bufed-modified-char* #\space))))
 ;;;
 (add-hook buffer-modified-hook 'bufed-modified-hook)
 

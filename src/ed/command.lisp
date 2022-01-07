@@ -306,9 +306,9 @@ Previous Character Expanding Tabs'.
 	  (return nil))))))
 
 (defcommand "Forward Word" (p)
-  "Moves forward one word.
-  With prefix argument, moves the point forward over that many words."
-  "Moves the point forward p words."
+  "Move forward one word.  With prefix argument, move the point forward
+   over that many words."
+  "Move the point forward p words."
   (cond ((word-offset (current-point) (or p 1)))
 	((and p (minusp p))
 	 (buffer-start (current-point))
@@ -318,18 +318,17 @@ Previous Character Expanding Tabs'.
 	 (editor-error "No next word."))))
 
 (defcommand "Backward Word" (p)
-  "Moves backward one word.
-  With prefix argument, moves the point back over that many words."
-  "Moves the point backward p words."
+  "Move backward one word.  With prefix argument, move the point back over
+   that many words."
+  "Move the point backward p words."
   (forward-word-command (- (or p 1))))
 
 
 #[ Motion Commands
 
-There is a fairly small number of
-basic commands for moving around in the buffer.  While there are many other
-more complex motion commands, these are by far the most commonly used and
-the easiest to learn.
+There is a fairly small number of basic commands for moving around in the
+buffer.  While there are many other more complex motion commands, these are
+by far the most commonly used and the easiest to learn.
 
 {command:Forward Character}
 {command:Backward Character}
@@ -344,7 +343,7 @@ delimiting character.
 
 {command:Next Line}
 {command:Previous Line}
-{command:Goto Absolute Line}
+{command:Go To Absolute Line}
 {command:End of Line}
 {command:Beginning of Line}
 {command:Scroll Window Down}
@@ -371,7 +370,7 @@ delimiting character.
    end.")
 
 (defcommand "Next Line" (p)
-  "Moves the point to the next line, while remaining the same distance
+  "Move the point to the next line, while remaining the same distance
    within a line.  This motion is by logical lines, each of which may take
    up many lines on the screen if it wraps.  argument is supplied, then the
    point is moved by that many lines.  With a prefix argument, move the
@@ -379,7 +378,7 @@ delimiting character.
 
    If the new line is shorter than the current line, then leave the point
    at the end of the new line."
-  "Moves the point down $p logical lines."
+  "Move the point down $p logical lines."
   (let* ((point (current-point))
 	 (target (set-target-column point)))
     (unless (line-offset point (or p 1))
@@ -402,7 +401,7 @@ delimiting character.
     (setf (last-command-type) :line-motion)))
 
 (defcommand "Previous Line" (p)
-  "Moves the point to the previous line, while remaining the same distance
+  "Move the point to the previous line, while remaining the same distance
    within a line.  This motion is by logical lines, each of which may take
    up many lines on the screen if it wraps.  argument is supplied, then the
    point is moved by that many lines.  With a prefix argument, move the
@@ -410,7 +409,6 @@ delimiting character.
 
    If the new line is shorter than the current line, then leave the point
    at the end of the new line."
-  "Moves the point up p lines."
   (next-line-command (- (or p 1))))
 
 (defcommand "Mark to End of Buffer" ()
@@ -450,6 +448,14 @@ delimiting character.
   (let ((point (current-point)))
     (or (line-offset point (if p p 0)) (editor-error "Out of buffer."))
     (line-end point)))
+
+(defcommand "Roll Down" ()
+  "Move point down by a portion of the window."
+  (next-line-command (truncate (window-height (current-window)) 7)))
+
+(defcommand "Roll Up" ()
+  "Move point up by a portion of the window."
+  (next-line-command (- (truncate (window-height (current-window)) 7))))
 
 (defevar "Scroll Overlap"
   "The commands `Scroll Window Down' and `Scroll Window Up' leave this much
@@ -509,6 +515,22 @@ delimiting character.
   (let ((win (next-window (current-window))))
     (if (eq win (current-window)) (editor-error "Only one window."))
     (scroll-window-up-command p win)))
+
+(defcommand "Roll Window Down" (p (window (current-window)))
+  "Move forward in the buffer by a portion of one screenful of text.  With
+   prefix argument move forward that many lines.  When this action scrolls
+   the line with the point off the screen, move the point to the vertical
+   center of the window."
+  (scroll-window window (or p (/ (window-height window) 5))))
+
+(defcommand "Roll Window Up" (p (window (current-window)))
+  "Move forward in the buffer by a portion of one screenful of text.  With
+   prefix argument move forward that many lines.  When this action scrolls
+   the line with the point off the screen, move the point to the vertical
+   center of the window."
+  "If $p is supplied then scroll $window that many lines, else scroll
+   $window down one screenfull.  "
+  (scroll-window window (or p (- (/ (window-height window) 5)))))
 
 (defcommand "Top of Window" ()
   "Move the point to the beginning of the first line displayed in the

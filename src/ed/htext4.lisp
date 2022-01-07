@@ -426,7 +426,7 @@
      - leave the returned string as it was returned, after returning
 
      - return a string that is a valid line (it is an error for the string
-       to contain newlines.
+       to contain newlines).
 
    As an example, a region can be uppercased with:
 

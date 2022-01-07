@@ -170,6 +170,40 @@
 				     buffer
 				     (pathname-name name))))))))))))))
 
+(defun process-filename-options (buffer &optional
+					(pathname (buffer-pathname buffer)))
+  "Call buffer hooks according to pathname.  Called by `read-buffer-file'."
+  (let ((type (if pathname (pathname-type pathname)))
+	(hook))
+    ;; Try name hooks.
+    (progn
+      (setq hook (assoc (pathname-name pathname)
+			*file-name-hooks* :test #'string=))
+      (when hook (funcall (cdr hook)
+			  buffer
+			  (pathname-name pathname)
+			  pathname)))
+    (or hook
+	;; Try pathname hooks.
+	(progn
+	  (setq hook
+		;; `p-file-o' does (truename pathname).
+		(assoc (namestring pathname)
+		       *file-pathname-hooks*
+		       :test
+		       (lambda (name hooks-name)
+			 (and (probe-file hooks-name)
+			      (string= (namestring
+					(truename hooks-name))
+				       name)))))
+	  (when hook (funcall (cdr hook) buffer type))))
+    (or hook
+	;; Try type hooks.
+	(when type
+	  (setq hook (assoc (string-downcase type) *file-type-hooks*
+			    :test #'string=))
+	  (when hook (funcall (cdr hook) buffer type))))))
+
 #[ File Options and Type Hooks
 
 The user specifies file options with a special syntax on the first line of a
@@ -264,6 +298,10 @@ default major mode.
   (declare (ignore type))
   (setf (buffer-minor-mode buffer "CSV") t))
 
+(define-file-type-hook ("diff") (buffer type)
+  (declare (ignore type))
+  (setf (buffer-major-mode buffer) "VC Comparison"))
+
 ; (define-file-type-hook ("enr")
 ; 		       (buffer type)
 ;   (declare (ignore type))
@@ -273,7 +311,12 @@ default major mode.
   (declare (ignore type))
   (setf (buffer-major-mode buffer) "Java"))
 
+(define-file-type-hook ("links") (buffer type)
+  (declare (ignore type))
+  (setf (buffer-major-mode buffer) "Links"))
+
 (define-file-type-hook ("lisp" "slisp" "l" "lsp" "mcl"
+			"nids" ; Nightshade Dynamic Service
 			"el"  ; Emacs Lisp
 			"scm" ; Scheme
 			"jl") ; Sawfish Librep
@@ -352,10 +395,18 @@ default major mode.
   (declare (ignore name pathname))
   (setf (buffer-major-mode buffer) "Make"))
 
+(define-file-name-hook ("ChangeLog" "Changelog") (buffer name pathname)
+  (declare (ignore name pathname))
+  (setf (buffer-major-mode buffer) "ChangeLog"))
+
 (define-file-name-hook ("CMakeLists") (buffer name pathname)
   (declare (ignore name))
   (if (equal (pathname-type pathname) "txt")
       (setf (buffer-major-mode buffer) "Shell")))
+
+(define-file-name-hook ("Doxyfile") (buffer name pathname)
+  (declare (ignore name pathname))
+  (setf (buffer-major-mode buffer) "Shell"))
 
 (defmacro define-file-content-hook (string (buffer) &body body)
   "Define-File-Content-Hook (String) (Buffer) {Form}*
@@ -395,6 +446,10 @@ default major mode.
 (define-loader-directive-handler ("nightshade" "ni") (buffer interp)
   (declare (ignore interp))
   (setf (buffer-major-mode buffer) "Lisp"))
+
+(define-loader-directive-handler ("make") (buffer interp)
+  (declare (ignore interp))
+  (setf (buffer-major-mode buffer) "Make"))
 
 
 ;;;; Content types.
@@ -632,7 +687,7 @@ the name of the major mode for the buffer.
   "Read a prompted file into $buffer, setting the associated filename.
    Offer the option of saving the existing contents $buffer if it is
    modified.  If the file is new, then empty $buffer, and echo \"(New
-   File)\"; the file may then be created by saving $buffer.  Warn if some
+   buffer)\"; the file may then be created by saving $buffer.  Warn if some
    other buffer also contains the file."
   (declare (ignore p))
   (and (buffer-modified buffer)
@@ -746,7 +801,7 @@ the name of the major mode for the buffer.
    name as the file and read the file into it.
 
    If the file is new, then leave the buffer empty, and echo \"(New
-   File)\"; the file may then be created by saving the buffer.
+   buffer)\"; the file may then be created by saving the buffer.
 
    The buffer name created is in the form \"name directory\", so
    \"/sys/emacs/teco.mid\" has \"teco.mid /sys/emacs/\" as buffer name.  If
@@ -940,10 +995,10 @@ the name of the major mode for the buffer.
 	   (setf (buffer-write-date buffer) (file-write-date probed-pathname)))
 	  (t
 	   (message "(New buffer)")
-	   ;(clearf (buffer-write-date buffer))
+	   ;(clearf (buffer-write-date buffer)) ; FIX
 	   (setf (buffer-write-date buffer) ())))
     (buffer-start (buffer-point buffer))
-    ;(clearf (buffer-modified buffer))
+    ;(clearf (buffer-modified buffer)) ; FIX
     (setf (buffer-modified buffer) ())
     (let ((stored-pathname (or probed-pathname
 			       (merge-pathnames pathname
@@ -951,10 +1006,29 @@ the name of the major mode for the buffer.
       (setf (buffer-pathname buffer) stored-pathname)
       (setf (value pathname-defaults) stored-pathname)
       (or literally
-	  (when probed-pathname
-	    (process-file-options buffer stored-pathname)
-	    ;; FIX may need create-buffer-hook
-	    (invoke-hook read-file-hook buffer probed-pathname))))))
+	  (if probed-pathname
+	      (progn
+		;; Convert the buffer to UTF-8 if it has a charset.
+		(if (editor-bound-p 'charset :buffer buffer)
+		    (let ((charset (variable-value 'charset
+						   :buffer buffer)))
+		      (case charset
+			(:utf-8)
+			(())
+			(t (let ((charset (edi::find-charset charset))
+				 (modified (buffer-modified buffer)))
+			     (filter-region
+			      (edi::charset-to-utf-8-fun charset)
+			      (buffer-region buffer))
+			     (or modified
+				 (setf (buffer-modified buffer)
+				       ())))))))
+		(process-file-options buffer stored-pathname)
+		(invoke-hook read-file-hook buffer probed-pathname))
+	      (progn
+		(process-filename-options buffer stored-pathname)
+		;; FIX may need create-buffer-hook
+		))))))
 
 
 ;;;; Generic find.
@@ -1000,7 +1074,7 @@ the name of the major mode for the buffer.
 	(if (and p (> p 4))
 	    (view-url pn)
 	    (www-command () pn))
-	(if (directoryp pn)
+	(if (or (wild-pathname-p pn) (directoryp pn))
 	    (dired-command () (namestring pn))
 	    (if (directory-name-p pn)
 		(if (prompt-for-y-or-n
@@ -1094,7 +1168,8 @@ the name of the major mode for the buffer.
 		(message "Added newline at end of buffer."))))))
     (invoke-hook before-write-file-hook buffer)
     (setv pathname-defaults pathname)
-    (write-file (or (buffer-deep-region buffer)
+    (write-file (or (edi::buffer-charset-region buffer)
+		    (buffer-deep-region buffer)
 		    (buffer-region buffer))
 		pathname)
     (let ((tn (truename pathname)))
@@ -1179,6 +1254,7 @@ the name of the major mode for the buffer.
 	(message "All files already saved.")
 	(message "Saved ~S file~:P." saved-count))))
 
+; FIX Save and Exit?
 (defcommand "Save All Files and Exit" ()
   "Saves all modified buffers in their associated files, and then exit.  A
    buffer is only considered for saving if it has an associated file."
@@ -1341,7 +1417,7 @@ the name of the major mode for the buffer.
 	(change-to-buffer name)
 	(change-to-buffer (or (getstring name *buffer-names*)
 			      (prog1 (make-buffer name)
-				(message "(New Buffer)")))))))
+				(message "(New buffer)")))))))
 
 (defvar *buffer-history-ptr* ()
   "The successively previous buffer to the current buffer.")
@@ -1417,7 +1493,7 @@ the name of the major mode for the buffer.
 ; 	(if (eq key :none)
 ; 	    (change-to-buffer (or (getstring buffer-or-name *buffer-names*)
 ; 				  (prog1 (make-buffer buffer-or-name)
-; 				    (message "(New Buffer)"))))
+; 				    (message "(New buffer)"))))
 ; 	    (message "pre ~A" prefix)))))
 
 (defcommand "Copy Buffer" (p (buffer (current-buffer)))
@@ -1893,7 +1969,7 @@ pagereffile-options.)
     (redisplay-all)  ; So that window moves to include point.
     (setf (current-window) new)))
 
-(defcommand "New Window" ()
+(defcommand "Create Window" ()
   "Make a new window and go to it.  Display the same buffer in the new
    window as in the current one."
   (let ((new (make-window (window-display-start (current-window))
@@ -1927,8 +2003,8 @@ pagereffile-options.)
       (editor-error "Cannot delete only window")
       (delete-window (next-window (current-window)))))
 
-(defcommand "Go to Initial Window" ()
-  "Deletes all windows leaving one at *Default Initial Window X*, *Default
+(defcommand "Go To Initial Window" ()
+  "Delete all windows leaving one at *Default Initial Window X*, *Default
    Initial Window Y*.  The remaining window retains the contents, width and
    height of the current window."
   (let* ((current (current-window))
@@ -1944,10 +2020,24 @@ pagereffile-options.)
 	  (eq w *echo-area-window*)
 	  (delete-window w)))))
 
-(defcommand "Go to One Window" ()
+(defcommand "Go To One Window" ()
   "Delete all windows, leaving the current one."
   (let ((current (current-window)))
     (dolist (w *window-list*)
       (or (eq w current)
 	  (eq w *echo-area-window*)
 	  (delete-window w)))))
+
+(defcommand "Compact Window" ()
+  "Make the current window as small as possible while still displaying the
+   same buffer text."
+  (compact-window (current-window)))
+
+(defcommand "Increment Window Height" (p)
+  "Increment the height of the current window by one line.  With an
+   argument increment by that many lines."
+  (let ((window (current-window)))
+    (set-window-height window
+		       (+ (window-height window)
+			  (or p 1)))))
+

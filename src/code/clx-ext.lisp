@@ -273,8 +273,8 @@
   (macrolet ((dispatch (event-key &rest args)
 	       `(multiple-value-bind (object object-set)
 				     (lisp::map-xwindow event-window)
-		  (format t "set-event-handler event-window type ~A~%" (type-of event-window))
 #|
+		  (format t "set-event-handler event-window type ~A~%" (type-of event-window))
 		  (warn "dispatch event-key ~A" ,event-key)
 		  (maphash (lambda (k v)
 			     (warn "k ~A~%v ~A" k v)
@@ -282,22 +282,23 @@
 				   (equalp k event-window)))
 			   *xwindow-table*)
 |#
-		  (unless object
-		    (cond ((not (typep event-window 'xlib:window))
-			   (xlib:discard-current-event display)
-			   (warn "Discarding ~S event on non-window ~S."
-				 ,event-key event-window)
-			   (return-from object-set-event-handler nil))
-			  (t
-			   (flush-display-events display)
-			   (error "~S not a known X window.~%~
-			           Received event ~S."
-				  event-window ,event-key))))
+		  (or object
+		      (cond ((not (typep event-window 'xlib:window))
+			     (xlib:discard-current-event display)
+			     (warn "Discarding ~S event on non-window ~S."
+				   ,event-key event-window)
+			     (return-from object-set-event-handler ()))
+			    (t
+			     (flush-display-events display)
+			     (error "~S not a known X window.~%~
+				     Received event ~S."
+				    event-window ,event-key))))
 		  (handler-bind ((error #'(lambda (condx)
 					    (declare (ignore condx))
 					    (flush-display-events display))))
 		    (when *object-set-event-handler-print*
-		      (print ,event-key) (force-output))
+		      (print ,event-key)
+		      (force-output))
 		    (funcall (gethash ,event-key
 				      (lisp::object-set-table object-set)
 				      (lisp::object-set-default-handler
@@ -306,9 +307,12 @@
 			     ,@args))
 		  (setf result t))))
     (let ((*process-clx-event-display* display)
-	  (result nil))
+	  (result ()))
 
 #|
+      (format t "oseh~%")
+      (xlib::print-events display)
+
       ;; FIX
       ;(warn "peeking")
       (xlib:event-case (display :timeout 0)
@@ -419,6 +423,17 @@
 	(:CLIENT-MESSAGE (event-window format data send-event-p)
 	 (dispatch :client-message event-window format data send-event-p)))
       ;(format t "returning result ~A~%" result)
+
+#|
+      ;; FIX peek after
+      (xlib:event-case (display :timeout 0)
+	(t (event-window event-key)
+	   (or (eq event-key :NO-EXPOSURE)
+	       (format t "after event-key: ~A  (event-window drawable ~A)~%"
+		       event-key (xlib::window-x-drawable event-window)))
+	   ()))
+|#
+
       result)))
 
 (defun default-clx-event-handler (object event-key event-window &rest ignore)

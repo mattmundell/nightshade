@@ -46,13 +46,22 @@
   (declare (ignore string))
   '(undefined-value))
 
-(defun skip-whitespace (&optional (stream *standard-input*))
-  (loop (let ((char (read-char stream)))
-	  (if (not (lisp::whitespacep char))
-	      (return (unread-char char stream))))))
+(defun skip-whitespace (&optional (stream *standard-input*)
+				  (eof-errorp t)
+				  eof-value)
+  "Read over any leading whitespace in $stream.  Return t if $eof-errorp is
+   () and EOF is reached, else return ()."
+  (if eof-errorp
+      (loop (let ((char (read-char stream eof-errorp eof-value)))
+	      (if (eq char eof-value) (return t))
+	      (or (lisp::whitespacep char)
+		  (return (unread-char char stream)))))
+      (loop (let ((char (read-char stream t)))
+	      (or (lisp::whitespacep char)
+		  (return (unread-char char stream)))))))
 
 (defun listen-skip-whitespace (&optional (stream *standard-input*))
-  "See listen.  Any whitespace in the input stream will be flushed."
+  "See `listen'.  Any whitespace in the input stream will be flushed."
   (do ((char (read-char-no-hang stream nil nil nil)
 	     (read-char-no-hang stream nil nil nil)))
       ((null char) nil)

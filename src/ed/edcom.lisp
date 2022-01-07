@@ -116,6 +116,8 @@
 (comf "target:ed/undo" :byte-compile t)
 (comf "target:ed/killcoms" :byte-compile t)
 (comf "target:ed/searchcoms" :byte-compile t)
+(comf "target:ed/charsets")
+(comf "target:ed/charcoms" :byte-compile t)
 (comf "target:ed/filecoms" :byte-compile t)
 (comf "target:ed/indent" :byte-compile t)
 (comf "target:ed/highlight")
@@ -125,8 +127,8 @@
 (comf "target:ed/parse" :load t)
 ; FIX
 ;(comf "target:ed/parse-scribe")
+(comf "target:ed/doc" :byte-compile t)
 (comf "target:ed/info" :byte-compile t)
-(comf "target:ed/ginfo" :byte-compile t)
 (comf "target:ed/text" :byte-compile t)
 (comf "target:ed/doccoms" :byte-compile t)
 (comf "target:ed/srccom" :byte-compile t)
@@ -180,6 +182,7 @@
 (comf "target:ed/buildcoms") ; FIX
 (comf "target:ed/rest" :byte-compile t)
 (comf "target:ed/enriched" :byte-compile t)
+(comf "target:ed/changelog" :byte-compile t)
 (comf "target:ed/menu" :byte-compile t)
 (comf "target:ed/build" :byte-compile t)
 (comf "target:ed/line-end" :byte-compile t)
@@ -268,9 +271,11 @@
 ; FIX
 ; "target:ed/parse-scribe"
  "target:ed/searchcoms"
+ "target:ed/charsets"
+ "target:ed/charcoms"
  "target:ed/filecoms"
+ "target:ed/doc"
  "target:ed/info"
- "target:ed/ginfo"
  "target:ed/menu"
  "target:ed/doccoms"
  "target:ed/srccom"
@@ -331,6 +336,7 @@
  "target:ed/buildcoms"
  "target:ed/rest"
  "target:ed/enriched"
+ "target:ed/changelog"
  "target:ed/build"
  "target:ed/line-end"
  "target:ed/refresh"

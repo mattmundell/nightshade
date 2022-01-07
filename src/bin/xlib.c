@@ -10,6 +10,9 @@
 #endif
 #endif
 
+/* For printf. */
+#include <stdio.h>
+
 #include "nightshade.h"
 #include "internals.h"
 #include "globals.h"
@@ -143,6 +146,10 @@ int mod3Mask = Mod3Mask;
 int mod4Mask = Mod4Mask;
 int mod5Mask = Mod5Mask;
 
+int queuedAlready = QueuedAlready;
+int queuedAfterFlush = QueuedAfterFlush;
+int queuedAfterReading = QueuedAfterReading;
+
 /* Event masks. */
 
 /* Guessed after seeing an event name somewhere. */
@@ -195,7 +202,25 @@ int colormapNotifyMask = ColormapNotifyMask;
 int mappingNotifyMask = MappingNotifyMask;
 #endif
 
-/* Error handling. */
+/* Printing event queue. */
+
+Bool
+print_event (Display* display, XEvent *event, XPointer arg)
+{
+  printf ("  %i\n", event->type);
+  return False;
+}
+
+void
+x_print_events (Display* display)
+{
+  XEvent event;
+  XPointer arg;
+  printf ("event queue:\n");
+  XCheckIfEvent (display, &event, print_event, arg);
+}
+
+/* Attempts at error handling. */
 
 #if 0
 int call_serve_alien_caller_2 (void *one, void *two) {

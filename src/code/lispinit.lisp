@@ -323,7 +323,7 @@ connection, mail handling and document processing.  The primary human
 interface to the system is the editor, which has extensions for file
 management, reading mail and reading network news.
 
-The [Welcome] node has some pointers for getting started with the editor.
+The [Welcome] node has some pointers for getting started in the editor.
 ]#
 
 #[ Scripting
@@ -635,13 +635,16 @@ FIX ref to interfaces to compile, byte-compiler, interpreter
 [ Garbage Collection                         ]
 [ The Reader                                 ]
 
-== Libraries ==
+== Tools ==
 
 [ Load                                       ]
-[ Test Suite                                 ]  `deftest'
-[ The Inspector                              ]
 [ Saving a Core Image                        ]
 [ Describe                                   ]
+[ The Inspector                              ]
+
+== Libraries ==
+
+[ Test Suite                                 ]  `deftest'
 [ Running Programs from Lisp                 ]
 [ Pathnames                                  ]
 [ Filesystem Operations                      ]
@@ -866,8 +869,8 @@ sockets.
 ;;; Quit gets us out, one way or another.
 
 (defun quit (&optional recklessly-p)
-  "Terminates the current Lisp.  Things are cleaned up unless Recklessly-P is
-   true."
+  "Terminates the current Lisp.  Things are cleaned up unless $recklessly-p
+   is true."
   (if recklessly-p
       (unix:unix-exit 0)
       (throw '%end-of-the-world 0)))
@@ -875,10 +878,10 @@ sockets.
 (defconstant repl-help-string
   "
 This is the read-eval-print loop.  It reads a Lisp expression, evaluates
-the expression, prints the result, then repeats.  Any Lisp expression can
-be entered at the prompt, for example
+the expression and then prints the result, repeatedly.  Any Lisp expression
+can be entered at the prompt, for example
 
-    (use-package \"SHELL\")
+    (use-package :shell)
 
 makes the :shell package available in the current packages.
 
@@ -1090,7 +1093,7 @@ shell package
   (let  ((* ()) (** ()) (*** ())
 	 (- ()) (+ ()) (++ ()) (+++ ())
 	 (/// ()) (// ()) (/ ())
-	 (magic-eof-cookie (cons :eof ()))
+	 (magic-eof-cookie (cons :eof ())) ; FIX unique-eof like in reader.lisp?
 	 (number-of-eofs 0))
     (loop
       (with-simple-restart (abort "Return to Top-Level.")
@@ -1180,7 +1183,7 @@ David B. McDonald, Tim Moore, Jim Muller, Lee Schumacher, Guy L. Steele
 Jr., Dave Touretzky, Walter van Roggen, Ivan Vazquez, Skef Wholey, George
 Wood, Jamie W. Zawinski and Dan Zigmond.
 
-== Post CMU Authors (i.e. contributors to the Internet project) ==
+== Post CMU Authors (that is, contributors to the Internet project) ==
 
 Marco Antoniotti, Mike Clarkson, Douglas T. Crosher, Julian Dolby, Fred
 Gilham, Richard Harris, Marcus Krummenacker, Eric Marsden, Makoto

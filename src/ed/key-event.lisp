@@ -1,7 +1,7 @@
 ;;; -*- Package: extensions -*-
 ;;;
 ;;; This file implements key-events for representing editor input.  It also
-;;; provides a couple routines to interface this to X11.
+;;; provides a couple of routines to interface this to X11.
 
 ;;; The following are the implementation dependent parts of this code (what
 ;;; you would have to change if you weren't using X11):
@@ -24,12 +24,12 @@
 	  *all-modifier-names* translate-key-event translate-mouse-key-event
 	  make-key-event key-event key-event-p key-event-bits key-event-keysym
 	  char-key-event key-event-char key-event-bit-p do-alpha-key-events
-	  print-pretty-key print-pretty-key-event))
+	  print-pretty-key print-pretty-key-event print-key-event))
 
 
 #[ Key-events
 
-These routines are used, for example in the editor.
+These routines are used, for example, in the editor.
 
 [ Key-event Introduction ]
 [ Key-event Interface    ]
@@ -125,16 +125,17 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 (proclaim '(inline name-keysym keysym-names keysym-preferred-name))
 
 (defun name-keysym (name)
-  "Return the keysym named NAME if name is known, else return ()."
+  "Return the keysym named $name if $name is known, else return ()."
   (gethash (get-name-case-right name) *names-to-keysyms*))
 
 (defun keysym-names (keysym)
-  "Return the list of all names for KEYSYM if keysym is defined, else ()."
+  "Return the list of all names for $keysym if $keysym is defined, else
+   ()."
   (gethash keysym *keysyms-to-names*))
 
 (defun keysym-preferred-name (keysym)
-  "Return the preferred name for KEYSYM if keysym is defined, else ().  The
-   preferred name how the keysym is typically printed."
+  "Return the preferred name for $keysym if keysym is defined, else ().
+   The preferred name is how the keysym is typically printed."
   (car (gethash keysym *keysyms-to-names*)))
 
 
@@ -152,17 +153,17 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 ;;; DEFINE-KEYSYM -- Public.
 ;;;
 (defun define-keysym (keysym preferred-name &rest other-names)
-  "Establish a mapping from PREFERRED-NAME to KEYSYM for purposes of
-   specifying key-events in #k syntax.  Other-names also map to keysym, but the
-   system uses preferred-name when printing key-events.  The names are
+  "Establish a mapping from $preferred-name to $keysym for purposes of
+   specifying key-events in #k syntax.  Other-names also map to keysym, but
+   the system uses preferred-name when printing key-events.  The names are
    case-folded simple-strings.  Redefining a keysym or re-using names has
    arbitrary effects.
 
-   This can define unused keysyms, but primarily is used to defines the keysyms
-   defined in the X Window System Protocol, MIT X Consortium Standard, X
-   Version 11, Release 4.  translate-key-event uses this knowledge to
-   determine what keysyms are modifier keysyms and what keysym stand for
-   alphabetic key-events."
+   This can define unused keysyms, but primarily is used to define the
+   keysyms defined in the X Window System Protocol, MIT X Consortium
+   Standard, X Version 11, Release 4.  `translate-key-event' uses this
+   knowledge to determine what keysyms are modifier keysyms and what keysym
+   stand for alphabetic key-events." ; FIX X ref
   (setf (gethash keysym *keysyms-to-names*) (cons preferred-name other-names))
   (dolist (name (cons preferred-name other-names))
     (setf (gethash (get-name-case-right name) *names-to-keysyms*) keysym)))
@@ -317,8 +318,8 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 ;;; DEFINE-MOUSE-KEYSYM -- Public.
 ;;;
 (defun define-mouse-keysym (button keysym name shifted-bit event-key)
-  "Define keysym named NAME for key-events representing the X button cross
-   the X event-key (:button-press or :button-release).  SHIFTED-BIT is a
+  "Define keysym named $name for key-events representing the X button cross
+   the X event-key (:button-press or :button-release).  $shifted-bit is a
    defined modifier name that translate-mouse-key-event sets in the
    key-event it returns whenever the X shift bit is set in an incoming
    event.
@@ -326,8 +327,8 @@ All of the following routines and variables are exported from the "EXTENSIONS"
    Note, by default, there are distinct keysyms for each button distinguishing
    whether the user pressed or released the button.
 
-   KEYSYM should be an one unspecified in X Window System Protocol, MIT X
-   Consortium Standard, X Version 11, Release 4."
+   $keysym should be an one unspecified in X Window System Protocol, MIT X
+   Consortium Standard, X Version 11, Release 4." ; FIX
   (or (<= 1 button 5)
       (error "Buttons are number 1-5, not ~D." button))
   (setf (gethash keysym *keysyms-to-names*) (list name))
@@ -339,8 +340,8 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 ;;; TRANSLATE-MOUSE-KEY-EVENT -- Public.
 ;;;
 (defun translate-mouse-key-event (scan-code bits event-key)
-  "Translate the X button code, scan-code, and modifier bits, bits, for the
-   X event-key into a key-event.  See `define-mouse-keysym'."
+  "Translate the X button code, $scan-code, and modifier bits, $bits, for
+   the X $event-key into a key-event.  See `define-mouse-keysym'."
   (let ((keysym (mouse-translation-info scan-code event-key :keysym))
 	(new-bits 0))
     (dolist (map *modifier-translations*)
@@ -370,16 +371,15 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 (setf (documentation 'key-event-keysym 'function)
       "Return the keysym field of a key-event.")
 
-(defun %print-key-event (object stream ignore)
+(defun %print-key-event (key-event stream ignore)
   (declare (ignore ignore))
   (if lisp:*print-readably*
       (progn
-	(write-string "#k\"" stream)
-	(print-pretty-key-event object stream)
-	(write-char #\" stream))
+	(write-string "#k" stream)
+	(print-key-event key-event stream))
       (progn
 	(write-string "<Key-Event " stream)
-	(print-pretty-key-event object stream)
+	(print-pretty-key-event key-event stream)
 	(write-char #\> stream))))
 
 
@@ -408,6 +408,26 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 (setf (svref *key-character-classes* (char-code #\space)) :event-terminator)
 (setf (svref *key-character-classes* (char-code #\")) :EOF)
 
+(defconstant key-event-escape-char #\\
+  "The escape character that #k uses.")
+
+;;; GET-KEY-CHAR -- Internal.
+;;;
+;;; Used by `parse-key-fun'.
+;;;
+(defun get-key-char (stream eof-errorp eof-value)
+  (let ((char (read-char stream eof-errorp eof-value t)))
+    (or eof-errorp
+	(if (eq char eof-value)
+	    (return-from get-key-char (values () () t))))
+    (cond ((char= char key-event-escape-char)
+	   (let ((char (read-char stream eof-errorp eof-value t)))
+	     (or eof-errorp
+		 (if (eq char eof-value)
+		     (return-from get-key-char (values () () t))))
+	     (values char :escaped)))
+	  (t (values char (svref *key-character-classes* (char-code char)))))))
+
 ;;; This holds the characters built up while lexing a potential keysym or
 ;;; modifier identifier.
 ;;;
@@ -416,102 +436,104 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 
 ;;; PARSE-KEY-FUN -- Internal.
 ;;;
-;;; This is the #k dispatch macro character reader.  It is a FSM that parses
-;;; key specifications.  It returns either a VECTOR form or a MAKE-KEY-EVENT
-;;; form.  Since key-events are unique at runtime, we cannot create them at
-;;; readtime, returning the constant object from READ.  Wherever a #k appears,
-;;; there's a for (form?) that at loadtime or runtime will return the unique key-event
-;;; or vector of unique key-events.
+;;; This is the #k dispatch macro character reader.  It is a finite state
+;;; machine that parses key specifications.  It returns either a VECTOR
+;;; form or a `make-key-event' form.  Since key-events are unique at
+;;; runtime, we cannot create them at readtime, returning the constant
+;;; object from `read'.  Wherever a #k appears, there's a form that at
+;;; loadtime or runtime will return the unique key-event or vector of
+;;; unique key-events.
 ;;;
-(defun parse-key-fun (stream sub-char count)
+(defun parse-key-fun (stream sub-char count eof-errorp eof-value)
   (declare (ignore sub-char count))
   (setf (fill-pointer *id-namestring*) 0)
   (prog ((bits 0)
 	 (key-event-list ())
-	 char class)
-	(or (char= (read-char stream) #\")
-	    (error "Keys must be delimited by ~S." #\"))
-	;; Skip any leading spaces in the string.
-	(skip-whitespace stream)
-	(multiple-value-setq (char class) (get-key-char stream))
-	(ecase class
-	  ((:letter :other :escaped) (go ID))
-	  (:ISO-start (go ISOCHAR))
-	  (:ISO-end (error "Angle brackets must be escaped."))
-	  (:modifier-terminator (error "Dash must be escaped."))
-	  (:EOF (error "No key to read.")))
-	ID
-	(vector-push-extend char *id-namestring*)
-	(multiple-value-setq (char class) (get-key-char stream))
-	(ecase class
-	  ((:letter :other :escaped) (go ID))
-	  (:event-terminator (go GOT-CHAR))
-	  (:modifier-terminator (go GOT-MODIFIER))
-	  ((:ISO-start :ISO-end) (error "Angle brackets must be escaped."))
-	  (:EOF (go GET-LAST-CHAR)))
-	GOT-CHAR
-	(push `(make-key-event ,(copy-seq *id-namestring*) ,bits)
-	      key-event-list)
-	(setf (fill-pointer *id-namestring*) 0)
-	(setf bits 0)
-	;; Skip any whitespace between characters.
-	(skip-whitespace stream)
-	(multiple-value-setq (char class) (get-key-char stream))
-	(ecase class
-	  ((:letter :other :escaped) (go ID))
-	  (:ISO-start (go ISOCHAR))
-	  (:ISO-end (error "Angle brackets must be escaped."))
-	  (:modifier-terminator (error "Dash must be escaped."))
-	  (:EOF (go FINAL)))
-	GOT-MODIFIER
-	(let ((modifier-name (car (assoc *id-namestring*
-					 *modifiers-to-internal-masks*
-					 :test #'string-equal))))
-	  (unless modifier-name
-	    (error "~S is not a defined modifier." *id-namestring*))
-	  (setf (fill-pointer *id-namestring*) 0)
-	  (setf bits (logior bits (key-event-modifier-mask modifier-name))))
-	(multiple-value-setq (char class) (get-key-char stream))
-	(ecase class
-	  ((:letter :other :escaped) (go ID))
-	  (:ISO-start (go ISOCHAR))
-	  (:ISO-end (error "Angle brackets must be escaped."))
-	  (:modifier-terminator (error "Dash must be escaped."))
-	  (:EOF (error "Expected something naming a key-event, got EOF.")))
-	ISOCHAR
-	(multiple-value-setq (char class) (get-key-char stream))
-	(ecase class
-	  ((:letter :event-terminator :other :escaped)
-	   (vector-push-extend char *id-namestring*)
-	   (go ISOCHAR))
-	  (:ISO-start (error "Open Angle must be escaped."))
-	  (:modifier-terminator (error "Dash must be escaped."))
-	  (:EOF (error "Bad syntax in key specification, hit eof."))
-	  (:ISO-end (go GOT-CHAR)))
-	GET-LAST-CHAR
-	(push `(make-key-event ,(copy-seq *id-namestring*) ,bits)
-	      key-event-list)
-	FINAL
-	(return (if (cdr key-event-list)
-		    `(vector ,@(nreverse key-event-list))
-		    `,(car key-event-list)))))
+	 (char (read-char stream eof-errorp eof-value))
+	 class eof)
+    (or eof-errorp
+	(if (eq char eof-value)
+	    (return eof-value)))
+    (or (char= char #\")
+	(error "Keys must be delimited by ~S." #\"))
+    ;; Skip any leading spaces in the string.
+    (if (skip-whitespace stream eof-errorp eof-value)
+	(return eof-value))
+    (multiple-value-setq (char class eof)
+      (get-key-char stream eof-errorp eof-value))
+    (if eof (return eof-value))
+    (ecase class
+      ((:letter :other :escaped) (go ID))
+      (:ISO-start (go ISOCHAR))
+      (:ISO-end (error "Angle brackets must be escaped."))
+      (:modifier-terminator (error "Dash must be escaped."))
+      (:EOF (error "No key to read.")))
+    ID
+    (vector-push-extend char *id-namestring*)
+    (multiple-value-setq (char class eof)
+      (get-key-char stream eof-errorp eof-value))
+    (if eof (return eof-value))
+    (ecase class
+      ((:letter :other :escaped) (go ID))
+      (:event-terminator (go GOT-CHAR))
+      (:modifier-terminator (go GOT-MODIFIER))
+      ((:ISO-start :ISO-end) (error "Angle brackets must be escaped."))
+      (:EOF (go GET-LAST-CHAR)))
+    GOT-CHAR
+    (push `(make-key-event ,(copy-seq *id-namestring*) ,bits)
+	  key-event-list)
+    (setf (fill-pointer *id-namestring*) 0)
+    (setf bits 0)
+    ;; Skip any whitespace between characters.
+    (if (skip-whitespace stream eof-errorp eof-value)
+	(return eof-value))
+    (multiple-value-setq (char class eof)
+      (get-key-char stream eof-errorp eof-value))
+    (if eof (return eof-value))
+    (ecase class
+      ((:letter :other :escaped) (go ID))
+      (:ISO-start (go ISOCHAR))
+      (:ISO-end (error "Angle brackets must be escaped."))
+      (:modifier-terminator (error "Dash must be escaped."))
+      (:EOF (go FINAL)))
+    GOT-MODIFIER
+    (let ((modifier-name (car (assoc *id-namestring*
+				     *modifiers-to-internal-masks*
+				     :test #'string-equal))))
+      (or modifier-name
+	  (error "~S is not a defined modifier." *id-namestring*))
+      (setf (fill-pointer *id-namestring*) 0)
+      (setf bits (logior bits (key-event-modifier-mask modifier-name))))
+    (multiple-value-setq (char class eof)
+      (get-key-char stream eof-errorp eof-value))
+    (if eof (return eof-value))
+    (ecase class
+      ((:letter :other :escaped) (go ID))
+      (:ISO-start (go ISOCHAR))
+      (:ISO-end (error "Angle brackets must be escaped."))
+      (:modifier-terminator (error "Dash must be escaped."))
+      (:EOF (error "Expected something naming a key-event, got EOF.")))
+    ISOCHAR
+    (multiple-value-setq (char class eof)
+      (get-key-char stream eof-errorp eof-value))
+    (if eof (return eof-value))
+    (ecase class
+      ((:letter :event-terminator :other :escaped)
+       (vector-push-extend char *id-namestring*)
+       (go ISOCHAR))
+      (:ISO-start (error "Open Angle must be escaped."))
+      (:modifier-terminator (error "Dash must be escaped."))
+      (:EOF (error "Bad syntax in key specification, hit EOF."))
+      (:ISO-end (go GOT-CHAR)))
+    GET-LAST-CHAR
+    (push `(make-key-event ,(copy-seq *id-namestring*) ,bits)
+	  key-event-list)
+    FINAL
+    (return (if (cdr key-event-list)
+		`(vector ,@(nreverse key-event-list))
+		`,(car key-event-list)))))
 
 (set-dispatch-macro-character #\# #\k #'parse-key-fun)
-
-(defconstant key-event-escape-char #\\
-  "The escape character that #k uses.")
-
-;;; GET-KEY-CHAR -- Internal.
-;;;
-;;; This is used by PARSE-KEY-FUN.
-;;;
-(defun get-key-char (stream)
-  (let ((char (read-char stream t nil t)))
-    (cond ((char= char key-event-escape-char)
-	   (let ((char (read-char stream t nil t)))
-	     (values char :escaped)))
-	  (t (values char (svref *key-character-classes* (char-code char)))))))
-
 
 
 ;;;; Code to deal with modifiers.
@@ -538,7 +560,7 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 ;;; this feature.
 ;;;
 (defun define-key-event-modifier (long-name short-name)
-  "Establish LONG-NAME and SHORT-NAME as modifier names for purposes of
+  "Establish $long-name and $short-name as modifier names for purposes of
    specifying key-events in #k syntax.  The names are case-insensitive
    simple-strings.  If either name is already defined, this signals an
    error.
@@ -588,9 +610,9 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 ;;; DEFINE-CLX-MODIFIER -- Public.
 ;;;
 (defun define-clx-modifier (clx-mask modifier-name)
-  "Establish a mapping from clx-mask to a defined key-event modifier-name.
-   `translate-key-event' and `translate-mouse-key-event' can only return
-   key-events with bits defined by this routine.
+  "Establish a mapping from $clx-mask to a defined key-event
+   $modifier-name.  `translate-key-event' and `translate-mouse-key-event'
+   can only return key-events with bits defined by this routine.
 
    The system defines the following default mappings between CLX modifiers
    and key-event modifiers:
@@ -616,7 +638,7 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 ;;; MAKE-KEY-EVENT-BITS -- Public.
 ;;;
 (defun make-key-event-bits (&rest modifier-names)
-  "Return bits suitable for `make-key-event' from MODIFIER-NAMES.  The
+  "Return bits suitable for `make-key-event' from $modifier-names.  The
    names must be defined, else signal an error."
   (let ((mask 0))
     (dolist (mod modifier-names mask)
@@ -629,7 +651,7 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 ;;;
 (defun key-event-bits-modifiers (bits)
   "Return a list of key-event modifier names, one for each modifier set in
-   BITS."
+   $bits."
   (let ((res nil))
     (do ((map (cdr *modifiers-to-internal-masks*) (cddr map)))
 	((null map) res)
@@ -639,8 +661,8 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 ;;; KEY-EVENT-MODIFIER-MASK -- Public.
 ;;;
 (defun key-event-modifier-mask (modifier-name)
-  "Return a mask for MODIFIER-NAME.  The mask is suitable for use with
-   KEY-EVENT-BITS.  MODIFIER-NAME must be defined, else signal an error."
+  "Return a mask for $modifier-name.  The mask is suitable for use with
+   $key-event-bits.  $modifier-name must be defined, else signal an error."
   (let ((res (cdr (assoc modifier-name *modifiers-to-internal-masks*
 			 :test #'string-equal))))
     (unless res (error "Undefined key-event modifier -- ~S." modifier-name))
@@ -682,8 +704,8 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 ;;; MAKE-KEY-EVENT --  Public.
 ;;;
 (defun make-key-event (object &optional (bits 0))
-  "Return a key-event described by OBJECT with BITS.  OBJECT is one of
-   keysym, string, or key-event.  When OBJECT is a key-event, use
+  "Return a key-event described by $object with BITS.  $object is one of
+   keysym, string, or key-event.  When $object is a key-event, use
    `key-event-keysym'.  `make-key-event-bits' and `key-event-modifier-mask'
    form bits."
   (etypecase object
@@ -707,7 +729,7 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 ;;; KEY-EVENT-BIT-P -- Public.
 ;;;
 (defun key-event-bit-p (key-event bit-name)
-  "Return whether key-event has the bit set named by BIT-NAME.  BIT-NAME
+  "Return whether $key-event has the bit set named by $bit-name.  $bit-name
    must be defined, else signal an error."
   (let ((mask (cdr (assoc bit-name *modifiers-to-internal-masks*
 			  :test #'string-equal))))
@@ -723,10 +745,10 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 (defvar *key-event-characters*)
 
 (defun key-event-char (key-event)
-  "Return the character associated with KEY-EVENT.  Setf'ing this form
-   associates a character with KEY-EVENT.  The system translates key-events
-   in some implementation dependent way for text insertion; for example,
-   under an ASCII system, the key-event #k\"C-h\", as well as
+  "Return the character associated with $key-event.  Setf'ing this form
+   associates a character with $key-event.  The system translates
+   key-events in some implementation dependent way for text insertion; for
+   example, under an ASCII system, the key-event #k\"C-h\", as well as
    #k\"backspace\" map to the Lisp character that causes a backspace."
   (check-type key-event key-event)
   (gethash key-event *key-event-characters*))
@@ -745,7 +767,7 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 (defvar *character-key-events*)
 
 (defun char-key-event (char)
-  "Returns the key-event associated with char.  SETF'ing this form
+  "Returns the key-event associated with $char.  `setf'ing this form
    associates a key-event with a character."
   (check-type char character)
   (svref *character-key-events* (char-code char)))
@@ -770,11 +792,13 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 	   ,@body)))))
 
 (defmacro do-alpha-key-events ((var kind &optional result) &rest forms)
-  "Evaluate each form with VAR bound to a key-event representing an
-   alphabetic character.  KIND is one of :lower, :upper, or :both, and this
-   binds VAR to each key-event in order as specified in the X11 protocol
-   specification.  When :both is specified, this processes lowercase letters
-   first."
+  "do-alpha-key-events (var kind [result]) form*
+
+   Evaluate each form with $var bound to a key-event representing an
+   alphabetic character.  $kind is one of :lower, :upper, or :both, and
+   this binds $var to each key-event in order as specified in the X11
+   protocol specification.  When :both is specified, this processes
+   lowercase letters first."
   (case kind
     (:both
      `(progn (alpha-key-events-loop ,var 97 122 nil ,forms)
@@ -793,8 +817,8 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 ;;; PRINT-PRETTY-KEY -- Public.
 ;;;
 (defun print-pretty-key (key &optional (stream *standard-output*) long-names-p)
-  "Print KEY, a key-event or vector of key-events, to STREAM in a
-   user-expected fashion.  LONG-NAMES-P indicates whether modifiers should
+  "Print $key, a key-event or vector of key-events, to $stream in a
+   user-expected fashion.  $long-names-p indicates whether modifiers should
    print with their long or short name."
   (declare (type (or vector key-event) key) (type stream stream))
   (etypecase key
@@ -814,13 +838,13 @@ All of the following routines and variables are exported from the "EXTENSIONS"
 ;;;
 (defun print-pretty-key-event (key-event &optional (stream *standard-output*)
 					 long-names-p)
-  "Print KEY-EVENT to STREAM.  LONG-NAMES-P indicates whether modifier
-   names should appear using the long name or short name."
-  (do ((map (if long-names-p
-		(cdr *modifiers-to-internal-masks*)
-		*modifiers-to-internal-masks*)
-	    (cddr map)))
-      ((null map))
+  "Print $key-event to $stream prettily.  $long-names-p indicates whether
+   modifier names should appear using the long name or short name."
+  (while ((map (if long-names-p
+		   (cdr *modifiers-to-internal-masks*)
+		   *modifiers-to-internal-masks*)
+	       (cddr map)))
+	 (map)
     (when (not (zerop (logand (cdar map) (key-event-bits key-event))))
       (write-string (caar map) stream)
       (write-char #\- stream)))
@@ -829,6 +853,20 @@ All of the following routines and variables are exported from the "EXTENSIONS"
     (when spacep (write-char #\< stream))
     (write-string name stream)
     (when spacep (write-char #\> stream))))
+
+;;; PRINT-KEY-EVENT -- Public.
+;;;
+;;; Note, this makes use of the ordering in the a-list
+;;; *modifiers-to-internal-masks* by CDDR'ing down it by starting on a short
+;;; name or a long name.
+;;;
+(defun print-key-event (key-event &optional (stream *standard-output*)
+				  long-names-p)
+  "Print $key-event to $stream.  $long-names-p indicates whether modifier
+   names should appear using the long name or short name."
+  (write (with-output-to-string (out)
+	   (print-pretty-key-event key-event out long-names-p))
+	 :stream stream))
 
 
 ;;;; Re-initialization.
