@@ -196,7 +196,7 @@
 
 
 
-;;; Context (syntax).
+;;;; Context (syntax).
 
 (defvar original-font 0
   "Number of the font to use for normal text.")
@@ -284,17 +284,15 @@
 ;;
 (add-hook redisplay-hook #'highlight-modes-visible-window)
 
-(defun line-same (line)
+(defun ensure-chi-info (line)
+  (or (getf (line-plist line) 'chi-info)
+      (setf (getf (line-plist line) 'chi-info)
+	    (make-chi-info (line-signature line)))))
+
+(defun line-same-p (line)
   (let ((font-info (getf (line-plist line) 'chi-info)))
-    (if font-info
-	(or (eq (line-signature line) (chi-info-signature font-info))
-	    (progn (setf (chi-info-signature font-info)
-			 (line-signature line))
-	      nil))
-	(progn
-	  (setf (getf (line-plist line) 'chi-info)
-		(make-chi-info (line-signature line)))
-	  nil))))
+    (and font-info
+	 (eq (line-signature line) (chi-info-signature font-info)))))
 
 (proclaim '(special *last-used-mark*))
 
@@ -310,19 +308,25 @@
       (push (font-mark line pos font) (chi-info-font-marks chi-info))))
 
 (defmacro highlight-chi-buffer (buffer line-highlight-fun)
-  "Highlighting syntax in Buffer."
-  `(let ((*in-string* nil)
-	 (*in-comment* nil)
+  "Highlighting context in Buffer.  Line-highlight-fun is called on each
+   line that needs updating."
+  `(let ((*in-string*)
+	 (*in-comment*)
 	 (line (mark-line (buffer-start-mark ,buffer))))
      ;; Move to the first changed line.
-     (loop while (and line (line-same line)) do
+     (loop while (and line (line-same-p line)) do
        (setq line (line-next line)))
      (when line
-       (let ((chi-info (getf (line-plist line) 'chi-info)))
-	 (setq *in-string* (chi-info-begins-quoted chi-info))
-	 (setq *in-comment* (chi-info-begins-commented chi-info)))
+       ;; Setup string and comment context from previous line.
+       (let ((previous (line-previous line)))
+	 (when previous
+	   (let ((chi-info (getf (line-plist previous) 'chi-info)))
+	     (when chi-info
+	       (setq *in-string* (chi-info-ending-quoted chi-info))
+	       (setq *in-comment* (chi-info-ending-commented chi-info))))))
+       ;; Call the highlighter on each line.
        (loop while line do
-	 (line-same line) ; To ensure chi-info line property exists.
+	 (ensure-chi-info line)
 	 (let* ((chi-info (getf (line-plist line) 'chi-info))
 		(*last-used-mark* (cons nil (chi-info-font-marks chi-info))))
 	   (setf (chi-info-begins-quoted chi-info) *in-string*)
@@ -330,6 +334,9 @@
 	   ,(list line-highlight-fun 'line 'chi-info)
 	   (setf (chi-info-ending-quoted chi-info) *in-string*)
 	   (setf (chi-info-ending-commented chi-info) *in-comment*)
+	   (setf (chi-info-signature chi-info)
+		 (line-signature line))
+	   ;; Free any remaining font marks.
 	   (when (cdr *last-used-mark*)
 	     (dolist (old-mark (cdr *last-used-mark*))
 	       (delete-font-mark old-mark))
@@ -341,56 +348,64 @@
 	 (setq line (line-next line))))))
 
 (defmacro highlight-visible-chi-buffer (buffer line-highlight-fun)
-  "Highlight context in visible portions of Buffer."
+  "Highlight context in visible portions of Buffer.  Line-highlight-fun is
+   called on each line that needs updating."
   `(dolist (window (buffer-windows ,buffer))
      (let ((*in-string*)
 	   (*in-comment*)
 	   (line (mark-line (window-display-start window)))
-	   (height (window-height window)))
+	   (end (mark-line (window-display-end window))))
        (or (eq (hi::window-first-changed window) hi::the-sentinel)
-	   ;; Move to the first changed line.
-	   (loop while (and (> height 0) line (line-same line)) do
-	     (decf height)
-	     (setq line (line-next line)))
-	   ;; Call the highlighter on each line.
-	   (when (and line (> height 0))
-	     (let ((previous (line-previous line)))
-	       (when previous
-		 (let ((chi-info (getf (line-plist line) 'chi-info)))
-		   (when chi-info
-		     (setq *in-string* (chi-info-begins-quoted chi-info))
-		     (setq *in-comment* (chi-info-begins-commented chi-info))))))
-	     (loop while (and (> height 0) line) do
-	       (decf height)
-	       (line-same line) ; Ensure chi-info line property exists.
-	       (let* ((chi-info (getf (line-plist line) 'chi-info))
-		      (*last-used-mark* (cons nil (chi-info-font-marks chi-info))))
-		 (setf (chi-info-begins-quoted chi-info) *in-string*)
-		 (setf (chi-info-begins-commented chi-info) *in-comment*)
-		 ,(list line-highlight-fun 'line 'chi-info)
-		 (setf (chi-info-ending-quoted chi-info) *in-string*)
-		 (setf (chi-info-ending-commented chi-info) *in-comment*)
-		 ;; Free any remaining font marks.
-		 (when (cdr *last-used-mark*)
-		   (dolist (old-mark (cdr *last-used-mark*))
-		     (delete-font-mark old-mark))
-		   (if (car *last-used-mark*)
-		       (setf (cdr *last-used-mark*) nil)
-		       (setf (chi-info-font-marks chi-info) nil))))
-	       ;; FIX + If the line is the same as it was before then skip to the
-	       ;; next changed line?
+	   (progn
+	     ;; Move to the first changed line.
+	     (loop while (and line (line<= line end) (line-same-p line)) do
 	       (setq line (line-next line)))
-	     ;; Clear the signature on the line following the window, so that
-	     ;; the next highlighting continues from there.
-	     (when line
-	       (line-same line) ; Ensure chi-info line property exists.
-	       (let ((chi-info (getf (line-plist line) 'chi-info)))
-		 (setf (chi-info-signature chi-info) nil))))))))
+	     (when (and line (line<= line end))
+	       ;; Setup string and comment context from the nearest
+	       ;; previous up-to-date line.
+	       (let ((previous (line-previous line)))
+		 (loop while previous do
+		   (if (line-same-p previous) (return))
+		   (setq previous (line-previous previous)))
+		 (if previous
+		   (let ((chi-info (getf (line-plist previous) 'chi-info)))
+		     (when chi-info
+		       (setq *in-string* (chi-info-ending-quoted chi-info))
+		       (setq *in-comment* (chi-info-ending-commented chi-info)))
+		     (setq line (line-next previous)))
+		   (setq line (mark-line (buffer-start-mark buffer)))))
+	       ;; Call the highlighter on each line.
+	       (loop while (and line (line<= line end)) do
+		 (ensure-chi-info line)
+		 (let* ((chi-info (getf (line-plist line) 'chi-info))
+			(*last-used-mark*
+			 (cons () (chi-info-font-marks chi-info))))
+		   (setf (chi-info-begins-quoted chi-info) *in-string*)
+		   (setf (chi-info-begins-commented chi-info) *in-comment*)
+		   ,(list line-highlight-fun 'line 'chi-info)
+		   (setf (chi-info-ending-quoted chi-info) *in-string*)
+		   (setf (chi-info-ending-commented chi-info) *in-comment*)
+		   (setf (chi-info-signature chi-info)
+			 (line-signature line))
+		   ;; Free any remaining font marks.
+		   (when (cdr *last-used-mark*)
+		     (dolist (old-mark (cdr *last-used-mark*))
+		       (delete-font-mark old-mark))
+		     (if (car *last-used-mark*)
+			 (setf (cdr *last-used-mark*) nil)
+			 (setf (chi-info-font-marks chi-info) nil))))
+		 ;; FIX + If the line is the same as it was before then skip to the
+		 ;; next changed line?
+		 (setq line (line-next line)))
+	       ;; Clear the signature on the line following the window, so that
+	       ;; the next highlighting continues from there.
+	       (when line
+		 (ensure-chi-info line)
+		 (let ((chi-info (getf (line-plist line) 'chi-info)))
+		   (setf (chi-info-signature chi-info) nil)))))))))
 
 
 ;;;; Trailing space.
-;;;;
-;;;;
 
 (defun update-trailing-space-highlight (&optional name kind where value)
   "Update all buffers to match value of \"Highlight Trailing Space\"."

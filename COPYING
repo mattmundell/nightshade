@@ -5,14 +5,15 @@ All parts of CMUCL that are explicitly marked as copyrighted have been
 removed from the source, including PCL, the CLX interface and the MIT
 version of the loop macro.
 
-What remains is the set of implicitly copyrighted additions made by people
-since the original public domain release of CMUCL.  Some of these have been
-explicitly dedicated to the public domain, and the following authors have
-confirmed that the additions they made are public domain.
+The remaining copyrights are the implicit copyrights on additions made by
+people since the original public domain release of CMUCL.  Some of these
+have been explicitly dedicated to the public domain, and the following
+authors have confirmed that the additions they made are public domain.
 
-    dtc	   Douglas Crosher
-    pw     Paul Werkowski
-    ram    Robert MacLachlan
+    Douglas Crosher     dtc
+    Robert MacLachlan   ram
+    Peter Van Eynde
+    Paul Werkowski      pw
 
 The intention for the rest of these additions is to either confirm that
 they are public domain or replace them.

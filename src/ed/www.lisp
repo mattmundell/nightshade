@@ -739,7 +739,10 @@
 			  url)
 		      (prompt-for-string
 		       :prompt "URL: "
-		       :default (value www-home)))))
+		       :default
+		       (if (value www-url)
+			   (value www-url)
+			   (value www-home))))))
     (www-refresh (current-buffer) location)
     (update-modeline-field (current-buffer) (current-window)
 			   (modeline-field :www-title))))

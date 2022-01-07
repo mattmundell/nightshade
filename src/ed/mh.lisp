@@ -2445,7 +2445,7 @@
 (defun incorporate-new-mail (&optional stream)
   "Incorporates new mail, passing INC's output to stream.  When stream is
    nil, output is flushed."
-  (unless (new-mail-p) (editor-error "No new mail."))
+  (or (new-mail-p) (editor-error "All mail already retrieved."))
   (let ((args `(,(coerce-folder-name (value new-mail-folder))
 		,@(if stream nil '("-silent"))
 		"-form" ,(namestring (truename (value mh-scan-line-form)))

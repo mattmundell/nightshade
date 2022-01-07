@@ -1,0 +1,977 @@
+This is TeX, Version 3.1415 (C version 6.1) (format=lplain 94.6.16)  31 OCT 1995 10:50
+**&latex209 design.tex
+(design.tex
+LaTeX Version 2.09 <25 March 1992>
+(/usr/local/lib/texmf/tex/latex209/report.sty
+Standard Document Style `report' <14 Jan 92>.
+(/usr/local/lib/texmf/tex/latex209/rep10.sty)
+\descriptionmargin=\dimen99
+\c@part=\count79
+\c@chapter=\count80
+\c@section=\count81
+\c@subsection=\count82
+\c@subsubsection=\count83
+\c@paragraph=\count84
+\c@subparagraph=\count85
+\c@figure=\count86
+\c@table=\count87
+
+(/usr/local/lib/texmf/tex/latex209/titlepag.sty
+Document Style Option `titlepage' -- Released 16 June 1991.
+)) (/afs/cs/project/clisp/docs/database/cmu-titlepage.sty
+Document style option 'cmu-titlepage' --- 24 January 1992
+) (design.aux (architecture.aux) (compiler.aux) (compiler-overview.aux)
+(front.aux) (middle.aux) (back.aux) (interface.aux) (retargeting.aux)
+(run-time.aux) (environment.aux) (interpreter.aux) (debugger.aux) (object.aux)
+(lowlev.aux) (fasl.aux) (glossary.aux))
+\@cutoutvskip=\skip41
+ [0
+
+] (design.toc [1
+
+
+] [2] [3])
+\tf@toc=\write3
+ [4]
+(architecture.tex [5
+
+
+]
+Chapter 1.
+[6
+
+] [7]
+Overfull \hbox (0.71301pt too wide) in paragraph at lines 125--128
+[] []\tenrm The Python com-piler. Has architecture-specific sub-di-rec-to-ries 
+which
+
+\hbox(6.94444+2.22223)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(6.94444+2.22223)x27.24959
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(6.94444+2.22223)x52.24959
+...\glue 5.0
+...\tentt c
+...\tentt o
+...\tentt m
+...\tentt p
+...etc.
+..\glue 5.0
+.\penalty 0
+.\tenrm T
+.etc.
+
+[8] [9] [10]
+Chapter 2.
+
+Overfull \hbox (11.99689pt too wide) in paragraph at lines 243--243
+[] []\tentt * (load ".../compiler/generic/new-genesis") ; compile before loadin
+g[] 
+
+\hbox(6.94444+2.22223)x345.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(0.0+0.0)x0.0
+..\glue 0.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(0.0+0.0)x0.0
+..\glue 5.0
+.\penalty 0
+.\tentt *
+.etc.
+
+LaTeX Warning: Reference `[' on page 11 undefined on input line 252.
+[11
+
+] [12]) [13] (compiler.tex [14
+
+
+
+] (compiler-overview.tex
+Chapter 3.
+[15
+
+
+]
+Overfull \hbox (1.85419pt too wide) in paragraph at lines 63--65
+[] []\tenrm Various parts of ICR are in-cre-men-tally re-com-puted,
+
+\hbox(6.94444+1.94444)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(6.94444+1.94444)x100.91048
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(6.94444+1.94444)x125.91048
+...\glue 5.0
+...\tenbf E
+...\tenbf v
+...\kern-0.31944
+...\tenbf e
+...etc.
+..\glue 5.0
+.\penalty 0
+.\tenrm V
+.etc.
+
+[16]
+Overfull \hbox (5.21574pt too wide) in paragraph at lines 124--126
+[] []\tenrm Find a le-gal reg-is-ter al-lo-ca-tion, at-tempt-ing to min-i-mize 
+un-nec-es-sary moves.
+
+\hbox(6.94444+1.94444)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(6.94444+0.0)x3.9929
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(6.94444+0.0)x28.9929
+...\glue 5.0
+...\tenbf P
+...\kern-0.31944
+...\tenbf a
+...\tenbf c
+...etc.
+..\glue 5.0
+.\penalty 0
+.\tenrm F
+.etc.
+
+[17]
+Chapter 4.
+[18
+
+]
+LaTeX Warning: Reference `source-paths' on page 19 undefined on input line 221.
+
+[19] [20] [21] [22] [23] [24]) [25] (front.tex
+Chapter 5.
+[26
+
+
+
+] [27] [28] [29] [30]
+Chapter 6.
+[31
+
+] [32]
+Chapter 7.
+[33
+
+]
+Chapter 8.
+[34
+
+] [35] [36] [37] [38] [39]
+Chapter 9.
+[40
+
+] [41]
+Chapter 10.
+[42
+
+] [43] [44]
+Chapter 11.
+[45
+
+]
+Chapter 12.
+[46
+
+]) [47] (middle.tex
+Chapter 13.
+[48
+
+
+
+]
+Chapter 14.
+[49
+
+] [50]
+Chapter 15.
+[51
+
+] [52] [53]
+Chapter 16.
+[54
+
+] [55]
+Chapter 17.
+[56
+
+] [57] [58] [59] [60]) [61] (back.tex
+Chapter 18.
+[62
+
+
+
+] [63]
+Chapter 19.
+
+Overfull \hbox (8.8881pt too wide) in paragraph at lines 78--82
+\tenrm pass-ing for call VOPs is con-trolled by the \tentt :move-arguments \ten
+rm op-tion to \tentt define-vop\tenrm . 
+
+\hbox(6.94444+2.22223)x345.0, glue set - 1.0
+.\tenrm p
+.\tenrm a
+.\tenrm s
+.\tenrm s
+.\discretionary
+..\tenrm -
+.etc.
+
+[64
+
+] [65]
+Chapter 20.
+[66
+
+] [67] [68] [69]
+Chapter 21.
+[70
+
+] [71] [72] [73] [74]
+Chapter 22.
+[75
+
+]
+Chapter 23.
+[76
+
+]
+Chapter 24.
+
+Overfull \hbox (26.3896pt too wide) in paragraph at lines 635--639
+[]\tenrm load-component com-po-nent code-vector length fix-ups Like Fasl-Dump-C
+omponent,
+
+\hbox(6.94444+1.94444)x345.0, glue set - 1.0
+.\hbox(0.0+0.0)x15.0
+.\tenrm l
+.\tenrm o
+.\tenrm a
+.\tenrm d
+.etc.
+
+[77
+
+] [78]) [79] (interface.tex
+Chapter 25.
+) [80
+
+
+
+])
+\global\@namedef{cp@compiler}{
+\setcounter{page}{81}
+\setcounter{equation}{0}
+\setcounter{enumi}{0}
+\setcounter{enumii}{0}
+\setcounter{enumiii}{0}
+\setcounter{enumiv}{0}
+\setcounter{footnote}{0}
+\setcounter{mpfootnote}{0}
+\setcounter{part}{2}
+\setcounter{chapter}{25}
+\setcounter{section}{2}
+\setcounter{subsection}{0}
+\setcounter{subsubsection}{0}
+\setcounter{paragraph}{0}
+\setcounter{subparagraph}{0}
+\setcounter{figure}{0}
+\setcounter{table}{0}
+}
+(retargeting.tex [81
+
+
+
+
+] [82] [83]
+Chapter 26.
+
+Overfull \hbox (0.36162pt too wide) in paragraph at lines 84--86
+\tenrm New in-ter-face: in-stead of CURRENT-FRAME-SIZE, have CURRENT-SB-SIZE
+
+\hbox(6.94444+1.94444)x345.0, glue set - 1.0
+.\tenrm N
+.\tenrm e
+.\tenrm w
+.\glue 3.33333 plus 1.66666 minus 1.11111
+.\tenrm i
+.etc.
+
+[84
+
+] [85]
+Overfull \hbox (20.08395pt too wide) in paragraph at lines 206--214
+[]\tenrm Non-packed SCs: Con-stant Im-me-di-ate con-stant SCs: Signed-Byte-<N>,
+ Unsigned-
+
+\hbox(6.94444+1.94444)x345.0, glue set - 1.0
+.\hbox(0.0+0.0)x15.0
+.\tenrm N
+.\tenrm o
+.\tenrm n
+.\tenrm -
+.etc.
+
+[86]
+Chapter 27.
+[87
+
+] [88]
+Chapter 28.
+[89
+
+] [90] [91]
+Chapter 29.
+[92
+
+]
+Chapter 30.
+[93
+
+]
+Chapter 31.
+[94
+
+] [95] [96] [97]
+Overfull \hbox (1.27509pt too wide) in paragraph at lines 750--754
+[]\tenrm LEXENV <- the-fun (from pre-vi-ous line or VOP ar-gu-ment) CODE <- fun
+ction-
+
+\hbox(7.5+2.5)x345.0, glue set - 1.0
+.\hbox(0.0+0.0)x15.0
+.\tenrm L
+.\tenrm E
+.\tenrm X
+.\tenrm E
+.etc.
+
+[98]
+Overfull \hbox (8.7216pt too wide) in paragraph at lines 844--847
+[]\tenrm Returnee The call VOP's call DEFAULT-UNKNOWN-VALUES or RECEIVE-
+
+\hbox(6.94444+0.0)x345.0, glue set - 1.0
+.\hbox(0.0+0.0)x15.0
+.\tenrm R
+.\tenrm e
+.\tenrm t
+.\tenrm u
+.etc.
+
+
+Overfull \hbox (0.61047pt too wide) in paragraph at lines 848--874
+[]\tenrm DEFAULT-UNKNOWN-VALUES (We know what we want and we got some-
+
+\hbox(7.5+2.5)x345.0, glue set - 1.0
+.\hbox(0.0+0.0)x15.0
+.\tenrm D
+.\tenrm E
+.\tenrm F
+.\kern-1.11113
+.etc.
+
+[99]
+Overfull \hbox (22.77731pt too wide) in paragraph at lines 916--926
+[]\tenrm KNOWN-CALL-LOCAL, CALL-LOCAL, MULTIPLE-CALL-LOCAL KNOWN-
+
+\hbox(6.83331+1.94444)x345.0, glue set - 1.0
+.\hbox(0.0+0.0)x15.0
+.\tenrm K
+.\tenrm N
+.\tenrm O
+.\kern-0.27779
+.etc.
+
+[100]
+Overfull \hbox (5.5689pt too wide) in paragraph at lines 927--936
+[]\tenrm when (current-nfp-tn VOP-self-pointer) ;Get VOP self-pointer with ;DEF
+INE-
+
+\hbox(7.5+2.5)x345.0, glue set - 1.0
+.\hbox(0.0+0.0)x15.0
+.\tenrm w
+.\tenrm h
+.\tenrm e
+.\tenrm n
+.etc.
+
+[101]
+Chapter 32.
+[102
+
+]
+Chapter 33.
+[103
+
+] [104]) [105] (run-time.tex [106
+
+
+
+] (environment.tex
+Chapter 34.
+[107
+
+
+]
+Chapter 35.
+) [108
+
+] (interpreter.tex [109
+
+
+] [110] [111]) [112] (debugger.tex [113
+
+
+]
+Chapter 36.
+[114
+
+] [115] [116] [117] [118] [119] [120] [121]) [122] (object.tex
+Chapter 37.
+[123
+
+
+
+] [124]
+Overfull \hbox (9.86174pt too wide) in paragraph at lines 119--123
+[]\tenrm This for-mat has an-other ad-van-tage on byte-addressable ma-chines wh
+en fixnums
+
+\hbox(6.94444+1.94444)x345.0, glue set - 1.0
+.\hbox(0.0+0.0)x15.0
+.\tenrm T
+.\tenrm h
+.\tenrm i
+.\tenrm s
+.etc.
+
+
+Overfull \hbox (3.63945pt too wide) in paragraph at lines 134--136
+\tenrm As for fixnums, there are two dif-fer-ent three-bit low-tag codes for ot
+her-immediate,
+
+\hbox(6.94444+1.94444)x345.0, glue set - 1.0
+.\tenrm A
+.\tenrm s
+.\glue 3.33333 plus 1.66666 minus 1.11111
+.\tenrm f
+.\tenrm o
+.etc.
+
+[125]
+Overfull \hbox (5.86098pt too wide) in paragraph at lines 152--158
+[]\tenrm The sys-tem uses the other-immediate for-mat for char-ac-ters, the \te
+ntt symbol-value
+
+\hbox(6.94444+2.22223)x345.0, glue set - 1.0
+.\hbox(0.0+0.0)x15.0
+.\tenrm T
+.\tenrm h
+.\tenrm e
+.\glue 3.33333 plus 1.66666 minus 1.11111
+.etc.
+
+
+Overfull \hbox (6.74693pt too wide) in paragraph at lines 167--167
+[]\tentt |      Dual-word address of data-block (29 bits)       | 1 1    1 |[] 
+
+
+\hbox(6.94444+0.8333)x345.0
+.\hbox(0.0+0.0)x0.0
+.\tentt |
+.\penalty 10000
+.\glue 5.24995
+.\penalty 10000
+.etc.
+
+[126] [127] [128]
+Overfull \hbox (1.49698pt too wide) in paragraph at lines 334--334
+[] []\tentt -------------------------------------------------------  <-- space[
+] 
+
+\hbox(5.55554+2.22223)x345.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(0.0+0.0)x0.0
+..\glue 0.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(0.0+0.0)x0.0
+..\glue 5.0
+.\penalty 0
+.\tentt -
+.etc.
+
+
+Overfull \hbox (1.49698pt too wide) in paragraph at lines 334--334
+[]\tentt |                               0                     |      start[] 
+
+\hbox(6.94444+0.8333)x345.0
+.\hbox(0.0+0.0)x0.0
+.\tentt |
+.\penalty 10000
+.\glue 5.24995
+.\penalty 10000
+.etc.
+
+[129] [130] [131]
+Overfull \hbox (0.59555pt too wide) in paragraph at lines 468--473
+[] []\tenrm A code pointer is a de-scrip-tor, with other-
+
+\hbox(7.5+2.5)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(7.5+2.5)x142.92972
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(7.5+2.5)x167.92972
+...\glue 5.0
+...\tenbf C
+...\tenbf o
+...\kern0.31944
+...\tenbf d
+...etc.
+..\glue 5.0
+.\penalty 0
+.\tenrm A
+.etc.
+
+[132] [133]
+Overfull \hbox (1.68008pt too wide) in paragraph at lines 551--555
+[] []\tenrm The im-me-di-ate data in the code data-block's
+
+\hbox(6.94444+0.0)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(6.94444+0.0)x131.62418
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(6.94444+0.0)x156.62418
+...\glue 5.0
+...\tenbf C
+...\tenbf o
+...\kern0.31944
+...\tenbf d
+...etc.
+..\glue 5.0
+.\penalty 0
+.\tenrm T
+.etc.
+
+
+Overfull \hbox (5.15952pt too wide) in paragraph at lines 561--563
+[] []\tenrm A NIL-terminated list of the func-tion head-
+
+\hbox(6.94444+0.0)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(6.94444+0.0)x140.7714
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(6.94444+0.0)x165.7714
+...\glue 5.0
+...\tenbf P
+...\kern-0.31944
+...\tenbf o
+...\tenbf i
+...etc.
+..\glue 5.0
+.\penalty 0
+.\tenrm A
+.etc.
+
+
+Overfull \hbox (2.13768pt too wide) in paragraph at lines 564--572
+[] []\tenrm The DEBUG-INFO struc-ture de-scrib-ing this com-po-nent.
+
+\hbox(6.94444+1.94444)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(6.94444+1.94444)x78.20781
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(6.94444+1.94444)x103.20781
+...\glue 5.0
+...\tenbf D
+...\tenbf e
+...\tenbf b
+...\tenbf u
+...etc.
+..\glue 5.0
+.\penalty 0
+.\tenrm T
+.etc.
+
+[134]
+Overfull \hbox (1.42993pt too wide) in paragraph at lines 583--586
+[] []\tenrm The im-me-di-ate header-word data is the
+
+\hbox(6.94444+1.94444)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(6.94444+1.94444)x153.81856
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(6.94444+1.94444)x178.81856
+...\glue 5.0
+...\tenbf F
+...\kern-0.95833
+...\tenbf u
+...\tenbf n
+...etc.
+..\glue 5.0
+.\penalty 0
+.\tenrm T
+.etc.
+
+
+Overfull \hbox (6.99945pt too wide) in paragraph at lines 587--596
+[] []\tenrm In a non-closure func-tion, this self-pointer
+
+\hbox(6.94444+1.94444)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(6.94444+1.94444)x148.49913
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(6.94444+1.94444)x173.49913
+...\glue 5.0
+...\tenbf S
+...\tenbf e
+...\tenbf l
+...\tenbf f
+...etc.
+..\glue 5.0
+.\penalty 0
+.\tenrm I
+.etc.
+
+[135] [136]) [137] (lowlev.tex
+Chapter 38.
+[138
+
+
+
+]
+Chapter 39.
+[139
+
+]
+Chapter 40.
+[140
+
+]
+Chapter 41.
+) [141
+
+] (fasl.tex
+Chapter 42.
+[142
+
+
+
+] [143] [144]
+Overfull \hbox (23.6239pt too wide) in paragraph at lines 187--196
+[] []  \tentt FOP-SMALL-SYMBOL-IN-PACKAGE-SAVE   \tenit in-dex\tenrm (4)   \ten
+it n\tenrm (1)   \tenit name\tenrm (\tenit n\tenrm )
+
+\hbox(7.5+2.5)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(6.44444+0.0)x-11.0556
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(6.44444+0.0)x13.9444
+...\glue 5.0
+...\tenbf 9
+...\tenbf :
+..\glue 5.0
+.\penalty 0
+.\glue 20.00003
+.etc.
+
+
+Overfull \hbox (24.12392pt too wide) in paragraph at lines 197--206
+[] []  \tentt FOP-SYMBOL-IN-BYTE-PACKAGE-SAVE   \tenit in-dex\tenrm (1)   \teni
+t n\tenrm (4)   \tenit name\tenrm (\tenit n\tenrm )
+
+\hbox(7.5+2.5)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(6.44444+0.0)x-5.30563
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(6.44444+0.0)x19.69437
+...\glue 5.0
+...\tenbf 1
+...\tenbf 0
+...\tenbf :
+..\glue 5.0
+.\penalty 0
+.\glue 20.00003
+.etc.
+
+[145]
+Overfull \hbox (18.77986pt too wide) in paragraph at lines 217--220
+[] []  \tentt FOP-UNINTERNED-SYMBOL-SAVE   \tenit n\tenrm (4)   \tenit name\ten
+rm (\tenit n\tenrm )   $\tensy )$   \tenrm stack
+
+\hbox(7.5+2.5)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(6.44444+0.0)x-5.30563
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(6.44444+0.0)x19.69437
+...\glue 5.0
+...\tenbf 1
+...\tenbf 2
+...\tenbf :
+..\glue 5.0
+.\penalty 0
+.\glue 20.00003
+.etc.
+
+
+Overfull \hbox (3.55731pt too wide) in paragraph at lines 221--225
+[] []  \tentt FOP-UNINTERNED-SMALL-SYMBOL-SAVE   \tenit n\tenrm (1)   \tenit na
+me\tenrm (\tenit n\tenrm )   $\tensy )$
+
+\hbox(7.5+2.5)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(6.44444+0.0)x-5.30563
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(6.44444+0.0)x19.69437
+...\glue 5.0
+...\tenbf 1
+...\tenbf 3
+...\tenbf :
+..\glue 5.0
+.\penalty 0
+.\glue 20.00003
+.etc.
+
+[146] [147]
+Overfull \hbox (31.67996pt too wide) in paragraph at lines 323--330
+[] []  \tentt FOP-UNIFORM-INT-VECTOR   \tenit n\tenrm (4)   \tenit size\tenrm (
+1)   \tenit value\tenrm (@ceiling<\tenit size\tenrm /8>)
+
+\hbox(7.5+2.5)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(6.44444+0.0)x-5.30563
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(6.44444+0.0)x19.69437
+...\glue 5.0
+...\tenbf 4
+...\tenbf 4
+...\tenbf :
+..\glue 5.0
+.\penalty 0
+.\glue 20.00003
+.etc.
+
+[148]
+Overfull \hbox (5.71373pt too wide) in paragraph at lines 387--395
+[] []  \tentt FOP-CODE   \tenit nitems\tenrm (4)   \tenit size\tenrm (4)   \ten
+it code\tenrm (\tenit size\tenrm )   $\tensy )$   \tenrm stack 
+
+\hbox(7.5+2.5)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(6.44444+0.0)x-5.30563
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(6.44444+0.0)x19.69437
+...\glue 5.0
+...\tenbf 5
+...\tenbf 8
+...\tenbf :
+..\glue 5.0
+.\penalty 0
+.\glue 20.00003
+.etc.
+
+
+Overfull \hbox (7.63855pt too wide) in paragraph at lines 387--395
+\tenrm is in the for-mat spec-i-fied by the most re-cent oc-cur-rence of \tentt
+ FOP-CODE-FORMAT\tenrm .
+
+\hbox(6.94444+1.94444)x320.0, glue set - 1.0
+.\tenrm i
+.\tenrm s
+.\glue 3.33333 plus 1.66666 minus 1.11111
+.\tenrm i
+.\tenrm n
+.etc.
+
+
+Overfull \hbox (7.63855pt too wide) in paragraph at lines 396--404
+\tenrm is in the for-mat spec-i-fied by the most re-cent oc-cur-rence of \tentt
+ FOP-CODE-FORMAT\tenrm .
+
+\hbox(6.94444+1.94444)x320.0, glue set - 1.0
+.\tenrm i
+.\tenrm s
+.\glue 3.33333 plus 1.66666 minus 1.11111
+.\tenrm i
+.\tenrm n
+.etc.
+
+[149] [150]
+Overfull \hbox (18.77986pt too wide) in paragraph at lines 465--470
+[] []  \tentt FOP-LISP-SMALL-SYMBOL-SAVE   \tenit n\tenrm (1)   \tenit name\ten
+rm (\tenit n\tenrm )   $\tensy )$   \tenrm stack
+
+\hbox(7.5+2.5)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(6.44444+0.0)x-5.30563
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(6.44444+0.0)x19.69437
+...\glue 5.0
+...\tenbf 7
+...\tenbf 6
+...\tenbf :
+..\glue 5.0
+.\penalty 0
+.\glue 20.00003
+.etc.
+
+
+Overfull \hbox (3.03pt too wide) in paragraph at lines 471--475
+[] []  \tentt FOP-KEYWORD-SYMBOL-SAVE   \tenit n\tenrm (4)   \tenit name\tenrm 
+(\tenit n\tenrm )   $\tensy )$   \tenrm stack
+
+\hbox(7.5+2.5)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(6.44444+0.0)x-5.30563
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(6.44444+0.0)x19.69437
+...\glue 5.0
+...\tenbf 7
+...\tenbf 7
+...\tenbf :
+..\glue 5.0
+.\penalty 0
+.\glue 20.00003
+.etc.
+
+[151]
+Overfull \hbox (5.34663pt too wide) in paragraph at lines 537--546
+[] []  \tentt FOP-FOREIGN-FIXUP   \tenit len\tenrm (1)   \tenit name\tenrm (\te
+nit len\tenrm )   \tenit off-set\tenrm (4)   $\tensy )$
+
+\hbox(7.5+2.5)x320.0, glue set - 1.0
+.\hbox(0.0+0.0)x0.0
+.\glue 0.0
+.\hbox(6.44444+0.0)x0.44434
+..\glue -25.0
+..\glue 0.0
+..\glue -5.0
+..\hbox(6.44444+0.0)x25.44434
+...\glue 5.0
+...\tenbf 1
+...\tenbf 4
+...\tenbf 7
+...\tenbf :
+..\glue 5.0
+.\penalty 0
+.\glue 20.00003
+.etc.
+
+
+Underfull \hbox (badness 10000) in paragraph at lines 557--559
+
+
+\hbox(0.0+0.0)x320.0
+.\glue(\rightskip) 0.0
+
+[152]) [153])
+\global\@namedef{cp@run-time}{
+\setcounter{page}{154}
+\setcounter{equation}{0}
+\setcounter{enumi}{0}
+\setcounter{enumii}{0}
+\setcounter{enumiii}{0}
+\setcounter{enumiv}{0}
+\setcounter{footnote}{0}
+\setcounter{mpfootnote}{0}
+\setcounter{part}{4}
+\setcounter{chapter}{42}
+\setcounter{section}{3}
+\setcounter{subsection}{0}
+\setcounter{subsubsection}{0}
+\setcounter{paragraph}{0}
+\setcounter{subparagraph}{0}
+\setcounter{figure}{0}
+\setcounter{table}{0}
+}
+(glossary.tex
+Appendix A.
+[154
+
+
+
+
+] [155]
+Overfull \hbox (3.40726pt too wide) in paragraph at lines 110--115
+\tenrm most form on which the com-piler was in-voked. In the case of \tentt com
+pile-file\tenrm ,
+
+\hbox(6.94444+2.22223)x320.0, glue set - 1.0
+.\tenrm m
+.\tenrm o
+.\tenrm s
+.\tenrm t
+.\glue 3.33333 plus 1.66666 minus 1.11111
+.etc.
+
+[156] [157]
+LaTeX Warning: Reference `tagging' on page 158 undefined on input line 230.
+[158] [159]) [160] (design.aux (architecture.aux) (compiler.aux)
+(compiler-overview.aux) (front.aux) (middle.aux) (back.aux) (interface.aux)
+(retargeting.aux) (run-time.aux) (environment.aux) (interpreter.aux)
+(debugger.aux) (object.aux) (lowlev.aux) (fasl.aux) (glossary.aux))
+LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
+ ) 
+Here is how much of TeX's memory you used:
+ 521 strings out of 11977
+ 4538 string characters out of 87272
+ 43942 words of memory out of 262141
+ 2191 multiletter control sequences out of 9500
+ 19913 words of font info for 75 fonts, out of 100000 for 255
+ 14 hyphenation exceptions out of 607
+ 18i,9n,17p,279b,391s stack positions out of 300i,40n,60p,3000b,4000s
+
+Output written on design.dvi (161 pages, 432708 bytes).

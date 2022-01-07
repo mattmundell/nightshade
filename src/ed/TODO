@@ -3,7 +3,6 @@
 revert rest of sys to public domain  ../etc/TODO
 hyper
 flush-t-w option buffer,mode
-highlight
 mail
 	speed up finding folder names
 		convert all to lisp?

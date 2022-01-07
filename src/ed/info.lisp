@@ -10,7 +10,7 @@
 ;;       Goto Node (g).
 ;;       FIXes below.
 
-(in-package "HEMLOCK")
+(in-package "ED")
 
 
 
@@ -53,8 +53,8 @@
       (terpri file))))
 |#
 
-(defvar info-dir-manuals '("target:docs/hem/user/user.mss"
-			   "target:docs/hem/cim/cim.mss")
+(defvar info-dir-manuals '("target:doc/ed/user/user.mss"
+			   "target:doc/ed/cim/cim.mss")
   "List of Scribe manuals for the Info directory.")
 
 (defun get-info-directory ()

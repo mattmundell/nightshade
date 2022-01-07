@@ -313,9 +313,9 @@
     (editor-error "Buffer ~A is already in use." name))
   (let ((lisp (unix-namestring (merge-pathnames (value slave-utility) "path:")
 			       t t)))
-    (unless lisp
-      (editor-error "Can't find ``~S'' in your path to run."
-		    (value slave-utility)))
+    (or lisp
+	(editor-error "Can't find ``~S'' in your path to run."
+		      (value slave-utility)))
     (multiple-value-bind (slave background)
 			 (if name
 			     (values name (format nil "Background ~A" name))
@@ -344,8 +344,7 @@
 			      :if-output-exists :append))
 	    (*accept-connections* t)
 	    (*newly-created-slave* nil))
-	(unless proc
-	  (editor-error "Could not start slave."))
+	(or proc (editor-error "Could not start slave."))
 	(dotimes (i *slave-connect-wait*
 		    (editor-error
 		     "Client Lisp is still unconnected.  ~

@@ -221,6 +221,10 @@
   (declare (ignore type))
   (setf (buffer-major-mode buffer) "M4"))
 
+(define-file-type-hook ("tex") (buffer type)
+  (declare (ignore type))
+  (setf (buffer-major-mode buffer) "Tex"))
+
 
 (defmacro define-file-pathname-hook (name-list (buffer name) &body body)
   "Define-File-Pathname-Hook ({Name}*) (Buffer Name) {Form}*

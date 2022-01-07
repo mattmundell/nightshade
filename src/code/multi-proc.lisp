@@ -1448,7 +1448,7 @@
 (defun process-wait-until-fd-usable (fd direction &optional timeout)
   "Wait until FD is usable for DIRECTION and return True. DIRECTION should be
   either :INPUT or :OUTPUT. TIMEOUT, if supplied, is the number of seconds to
-  wait before giving up and returing NIL."
+  wait before giving up and returning NIL."
   (declare (type kernel:index fd)
 	   (type (or real null) timeout)
 	   (optimize (speed 3)))
@@ -1520,7 +1520,7 @@
 ;;;
 (defun sleep (n)
   "This function causes execution to be suspended for N seconds.  N may
-  be any non-negative, non-complex number."
+   be any non-negative, non-complex number."
   (when (or (not (realp n))
 	    (minusp n))
     (error "Invalid argument to SLEEP: ~S.~%~

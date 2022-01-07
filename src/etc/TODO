@@ -1,11 +1,8 @@
 ;;; towards a public domain computer
 full pd
     revert to as far back as possible
-		publish  nightshade 0.0+
-				 nightshade 1
-					 binary
-		18c docs
-			must strip out copyrighted section
+		publish ns binary
+		release dates
 	where is the full pd?
 		# list pd status of all 18c files
 		#     maybe start in lisp/, code/
@@ -34,6 +31,8 @@ full pd
 			Linux port update from Peter VanEynde: revision of the glibc2 support,
 			better hemlock tty mode support.
 			----------------------------
+	    src/doc/internals/dave-memory-layout.mss
+code/sunset.lisp
 parse-time.lisp  dow incr day past end of month
 shell,vc.lisp byte compiling
 take out (replace?) monitor
