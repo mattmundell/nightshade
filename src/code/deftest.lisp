@@ -148,11 +148,13 @@ abcdefghijklmnopqrstuvwxyz
    where the characters satisfy $predicate."
   (let* ((len (+ (random (- (1+ max) min)) min))
 	 (string (make-string len)))
-    (loop for i from 0 to (1- len) do
-      (loop for code = (random #xff) do
-	(when (funcall predicate (code-char code))
-	  (setf (char string i) (code-char code))
-	  (return ()))))
+    (while ((i 0 (1+ i)))
+	   ((< i len))
+      (loop
+	(let ((code (random #xff)))
+	  (when (funcall predicate (code-char code))
+	    (setf (char string i) (code-char code))
+	    (return ())))))
     string))
 
 (defun pick-dir (root &optional (num (random 100)))
@@ -294,7 +296,8 @@ abcdefghijklmnopqrstuvwxyz
 	      ;; Number of links.
  	      (test (integerp val))
 	      (multiple-value-bind (val end)
-				   (read-from-string line () () :start end)
+				   (read-from-string line () ()
+						     :start end)
  		(test (and (symbolp val)
  			   (string= (string-downcase (symbol-name val))
  				    (user-name))))
@@ -307,6 +310,10 @@ abcdefghijklmnopqrstuvwxyz
 		  (if (listp (car spec))
 		      ;; Symlink.
 		      (progn
+			(test (>= (length line)
+				  (+ end 14
+				     (length (caar spec))
+				     3)))
 			(test (string= line (caar spec)
 				       :start1 (+ end 13)
 				       :end1 (+ end 13

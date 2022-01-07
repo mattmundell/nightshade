@@ -32,6 +32,7 @@
   #'(lambda (buffer) (delete-italic-marks-region (buffer-region buffer))))
 
 (define-file-option "Italicize Comments" (buffer value)
+  (declare (ignore value))
   (setf (buffer-minor-mode buffer "Italic") t))
 
 (defcommand "Italic Comment Mode" ()
@@ -40,7 +41,7 @@
   (setf (buffer-minor-mode (current-buffer) "Italic")
 	(not (buffer-minor-mode (current-buffer) "Italic"))))
 
-(defcommand "Start Italic Comment" (p)
+(defcommand "Start Italic Comment" ()
   "Italicize the text in this comment."
   (let* ((point (current-point))
 	 (pos (mark-charpos point))

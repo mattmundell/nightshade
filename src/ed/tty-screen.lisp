@@ -46,7 +46,8 @@
 (defun reverse-video-hook-fun (name kind where new-value)
   (declare (ignore name kind where))
   (tty-reverse-video new-value)
-  (redisplay-all))
+  (if *editor-has-been-entered*
+      (redisplay-all)))
 
 
 ;;;; Terminal screen initialization
@@ -276,8 +277,9 @@
 	  (original-pair (termcap :original-pair termcap))
 	  (adjust-fg (termcap :adjust-fg termcap))
 	  (adjust-bg (termcap :adjust-bg termcap))
-	  (start-underscore (termcap :start-underscore-mode termcap))
-	  (end-underscore (termcap :end-underscore-mode termcap)))
+	  ;(start-underscore (termcap :start-underscore-mode termcap))
+	  ;(end-underscore (termcap :end-underscore-mode termcap))
+	  )
       (when (and original-pair adjust-fg adjust-bg)
 	(setf (tty-device-colors device) colors)
 	(setf (tty-device-original-pair-string device) original-pair)

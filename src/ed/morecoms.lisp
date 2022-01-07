@@ -59,7 +59,7 @@ useful for correcting typos.
     (with-mark ((mark point))
       (if (word-offset (if (minusp arg) mark point) arg)
 	  (filter-region function (region mark point))
-	  (editor-error "Not enough words.")))))
+	  (editor-error "Too few words.")))))
 
 ;;; "Capitalize Word" is different than uppercasing and lowercasing because
 ;;; the differences between the editor's notion of what a word is and
@@ -656,7 +656,7 @@ various modes with one command bound to the corresponding up-click.
 		      :key #'(lambda (cons)
 			       (edi::random-typeout-stream-window (cdr cons)))))
       (supply-generic-pointer-up-function #'lisp::do-nothing)
-      (editor-error "I'm afraid I can't let you do that Dave."))
+      (editor-error "Attempt to make a special window current."))
     (setf (current-window) window)
     (let ((buffer (window-buffer window)))
       (unless (eq (current-buffer) buffer)
@@ -1095,11 +1095,12 @@ text-formatting program, then decent word processing is possible.
 [ Paragraph Commands  ]
 [ Filling             ]
 [ Scribe Mode         ]
+[ Hex Mode            ]  Editing binary files.
 [ Spelling Correction ]
 ]#
 
 
-;;;; Some modes:
+;;;; Some modes.
 
 (defcommand "Fundamental Mode" ()
   "Put the current buffer into \"Fundamental\" mode.  Fundamental mode is
@@ -1136,6 +1137,35 @@ characters as uppercase letters.
 	(insert-string (current-point) (make-string p :initial-element char))
 	(insert-character (current-point) char))))
 
+;;; CSV mode.
+;;;
+
+(declaim (special *mode-highlighters*))
+
+(defun highlight-csv-line (line chi-info)
+  (while* ((string (line-string line))
+	   (pos (position #\, string :start 0)
+		(position #\, string :start pos)))
+	  (pos)
+    (chi-mark line pos *original-font* :comment chi-info)
+    (incf pos)
+    (chi-mark line pos *original-font* :window-foreground chi-info)))
+
+(defun highlight-csv-buffer (buffer)
+  (highlight-chi-buffer buffer highlight-csv-line))
+
+(defun highlight-visible-csv-buffer (buffer)
+  (highlight-visible-chi-buffer buffer highlight-csv-line))
+
+(defun setup-csv-mode (buffer)
+  (highlight-visible-csv-buffer buffer)
+  (pushnew '("CSV" () highlight-visible-csv-buffer)
+	   *mode-highlighters*))
+
+(defmode "CSV" :major-p ()
+  :documentation "Comma Separated Values mode."
+  :setup-function #'setup-csv-mode)
+
 
 ;;;; File type handling.
 
@@ -1159,22 +1189,33 @@ characters as uppercase letters.
 			  :wait t :output t)))
     (if ret
 	(case (process-exit-code ret)
-	  (0)
+	  (0 (return-from %view t))
 	  ((1 2 3 4)
 	   (message "xdg-open exited with ~A: ~A"
 		    (process-exit-code ret)
 		    (aref *xdg-errors* (process-exit-code ret))))
 	  (t (message "xdg-open exited with ~A"
 		      (process-exit-code ret))))
-	(message "Failed to run xdg-open."))))
+	(message "Failed to run xdg-open."))
+    ()))
 
 (defun view (pathname &optional type subtype params)
+  (message "view . ~A ~A ~A" type subtype params)
   (in-directory pathname
     (case= (string-downcase type)
       ("text"
        (case= (string-downcase subtype)
-	 ("html" (view-url pathname))
-	 ("plain" (find-file-command () pathname))))
+	 ("html"
+	  ;(www-command () pathname)
+	  (view-url pathname))
+	 ("plain" (find-file-command () pathname))
+	 ("x-csrc"
+	  (find-file-command () pathname)
+	  (c-mode-command))
+	 (("x-diff" "x-patch")
+	  (find-file-command () pathname)
+	  (vc-comparison-mode-command))
+	 (t (find-file-command () pathname))))
       ("message"
        (case= (string-downcase subtype)
 	 ("rfc822"
@@ -1203,10 +1244,19 @@ characters as uppercase letters.
 	      (setf (buffer-modified buffer) ())
 	      (change-to-buffer buffer)
 	      (setv message-fields fields))))))
-      ("application" "audio" "image" "multipart" "video" "extension"
+      (("application")
+       (case= (string-downcase subtype)
+	 ("octet-stream"
+	  (find-file-command () pathname))
+	 (t
+	  (%view (file-namestring pathname)))))
+      (("audio" "image" "multipart" "video" "extension")
        (%view (file-namestring pathname)))
       (t
-       (%view (file-namestring pathname))))))
+       (if (file-namestring pathname)
+	   (%view (file-namestring pathname))
+	   ;; View the directory.
+	   (verbose-directory-command () pathname))))))
 
 (defun view-url (url)
   (%view url))

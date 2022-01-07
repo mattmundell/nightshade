@@ -249,17 +249,50 @@ them, going to one, etc., all in a key stroke.
   "Refresh bufed buffer $buf, which lists the list of $buffers using array
    $bufed-buffer.  Assume that `Bufed Buffer End' is already set."
   (setf (buffer-writable buf) t)
-  (if clear (delete-region (buffer-region *bufed-buffer*)))
+  (if clear (delete-region (buffer-region buf)))
   (with-output-to-mark (stream (buffer-point buf))
-    (let ((i 0))
+    (let ((index 0))
       (dolist (bb buffers)
+
+#|
+	(msg "bb w1 ~A" (buffer-writable
+			 (line-buffer
+			  (mark-line
+			   (edi::editor-output-stream-mark stream)))))
+|#
+
 	(bufed-write-line (bufed-buffer-buffer bb)
 			  (buffer-name (bufed-buffer-buffer bb))
 			  stream)
-	(setf (svref bufed-buffers i) bb)
-	(incf i))))
+
+#|
+	(msg "bb w2 ~A" (buffer-writable
+			  (line-buffer
+			   (mark-line
+			    (edi::editor-output-stream-mark stream)))))
+|#
+
+	(setf (svref bufed-buffers index) bb)
+
+#|
+	(msg "bb w3 ~A" (buffer-writable
+			  (line-buffer
+			   (mark-line
+			    (edi::editor-output-stream-mark stream)))))
+|#
+
+	(incf index)
+
+#|
+	(msg "bb w4 ~A" (buffer-writable
+			  (line-buffer
+			   (mark-line
+			    (edi::editor-output-stream-mark stream)))))
+|#
+
+	)))
   #|
-  FIX
+  FIX falsef
   (clearf (buffer-writable buf))
   (clearf (buffer-modified buf))
   |#
@@ -281,10 +314,12 @@ them, going to one, etc., all in a key stroke.
 (defun make-bufed (name buffers &optional buffer clear)
   "Make a bufed buffer listing $buffers."
   (let* ((buf (or buffer
-		  (make-buffer name :modes '("Bufed")
-			       :delete-hook (list #'delete-bufed-buffers))))
-	 (bufed-buffers (make-array (setf (variable-value 'bufed-buffers-end
-							  :buffer buf)
+		  (make-unique-buffer
+		   name :modes '("Bufed")
+		   :delete-hook (list #'delete-bufed-buffers))))
+	 (bufed-buffers (make-array (setf (variable-value
+					   'bufed-buffers-end
+					   :buffer buf)
 					  (length buffers))
 				    :initial-element ())))
     (setf (variable-value 'bufed-buffers :buffer buf) bufed-buffers)
@@ -294,11 +329,20 @@ them, going to one, etc., all in a key stroke.
 (defun bufed-write-line (buffer name s
 		         &optional (buffer-pathname (buffer-pathname buffer)))
   (let ((modified (buffer-modified buffer)))
+#|
+    (msg "bwl w ~A" (buffer-writable
+		     (line-buffer
+		      (mark-line
+		       (edi::editor-output-stream-mark s)))))
+|#
+
     (write-string (if modified
-		      (concat "  " (string *bufed-modified-char*))
+		      (format () "  ~C" *bufed-modified-char*)
 		      "   ")
 		  s)
-    (write-char (if (active-process-p buffer) #\+ #\ ) s)
+    ;(msg "bwl 0")
+    (write-char (if (active-process-p buffer) #\+ #\space) s)
+    ;(msg "bwl 1")
     (if (and buffer-pathname (file-namestring buffer-pathname))
 ; 	(format s "~A  ~A~:[~50T~A~;~]~%"
 ; 		(file-namestring buffer-pathname)

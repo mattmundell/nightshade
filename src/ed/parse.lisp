@@ -46,7 +46,7 @@
 	(if branch-pair
 	    (move-mark m (cadr branch-pair))
 	    (progn
-	      (care-pop marks)
+	      (parse::care-pop marks)
 	      (delete-buffer (line-buffer (mark-line m)))
 	      ;; (delete-mark m) FIX
 	      )))
@@ -351,10 +351,10 @@
    return nil."
   (let ((ch (parser-read-char)))
     (if (and ch (alphanumericp ch))
-	(let ((node (make-char-node :content ch
-				    :next next
-				    :previous previous
-				    :parent parent)))
+	(let ((node (parse::make-char-node :content ch ; FIX ::
+					  :next next
+					  :previous previous
+					  :parent parent)))
 	  (when previous
 	    (setf (node-next previous) node))
 	  (values node node)))))
@@ -376,10 +376,10 @@
    both the same node of the read character, otherwise return nil."
   (let ((char (parser-read-char)))
     (when char
-      (let ((node (make-char-node :content char
-				  :next next
-				  :previous previous
-				  :parent parent)))
+      (let ((node (parse::make-char-node :content char ; FIX ::
+					:next next
+					:previous previous
+					:parent parent)))
 	(values node node)))))
 
 (declaim (inline parse-c))

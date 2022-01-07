@@ -66,12 +66,14 @@
 
 (proclaim '(special *character-attributes*))
 
+(defvar *utf8-hack* t)
+
 ;;; %init-line-image  --  Internal
 ;;;
 ;;; Set up the print-representations for funny chars.  We make the
 ;;; attribute vector by hand and do funny stuff so that chars > 127 will
-;;; have a losing print-representation, so redisplay will not die if you
-;;; visit a binary file or do something stupid like that.
+;;; have a losing print-representation, so redisplay will survive on
+;;; visiting a binary file or something like that.
 ;;;
 (defun %init-line-image ()
   (defattribute "Print Representation"
@@ -84,20 +86,21 @@
   (setf (attribute-descriptor-vector
 	 (gethash :print-representation *character-attributes*))
 	*print-representation-vector*)
-  (do ((code 128 (1+ code))
-       (str (make-string 4) (make-string 4)))
-      ((= code char-code-limit))
-    (setf (aref *losing-character-mask* code) losing-char)
-    (setf (aref *print-representation-vector* code) str)
-    (setf (schar str 0) #\<)
-    (setf (schar str 1) (char-upcase (digit-char (ash code -4) 16)))
-    (setf (schar str 2) (char-upcase (digit-char (logand code #x+F) 16)))
-    (setf (schar str 3) #\>))
+  (or *utf8-hack*
+      (until ((code 128 (1+ code))
+	      (str (make-string 4) (make-string 4)))
+	     ((= code char-code-limit))
+	(setf (aref *losing-character-mask* code) losing-char)
+	(setf (aref *print-representation-vector* code) str)
+	(setf (schar str 0) #\<)
+	(setf (schar str 1) (char-upcase (digit-char (ash code -4) 16)))
+	(setf (schar str 2) (char-upcase (digit-char (logand code #x+F) 16)))
+	(setf (schar str 3) #\>)))
 
   (add-hook ed::character-attribute-hook
 	    #'redis-set-char-attribute-hook-fun)
-  (do ((i (1- (char-code #\space)) (1- i)) str)
-      ((minusp i))
+  (until ((i (1- (char-code #\space)) (1- i)) str)
+	 ((minusp i))
     (setq str (make-string 2))
     (setf (elt (the simple-string str) 0) #\^)
     (setf (elt (the simple-string str) 1)
@@ -465,6 +468,7 @@
 	;; smallest Font-Mark with a charpos greater than Bound, until
 	;; we find no such mark.
 	(do ((bound (1- offset) min)
+	     (line-length (line-length* line))
 	     (min most-positive-fixnum most-positive-fixnum)
 	     (min-mark nil nil))
 	    (())
@@ -474,6 +478,8 @@
 		(when (and (> charpos bound) (< charpos min))
 		  (setq min charpos  min-mark m)))))
 	  (or min-mark (return nil))
+	  ;; In case of some weird font thing.
+	  (if (> min line-length) (return nil))
 	  (let ((len (if (eq line open-line)
 			 (cached-real-line-length line 10000 offset min)
 			 (real-line-length line 10000 offset min))))

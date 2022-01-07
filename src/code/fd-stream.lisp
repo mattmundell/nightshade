@@ -61,13 +61,13 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 	    (:include lisp-stream
 		      (misc #'fd-stream-misc-routine)))
 
-  (name nil)		      ; The name of this stream
-  (file nil)		      ; The file this stream is for
+  (name ())		      ; The name of this stream
+  (file ())		      ; The file this stream is for
   ;;
   ;; The backup file namestring for the old file, for :if-exists :rename or
   ;; :rename-and-delete.
-  (original nil :type (or simple-string null))
-  (delete-original nil)	      ; for :if-exists :rename-and-delete
+  (original () :type (or simple-string null))
+  (delete-original ())	      ; for :if-exists :rename-and-delete
   ;;
   ;; Number of bytes per element.
   (element-size 1 :type index)
@@ -78,33 +78,33 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
   (buffering :full :type (member :full :line :none))
   ;;
   ;; Character position if known.
-  (char-pos nil :type (or index null))
+  (char-pos () :type (or index null))
   ;;
   ;; T if input is waiting on FD.  :EOF if we hit EOF.
-  (listen nil :type (member nil t :eof))
+  (listen () :type (member () t :eof))
   ;;
   ;; The input buffer.
-  (unread nil)
-  (ibuf-sap nil :type (or system-area-pointer null))
-  (ibuf-length nil :type (or index null))
+  (unread ())
+  (ibuf-sap () :type (or system-area-pointer null))
+  (ibuf-length () :type (or index null))
   (ibuf-head 0 :type index)
   (ibuf-tail 0 :type index)
   ;;
   ;; The output buffer.
-  (obuf-sap nil :type (or system-area-pointer null))
-  (obuf-length nil :type (or index null))
+  (obuf-sap () :type (or system-area-pointer null))
+  (obuf-length () :type (or index null))
   (obuf-tail 0 :type index)
   ;;
   ;; Output flushed, but not written due to non-blocking io.
-  (output-later nil)
-  (handler nil)
+  (output-later ())
+  (handler ())
   ;;
-  ;; Timeout specified for this stream, or NIL if none.
-  (timeout nil :type (or index null))
+  ;; Timeout specified for this stream, or () if none.
+  (timeout () :type (or index null))
   ;;
   ;; Pathname of the file this stream is opened to (returned by
   ;; `pathname'.)
-  (pathname nil :type (or pathname null)))
+  (pathname () :type (or pathname null)))
 
 (setf (documentation 'fd-stream-p 'function)
   "Return true if $x is an fd-stream, else ().  Replaced by (typep $x
@@ -170,11 +170,11 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 		   (fd-stream-output-later stream))))))
   (unless (fd-stream-output-later stream)
     (system:remove-fd-handler (fd-stream-handler stream))
-    (setf (fd-stream-handler stream) nil)))
+    (setf (fd-stream-handler stream) ())))
 
 ;;; OUTPUT-LATER -- internal
 ;;;
-;;; Arange to output the string when we can write on the file descriptor.
+;;; Arrange to output the string when we can write on the file descriptor.
 ;;;
 (defun output-later (stream base start end reuse-sap)
   (cond ((null (fd-stream-output-later stream))
@@ -244,7 +244,7 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 	    #'(lambda (buffering)
 		(let ((function
 		       (intern (let ((*print-case* :upcase))
-				 (format nil name (car buffering))))))
+				 (format () name (car buffering))))))
 		  `(progn
 		     (defun ,function (stream byte)
 		       ,(unless (eq (car buffering) :none)
@@ -385,7 +385,7 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 	     (setf (fd-stream-obuf-tail stream) bytes))
 	    (t
 	     (flush-output-buffer stream)
-	     (do-output stream thing start end nil))))))
+	     (do-output stream thing start end ()))))))
 
 ;;; FD-SOUT -- internal
 ;;;
@@ -417,7 +417,7 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 	     (when last-newline
 	       (flush-output-buffer stream)))
 	    (:none
-	     (do-output stream thing start end nil)))
+	     (do-output stream thing start end ())))
 	  (if last-newline
 	      (setf (fd-stream-char-pos stream)
 		    (- end last-newline 1))
@@ -427,7 +427,7 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 	  ((:line :full)
 	   (output-raw-bytes stream thing start end))
 	  (:none
-	   (do-output stream thing start end nil))))))
+	   (do-output stream thing start end ()))))))
 
 ;;; PICK-OUTPUT-ROUTINE -- internal
 ;;;
@@ -476,13 +476,13 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 	     (setf head 0)
 	     (setf (fd-stream-ibuf-head stream) 0)
 	     (setf (fd-stream-ibuf-tail stream) tail))))
-    (setf (fd-stream-listen stream) nil)
+    (setf (fd-stream-listen stream) ())
     (multiple-value-bind
 	  (count errno)
 	(alien:with-alien ((read-fds (alien:struct unix:fd-set)))
 	  (unix:fd-zero read-fds)
 	  (unix:fd-set fd read-fds)
-	  (unix:unix-fast-select (1+ fd) (alien:addr read-fds) nil nil 0 0))
+	  (unix:unix-fast-select (1+ fd) (alien:addr read-fds) () () 0 0))
       ;; Wait if input is not available or if interrupted.
       (when (or (eql count 0)
 		(and (not count) (eql errno unix:eintr)))
@@ -510,7 +510,7 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 			(unix:get-unix-error-msg errno))))
 	    ((zerop count)
 	     (setf (fd-stream-listen stream) :eof)
-	     (throw 'eof-input-catcher nil))
+	     (throw 'eof-input-catcher ()))
 	    (t
 	     (incf (fd-stream-ibuf-tail stream) count))))))
 
@@ -542,8 +542,8 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
        (if (fd-stream-unread ,stream-var)
 	   (prog1
 	       (fd-stream-unread ,stream-var)
-	     (setf (fd-stream-unread ,stream-var) nil)
-	     (setf (fd-stream-listen ,stream-var) nil))
+	     (setf (fd-stream-unread ,stream-var) ())
+	     (setf (fd-stream-listen ,stream-var) ()))
 	   (let ((,element-var
 		  (catch 'eof-input-catcher
 		    (input-at-least ,stream-var ,bytes)
@@ -655,6 +655,7 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 
 #[ Stream Extensions
 
+{function:system:read-n-bytes}
 {function:lisp:fd-stream-read-n-bytes}
 ]#
 
@@ -704,9 +705,9 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 ;;; FD-STREAM-READ-N-BYTES -- internal
 ;;;
 ;;; The N-Bin method for FD-STREAMs.  This doesn't use the SERVER; it
-;;; blocks in UNIX-READ.  This allows the method to be used to implementing
+;;; blocks in UNIX-READ.  This allows the method to be used to implement
 ;;; reading for CLX.  It is generally used where there is a definite amount
-;;; of reading to be done, so blocking isn't too problematical.
+;;; of reading to be done, so blocking isn't too problematic.
 ;;;
 ;;; We copy buffered data into the buffer.  If there is enough, just
 ;;; return.  Otherwise, we see if the amount of additional data needed will
@@ -760,7 +761,7 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
      (t
       (setf (fd-stream-ibuf-head stream) 0)
       (setf (fd-stream-ibuf-tail stream) 0)
-      (setf (fd-stream-listen stream) nil)
+      (setf (fd-stream-listen stream) ())
       (let ((now-needed (- requested copy))
 	    (len (fd-stream-ibuf-length stream)))
 	(declare (type index now-needed len))
@@ -847,17 +848,17 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 			'(signed-byte 8))
 		       (t
 			type)))
-	(input-type nil)
-	(output-type nil)
-	(input-size nil)
-	(output-size nil))
+	(input-type ())
+	(output-type ())
+	(input-size ())
+	(output-size ()))
 
     (when (fd-stream-obuf-sap stream)
       (push (fd-stream-obuf-sap stream) *available-buffers*)
-      (setf (fd-stream-obuf-sap stream) nil))
+      (setf (fd-stream-obuf-sap stream) ()))
     (when (fd-stream-ibuf-sap stream)
       (push (fd-stream-ibuf-sap stream) *available-buffers*)
-      (setf (fd-stream-ibuf-sap stream) nil))
+      (setf (fd-stream-ibuf-sap stream) ()))
 
     (when input-p
       (multiple-value-bind
@@ -948,7 +949,7 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 		      (unix:fd-zero read-fds)
 		      (unix:fd-set (fd-stream-fd stream) read-fds)
 		      (unix:unix-fast-select (1+ (fd-stream-fd stream))
-					     (alien:addr read-fds) nil nil
+					     (alien:addr read-fds) () ()
 					     0 0))
 		    1))))
     (:unread
@@ -959,7 +960,7 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 	    ;; We got us an abort on our hands.
 	    (when (fd-stream-handler stream)
 		  (system:remove-fd-handler (fd-stream-handler stream))
-		  (setf (fd-stream-handler stream) nil))
+		  (setf (fd-stream-handler stream) ()))
 	    (when (and (fd-stream-file stream)
 		       (fd-stream-obuf-sap stream))
 	      ;; Can't do anything unless we know what file were dealing with,
@@ -1003,13 +1004,13 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
      (unix:unix-close (fd-stream-fd stream))
      (when (fd-stream-obuf-sap stream)
        (push (fd-stream-obuf-sap stream) *available-buffers*)
-       (setf (fd-stream-obuf-sap stream) nil))
+       (setf (fd-stream-obuf-sap stream) ()))
      (when (fd-stream-ibuf-sap stream)
        (push (fd-stream-ibuf-sap stream) *available-buffers*)
-       (setf (fd-stream-ibuf-sap stream) nil))
+       (setf (fd-stream-ibuf-sap stream) ()))
      (lisp::set-closed-flame stream))
     (:clear-input
-     (setf (fd-stream-unread stream) nil)
+     (setf (fd-stream-unread stream) ())
      (setf (fd-stream-ibuf-head stream) 0)
      (setf (fd-stream-ibuf-tail stream) 0)
      (catch 'eof-input-catcher
@@ -1020,7 +1021,7 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 	      (unix:fd-zero read-fds)
 	      (unix:fd-set (fd-stream-fd stream) read-fds)
 	      (unix:unix-fast-select (1+ (fd-stream-fd stream))
-				     (alien:addr read-fds) nil nil 0 0))
+				     (alien:addr read-fds) () () 0 0))
 	  (cond ((eql count 1)
 		 (do-input stream)
 		 (setf (fd-stream-ibuf-head stream) 0)
@@ -1055,7 +1056,7 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 		stream
 		(unix:get-unix-error-msg dev)))
        (if (zerop mode)
-	   nil
+	   ()
 	   (truncate size (fd-stream-element-size stream)))))
     (:file-position
      (fd-stream-file-position stream arg1))))
@@ -1064,7 +1065,7 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 ;;;
 (defun fd-stream-file-position (stream &optional newpos)
   (declare (type fd-stream stream)
-	   (type (or (integer 0) (member nil :start :end)) newpos))
+	   (type (or (integer 0) (member () :start :end)) newpos))
   (if (null newpos)
       (system:block-interrupts
 	;; First, find the position of the Unix file descriptor in the file.
@@ -1094,7 +1095,7 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 		 ;; Divide bytes by element size.
 		 (truncate posn (fd-stream-element-size stream)))
 		((eq errno unix:espipe)
-		 nil)
+		 ())
 		(t
 		 (system:with-interrupts
 		   (error "Error lseek'ing ~S: ~A"
@@ -1112,11 +1113,11 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 	  (system:serve-all-events))
 	;; Clear out any pending input to force the next read to go to the
 	;; disk.
-	(setf (fd-stream-unread stream) nil)
+	(setf (fd-stream-unread stream) ())
 	(setf (fd-stream-ibuf-head stream) 0)
 	(setf (fd-stream-ibuf-tail stream) 0)
 	;; Trash cached value for listen, so that we check next time.
-	(setf (fd-stream-listen stream) nil)
+	(setf (fd-stream-listen stream) ())
 	;; Now move it.
 	(cond ((eq newpos :start)
 	       (setf offset 0
@@ -1135,7 +1136,7 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 	  (cond (posn
 		 t)
 		((eq errno unix:espipe)
-		 nil)
+		 ())
 		(t
 		 (error "Error lseek'ing ~S: ~A"
 			stream
@@ -1150,8 +1151,8 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 ;;;
 (defun make-fd-stream (fd
 		       &key
-		       (input nil input-p)
-		       (output nil output-p)
+		       (input () input-p)
+		       (output () output-p)
 		       (element-type 'base-char)
 		       (buffering :full)
 		       timeout
@@ -1161,8 +1162,8 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 		       pathname
 		       input-buffer-p
 		       (name (if file
-				 (format nil "file ~S" file)
-				 (format nil "descriptor ~D" fd)))
+				 (format () "file ~S" file)
+				 (format () "descriptor ~D" fd)))
 		       auto-close)
   (declare (type index fd) (type (or index null) timeout)
 	   (type (member :none :line :full) buffering))
@@ -1271,7 +1272,7 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 		   namestring
 		   original
 		   (unix:get-unix-error-msg err))
-	   nil))))
+	   ()))))
 
 ;;; OPEN -- public
 ;;;
@@ -1279,8 +1280,8 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 	     &key
 	     (direction :input)
 	     (element-type 'base-char)
-	     (if-exists nil if-exists-given)
-	     (if-does-not-exist nil if-does-not-exist-given)
+	     (if-exists () if-exists-given)
+	     (if-does-not-exist () if-does-not-exist-given)
 	     (external-format :default)
 	     &aux ; Squelch assignment warning.
 	     (direction direction)
@@ -1293,8 +1294,8 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
     $direction - one of :input, :output, :io, or :probe
     $element-type - Type of object to read or write
     $if-exists - one of :error, :new-version, :rename, :rename-and-delete,
-			:overwrite, :append, :supersede or nil
-    $if-does-not-exist - one of :error, :create or nil
+			:overwrite, :append, :supersede or ()
+    $if-does-not-exist - one of :error, :create or ()
 
    FIX See the manual for details.
            permission of created files"
@@ -1310,16 +1311,16 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
   (multiple-value-bind
       (input output mask)
       (case direction
-	(:input (values t nil unix:o_rdonly))
-	(:output (values nil t unix:o_wronly))
+	(:input (values t () unix:o_rdonly))
+	(:output (values () t unix:o_wronly))
 	(:io (values t t unix:o_rdwr))
-	(:probe (values t nil unix:o_rdonly)))
+	(:probe (values t () unix:o_rdonly)))
     (declare (type index mask))
     (let* ((pathname (pathname filename))
 	   (namestring
 	    (cond ((os-namestring pathname input))
 		  ((and input (eq if-does-not-exist :create))
-		   (os-namestring pathname nil)))))
+		   (os-namestring pathname ())))))
       ;; Process if-exists argument if we are doing any output.
       (cond (output
 	     (or if-exists-given
@@ -1331,10 +1332,10 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 		   (assure-one-of if-exists
 				  '(:error :new-version :rename
 				    :rename-and-delete :overwrite
-				    :append :supersede nil)
+				    :append :supersede ())
 				  :if-exists))
 	     (case if-exists
-	       ((:error nil)
+	       ((:error ())
 		(setf mask (logior mask unix:o_excl)))
 	       ((:rename :rename-and-delete)
 		(setf mask (logior mask unix:o_creat)))
@@ -1352,12 +1353,12 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 			    (member if-exists '(:overwrite :append)))
 		       :error)
 		      ((eq direction :probe)
-		       nil)
+		       ())
 		      (t
 		       :create))))
       (setf if-does-not-exist
 	    (assure-one-of if-does-not-exist
-			   '(:error :create nil)
+			   '(:error :create ())
 			   :if-does-not-exist))
       (if (eq if-does-not-exist :create)
 	(setf mask (logior mask unix:o_creat)))
@@ -1387,15 +1388,15 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 			  (setf mode (logand orig-mode #o777))
 			  t)
 			 ((eql err/dev unix:enoent)
-			  nil)
+			  ())
 			 (t
 			  (error "Cannot find ~S: ~A"
 				 namestring
 				 (unix:get-unix-error-msg err/dev))))))))
 	    (unless (and exists
 			 (do-old-rename namestring original))
-	      (setf original nil)
-	      (setf delete-original nil)
+	      (setf original ())
+	      (setf delete-original ())
 	      ;; In order to use SUPERSEDE instead, we have
 	      ;; to make sure unix:o_creat corresponds to
 	      ;; if-does-not-exist.  unix:o_creat was set
@@ -1410,7 +1411,7 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 	      (fd errno)
 	      (if namestring
 		  (unix:unix-open namestring mask mode)
-		  (values nil unix:enoent))
+		  (values () unix:enoent))
 	    (cond ((numberp fd)
 		   (return
 		    (case direction
@@ -1435,62 +1436,58 @@ Unix system calls to perform I/O on the descriptors.  `read-n-bytes'
 		  ((eql errno unix:enoent)
 		   (case if-does-not-exist
 		     (:error
-		      (cerror "Return NIL."
+		      (cerror "Return ()."
 			      'simple-file-error
 			      :pathname pathname
-			      :format-control "Error opening ~S, ~A."
+			      :format-control "Error opening ~S: ~A."
 			      :format-arguments
 			      (list pathname (unix:get-unix-error-msg errno))))
 		     (:create
-		      (cerror "Return NIL."
-			      "Error creating ~S, path does not exist."
+		      (cerror "Return ()."
+			      "Error creating ~S: path does not exist."
 			      pathname)))
-		   (return nil))
+		   (return ()))
 		  ((eql errno unix:eexist)
-		   (unless (eq nil if-exists)
-		     (cerror "Return NIL."
+		   (unless (eq () if-exists)
+		     (cerror "Return ()."
 			     'simple-file-error
 			     :pathname pathname
-			     :format-control "Error opening ~S, ~A."
+			     :format-control "Error opening ~S: ~A."
 			     :format-arguments
 			     (list pathname (unix:get-unix-error-msg errno))))
-		   (return nil))
+		   (return ()))
 		  ((eql errno unix:eacces)
 		   (cerror "Try again."
-			   "Error opening ~S, ~A."
+			   "Error opening ~S: ~A."
 			   pathname
 			   (unix:get-unix-error-msg errno)))
 		  (t
-		   (cerror "Return NIL."
-			   "Error opening ~S, ~A."
+		   (cerror "Return ()."
+			   "Error opening ~S: ~A."
 			   pathname
 			   (unix:get-unix-error-msg errno))
-		   (return nil)))))))))
+		   (return ())))))))))
 
 
 ;;;; Initialization.
 
 #[ Useful Variables
 
-\defvar{stdin}[system]
-\defvarx{stdout}[system]
-\defvarx{stderr}[system]
-Streams connected to the standard input, output and error file
-descriptors.
-\enddefvar
+{variable:system:*stdin*}
+{variable:system:*stdout*}
+{variable:system:*stderr*}
 
-\defvar{tty}[system]
-A stream connected to \file{/dev/tty}.
-\enddefvar
+{variable:system:*tty*}
 ]#
 
-(defvar *tty* nil
-  "The stream connected to the controlling terminal or NIL if there is none.")
-(defvar *stdin* nil
+(defvar *tty* ()
+  "The stream connected to the controlling terminal (/dev/tty) if there is
+   one, else ().")
+(defvar *stdin* ()
   "The stream connected to the standard input (file descriptor 0).")
-(defvar *stdout* nil
+(defvar *stdout* ()
   "The stream connected to the standard output (file descriptor 1).")
-(defvar *stderr* nil
+(defvar *stderr* ()
   "The stream connected to the standard error output (file descriptor 2).")
 
 ;;; STREAM-INIT -- internal interface
@@ -1508,16 +1505,16 @@ A stream connected to \file{/dev/tty}.
   (setf *query-io* (make-synonym-stream '*terminal-io*))
   (setf *debug-io* *query-io*)
   (setf *trace-output* *standard-output*)
-  nil)
+  ())
 
 ;;; STREAM-REINIT -- internal interface
 ;;;
 ;;; Called whenever a saved core is restarted.
 ;;;
 (defun stream-reinit ()
-  (setf *available-buffers* nil)
+  (setf *available-buffers* ())
   (setf *stdin*
-	(make-fd-stream 0 :name "Standard Input" :input t :buffering :line))
+	(make-fd-stream 0 :name "Standard Input" :input t :buffering :none))
   (setf *stdout*
 	(make-fd-stream 1 :name "Standard Output" :output t :buffering :line))
   (setf *stderr*
@@ -1527,9 +1524,9 @@ A stream connected to \file{/dev/tty}.
     (setf *tty*
 	  (if tty
 	      (make-fd-stream tty :name "The Terminal" :input t :output t
-			      :buffering :line :auto-close t)
+			      :buffering :none :auto-close t)
 	      (make-two-way-stream *stdin* *stdout*))))
-  nil)
+  ())
 
 
 ;;;; Beeping.
@@ -1555,7 +1552,7 @@ A stream connected to \file{/dev/tty}.
       (cond (new-name
 	     (setf (fd-stream-pathname stream) new-name)
 	     (setf (fd-stream-file stream)
-		   (os-namestring new-name nil))
+		   (os-namestring new-name ()))
 	     t)
 	    (t
 	     (fd-stream-pathname stream)))))

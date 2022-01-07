@@ -20,7 +20,7 @@ beginning of a lines, so those quoted in string literals do not get in the way.
 (defun setup-page-mode (buffer)
   (defevar "Page Buffer"
     "The buffer associated with current page directory."
-    :value (current-buffer)))
+    :value buffer))
 
 (defmode "Page" :major-p t
   :setup-function #'setup-page-mode
@@ -86,13 +86,13 @@ beginning of a lines, so those quoted in string literals do not get in the way.
 	     (setf (last-command-type) :next-page)))
     (line-start (move-mark (window-display-start (current-window)) point))))
 
-(defcommand "Goto Page" (p)
+(defcommand "Goto Page" ()
   "Prompt for a page number and goto that page.
 
-   Prompt for string and go to the page with that
-   string in its title.  Repeated invocations in this manner continue
-   searching from the point of the last find, and a first search with a
-   particular pattern pushes a buffer mark."
+   Prompt for string and go to the page with that string in its title.
+   Repeated invocations in this manner continue searching from the point of
+   the last find, and a first search with a particular pattern pushes a
+   buffer mark."
   (goto-next-page-command 0))
 
 (defcommand "View Page Directory" ()

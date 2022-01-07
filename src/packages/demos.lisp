@@ -7,11 +7,11 @@
 ;;; loading this file run (demos:demo) to create a menu of demos.
 
 (defpackage "DEMOS"
+  (:version 3)
   (:use "COMMON-LISP")
   (:export "DO-ALL-DEMOS" "DEMO" "BOUNCING-BALL-DEMO" "BOUNCE-DEMO"
-	   "FAST-HANOI-DEMO" "GREYNETIC-DEMO" "PETAL-DEMO" "PLAID-DEMO"
-	   "QIX-DEMO" "RECURRENCE-DEMO" "SHOVE-BOUNCE-DEMO"
-	   "SLOW-HANOI-DEMO")
+	   "EVENTS-DEMO" "FAST-HANOI-DEMO" "GREYNETIC-DEMO" "PETAL-DEMO"
+	   "PLAID-DEMO" "QIX-DEMO" "SHOVE-BOUNCE-DEMO" "SLOW-HANOI-DEMO")
   (:documentation "Graphics demonstration programs.
 
 The function DEMOS:DO-ALL-DEMOS will run through each of the demos once,
@@ -194,11 +194,285 @@ and the function DEMOS:DEMO will present a menu of all the demos."))
 	    (xlib:window-map-state w))))
 
 
+;;;; Event test.
+
+(declaim (special g counter font set))
+
+(defun events-handle-key-press (w &optional event-key event-window root child same-screen-p x y
+				  root-x root-y modifiers time key-code send-event-p)
+  (declare (ignore event-window root child same-screen-p root-x
+		   root-y time send-event-p  x y modifiers))
+  (format t "handle-key-press ~A~%" key-code)
+  (setf (xlib:window-background w)
+	(xlib:screen-white-pixel (xlib:display-default-screen *display*)))
+  (xlib:clear-window w)
+  (xlib:draw-rectangle w g 35 70 50 50)
+  (xlib:draw-image-glyphs w g 100 10 (format () "~A" (incf counter)))
+
+  (xlib:with-gcontext (g :font font)
+    (xlib:draw-image-glyphs w g 100 100 (format () "~A" event-key)))
+  ;(xlib:draw-image-glyphs w g 100 100 (format () "~A" event-key))
+
+  (xlib:with-gcontext (g :font font
+			 :function xlib:x-boole-xor
+			 :foreground (logxor *black-pixel*
+					     *white-pixel*))
+    (xlib:draw-rectangle w g 100 90 10 10 t))
+
+  t)
+
+(defun events-handle-key-press2 (w &optional event-key event-window root child same-screen-p x y
+				   root-x root-y modifiers time key-code send-event-p)
+  (declare (ignore event-window root child same-screen-p root-x
+		   root-y time send-event-p  x y modifiers))
+  (format t "handle-key-press2 ~A~%" key-code)
+  (setf (xlib:window-background w)
+	(xlib:screen-white-pixel (xlib:display-default-screen *display*)))
+  (xlib:clear-window w)
+  (xlib:draw-rectangle w g 35 70 50 50)
+  (xlib:draw-image-glyphs w g 100 10 (format () "~A" (incf counter)))
+  (xlib:draw-image-glyphs w g 50 50 (format () "~A" (xlib:selection *display* w)))
+
+  (xlib:with-gcontext (g :font font)
+    (xlib:draw-image-glyphs w g 100 100 (format () "~A" event-key)))
+  ;(xlib:draw-image-glyphs w g 100 100 (format () "~A" event-key))
+
+  (xlib:with-gcontext (g :font font
+			 :function xlib:x-boole-xor
+			 :foreground (logxor *black-pixel*
+					     *white-pixel*))
+    (xlib:draw-rectangle w g 100 90 10 10 t))
+
+  t)
+
+(defun events-handle-exposed-region (w &optional event-key event-window x y width height
+				foo bar baz quux aa ab ac ad)
+  (declare (ignore event-window x y width height foo bar baz quux aa ab ac ad))
+  (handler-case
+      (progn
+	(setf (xlib:window-background w)
+	      (xlib:screen-white-pixel
+	       (xlib:display-default-screen *display*)))
+	(xlib:clear-window w)
+	(xlib:draw-rectangle w g 35 70 100 100)
+	(xlib:draw-image-glyphs w g 10 10 (format () "~A" (incf counter)))
+	(xlib:draw-image-glyphs w g 100 100 (format () "~A" event-key)))
+    (error () (format t "handle-exposed-region error~%")))
+  t)
+
+(defun events-pass (w &optional event-key event-window x y width height
+	       foo bar baz quux aa ab ac ad)
+  (declare (ignore w event-window x y width height foo bar baz quux aa ab ac ad))
+  (format t "passing ~A~%" event-key)
+  t)
+
+(defun events-handle-selection-notify (w &optional event-key event-window selection
+					 target property time send-event-p)
+  (declare (ignore w event-key event-window selection target property time send-event-p))
+  (format t "selection-notify~%")
+  t)
+
+(defun events (window &optional duration print-events)
+  (let ((counter 0)
+	(font (or (xlib:open-font
+		   *display*
+		   "*-courier-medium-r-normal--*-120-*")
+		  (error "failed to open font")))
+	(g (xlib:create-gcontext :drawable window
+				 :function xlib:x-boole-1
+				 ;:font font
+				 :foreground *black-pixel*
+				 :background *white-pixel*))
+	(set (system:make-object-set "Events"
+				     #'ext:default-clx-event-handler))
+	(mask (xlib:make-event-mask :key-press ; :key-release
+				    :button-press :button-release
+				    :enter-window :leave-window
+				    :exposure
+				    :structure-notify ; :configure-notify
+				    :focus-in :resize-request
+				    ;;
+				    ;:graphics-exposure
+				    ;:focus-out
+				    :visibility-notify
+				    :resize-request
+				    ;:property-notify
+				    )))
+
+    (setf (xlib:window-event-mask window) mask)
+
+    (system:add-xwindow-object window window set)
+
+    (ext:serve-key-press set #'events-handle-key-press2)
+    (ext:serve-key-release set #'events-handle-key-press)
+    (ext:serve-button-press set #'events-handle-key-press)
+    (ext:serve-button-release set #'events-handle-key-press)
+    (ext:serve-exposure set #'events-handle-exposed-region)
+    (ext:serve-graphics-exposure set #'events-handle-exposed-region)
+    (ext:serve-no-exposure set #'events-handle-exposed-region)
+    (ext:serve-enter-notify set #'events-handle-exposed-region)
+    (ext:serve-motion-notify set #'events-handle-exposed-region)
+    (ext:serve-leave-notify set #'events-handle-exposed-region)
+    (ext:serve-configure-notify set #'events-handle-exposed-region)
+    (ext:serve-configure-request set #'events-handle-exposed-region)
+    ;(ext:serve-visibility-notify set #'events-handle-exposed-region)
+    (ext:serve-visibility-notify set #'events-pass)
+    (ext:serve-resize-request set #'events-handle-exposed-region)
+    (ext:serve-focus-in set #'events-pass)
+    (ext:serve-focus-out set #'events-pass)
+    (ext:serve-create-notify set #'events-pass)
+    (ext:serve-destroy-notify set #'events-pass)
+    (ext:serve-selection-request set #'events-pass)
+    (ext:serve-selection-clear set #'events-pass)
+    (ext:serve-selection-notify set #'events-handle-selection-notify)
+    (ext:serve-colormap-notify set #'events-pass)
+    ;;
+    (ext:serve-gravity-notify set #'events-pass)
+    (ext:serve-unmap-notify set #'events-pass)
+    (ext:serve-map-notify set #'events-handle-exposed-region)
+    (ext:serve-reparent-notify set #'events-pass)
+    (ext:serve-circulate-notify set #'events-pass)
+    (ext:serve-circulate-request set #'events-pass)
+    (ext:serve-client-message set #'events-pass)
+    (ext:serve-gravity-notify set #'events-pass)
+    (ext:serve-property-notify set #'events-pass)
+
+    (setf (xlib:drawable-x window) 100)
+
+    (setq ext::*object-set-event-handler-print*
+	  print-events)
+    (ext:with-clx-event-handling
+     (*display* #'ext:object-set-event-handler)
+     (if duration
+	 (dotimes (i duration)
+	   (system:serve-event))
+	 (loop (system:serve-event))))))
+
+(defdemo events-demo "Events" (&optional (duration 300) print-events)
+  100 100 200 200
+  "Show events in a window."
+  (events *window* duration print-events))
+
+
+
+;;;; Qix.
+
+(defstruct qix
+  buffer
+  (dx1 5)
+  (dy1 10)
+  (dx2 10)
+  (dy2 5))
+
+(defun construct-qix (length)
+  (let ((qix (make-qix)))
+    (setf (qix-buffer qix) (make-circular-list length))
+    qix))
+
+(defun make-circular-list (length)
+  (let ((l (make-list length)))
+    (rplacd (last l) l)))
+
+
+(defun qix (window lengths duration)
+  "Each length is the number of lines to put in a qix, and that many qix
+  (of the correct size) are put up on the screen.  Lets the qix wander around
+  the screen for Duration steps."
+  (let ((histories (mapcar #'construct-qix lengths))
+	(depth (xlib:drawable-depth window))
+	(*random-state* (make-random-state t)))
+    (multiple-value-bind (width height) (full-window-state window)
+      (declare (fixnum width height))
+      (xlib:clear-area window)
+      (xlib:display-force-output *display*)
+      (do ((h histories (cdr h))
+	   (l lengths (cdr l)))
+	  ((null h))
+	(do ((x (qix-buffer (car h)) (cdr x))
+	     (i 0 (1+ i)))
+	    ((= i (car l)))
+	  (rplaca x (make-array 5))))
+      ;; Start each qix at a random spot on the screen.
+      (dolist (h histories)
+	(let ((x (random width))
+	      (y (random height)))
+	  (rplaca (qix-buffer h)
+		  (make-array 5 :initial-contents (list x y x y -1)))))
+      (rplacd (last histories) histories)
+      (let* ((x1 0) (y1 0) (x2 0) (y2 0)
+	     (dx1 0) (dy1 0) (dx2 0) (dy2 0)
+	     tem line next-line qix
+	     (gc (xlib:create-gcontext :drawable window
+				       :background *black-pixel*
+				       ;:line-width 0 :line-style :solid
+				       :function xlib:x-boole-xor
+				       )))
+	(declare (fixnum x1 y1 x2 y2 dx1 dy1 dx2 dy2))
+	(dotimes (i duration)
+	  ;; Line is the next line in the next qix. Rotate this qix and
+	  ;; the qix ring.
+	  (setq qix (car histories))
+	  (setq line (car (qix-buffer qix)))
+	  (setq next-line (cadr (qix-buffer qix)))
+	  (setf (qix-buffer qix) (cdr (qix-buffer qix)))
+	  (setq histories (cdr histories))
+	  (setf x1 (svref line 0))
+	  (setf y1 (svref line 1))
+	  (setf x2 (svref line 2))
+	  (setf y2 (svref line 3))
+	  (setf (xlib:gcontext-foreground gc) (svref line 4))
+	  (setf (xlib:gcontext-function gc) xlib:x-boole-xor)
+	  (xlib:draw-line window gc x1 y1 x2 y2)
+	  (setq dx1 (- (+ (qix-dx1 qix) (random 3)) 1))
+	  (setq dy1 (- (+ (qix-dy1 qix) (random 3)) 1))
+	  (setq dx2 (- (+ (qix-dx2 qix) (random 3)) 1))
+	  (setq dy2 (- (+ (qix-dy2 qix) (random 3)) 1))
+	  (cond ((> dx1 10) (setq dx1 10))
+		((< dx1 -10) (setq dx1 -10)))
+	  (cond ((> dy1 10) (setq dy1 10))
+		((< dy1 -10) (setq dy1 -10)))
+	  (cond ((> dx2 10) (setq dx2 10))
+		((< dx2 -10) (setq dx2 -10)))
+	  (cond ((> dy2 10) (setq dy2 10))
+		((< dy2 -10) (setq dy2 -10)))
+	  (cond ((or (>= (setq tem (+ x1 dx1)) width) (minusp tem))
+		 (setq dx1 (- dx1))))
+	  (cond ((or (>= (setq tem (+ x2 dx2)) width) (minusp tem))
+		 (setq dx2 (- dx2))))
+	  (cond ((or (>= (setq tem (+ y1 dy1)) height) (minusp tem))
+		 (setq dy1 (- dy1))))
+	  (cond ((or (>= (setq tem (+ y2 dy2)) height) (minusp tem))
+		 (setq dy2 (- dy2))))
+	  (setf (qix-dy2 qix) dy2)
+	  (setf (qix-dx2 qix) dx2)
+	  (setf (qix-dy1 qix) dy1)
+	  (setf (qix-dx1 qix) dx1)
+	  (when (svref next-line 0)
+	    (setf (xlib:gcontext-foreground gc) (svref next-line 4))
+	    (xlib:draw-line window gc
+			    (svref next-line 0) (svref next-line 1)
+			    (svref next-line 2) (svref next-line 3)))
+	  (setf (svref next-line 0) (+ x1 dx1))
+	  (setf (svref next-line 1) (+ y1 dy1))
+	  (setf (svref next-line 2) (+ x2 dx2))
+	  (setf (svref next-line 3) (+ y2 dy2))
+	  (setf (svref next-line 4) (random (ash 1 depth)))
+	  (sleep *delay*)
+	  (xlib:display-force-output *display*))))))
+
+
+(defdemo qix-demo "Qix" (&optional (lengths '(30 30 14 12 7)) (duration 4000))
+  0 0 700 700
+  "Hypnotic wandering lines."
+  (qix *window* lengths duration))
+
+
+
 ;;;; Greynetic.
 
 (defun make-random-bitmap ()
   (let ((bitmap-data (make-array '(32 32) :initial-element 0
-				 :element-type 'xlib::bit)))
+				 :element-type 'bit)))
     (dotimes (i 4)
       (declare (fixnum i))
       (let ((nibble (random 16)))
@@ -253,7 +527,6 @@ and the function DEMOS:DEMO will present a menu of all the demos."))
 		      (dotimes (i 30)
 			(setf (aref pixmap-array i) (make-random-pixmap)))
 		      pixmap-array)))
-
     (unwind-protect
 	(multiple-value-bind (width height) (full-window-state window)
 	  (declare (fixnum width height))
@@ -262,173 +535,64 @@ and the function DEMOS:DEMO will present a menu of all the demos."))
 	    (declare (fixnum border-x border-y))
 	    (dotimes (i duration)
 	      (let ((pixmap (greynetic-pixmapper)))
-		(xlib:with-gcontext (draw-gcontext
-				     :foreground (random (ash 1 depth))
-				     :background (random (ash 1 depth))
-				     :stipple pixmap
-				     :fill-style
-				     :opaque-stippled)
-		   (cond ((zerop (mod i 500))
-			  (xlib:clear-area window)
-			  (sleep .1))
-			 (t
-			  (sleep *delay*)))
-		   (if (< (random 3) 2)
-		       (let* ((w (+ border-x
-				    (truncate (* (random (- width
-							    (* 2 border-x)))
-						 (random width)) width)))
-			      (h (+ border-y
-				    (truncate (* (random (- height
-							    (* 2 border-y)))
-						 (random height)) height)))
-			      (x (random (- width w)))
-			      (y (random (- height h))))
-			 (declare (fixnum w h x y))
-			 (if (zerop (random 2))
-			     (xlib:draw-rectangle window draw-gcontext
-						  x y w h t)
-			     (xlib:draw-arc window draw-gcontext
-					    x y w h 0 6.4 t)))
-		       (let ((p1-x (+ border-x
-				      (random (- width (* 2 border-x)))))
-			     (p1-y (+ border-y
-				      (random (- height (* 2 border-y)))))
-			     (p2-x (+ border-x
-				      (random (- width (* 2 border-x)))))
-			     (p2-y (+ border-y
-				      (random (- height (* 2 border-y)))))
-			     (p3-x (+ border-x
-				      (random (- width (* 2 border-x)))))
-			     (p3-y (+ border-y
-				      (random (- height (* 2 border-y))))))
-			 (declare (fixnum p1-x p1-y p2-x p2-y p3-x p3-y))
-			 (xlib:draw-lines window draw-gcontext
-					  (list p1-x p1-y p2-x p2-y p3-x p3-y)
-					  :relative-p nil
-					  :fill-p t
-					  :shape :convex)))
-		   (xlib:display-force-output *display*))))))
+ 		(xlib:with-gcontext (draw-gcontext
+ 				     :foreground (random (ash 1 depth))
+ 				     :background (random (ash 1 depth))
+ 				     :stipple pixmap
+ 				     :fill-style :stippled) ; :opaque-stippled
+		  (cond ((zerop (mod i 500))
+			 (xlib:clear-area window)
+			 (sleep .1))
+			(t
+			 (sleep *delay*)))
+		  (if (< (random 3) 2)
+		      (let* ((w (+ border-x
+				   (truncate (* (random (- width
+							   (* 2 border-x)))
+						(random width)) width)))
+			     (h (+ border-y
+				   (truncate (* (random (- height
+							   (* 2 border-y)))
+						(random height)) height)))
+			     (x (random (- width w)))
+			     (y (random (- height h))))
+			(declare (fixnum w h x y))
+			(if (zerop (random 2))
+			    (xlib:draw-rectangle window draw-gcontext
+						 x y w h t)
+			    (xlib:draw-arc window draw-gcontext
+					   ;x y w h 0 6.4 t)))
+					   x y w h
+					   (random 360) (random 360)
+					   t)))
+		      (let ((p1-x (+ border-x
+				     (random (- width (* 2 border-x)))))
+			    (p1-y (+ border-y
+				     (random (- height (* 2 border-y)))))
+			    (p2-x (+ border-x
+				     (random (- width (* 2 border-x)))))
+			    (p2-y (+ border-y
+				     (random (- height (* 2 border-y)))))
+			    (p3-x (+ border-x
+				     (random (- width (* 2 border-x)))))
+			    (p3-y (+ border-y
+				     (random (- height (* 2 border-y))))))
+			(declare (fixnum p1-x p1-y p2-x p2-y p3-x p3-y))
+			(xlib:draw-lines window draw-gcontext
+					 (list p1-x p1-y p2-x p2-y p3-x p3-y)
+					 :relative-p nil
+					 :fill-p t
+					 :shape :convex)))
+		  (xlib:display-force-output *display*))))))
       (dotimes (i (length *pixmaps*))
 	(xlib:free-pixmap (aref *pixmaps* i)))
       (xlib:free-gcontext draw-gcontext))))
 
 
-(defdemo greynetic-demo "Greynetic" (&optional (duration 3000))
+(defdemo greynetic-demo "Greynetic" (&optional (duration 300))
   100 100 600 600
   "Displays random grey rectangles."
   (greynetic *window* duration))
-
-
-;;;; Qix.
-
-(defstruct qix
-  buffer
-  (dx1 5)
-  (dy1 10)
-  (dx2 10)
-  (dy2 5))
-
-(defun construct-qix (length)
-  (let ((qix (make-qix)))
-    (setf (qix-buffer qix) (make-circular-list length))
-    qix))
-
-(defun make-circular-list (length)
-  (let ((l (make-list length)))
-    (rplacd (last l) l)))
-
-
-(defun qix (window lengths duration)
-  "Each length is the number of lines to put in a qix, and that many qix
-  (of the correct size) are put up on the screen.  Lets the qix wander around
-  the screen for Duration steps."
-  (let ((histories (mapcar #'construct-qix lengths))
-	(depth (xlib:drawable-depth window))
-	(*random-state* (make-random-state t)))
-    (multiple-value-bind (width height) (full-window-state window)
-      (declare (fixnum width height))
-      (xlib:clear-area window)
-      (xlib:display-force-output *display*)
-      (do ((h histories (cdr h))
-	   (l lengths (cdr l)))
-	  ((null h))
-	(do ((x (qix-buffer (car h)) (cdr x))
-	     (i 0 (1+ i)))
-	    ((= i (car l)))
-	  (rplaca x (make-array 5))))
-      ;; Start each qix at a random spot on the screen.
-      (dolist (h histories)
-	(let ((x (random width))
-	      (y (random height)))
-	  (rplaca (qix-buffer h)
-		  (make-array 5 :initial-contents (list x y x y -1)))))
-      (rplacd (last histories) histories)
-      (let* ((x1 0) (y1 0) (x2 0) (y2 0)
-	     (dx1 0) (dy1 0) (dx2 0) (dy2 0)
-	     tem line next-line qix
-	     (gc (xlib:create-gcontext :drawable window
-				       :background *black-pixel*
-				       :line-width 0 :line-style :solid
-				       :function boole-xor)))
-	(declare (fixnum x1 y1 x2 y2 dx1 dy1 dx2 dy2))
-	(dotimes (i duration)
-	  ;; Line is the next line in the next qix. Rotate this qix and
-	  ;; the qix ring.
-	  (setq qix (car histories))
-	  (setq line (car (qix-buffer qix)))
-	  (setq next-line (cadr (qix-buffer qix)))
-	  (setf (qix-buffer qix) (cdr (qix-buffer qix)))
-	  (setq histories (cdr histories))
-	  (setf x1 (svref line 0))
-	  (setf y1 (svref line 1))
-	  (setf x2 (svref line 2))
-	  (setf y2 (svref line 3))
-	  (setf (xlib:gcontext-foreground gc) (svref line 4))
-	  (setf (xlib:gcontext-function gc) boole-xor)
-	  (xlib:draw-line window gc x1 y1 x2 y2)
-	  (setq dx1 (- (+ (qix-dx1 qix) (random 3)) 1))
-	  (setq dy1 (- (+ (qix-dy1 qix) (random 3)) 1))
-	  (setq dx2 (- (+ (qix-dx2 qix) (random 3)) 1))
-	  (setq dy2 (- (+ (qix-dy2 qix) (random 3)) 1))
-	  (cond ((> dx1 10) (setq dx1 10))
-		((< dx1 -10) (setq dx1 -10)))
-	  (cond ((> dy1 10) (setq dy1 10))
-		((< dy1 -10) (setq dy1 -10)))
-	  (cond ((> dx2 10) (setq dx2 10))
-		((< dx2 -10) (setq dx2 -10)))
-	  (cond ((> dy2 10) (setq dy2 10))
-		((< dy2 -10) (setq dy2 -10)))
-	  (cond ((or (>= (setq tem (+ x1 dx1)) width) (minusp tem))
-		 (setq dx1 (- dx1))))
-	  (cond ((or (>= (setq tem (+ x2 dx2)) width) (minusp tem))
-		 (setq dx2 (- dx2))))
-	  (cond ((or (>= (setq tem (+ y1 dy1)) height) (minusp tem))
-		 (setq dy1 (- dy1))))
-	  (cond ((or (>= (setq tem (+ y2 dy2)) height) (minusp tem))
-		 (setq dy2 (- dy2))))
-	  (setf (qix-dy2 qix) dy2)
-	  (setf (qix-dx2 qix) dx2)
-	  (setf (qix-dy1 qix) dy1)
-	  (setf (qix-dx1 qix) dx1)
-	  (when (svref next-line 0)
-	    (setf (xlib:gcontext-foreground gc) (svref next-line 4))
-	    (xlib:draw-line window gc
-			    (svref next-line 0) (svref next-line 1)
-			    (svref next-line 2) (svref next-line 3)))
-	  (setf (svref next-line 0) (+ x1 dx1))
-	  (setf (svref next-line 1) (+ y1 dy1))
-	  (setf (svref next-line 2) (+ x2 dx2))
-	  (setf (svref next-line 3) (+ y2 dy2))
-	  (setf (svref next-line 4) (random (ash 1 depth)))
-	  (sleep *delay*)
-	  (xlib:display-force-output *display*))))))
-
-
-(defdemo qix-demo "Qix" (&optional (lengths '(30 30 14 12 7)) (duration 2000))
-  0 0 700 700
-  "Hypnotic wandering lines."
-  (qix *window* lengths duration))
 
 
 
@@ -835,7 +999,7 @@ and the function DEMOS:DEMO will present a menu of all the demos."))
 						   :foreground *white-pixel*
 						   :background *black-pixel*
 						   :fill-style :solid
-						   :function boole-xor
+						   :function xlib:x-boole-xor
 						   )))
       (xlib:clear-area *hanoi-window*)
       (xlib:display-force-output *display*)
@@ -886,11 +1050,11 @@ and the function DEMOS:DEMO will present a menu of all the demos."))
 ;;; velocity since the loop terminates as a function of the y velocity.
 ;;;
 (defun bounce-window (window &optional
-			     (x-velocity 0) (elasticity 0.85) (gravity 2))
-  (unless (< 0 elasticity 1)
-    (error "Elasticity must be between 0 and 1."))
-  (unless (plusp gravity)
-    (error "Gravity must be positive."))
+			     (x-velocity 0) (elasticity 0.85) (gravity 1))
+  (or (< 0 elasticity 1)
+      (error "Elasticity must be between 0 and 1."))
+  (or (plusp gravity)
+      (error "Gravity must be positive."))
   (multiple-value-bind (width height x y mapped) (full-window-state window)
     (when (eq mapped :viewable)
       (let ((top-of-window-at-bottom (- (xlib:drawable-height *root*) height))
@@ -901,7 +1065,7 @@ and the function DEMOS:DEMO will present a menu of all the demos."))
 	(declare (fixnum top-of-window-at-bottom left-of-window-at-right
 			 y-velocity))
 	(loop
-	  (when (= prev-neg-velocity 0) (return t))
+	  (if (= prev-neg-velocity 0) (return t))
 	  (let ((negative-velocity (minusp y-velocity)))
 	    (loop
 	      (let ((next-y (+ y y-velocity))
@@ -925,13 +1089,15 @@ and the function DEMOS:DEMO will present a menu of all the demos."))
 		  (return))
 		(setq y-velocity next-y-velocity)
 		(setq y next-y))
-	      (when (and negative-velocity (>= y-velocity 0))
-		(setf negative-velocity nil))
+	      (and negative-velocity
+		   (>= y-velocity 0)
+		   (setf negative-velocity nil))
 	      (let ((next-x (+ x x-velocity)))
 		(declare (fixnum next-x))
-		(when (or (> next-x left-of-window-at-right)
-			  (< next-x 0))
-		  (setq x-velocity (- (truncate (* elasticity x-velocity)))))
+		(if (or (> next-x left-of-window-at-right)
+			(< next-x 0))
+		    (setq x-velocity
+			  (- (truncate (* elasticity x-velocity)))))
 		(setq x next-x))
 	      (setf (xlib:drawable-x window) x
 		    (xlib:drawable-y window) y)
@@ -941,9 +1107,9 @@ and the function DEMOS:DEMO will present a menu of all the demos."))
 ;;;
 (defdemo shove-bounce-demo "Shove-bounce" ()
   100 100 300 300
-  "Drops the demo window with an inital X velocity which bounces off
-  screen borders."
-  (bounce-window *window* 30))
+  "Drops the demo window with an inital X velocity which bounces off screen
+   borders."
+  (bounce-window *window* 5))
 
 (defdemo bounce-demo "Bounce" ()
   100 100 300 300
@@ -968,7 +1134,7 @@ and the function DEMOS:DEMO will present a menu of all the demos."))
 
 (defun plaid (display window &optional (num-iterations 10000) (num-rectangles 10))
   (let ((gcontext (xlib:create-gcontext :drawable window
-					:function boole-c2
+					:function xlib:x-boole-invert ; FIX boole-c2
 					:plane-mask (logxor *white-pixel*
 							    *black-pixel*)
 					:background *black-pixel*
@@ -1021,10 +1187,10 @@ and the function DEMOS:DEMO will present a menu of all the demos."))
 
 (defun xor-ball (pixmap window gcontext x y)
   (xlib:copy-plane pixmap gcontext 1
-		  0 0
-		  *ball-size-x* *ball-size-y*
-		  window
-		  x y))
+		   0 0
+		   *ball-size-x* *ball-size-y*
+		   window
+		   x y))
 
 (defconstant bball-gravity 1)
 (defconstant maximum-x-drift 7)
@@ -1040,24 +1206,24 @@ and the function DEMOS:DEMO will present a menu of all the demos."))
   (dy 0))
 
 (defun get-bounce-image ()
-  "Returns the pixmap to be bounced around the screen."
+  "Return the pixmap to be bounced around the screen."
   (xlib::bitmap-image   #*000000000000000000000000000000000000
 			#*000000000000000000000000000000000000
-			#*000000000000000000001000000010000000
-			#*000000000000000000000000000100000000
-			#*000000000000000000000100001000000000
-			#*000000000000000010000000010000000000
-			#*000000000000000000100010000000000000
-			#*000000000000000000001000000000000000
-			#*000000000001111100000000000101010000
-			#*000000000010000011000111000000000000
-			#*000000000100000000111000000000000000
-			#*000000000100000000000000000100000000
-			#*000000000100000000001000100010000000
-			#*000000111111100000010000000001000000
-			#*000000111111100000100000100000100000
+			#*000000000000000000000000000000000000
+			#*000000000000000000000000000000000000
+			#*000000000000000000000000000000000000
+			#*000000000000000000000000000000000000
+			#*000000000000000000000000000000000000
+			#*000000000000000000000000000000000000
+			#*000000000000000000000000000000000000
+			#*000000000000000000000000000000000000
+			#*000000000000000000000000000000000000
+			#*000000000000000000000000000000000000
+			#*000000000000000000000000000000000000
+			#*000000000000000000000000000000000000
+			#*000000111111100000000000000000000000
 			#*000011111111111000000000000000000000
-			#*001111111111111110000000100000000000
+			#*001111111111111110000000000000000000
 			#*001111111111111110000000000000000000
 			#*011111111111111111000000000000000000
 			#*011111111111111111000000000000000000
@@ -1108,7 +1274,7 @@ and the function DEMOS:DEMO will present a menu of all the demos."))
 	   (gcontext (xlib:create-gcontext :drawable window
 					   :foreground *white-pixel*
 					   :background *black-pixel*
-					   :function boole-xor
+					   :function xlib:x-boole-xor
 					   :exposures :off))
 	   (bounce-pixmap (xlib:create-pixmap :width 36 :height 34 :depth 1
 					      :drawable window))
@@ -1128,7 +1294,8 @@ and the function DEMOS:DEMO will present a menu of all the demos."))
       (xlib:free-pixmap bounce-pixmap)
       (xlib:free-gcontext gcontext))))
 
-(defdemo bouncing-ball-demo "Bouncing-Ball" (&optional (how-many 5) (duration 500))
+(defdemo bouncing-ball-demo "Bouncing-Ball" (&optional (how-many 5)
+						       (duration 500))
   36 34 700 500
   "Bouncing balls in space."
   (bounce-balls *display*  *window* how-many duration))

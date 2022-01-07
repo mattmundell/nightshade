@@ -6,6 +6,7 @@
 
 (defpackage "FEEBS"
   (:use "COMMON-LISP")
+  (:version 0)
   ;; Export everything we want the players to get their hands on.
   (:export *single-step* *delay* *number-of-feebs* *game-length*
 	   *points-for-killing* *points-for-dying* *maze-i-size*
@@ -22,7 +23,11 @@
 	   fireball-image-p fireball-image-direction
 	   my-square left-square right-square rear-square
 	   list-parameter-settings
-	   define-feeb feebs load-feebs north south east west))
+	   define-feeb feebs load-feebs north south east west)
+  (:documentation
+   "Planet of the Feebs.
+
+    A somewhat educational simulation game."))
 
 (in-package "FEEBS")
 

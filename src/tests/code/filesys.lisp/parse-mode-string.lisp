@@ -19,13 +19,13 @@
 	       (if (eq index 9)
 		   (progn
 		     (setf (char mode-string 9) #\-)
-		     (format t "~A~%" mode-string)
+		     ;(format t "~A~%" mode-string)
 		     (or (string= mode-string
 				  (with-output-to-string (*standard-output*)
 				    (lisp::print-mode (parse-mode-string mode-string))))
 			 (return ()))
 		     (setf (char mode-string 9) #\x)
-		     (format t "~A~%" mode-string)
+		     ;(format t "~A~%" mode-string)
 		     (or (string= mode-string
 				  (with-output-to-string (*standard-output*)
 				    (lisp::print-mode (parse-mode-string mode-string))))

@@ -162,6 +162,13 @@ redisplay.
 	(t
 	 (redisplay-loop redisplay-window redisplay-window-recentering))))
 
+#|
+(defun force-redisplay (window)
+  (setf (window-last-changed window)
+	(window-first-line window))
+  (redisplay))
+|#
+
 ;;; REDISPLAY-ALL -- Public.
 ;;;
 ;;; Update the screen making no assumptions about its correctness.  This is

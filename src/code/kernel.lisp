@@ -2,7 +2,15 @@
 
 (in-package "KERNEL")
 
-(export '(allocate-vector make-array-header function-subtype))
+(export '(vvv allocate-vector make-array-header function-subtype))
+
+;;; FIX test
+
+(defun vvv ()
+  "test"
+  (vvv))
+
+;;; FIX test end
 
 (defun get-header-data (x)
   "Return the 24 bits of data in the header of object X, which must be an

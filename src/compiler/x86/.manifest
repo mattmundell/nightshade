@@ -1,4 +1,4 @@
-"alloc.lisp" 3408220506
+"alloc.lisp" 3427904836
 "arith.lisp" 3408220506
 "array.lisp" 3408220507
 "c-call.lisp" 3408220507
@@ -7,8 +7,8 @@
 "char.lisp" 3408220508
 "debug.lisp" 3408220508
 "float.lisp" 3408220509
-"insts.lisp" 3408220509
-"macros.lisp" 3408220509
+"insts.lisp" 3429176880
+"macros.lisp" 3428874691
 "memory.lisp" 3408220509
 "move.lisp" 3408220510
 "nlx.lisp" 3408220510
@@ -21,4 +21,4 @@
 "system.lisp" 3408220511
 "type-vops.lisp" 3408220511
 "values.lisp" 3408220511
-"vm.lisp" 3408220511
+"vm.lisp" 3429008994

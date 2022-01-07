@@ -6,7 +6,7 @@
 ;;;
 ;;; or
 ;;;
-;;;    build-small/lisp/lisp -core build-small/lisp/lisp.core \
+;;;    build-small/bin/lisp -core build-small/bin/lisp.core \
 ;;;        -eval "(defvar user::src \"modified-src/\")" \
 ;;;        -load src/tools/build-world.lisp
 ;;;
@@ -68,10 +68,10 @@
 
   (setf (search-list "target:") `(,target ,src))
 
-  (format t "*features*: ~A~%" *features*)
+  ;(format t "*features*: ~A~%" *features*)
   (format t "Loading features...~%")
   (load (open "target:features.lisp"))
-  (format t "*features*: ~A~%" *features*)
+  ;(format t "*features*: ~A~%" *features*)
 
   (format t "Loading setup...~%")
   (setq *compile-verbose* nil *compile-print* nil)
@@ -80,7 +80,7 @@
   ;; FIX quiet warning about def of comf
   (comf "target:tools/setup" :load t)
 
-  (format t "Systems: ~A~%" systems)
+  (format t "Building these systems: ~A~%" systems)
 
   (when (probe-file "bootstrap.lisp")
     (format t "Loading bootstrap...")
@@ -100,6 +100,10 @@
 
   (when (position :kernel systems)
     (format t "Compiling kernel core...")
-    (load "target:tools/worldbuild")))
+    (load "target:tools/worldbuild"))
+
+  (when (position :boot systems)
+    (format t "Compiling Boot code...")
+    (load "target:tools/bootcom")))
 
 (build-world src target systems)

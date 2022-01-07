@@ -300,6 +300,8 @@
 (comf "target:code/parse")
 (comf "target:code/packagem")
 (comf "target:code/docnode")
+(comf "target:code/cd")
+(comf "target:code/css")
 
 #+clx (comf "target:code/xlib" :load t) ; FIX load
 #+clx (comf "target:code/clx-ext" :load t) ; FIX load

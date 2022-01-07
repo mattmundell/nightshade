@@ -938,6 +938,7 @@ attribute, as described in [System Defined Character Attributes].
 (defindent "defattribute" 1)
 (defindent "defcommand" 2)
 (defindent "defevar" 1)
+(defindent "defhistory" 3)
 (defindent "defmode" 1)
 (defindent "defparser" 1)
 (defindent "do-alpha-chars" 1)
@@ -1377,7 +1378,7 @@ attribute, as described in [System Defined Character Attributes].
 
 (defun insert-lisp-indentation (m)
   (delete-horizontal-space m)
-  (funcall (value indent-with-tabs) m (lisp-indentation m)))
+  (funcall (value tab-indenter) m (lisp-indentation m)))
 
 
 #[ Form Manipulation
@@ -1505,14 +1506,14 @@ rules:
 	(with-mark ((m point)
 		    (dummy point))
 	  (cond ((not (mark-top-level-form m dummy))
-		 (editor-error "No current or next top level form."))
+		 (editor-error "Need a current or next top level form."))
 		(t
 		 (or (top-level-offset m (1- count))
-		     (editor-error "Not enough top level forms."))
+		     (editor-error "Too few top level forms."))
 		 ;; We might be one unparsed for away.
 		 (pre-command-parse-check m)
 		 (or (form-offset m 1)
-		     (editor-error "Not enough top level forms."))
+		     (editor-error "Too few top level forms."))
 		 (when (blank-after-p m) (line-offset m 1 0))
 		 (move-mark point m)))))))
 
@@ -1840,7 +1841,7 @@ rules:
 	   (undo-region (copy-region string-region))
 	   (hack (make-empty-region)))
       ;; Generate prefix.
-      (funcall (value indent-with-tabs)
+      (funcall (value tab-indenter)
 	       (region-end hack) (1+ (mark-column mark)))
       ;; Skip opening double quote and fill string starting on its own line.
       (mark-after mark)
@@ -2196,6 +2197,7 @@ affect them is to use the after-editor-initializations macro.
 (setf (gethash "defcommand" lisp-special-forms) t)
 (setf (gethash "defconstant" lisp-special-forms) t)
 (setf (gethash "defevar" lisp-special-forms) t)
+(setf (gethash "defhistory" lisp-special-forms) t)
 (setf (gethash "defmacro" lisp-special-forms) t)
 (setf (gethash "defmode" lisp-special-forms) t)
 (setf (gethash "defpackage" lisp-special-forms) t)

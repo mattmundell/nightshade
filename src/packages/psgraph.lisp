@@ -6,12 +6,14 @@
 ;;; acyclic graph.
 
 (defpackage "PSGRAPH"
+  (:version 1)
   (:use "COMMON-LISP")
   (:export "*EXTRA-X-SPACING*" "*EXTRA-Y-SPACING*" "*FONTNAME*"
 	   "*FONTSIZE*" "*SECOND-FONTNAME*" "*SECOND-FONTSIZE*"
 	   "*BOXGRAY*" "*BOXKIND*" "*EDGEWIDTH*" "*EDGEGRAY*"
 	   "*EDGECAP*"  "*TEXTGRAY*" "*PAGEHEIGHT*" "*PAGEWIDTH*"
-	   "*BOXRADIUS*" "*BOXEDGE*" "*CHUNKSIZE*" "PSGRAPH"))
+	   "*BOXRADIUS*" "*BOXEDGE*" "*CHUNKSIZE*" "PSGRAPH")
+  (:documentation "PostScript Directed Acyclic Graph Grapher"))
 
 (in-package "PSGRAPH")
 

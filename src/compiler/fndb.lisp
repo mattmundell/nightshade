@@ -1024,7 +1024,8 @@
   ((or filename stream)
    &key (:verbose t) (:print t) (:if-does-not-exist (member :error :create nil))
    (:if-source-newer (member :load-source :load-object :query :compile))
-   (:contents (or null (member :source :binary))))
+   (:contents (or null (member :source :binary)))
+   (:restart-p t))
   t)
 
 (defknown directory (&optional pathnamelike

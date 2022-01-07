@@ -43,6 +43,7 @@
 			           (style :short)
 				   (date-first t)
 				   (print-seconds t)
+				   (print-date t)
 				   (print-meridian t)
 				   (print-timezone t)
 				   (print-weekday t))
@@ -153,18 +154,25 @@
 	   (setq time-string
 		 (concatenate 'simple-string time-string " ~[am~;pm~]")))
 	 (apply #'format destination
-		(if date-first
-		    (concatenate 'simple-string date-string " " time-string
-				 (if print-timezone " ~A"))
-		    (concatenate 'simple-string time-string " " date-string
+		(if print-date
+		    (if date-first
+			(concatenate 'simple-string date-string " " time-string
+				     (if print-timezone " ~A"))
+			(concatenate 'simple-string time-string " " date-string
+				     (if print-timezone " ~A")))
+		    (concatenate 'simple-string time-string
 				 (if print-timezone " ~A")))
-		(if date-first
-		    (nconc date-args (nreverse time-args)
-			   (if print-timezone
-			       (list timezone-name)))
-		    (nconc (nreverse time-args) date-args
-			   (if print-timezone
-			       (list timezone-name))))))))))
+		(if print-date
+		    (if date-first
+			(nconc date-args (nreverse time-args)
+			       (if print-timezone
+				   (list timezone-name)))
+			(nconc (nreverse time-args) date-args
+			       (if print-timezone
+				   (list timezone-name))))
+			(nconc (nreverse time-args)
+			       (if print-timezone
+				   (list timezone-name))))))))))
 
 (defun timezone-name (dst tz)
   (if (and (integerp tz)
@@ -269,6 +277,7 @@
 		         (style :short)
 			 (date-first t)
 			 (print-seconds t)
+			 (print-date t)
 			 (print-meridian t)
 			 (print-timezone t)
 			 (print-weekday t))
@@ -278,6 +287,7 @@
 			 :timezone timezone :style style
 			 :date-first date-first
 			 :print-seconds print-seconds
+			 :print-date print-date
 			 :print-meridian print-meridian
 			 :print-timezone print-timezone
 			 :print-weekday print-weekday))

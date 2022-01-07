@@ -79,8 +79,7 @@ Once a marking command makes the region active, it remains active until:
 (defevar "Active Regions Enabled"
   "When true, some commands that affect the current region only work when
    the region is active.  May be set to () for more traditional Emacs
-   region behaviour."
-  :value t)
+   region behaviour.")
 
 (defevar "Highlight Active Region"
   "When true, display the text in the region in a special font whenever the
@@ -116,7 +115,8 @@ Once a marking command makes the region active, it remains active until:
 (defun pacify-region ()
   "Make the current region passive."
   (setf *active-region-p* ())
-  (setf *active-region-buffer* ()))
+  (setf *active-region-buffer* ())
+  (invoke-hook pacify-region-hook))
 
 (defun region-active-p ()
   "Return whether the current-region is active, including ephemerally.
@@ -697,7 +697,8 @@ to find a desired portion of text on the kill ring.
 
    If a prefix argument is supplied, then rotate the kill ring that many
    times."
-  (if (zerop (ring-length *kill-ring*)) (editor-error "Kill ring empty."))
+  (if (zerop (ring-length *kill-ring*))
+      (editor-error "Kill ring empty."))
   (if (eq (last-command-type) :yank)
       (let ((point (current-point))
 	    (mark (current-mark)))

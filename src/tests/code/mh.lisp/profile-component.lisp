@@ -15,6 +15,7 @@
 	(write-line "abc: xyz" stream)
 	(write-line "abcd: xxx" stream)))
     (namestring (mh:profile-component "abc"
+				      :pathname
 				      (merge-pathnames "test/profile"
 						       dir)))))
 
@@ -29,7 +30,8 @@
 	(write-line "abc: xyz" stream)
 	(write-line "abcd: xxx" stream))
       (in-directory "test/"
-	(namestring (mh:profile-component "abc" "profile"))))))
+	(namestring (mh:profile-component "abc"
+					  :pathname "profile"))))))
 
 (deftest profile-component ("xxx" profile-component-3)
   "Test `profile-component' with an absolute profile pathname, reading the
@@ -45,6 +47,7 @@
 	(write-line "ddd: 1.2" stream)
 	(write-line "abcd: xxx" stream))
       (namestring (mh:profile-component "abcd"
+					:pathname
 					(merge-pathnames "test/profile"
 							 dir))))))
 
@@ -62,7 +65,9 @@
 	(write-line "ddd: 1.2" stream)
 	(write-line "abcd: xxx" stream))
       (in-directory "test/"
-	(namestring (mh:profile-component "abcd" "profile"))))))
+	(namestring (mh:profile-component "abcd"
+					  :pathname
+					  "profile"))))))
 
 (deftest profile-component (() profile-component-5)
   "Test `profile-component' with a relative profile pathname, where the
@@ -78,7 +83,7 @@
 	(write-line "ddd: 1.2" stream)
 	(write-line "abcd: xxx" stream))
       (in-directory "test/"
-	(mh:profile-component "missing" "profile")))))
+	(mh:profile-component "missing" :pathname "profile")))))
 
 (deftest profile-component ("value" profile-component-6)
   "Test `profile-component' with an implied profile pathname."

@@ -24,23 +24,23 @@
   "Test `strip-folder-name' with a short name."
   (strip-folder-name "f"))
 
-(deftest strip-folder-name ("f" strip-folder-name-4)
+(deftest strip-folder-name ("f" strip-folder-name-5)
   "Test `strip-folder-name' with a short name with a leading +."
   (strip-folder-name "+f"))
 
-(deftest strip-folder-name ("looabcdefghijklmnopqrstuvwxyzoongfolder" strip-folder-name-5)
+(deftest strip-folder-name ("looabcdefghijklmnopqrstuvwxyzoongfolder" strip-folder-name-6)
   "Test `strip-folder-name' with a long name."
   (strip-folder-name "looabcdefghijklmnopqrstuvwxyzoongfolder"))
 
-(deftest strip-folder-name ("looabcdefghijklmnopqrstuvwxyzoongfolder" strip-folder-name-6)
+(deftest strip-folder-name ("looabcdefghijklmnopqrstuvwxyzoongfolder" strip-folder-name-7)
   "Test `strip-folder-name' with a long name with a leading +."
   (strip-folder-name "+looabcdefghijklmnopqrstuvwxyzoongfolder"))
 
-(deftest strip-folder-name ("folder/subfolder" strip-folder-name-7)
+(deftest strip-folder-name ("folder/subfolder" strip-folder-name-8)
   "Test `strip-folder-name' on a folder with a subfolder."
   (strip-folder-name "folder/subfolder"))
 
-(deftest strip-folder-name ("folder/subfolder" strip-folder-name-8)
+(deftest strip-folder-name ("folder/subfolder" strip-folder-name-9)
   "Test `strip-folder-name' on a folder with a subfolder."
   (strip-folder-name "+folder/subfolder"))
 

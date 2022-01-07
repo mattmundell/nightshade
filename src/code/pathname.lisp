@@ -1027,8 +1027,8 @@ returns the list ("/usr/lisp/code/").
 			     (extract-logical-host-prefix namestr start end)
 			     (pathname-host defaults))))
 	(or parse-host
-	    (error "Either $host must be supplied or $defaults must ~
-		    have a true PATHNAME-HOST."))
+	    (error "Either $host must be supplied or $defaults must have~
+		    a PATHNAME-HOST."))
 
 	(multiple-value-bind
 	    (new-host device directory file type version)
@@ -1174,22 +1174,23 @@ returns the list ("/usr/lisp/code/").
 	   (type (member nil :host :device :directory :name :type :version)
 		 field-key))
   (with-pathname (pathname pathname)
-    (flet ((frob (x)
-	     (or (pattern-p x) (member x '(:wild :wild-inferiors)))))
-      (ecase field-key
-	((nil)
-	 (or (wild-pathname-p pathname :host)
-	     (wild-pathname-p pathname :device)
-	     (wild-pathname-p pathname :directory)
-	     (wild-pathname-p pathname :name)
-	     (wild-pathname-p pathname :type)
-	     (wild-pathname-p pathname :version)))
-	(:host (frob (%pathname-host pathname)))
-	(:device (frob (%pathname-device pathname)))
-	(:directory (some #'frob (%pathname-directory pathname)))
-	(:name (frob (%pathname-name pathname)))
-	(:type (frob (%pathname-type pathname)))
-	(:version (frob (%pathname-version pathname)))))))
+		 (flet ((frob (x)
+			  (or (pattern-p x)
+			      (member x '(:wild :wild-inferiors)))))
+		   (ecase field-key
+		     ((nil)
+		      (or (wild-pathname-p pathname :host)
+			  (wild-pathname-p pathname :device)
+			  (wild-pathname-p pathname :directory)
+			  (wild-pathname-p pathname :name)
+			  (wild-pathname-p pathname :type)
+			  (wild-pathname-p pathname :version)))
+		     (:host (frob (%pathname-host pathname)))
+		     (:device (frob (%pathname-device pathname)))
+		     (:directory (some #'frob (%pathname-directory pathname)))
+		     (:name (frob (%pathname-name pathname)))
+		     (:type (frob (%pathname-type pathname)))
+		     (:version (frob (%pathname-version pathname)))))))
 
 ;;; COMMON-PREFIX  FIX unique-prefix?
 ;;;

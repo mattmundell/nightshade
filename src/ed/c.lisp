@@ -24,6 +24,10 @@ FIX lisp [ Editing Lisp ]
   "Hashtable of C special forms."
   :value ())
 
+(defevar "Indent Step"
+  "Number of spaces per indentation level, for programming languages."
+  :value 2)
+
 
 ;;;; C.
 
@@ -76,12 +80,14 @@ FIX lisp [ Editing Lisp ]
 		 (line-start tem)
 		 (find-attribute tem :whitespace #'zerop)
 		 (+ (mark-column tem)
-		    (if (eq (next-character mark) #\{) 2 4)))
+		    ;(if (eq (next-character mark) #\{) 2 4)
+		    (value indent-step)))
 		((eq ch #\{)
 		 (line-start tem)
 		 (find-attribute tem :whitespace #'zerop)
 		 (+ (mark-column tem)
-		    (if (eq (next-character tem) #\{) 2 4)))
+		    ;(if (eq (next-character tem) #\{) 2 4)
+		    (value indent-step)))
 		((eq ch #\,)
 		 (reverse-find-character tem #\()
 		 (1+ (mark-column tem)))
@@ -101,29 +107,41 @@ FIX lisp [ Editing Lisp ]
 		       (line-start tem2)
 		       (find-attribute tem2 :whitespace #'zerop)
 		       (if (eq (next-character mark) #\})
-			   (- (mark-column tem2) 2)
+			   (- (mark-column tem2) (value indent-step))
 			   (mark-column tem2)))
 		      (t
 		       (line-start tem)
 		       (find-attribute tem :whitespace #'zerop)
 		       (if (eq (next-character mark) #\})
-			   (- (mark-column tem) 2)
+			   (- (mark-column tem) (value indent-step))
 			   (mark-column tem)))))))))))))
+
+(defevar "Indent with Tabs"
+  "Whether `indent-for-c' indents with tabs."
+  :value t)
 
 (defun indent-for-c (mark)
   (line-start mark)
   (insert-c-indentation mark))
 
 (defun insert-c-indentation (mark)
-  (delete-horizontal-space mark)
-  (funcall (value indent-with-tabs) mark (c-indentation mark)))
+  (let ((length (c-indentation mark)))
+    (if (maybe-delete-horizontal-space mark length)
+	(funcall (if (value indent-with-tabs)
+		     (value tab-indenter)
+		     (value space-indenter))
+		 mark length))))
 
 (defevar "Indent Function"
   "Indentation function invoked by the `Indent' command.  The function
    takes a :left-inserting mark that may be moved, and indents the line
    that the mark is on."
-  :value #'indent-for-c
-  :mode "C")
+  :mode "C" :value #'indent-for-c)
+
+(defevar "Indent with Tabs"
+  "When true, uses `Tab Indenter' instead of `Space Indenter' to indent
+   lines."
+  :mode "C" :value t)
 
 (defevar "Auto Fill Space Indent"
   "When true, uses `Indent New Comment Line' to break lines instead of `New
@@ -189,7 +207,7 @@ FIX lisp [ Editing Lisp ]
 			    while (eq (aref string start) #\\))))))
        string-start)))
 
-;;; FIX return;
+;;; FIX return;  '#'
 
 (defun highlight-c-line (line chi-info)
   (when (next-character (mark line 0))
@@ -328,6 +346,11 @@ FIX lisp [ Editing Lisp ]
   :value #'indent-for-c
   :mode "C++")
 
+(defevar "Indent with Tabs"
+  "When true, uses `Tab Indenter' instead of `Space Indenter' to indent
+   lines."
+  :mode "C++" :value t)
+
 (defevar "Auto Fill Space Indent"
   "When true, uses `Indent New Comment Line' to break lines instead of
    `New Line'."
@@ -374,6 +397,11 @@ FIX lisp [ Editing Lisp ]
   :value #'indent-for-c
   :mode "Perl")
 
+(defevar "Indent with Tabs"
+  "When true, uses `Tab Indenter' instead of `Space Indenter' to indent
+   lines."
+  :mode "Perl" :value t)
+
 (defevar "Auto Fill Space Indent"
   "When true, uses `Indent New Comment Line' to break lines instead of
    `New Line'."
@@ -415,6 +443,11 @@ FIX lisp [ Editing Lisp ]
    that the mark is on."
   :value #'indent-for-c
   :mode "Java")
+
+(defevar "Indent with Tabs"
+  "When true, uses `Tab Indenter' instead of `Space Indenter' to indent
+   lines."
+  :mode "Java" :value t)
 
 (defevar "Auto Fill Space Indent"
   "When true, uses `Indent New Comment Line' to break lines instead of

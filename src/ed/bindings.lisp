@@ -115,6 +115,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Do Nothing"               #k"fiveup")
 (bind-key "Menu"                     #k"rightdown")
 (bind-key "Do Nothing"               #k"rightup")
+#+clx
 (bind-key "Insert Selection"         #k"middledown")
 (bind-key "Do Nothing"               #k"middleup")
 #|
@@ -648,6 +649,16 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Scroll Window Down" #k"space" :mode "Inspect")
 (bind-key "Enter Break Loop" #k"e" :mode "Inspect")
 (bind-key "Restart from Error" #k"r" :mode "Inspect")
+(bind-key "Restart from Error Self" #k"0" :mode "Inspect")
+(bind-key "Restart from Error Self" #k"1" :mode "Inspect")
+(bind-key "Restart from Error Self" #k"2" :mode "Inspect")
+(bind-key "Restart from Error Self" #k"3" :mode "Inspect")
+(bind-key "Restart from Error Self" #k"4" :mode "Inspect")
+(bind-key "Restart from Error Self" #k"5" :mode "Inspect")
+(bind-key "Restart from Error Self" #k"6" :mode "Inspect")
+(bind-key "Restart from Error Self" #k"7" :mode "Inspect")
+(bind-key "Restart from Error Self" #k"8" :mode "Inspect")
+(bind-key "Restart from Error Self" #k"9" :mode "Inspect")
 (bind-key "Next Line" #k"n" :mode "Inspect")
 (bind-key "Previous Line" #k"p" :mode "Inspect")
 (bind-key "Step Forward" #k"f" :mode "Inspect")
@@ -702,6 +713,23 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Kill Interactive Input" #k"meta-i" :mode "Telnet")
 (bind-key "Next Interactive Input" #k"meta-n" :mode "Telnet")
 (bind-key "Reenter Interactive Input" #k"control-return" :mode "Telnet")
+
+
+;;;; IRC.
+
+
+;;;; Gopher.
+
+(bind-key "Next Gopher Reference" #k"n" :mode "Gopher")
+(bind-key "Next Gopher Reference" #k"tab" :mode "Gopher")
+(bind-key "Previous Gopher Reference" #k"p" :mode "Gopher")
+(bind-key "Previous Gopher Reference" #k"meta-tab" :mode "Gopher")
+(bind-key "Rotate Buffers Forward" #k"q" :mode "Gopher")
+(bind-key "Gopher Resource from Point" #k"return" :mode "Gopher")
+(bind-key "Refresh Gopher Buffer" #k"g" :mode "Gopher")
+(bind-key "Forward Gopher Page" #k"f" :mode "Gopher")
+(bind-key "Backward Gopher Page" #k"b" :mode "Gopher") ; FIX Scroll Win Up in View Mode.
+(bind-key "Backward Gopher Page" #k"l" :mode "Gopher")
 
 
 ;;;; Mailer (MH) commands.
@@ -761,8 +789,8 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Expunge Messages" #k"!" :mode "Headers")
 (bind-key "Expunge Messages" #k"x" :mode "Headers")
 (bind-key "Headers Help" #k"?" :mode "Headers")
-;(bind-key "Refresh Headers" #k"g" :mode "Headers")
-(bind-key "Refresh All Headers" #k"g" :mode "Headers")
+(bind-key "Refresh Headers" #k"g" :mode "Headers")
+;(bind-key "Refresh All Headers" #k"g" :mode "Headers")
 (bind-key "Sort Headers" #k"s" :mode "Headers")
 (bind-key "Browse Folders" #k"^" :mode "Headers")
 (bind-key "Scroll Window Down" #k"space" :mode "Headers")
@@ -833,11 +861,15 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Mail Browse Browse Folder in Other Window" #k"o" :mode "Mail Browse")
 (bind-key "Refresh Folders" #k"g" :mode "Mail Browse")
 (bind-key "Mail Browse Toggle New" #k"N" :mode "Mail Browse")
-(bind-key "Mail Browse Delete Folder" #k"d" :mode "Mail Browse")
+(bind-key "Mail Browse Toggle New" #k"s n" :mode "Mail Browse")
+(bind-key "Mail Browse Toggle New" #k"s a" :mode "Mail Browse")
+(bind-key "Mail Browse Delete Folder and Down Line" #k"d" :mode "Mail Browse")
+(bind-key "Mail Browse Delete Folder" #k"control-d" :mode "Mail Browse")
 (bind-key "Mail Browse Mark Folder" #k"m" :mode "Mail Browse")
-(bind-key "Mail Browse Clear Folder Marks" #k"u" :mode "Mail Browse")
+(bind-key "Mail Browse Clear Folder Marks and Down Line" #k"u" :mode "Mail Browse")
 (bind-key "Mail Browse Rename Folder" #k"r" :mode "Mail Browse")
 (bind-key "Expunge Folders" #k"x" :mode "Mail Browse")
+(bind-key "Create Folder" #k"c" :mode "Mail Browse")
 
 ;;; Kill Browse.
 
@@ -965,6 +997,18 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Previous Parse" #k"meta-p" :mode "VC Log Entry")
 (bind-key "Next Parse" #k"meta-n" :mode "VC Log Entry")
 
+;;;; Viewing version control file comparisons (VC Comparison).
+
+(bind-key "Scroll Window Up"       #k"delete" :mode "VC Comparison")
+(bind-key "Scroll Window Down"     #k"space" :mode "VC Comparison")
+(bind-key "Rotate Buffers Forward" #k"q" :mode "VC Comparison")
+(bind-key "Next VC Comparison"     #k"n" :mode "VC Comparison")
+(bind-key "Previous VC Comparison" #k"p" :mode "VC Comparison")
+(bind-key "Next VC File"           #k"tab" :mode "VC Comparison")
+(bind-key "Previous VC File"       #k"meta-tab" :mode "VC Comparison")
+(bind-key "Edit VC Comparison"     #k"enter" :mode "VC Comparison")
+(bind-key "Edit VC Comparison"     #k"e" :mode "VC Comparison")
+
 
 ;;;; Process (Shell).
 
@@ -973,8 +1017,8 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Shell Complete Filename" #k"M-escape" :mode "Process")
 (bind-key "Interrupt Buffer Subprocess" #k"hyper-c" :mode "Process")
 (bind-key "Stop Buffer Subprocess" #k"hyper-z" :mode "Process")
-(bind-key "Quit Buffer Subprocess" #k"hyper-\\")
-(bind-key "Send EOF to Process" #k"hyper-d")
+(bind-key "Quit Buffer Subprocess" #k"hyper-\\" :mode "Process")
+(bind-key "Send EOF to Process" #k"hyper-d" :mode "Process")
 ;; Shadow global revert file.
 (bind-key "Update Shell Buffer" #k"control-c meta-r" :mode "Process")
 
@@ -1046,8 +1090,19 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Scroll Window Up" #k"delete" :mode "Record")
 (bind-key "Scroll Window Down" #k"space" :mode "Record")
 (bind-key "Rotate Buffers Forward" #k"q" :mode "Record")
-(bind-key "Next Line" #k"n" :mode "Record")
-(bind-key "Previous Line" #k"p" :mode "Record")
+(bind-key "Create Contact" #k"c" :mode "Record")
+(bind-key "Delete Contact" #k"d" :mode "Record")
+(bind-key "Next Record" #k"n" :mode "Record")
+(bind-key "Previous Record" #k"p" :mode "Record")
+(bind-key "Next Record" #k"tab" :mode "Record")
+(bind-key "Previous Record" #k"meta-tab" :mode "Record")
+(bind-key "Edit Contact" #k"E" :mode "Record")
+(bind-key "Edit Field" #k"e" :mode "Record")
+(bind-key "Add Field" #k"a" :mode "Record")
+(bind-key "Remove Field" #k"r" :mode "Record")
+(bind-key "Mail Contact" #k"m" :mode "Record")
+(bind-key "WWW Contact" #k"w" :mode "Record")
+(bind-key "Save DB" #k"s" :mode "Record")
 
 
 ;;;; Diary entry.
@@ -1056,6 +1111,11 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Rotate Buffers Forward" #k"q" :mode "Diary Entry")
 (bind-key "Scroll Window Up" #k"delete" :mode "Diary Entry")
 (bind-key "Scroll Window Down" #k"space" :mode "Diary Entry")
+
+
+;;;; Diary.
+
+;(bind-key "Goto Date in Diary" #k"meta-g d" :mode "Diary")
 
 
 ;;;; Bufed.
@@ -1158,7 +1218,7 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Dired Delete File and Down Line" #k"d" :mode "Dired")
 (bind-key "Dired Delete File with Pattern" #k"% d" :mode "Dired")
 (bind-key "Dired Delete File" #k"control-d" :mode "Dired")
-(bind-key "Dired Delete File" #k"k" :mode "Dired")
+;(bind-key "Dired Delete File" #k"k" :mode "Dired")
 (bind-key "Dired Delete and Expunge" #k"D" :mode "Dired")
 
 (bind-key "Dired Undelete File and Down Line" #k"u" :mode "Dired")
@@ -1296,12 +1356,17 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 ;;;; Calendar and Diary.
 
 (bind-key "Goto Today" #k"." :mode "Calendar")
+(bind-key "Goto Date" #k"meta-g d" :mode "Calendar")
 (bind-key "Refresh Calendar" #k"g" :mode "Calendar")
 (bind-key "Calendar Show Year" #k"y" :mode "Calendar")
 (bind-key "Calendar Show 3 Months" #k"3" :mode "Calendar")
-(bind-key "Show Diary Entries" #k"d" :mode "Calendar")
+(bind-key "Goto Current Date in Diary" #k"d" :mode "Calendar")
+(bind-key "Show Diary Entries" #k"D" :mode "Calendar")
 (bind-key "Insert Diary Entry" #k"i d" :mode "Calendar")
 (bind-key "Rotate Buffers Forward" #k"q" :mode "Calendar")
+(bind-key "Scroll Window Up" #k"backspace" :mode "Calendar")
+(bind-key "Scroll Window Up" #k"delete" :mode "Calendar")
+(bind-key "Scroll Window Down" #k"space" :mode "Calendar")
 
 
 ;;;; WWW.
@@ -1322,6 +1387,22 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 (bind-key "Copy WWW Buffer" #k"control-x n" :mode "WWW")
 (bind-key "WWW Page Info" #k"=" :mode "WWW")
 (bind-key "WWW Toggle Source" #k"s s" :mode "WWW")
+
+
+;;;; Links.
+
+(bind-key "Rotate Buffers Forward"  #k"q"         :mode "Links")
+(bind-key "Scroll Window Up"        #k"backspace" :mode "Links")
+(bind-key "Scroll Window Up"        #k"delete"    :mode "Links")
+(bind-key "Scroll Window Down"      #k"space"     :mode "Links")
+(bind-key "Links WWW"               #k"w"         :mode "Links")
+(bind-key "Links WWW Externally"    #k"W"         :mode "Links")
+(bind-key "Links Edit"              #k"e"         :mode "Links")
+(bind-key "Links Find"              #k"enter"     :mode "Links")
+(bind-key "Links Next Link"         #k"tab"       :mode "Links")
+(bind-key "Links Next Link"         #k"n"         :mode "Links")
+(bind-key "Links Previous Link"     #k"meta-tab"  :mode "Links")
+(bind-key "Links Previous Link"     #k"p"         :mode "Links")
 
 
 ;;;; Completion mode.
@@ -1354,6 +1435,65 @@ keys on limited keyboards that lack control, meta, and hyper keys.
 ;;;; SGML mode.
 
 (bind-key "SGML Insert >" #k"\>" :mode "SGML")
+
+
+;;;; Hex mode.
+
+(do-alpha-key-events (key-event :both)
+  (bind-key "Self Insert Hex" key-event :mode "Hex"))
+
+(bind-key "Hex g or Refresh" #k"g" :mode "Hex")
+(bind-key "Hex Space or Scroll Window Down" #k"space" :mode "Hex")
+(bind-key "Scroll Window Up" #k"backspace" :mode "Hex")
+(bind-key "Scroll Window Up" #k"delete" :mode "Hex")
+(bind-key "Hex Next Item" #k"tab" :mode "Hex")
+;(bind-key "Hex Previous Item" #k"meta-tab" :mode "Hex")
+(bind-key "Hex q or Quit" #k"q" :mode "Hex")
+
+(bind-key "Editor Error" #k"control-q" :mode "Hex")
+
+(bind-key "Self Insert Hex" #k"!" :mode "Hex")
+(bind-key "Self Insert Hex" #k"@" :mode "Hex")
+(bind-key "Self Insert Hex" #k"#" :mode "Hex")
+(bind-key "Self Insert Hex" #k"$" :mode "Hex")
+(bind-key "Self Insert Hex" #k"%" :mode "Hex")
+(bind-key "Self Insert Hex" #k"^" :mode "Hex")
+(bind-key "Self Insert Hex" #k"&" :mode "Hex")
+(bind-key "Self Insert Hex" #k"*" :mode "Hex")
+(bind-key "Self Insert Hex" #k"(" :mode "Hex")
+(bind-key "Self Insert Hex" #k")" :mode "Hex")
+(bind-key "Self Insert Hex" #k"_" :mode "Hex")
+(bind-key "Self Insert Hex" #k"+" :mode "Hex")
+(bind-key "Self Insert Hex" #k"~" :mode "Hex")
+(bind-key "Self Insert Hex" #k"1" :mode "Hex")
+(bind-key "Self Insert Hex" #k"2" :mode "Hex")
+(bind-key "Self Insert Hex" #k"3" :mode "Hex")
+(bind-key "Self Insert Hex" #k"4" :mode "Hex")
+(bind-key "Self Insert Hex" #k"5" :mode "Hex")
+(bind-key "Self Insert Hex" #k"6" :mode "Hex")
+(bind-key "Self Insert Hex" #k"7" :mode "Hex")
+(bind-key "Self Insert Hex" #k"8" :mode "Hex")
+(bind-key "Self Insert Hex" #k"9" :mode "Hex")
+(bind-key "Self Insert Hex" #k"0" :mode "Hex")
+(bind-key "Self Insert Hex" #k"[" :mode "Hex")
+(bind-key "Self Insert Hex" #k"]" :mode "Hex")
+(bind-key "Self Insert Hex" #k"\\" :mode "Hex")
+(bind-key "Self Insert Hex" #k"|" :mode "Hex")
+(bind-key "Self Insert Hex" #k":" :mode "Hex")
+(bind-key "Self Insert Hex" #k";" :mode "Hex")
+(bind-key "Self Insert Hex" #k"\"" :mode "Hex")
+(bind-key "Self Insert Hex" #k"'" :mode "Hex")
+(bind-key "Self Insert Hex" #k"\-" :mode "Hex")
+(bind-key "Self Insert Hex" #k"=" :mode "Hex")
+(bind-key "Self Insert Hex" #k"`" :mode "Hex")
+(bind-key "Self Insert Hex" #k"\<" :mode "Hex")
+(bind-key "Self Insert Hex" #k"\>" :mode "Hex")
+(bind-key "Self Insert Hex" #k"," :mode "Hex")
+(bind-key "Self Insert Hex" #k"." :mode "Hex")
+(bind-key "Self Insert Hex" #k"?" :mode "Hex")
+(bind-key "Self Insert Hex" #k"/" :mode "Hex")
+(bind-key "Self Insert Hex" #k"{" :mode "Hex")
+(bind-key "Self Insert Hex" #k"}" :mode "Hex")
 
 
 ;;;; Logical characters.

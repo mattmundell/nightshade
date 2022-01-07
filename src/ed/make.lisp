@@ -11,6 +11,8 @@
 (setf (gethash "endif" make-special-forms) t)
 (setf (gethash "include" make-special-forms) t)
 
+(declaim (special *context*))
+
 (defun highlight-make-line (line chi-info)
   (when (next-character (mark line 0))
     (let ((chars (line-string line))
@@ -90,8 +92,8 @@
 			       (eq (char (line-string line) (1+ dollar)) #\$))
 			  (setq pos (+ dollar 2)))
 			 (t
-			  (chi-mark line dollar *variable-name-font*
-				    *variable-name-font* chi-info)
+			  (chi-mark line dollar *variable-font*
+				    :variable chi-info)
 			  (let* ((mark (mark line dollar))
 				 (end (find-attribute mark :whitespace)))
 			    (or end (return-from highlight-make-line))

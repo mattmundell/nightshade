@@ -95,7 +95,7 @@
 
 (defun open-line (line mark)
   "Closes the current Open-Line and opens the given Line at the Mark.
-  Don't call this, use modifying-line instead."
+   Don't call this, use modifying-line instead."
   (cond ((eq line open-line)
 	 (let ((charpos (mark-charpos mark)))
 	   (cond ((< charpos left-open-pos)	; BLT 'em right!

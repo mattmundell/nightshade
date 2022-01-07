@@ -142,7 +142,8 @@ denotes a wildcard.
 	   (pname1 (pathname ses-name1))
 	   (pname2 (pathname ses-name2))
 	   (dirp1 (directoryp pname1 :check-for-links check-for-links))
-	   (dirp2 (directoryp pname2 :check-for-links check-for-links))
+	   (dirp2 (or (directoryp pname2 :check-for-links check-for-links)
+		      (and (directory-name-p spec2) (symlinkp spec2))))
 	   (wildp1 (if (file-namestring pname1)
 		       (wildcardp (file-namestring pname1))))
 	   (wildp2 (if (file-namestring pname2)
@@ -179,15 +180,15 @@ denotes a wildcard.
 			  "Source directory must exist -- ~S." pname1))
 	     (if (directory-existsp ses-name2)
 		 ;; Copy the dir into the existing dir.
-		 ;; FIX
 		 (let ((ses-sub1 (concat
 				  (directorify ses-name2)
 				  (file-namestring (namify ses-name1)))))
-		   (add-directory ses-sub1)
+		   (add-directory (ensure-trailing-slash ses-sub1))
 		   (recursive-copy pname1
-				   (merge-pathnames
-				    ses-sub1
-				    (ext:current-directory))
+				   (ensure-trailing-slash
+				    (merge-pathnames
+				     ses-sub1
+				     (ext:current-directory)))
 				   update clobber pname2
 				   ses-name1 ses-sub1
 				   check-for-links))
@@ -492,7 +493,7 @@ denotes a wildcard.
 		     clobber))))
 
 (defun rename-file-2 (ses-name1 ses-name2 clobber)
-  (cond ((and (probe-file ses-name2) (not clobber))
+  (cond ((and (probe-file ses-name2) (fi clobber))
 	 (when (funcall *yesp-function*
 			"~&~S  ==>  ~S~%  ** Destination already exists.  ~
 			 Overwrite it? "
@@ -507,8 +508,11 @@ denotes a wildcard.
 
 ;;;; Symlink-File
 
-(defun symlink-file (source dest)
-  "Symlink name Source to file Dest."
+(defun symlink-file (source dest &key clobber)
+  "Symlink name $source to file $dest.
+
+   If $clobber is true overwrite $source if $source exists, else prompt to
+   overwrite."
   (let* ((ses-name-src (ext:os-namestring source nil))
 	 (ses-name-dest (ext:os-namestring dest t))
 	 (exists-dest-p (file-kind ses-name-dest))
@@ -528,9 +532,21 @@ denotes a wildcard.
 		 "Link source contains a wildcard -- ~S." pname-dest))
     (or exists-dest-p
 	(funcall *error-function* "Destination of link must exist."))
-    (sub-symlink-file namestring-src namestring-dest)
-    (funcall *report-function*
-	     "~&~S  -->~%  ~S~%" namestring-src namestring-dest)))
+    (when (if (file-kind ses-name-src :check-for-links t)
+	      (when (or clobber
+			(funcall *yesp-function*
+				 "~&~S  -->  ~S~%  ~
+				  ** Link file already exists.  ~
+				  Overwrite it? "
+				 ses-name-src ses-name-dest))
+		(delete-file ses-name-src
+			     :clobber t
+			     :recurse t)
+		t)
+	      t)
+      (sub-symlink-file namestring-src namestring-dest)
+      (funcall *report-function*
+	       "~&~S  -->~%  ~S~%" namestring-src namestring-dest))))
 
 
 ;;;; Find-File
@@ -574,7 +590,7 @@ denotes a wildcard.
 ;;;
 
 ;; FIX is there a case for a check-for-links arg?
-;; FIX rename clobber to overwrite?
+;; FIX rename clobber to prompt-to-overwrite?
 ;; FIX code: trash-file
 ;;; DELETE-FILE
 ;;;

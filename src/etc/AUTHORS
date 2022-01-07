@@ -800,6 +800,41 @@ and extended at the University of California.  From the manual page:
 
 Downloaded from ftp://ftp.ics.uci.edu/pub/mh/tar/mh-6.8.3.tar.Z
 
+** Normal tables in src/code/lispinit.lisp
+
+Downloaded from http://www.math.unb.ca/~knight/utility/NormTble.htm,
+2008-08-14.
+
+  "These tables are public domain.
+   They are produced by APL programs written by the author,
+   William Knight"
+
+** C precedence in src/code/lispinit.lisp
+
+FIX From Zeta C cyacc.y
+
+    "This code has been placed in the public domain."
+
+Downloaded from http://www.bitsavers.org/bits/TI/Explorer/zeta-c/ in 2008.
+
+Zeta C public domain notice:
+
+	From gyro@zeta-soft.com Sat Oct  4 00:46:38 2003
+	Received: (from gyro@localhost)
+			by kali.zeta-soft.com (8.9.3/8.9.3) id AAA05625;
+			Sat, 4 Oct 2003 00:44:13 -0700 (PDT)
+	From: "Scott L. Burson" <gyro@zeta-soft.com>
+	Date: Sat,  4 Oct 2003 00:44:02 -0700 (PDT)
+	Subject: Re: Zeta-C
+
+	Here are the Zeta-C sources.  I have marked them all as being in the public
+	domain.  If you want to try the build, the place to start is `zcdefs.lisp'.
+
+	I just might have somewhere the sources for the formatter used for the
+	manual... will look.
+
+	-- Scott
+
 * from the the "Credits" chapter of cmu-user/cmu-user.tex
 
 Since 1981 many people have contributed to the development of CMU Common
@@ -833,3 +868,13 @@ employee.  A partial listing of significant past contributors follows:
     Todd Kaufmann +
     Dave McDonald *
     Skef Wholey *
+
+
+* Packages
+
+** renderer.lisp
+
+;;; Written by R. Matthew Emerson <rme@acm.org> in August 1999,
+;;; and placed in the public domain.
+
+Downloaded from http://www.thoughtstuff.com/rme/viewing.lisp on 2008-11-11.

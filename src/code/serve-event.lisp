@@ -267,7 +267,7 @@ descriptor as it's single argument.
 ;;; Search *descriptor-handlers* for any reference to fd, and nuke 'em.
 ;;;
 (defun invalidate-descriptor (fd)
-  "Remove any handers refering to $fd.
+  "Remove any handlers refering to $fd.
 
    This should only be used in drastic cases (such as I/O errors).
    Normally, `remove-fd-handler' is used instead."

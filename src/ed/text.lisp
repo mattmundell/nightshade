@@ -182,9 +182,9 @@ boundary.
    actually is a current paragraph:
 
        (or paragraphp
-	   (and (last-line-p mark)
-		(end-line-p mark)
-		(not (blank-line-p (mark-line mark)))))
+           (and (last-line-p mark)
+                (end-line-p mark)
+                (not (blank-line-p (mark-line mark)))))
 
    in this example mark is at the end of the last paragraph in the buffer,
    and there is no last newline character in the buffer.  paragraph-offset

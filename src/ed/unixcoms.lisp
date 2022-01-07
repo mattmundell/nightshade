@@ -270,6 +270,7 @@
 (defcommand "Refresh Manual Page" ()
   "Refresh the Unix manual in the current buffer."
   (let ((topic (value manual-page))
+	(local-p (value manual-page-local-p))
 	(buffer (current-buffer)))
     (if topic
 	(with-writable-buffer (buffer)
@@ -278,41 +279,47 @@
 						point))))
 	    (delete-region (buffer-region buffer))
 	    (with-output-to-mark (s point :full)
-	      (execute-man topic s))
+	      (execute-man topic s local-p))
 	    (buffer-start point buffer)
 	    (character-offset point pos))))))
 
 (defcommand "Manual Page" (p page-name)
   "Display a Unix manual page in a buffer in `Manual Page' mode.  When
    given an argument, pop-up the manual page."
-  (let ((topic (or page-name
-		   (prompt-for-string :prompt "Man topic: "
-				      :default (manual-name-at-point)))))
-    (if p
-	(with-pop-up-display (stream)
-	  (execute-man topic stream))
-	(let* ((buf-name (format () "Man Page ~a" topic))
-	       (new-buffer (make-buffer buf-name
-					:modes '("Fundamental" "View" "Manual")))
-	       (buffer (or new-buffer (getstring buf-name *buffer-names*)))
-	       (point (buffer-point buffer)))
-	  (change-to-buffer buffer)
-	  (when new-buffer
-	    (setf (value view-return-function) #'(lambda ()))
-	    (defevar "Manual Page"
-	      "The manual page in this buffer."
-	      :buffer buffer
-	      :value topic)
-	    (with-writable-buffer (buffer)
-	      (with-output-to-mark (s point :full)
-		(execute-man topic s))))
-	  (buffer-start point buffer)))))
+  (let* ((page-name (if p
+			(prompt-for-file :prompt "Man file: "
+					 :must-exist t)
+			page-name))
+	 (topic (or page-name
+		    (prompt-for-string :prompt "Man topic: "
+				       :default (manual-name-at-point))))
+	 (buf-name (format () "Man Page ~a" topic))
+	 (new-buffer (make-buffer buf-name
+				  :modes '("Fundamental" "View" "Manual")))
+	 (buffer (or new-buffer (getstring buf-name *buffer-names*)))
+	 (point (buffer-point buffer)))
+    (change-to-buffer buffer)
+    (when new-buffer
+      (setf (value view-return-function) #'(lambda ()))
+      (defevar "Manual Page"
+	"The manual page in this buffer."
+	:buffer buffer
+	:value topic)
+      (defevar "Manual Page Local P"
+	"Whether this is a local page."
+	:buffer buffer
+	:value p)
+      (with-writable-buffer (buffer)
+	(with-output-to-mark (s point :full)
+	  (execute-man topic s p))))
+    (buffer-start point buffer)))
 
-(defun execute-man (topic stream)
+(defun execute-man (topic stream local-p)
   (ext:run-program
    "/bin/sh"
    (list "-c"
-	 (format nil "man ~a| ul -t adm3" topic))
+	 (format () "man ~A~A | ul -t adm3"
+		 (if local-p "-l " "") topic))
    :output stream))
 
 (defcommand "Next Manual Part" (p)
@@ -377,7 +384,7 @@
 				      :default (manual-name-at-point)))))
     (if p
 	(with-pop-up-display (stream)
-	  (execute-man topic stream))
+	  (execute-apropos topic stream))
 	(let* ((buf-name (format nil "System Apropos ~a" topic))
 	       (new-buffer (make-buffer buf-name
 					:modes '("Fundamental" "View" "SysApropos")))
@@ -481,6 +488,10 @@
 	:buffer buffer)
       (refresh-system-processes buffer))))
 
+(defcommand "System Processes" ()
+  "Edit system processes."
+  (edit-system-processes-command))
+
 (defcommand "Refresh System Processes" ()
   "Refresh system process list."
   (or (buffer-minor-mode (current-buffer) "SysProc")
@@ -573,6 +584,9 @@
 	(exit-command ())
       (editor-error () (remove-hook exit-hook 'run-reboot)))))
 
+(defevar "Suspend Hook"
+  "Hook called by `Suspend', before suspending.")
+
 (defcommand "Suspend" ()
   "Suspend to disk."
   (when (prompt-for-y-or-n
@@ -581,4 +595,5 @@
 	 :default ())
     (elet ((save-all-files-confirm ()))
       (save-all-files-command ()))
+    (invoke-hook suspend-hook)
     (ext::run-program "sudo" '("s2disk"))))

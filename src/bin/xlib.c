@@ -32,6 +32,7 @@
 
 const int true = True;
 const int false = False;
+const int none = None;
 
 const int badAlloc = BadAlloc;
 const int badName = BadName;
@@ -39,12 +40,25 @@ const int badWindow = BadWindow;
 const int badMatch = BadMatch;
 const int badValue = BadValue;
 
-const long gCForeground = GCForeground;
 const long gCBackground = GCBackground;
-const long gCFunction = GCFunction;
+const long gCFillStyle = GCFillStyle;
 const long gCFont = GCFont;
+const long gCForeground = GCForeground;
+const long gCFunction = GCFunction;
 const long gCGraphicsExposures = GCGraphicsExposures;
+const long gCLineStyle = GCLineStyle;
+const long gCLineWidth = GCLineWidth;
 const long gCPlaneMask = GCPlaneMask;
+const long gCStipple = GCStipple;
+
+const int fillOpaqueStippled = FillOpaqueStippled;
+const int fillSolid = FillSolid;
+const int fillStippled = FillStippled;
+const int fillTiled = FillTiled;
+
+const int lineSolid = LineSolid;
+const int lineOnOffDash = LineOnOffDash;
+const int lineDoubleDash = LineDoubleDash;
 
 int keyPress = KeyPress;
 int keyRelease = KeyRelease;
@@ -94,6 +108,13 @@ long cWCursor = CWCursor;
 int isUnmapped = IsUnmapped;
 int isUnviewable = IsUnviewable;
 int isViewable = IsViewable;
+
+int coordModeOrigin = CoordModeOrigin;
+int coordModePrevious = CoordModePrevious;
+
+int complex = Complex;
+int convex = Convex;
+int nonconvex = Nonconvex;
 
 #if 0
 // FIX where are these?

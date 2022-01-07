@@ -1,6 +1,7 @@
 "alloc.lisp" 3419750730
 "arith.lisp" 3419750800
-"array.lisp" 3419750885
-"assem-rtns.lisp" 3419750991
+"array.lisp" 3428873683
+"assem-rtns.lisp" 3428875109
 "bit-bash.lisp" 3407714343
+"boot.lisp" 3429188269
 "support.lisp" 3407714343

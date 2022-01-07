@@ -125,7 +125,6 @@
 (comf "target:ed/parse" :load t)
 ; FIX
 ;(comf "target:ed/parse-scribe")
-(comf "target:ed/parse-css")
 (comf "target:ed/info" :byte-compile t)
 (comf "target:ed/ginfo" :byte-compile t)
 (comf "target:ed/text" :byte-compile t)
@@ -186,6 +185,7 @@
 (comf "target:ed/line-end" :byte-compile t)
 (comf "target:ed/refresh" :byte-compile t)
 (comf "target:ed/testcoms" :byte-compile t)
+(comf "target:ed/hex")
 
 ) ;WITH-COMPILATION-UNIT for commands
 
@@ -267,7 +267,6 @@
  "target:ed/parse"
 ; FIX
 ; "target:ed/parse-scribe"
- "target:ed/parse-css"
  "target:ed/searchcoms"
  "target:ed/filecoms"
  "target:ed/info"
@@ -336,6 +335,7 @@
  "target:ed/line-end"
  "target:ed/refresh"
  "target:ed/testcoms"
+ "target:ed/hex"
 
  "target:ed/calendar"
  "target:ed/ed-integrity"

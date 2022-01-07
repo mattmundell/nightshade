@@ -113,10 +113,10 @@ user error.
     (let ((first (window-first-line window))
 	  (last (window-last-line window))
 	  (free (window-spare-lines window)))
-      (unless (eq (cdr first) the-sentinel)
-	(shiftf (cdr last) free (cdr first) the-sentinel))
+      (or (eq (cdr first) the-sentinel)
+	  (shiftf (cdr last) free (cdr first) the-sentinel))
       (dolist (dl free)
-	(setf (dis-line-line dl) nil  (dis-line-old-chars dl) nil))
+	(setf (dis-line-line dl) ()  (dis-line-old-chars dl) ()))
       (setf (window-spare-lines window) free))
     ;;
     ;; Set the last line and first&last changed so we know there's nothing there.
@@ -151,7 +151,9 @@ user error.
   (defcolor :preprocessor '(1.0 0.0 1.0)
     "Preprocessor and reader macro directives.")
   (defcolor :special-form '(0.0 1.0 1.0) "Special forms.")
-  (defcolor :error        '(1.0 0.5 1.0) "Errors.")
+  ;; FIX red for limited tty, should be pink (maybe drop :variable?)
+  (defcolor :error        '(1.0 0.0 0.0) "Errors.")
+  ;(defcolor :error        '(1.0 0.5 1.0) "Errors.")
 
   (let ((device (device-hunk-device (window-hunk (current-window)))))
     (funcall (device-init device) device))
@@ -544,17 +546,7 @@ recursive edits, whether new mail has arrived, etc.
     (if pn
 	(let* ((name (namestring pn))
 	       (length (length name))
-	       ;; FIX?
-	       ;; Prefer a buffer local value over the global one.
-	       ;; Because variables don't work right, blow off looking for
-	       ;; a value in the buffer's modes.  In the future this will
-	       ;; be able to get the "current" value as if buffer were current.
-	       (max (if (editor-bound-p 'ed::maximum-modeline-pathname-length
-					  :buffer buffer)
-			 (variable-value 'ed::maximum-modeline-pathname-length
-					 :buffer buffer)
-			 (variable-value 'ed::maximum-modeline-pathname-length
-					 :global))))
+	       (max (value ed::maximum-modeline-pathname-length)))
 	  (declare (simple-string name))
 	  (if (or (not max) (<= length max))
 	      name
@@ -572,6 +564,36 @@ recursive edits, whether new mail has arrived, etc.
 (make-modeline-field
  :name :buffer-pathname :replace t
  :function 'buffer-pathname-ml-field-fun)
+
+(defun buffer-directory-ml-field-fun (buffer window)
+  "Return the directory namestring of buffer's pathname if there is one.
+   When *Maximum Modeline Pathname Length* is set, and the namestring is
+   too long, return a truncated namestring chopping off leading directory
+   specifications."
+  (declare (ignore window))
+  (let ((name (directory-namestring (buffer-pathname buffer))))
+    (if name
+	(let ((length (length name))
+	      (max (if (editor-bound-p
+			'ed::maximum-modeline-pathname-length)
+		       (value ed::maximum-modeline-pathname-length))))
+	  (declare (simple-string name))
+	  (if (or (not max) (<= length max))
+	      name
+	      (let* ((extra-chars (+ (- length max) 3))
+		     (slash (or (position #\/ name :start extra-chars)
+				;; If no slash, then file-namestring is very
+				;; long, and we should include all of it:
+				(position #\/ name :from-end t
+					  :end extra-chars))))
+		(if slash
+		    (concatenate 'simple-string "..." (subseq name slash))
+		    name))))
+	"")))
+
+(make-modeline-field
+ :name :buffer-directory :replace t
+ :function 'buffer-directory-ml-field-fun)
 
 (make-modeline-field
  :replace t
@@ -932,11 +954,11 @@ recursive edits, whether new mail has arrived, etc.
   (let ((window (bitmap-hunk-window hunk)))
     ;;
     ;; Nuke all the lines in the window image.
-    (unless (eq (cdr (window-first-line window)) the-sentinel)
-      (shiftf (cdr (window-last-line window))
-	      (window-spare-lines window)
-	      (cdr (window-first-line window))
-	      the-sentinel))
+    (or (eq (cdr (window-first-line window)) the-sentinel)
+	(shiftf (cdr (window-last-line window))
+		(window-spare-lines window)
+		(cdr (window-first-line window))
+		the-sentinel))
     (setf (bitmap-hunk-start hunk) (cdr (window-first-line window)))
     ;;
     ;; Add some new spare lines if needed.  If width is greater,
@@ -951,27 +973,27 @@ recursive edits, whether new mail has arrived, etc.
 	(dolist (dl res)
 	  (setf (dis-line-chars dl) (make-string new-width))))
       (setf (window-height window) new-height (window-width window) new-width)
-      (do ((i (- (* new-height 2) (length res)) (1- i)))
-	  ((minusp i))
+      (until ((i (- (* new-height 2) (length res)) (1- i)))
+	     ((minusp i))
 	(push (make-window-dis-line (make-string width)) res))
       (setf (window-spare-lines window) res)
       ;;
       ;; Force modeline update.
       (let ((ml-buffer (window-modeline-buffer window)))
-	(when ml-buffer
-	  (let ((dl (window-modeline-dis-line window))
-		(chars (make-string new-width))
-		(len (min new-width (window-modeline-buffer-len window))))
-	    (setf (dis-line-old-chars dl) nil)
-	    (setf (dis-line-chars dl) chars)
-	    (replace chars ml-buffer :end1 len :end2 len)
-	    (setf (dis-line-length dl) len)
-	    (setf (dis-line-flags dl) changed-bit)))))
+	(if ml-buffer
+	    (let ((dl (window-modeline-dis-line window))
+		  (chars (make-string new-width))
+		  (len (min new-width (window-modeline-buffer-len window))))
+	      (setf (dis-line-old-chars dl) nil)
+	      (setf (dis-line-chars dl) chars)
+	      (replace chars ml-buffer :end1 len :end2 len)
+	      (setf (dis-line-length dl) len)
+	      (setf (dis-line-flags dl) changed-bit)))))
     ;;
     ;; Prepare for redisplay.
     (setf (window-tick window) (tick))
     (update-window-image window)
-    (when (eq window *current-window*) (maybe-recenter-window window))
+    (if (eq window *current-window*) (maybe-recenter-window window))
     hunk))
 
 

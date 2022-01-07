@@ -41,7 +41,10 @@
 					  commit-fun
 					  modeline-string-fun)))
   "Per-buffer version control information."
-  type ; Type of version control the file is under, e.g. :cvs or :rcs.
+  ;; Type of version control the file is under: :svn, :cvs, :rcs, or :new.
+  ;; :new indicates that version control still needs to be set up in the
+  ;; directory.
+  type
   status
   version
   date
@@ -69,27 +72,167 @@
   ;; Any extra data needed per version control system.
   extra)
 
-(defvar *vc-info-makers* '(maybe-make-cvs-info maybe-make-rcs-info)
+(defvar *vc-info-makers* '(maybe-make-svn-info
+			   maybe-make-cvs-info
+			   maybe-make-rcs-info)
   "List of functions called in make-vc-info to make a vc-info structure for
    a buffer.  The functions are called on the buffer pathname in turn until
    one returns a true value.")
 
-(defvar *last-vc-command-name* nil)
-(defvar *last-vc-command-args* nil)
-(defvar *last-vc-command-output-string* nil)
+(defvar *last-vc-command-name* ())
+(defvar *last-vc-command-args* ())
+(defvar *last-vc-command-output-string* ())
 (defvar *vc-output-stream* (make-string-output-stream))
+
+(defvar *vc-update-file-recurse* ()
+  "If true svn-update-file will recurse into subdirectories when updating a
+   directory.")
+
+
+;;;; VC Log and VC Log modes.
+
+(defun highlight-vc-log-line (line chi-info)
+  (case (next-character (mark line 0))
+    (#\- (chi-mark line 0 *variable-font* :variable chi-info))))
+
+(defun highlight-vc-log-buffer (buffer)
+  (highlight-chi-buffer buffer highlight-vc-log-line))
+
+(defun highlight-visible-vc-log-buffer (buffer)
+  (highlight-visible-chi-buffer buffer highlight-vc-log-line))
+
+(defun setup-vc-log-mode (buffer)
+  (highlight-visible-vc-log-buffer buffer)
+  (pushnew '("VC Log" () highlight-visible-vc-log-buffer) *mode-highlighters*))
 
 (defmode "VC Log" :major-p nil
   :short-name "VC-Log"
   :precedence 5.0
+  :setup-function 'setup-vc-log-mode
   :documentation
   "Mode for viewing version control change logs.")
 
-(defmode "VC Log Entry" :major-p nil
+(defmode "VC Log Entry" :major-p ()
   :short-name "VC-Log-Entry"
   :precedence 5.0
   :documentation
   "Mode for entering version control change logs.")
+
+
+;;;; VC Compare mode.
+
+(defun highlight-vc-cmp-line (line chi-info)
+  (case (next-character (mark line 0))
+    (#\- (chi-mark line 0 *comment-font* :comment chi-info))
+    (#\+ (chi-mark line 0 *string-font* :string chi-info))
+    (#\= (chi-mark line 0 *special-form-font* :special-form chi-info))
+    ;(#\@ (chi-mark line 0 *original-font* :variable chi-info))
+    (#\@ (chi-mark line 0 *original-font* :special-form chi-info))))
+
+(defun highlight-vc-cmp-buffer (buffer)
+  (highlight-chi-buffer buffer highlight-vc-cmp-line))
+
+(defun highlight-visible-vc-cmp-buffer (buffer)
+  (highlight-visible-chi-buffer buffer highlight-vc-cmp-line))
+
+(defun setup-vc-cmp-mode (buffer)
+  (highlight-visible-vc-cmp-buffer buffer)
+  (pushnew '("VC Comparison" () highlight-visible-vc-cmp-buffer)
+	   *mode-highlighters*))
+
+(defmode "VC Comparison" :major-p ()
+  :short-name "VC-Cmp"
+  :precedence 5.0
+  :setup-function 'setup-vc-cmp-mode
+  :documentation
+  "Mode for viewing version control file comparisons.")
+
+(defcommand "Next VC Comparison" (p)
+  "Move point to the next section of the comparison.  With a prefix move
+   that many sections."
+  (dotimes (time (or p 1))
+    (with-mark ((mark (current-point)))
+      (while* ((mark (line-offset mark 1 0) (line-offset mark 1 0)))
+	      (mark)
+	(let ((char (next-character mark)))
+	  (and char (char= char #\@) (return))))
+      (move-mark (current-point) mark))))
+
+(defcommand "Previous VC Comparison" (p (point (current-point)))
+  "Move point to the next section of the comparison.  With a prefix move
+   that many sections."
+  (dotimes (time (or p 1))
+    (with-mark ((mark point))
+      (while* ((mark (line-offset mark -1 0) (line-offset mark -1 0)))
+	      (mark)
+	(let ((char (next-character mark)))
+	  (and char (char= char #\@) (return))))
+      (move-mark point mark))))
+
+(defcommand "Previous VC File" (p (point (current-point)))
+  "Move point to the next file in the comparison.  With a prefix move that
+   many files."
+  (dotimes (time (or p 1))
+    (with-mark ((mark point))
+      (while* ((mark (line-offset mark -1 0) (line-offset mark -1 0)))
+	      (mark)
+	(let ((char (next-character mark)))
+	  (and char (char= char #\=) (return))))
+      (move-mark point mark))))
+
+(defcommand "Next VC File" (p)
+  "Move point to the next file in the comparison.  With a prefix move that
+   many files."
+  (dotimes (time (or p 1))
+    (with-mark ((mark (current-point)))
+      (while* ((mark (line-offset mark 1 0) (line-offset mark 1 0)))
+	      (mark)
+	(let ((char (next-character mark)))
+	  (and char (char= char #\=) (return))))
+      (move-mark (current-point) mark))))
+
+(defcommand "Edit VC Comparison" ()
+  "Edit the file associated with the current point of the comparison."
+  (let* ((point (current-point))
+	 (mark (copy-mark point)))
+    (line-start mark)
+    (let ((char (next-character mark))
+	  (line-number 0))
+      ;; Calculate the line number of the start of the comparison section.
+      (or (and char (char= char #\@))
+	  (previous-vc-comparison-command () mark))
+      (or (and (find-character mark #\+)
+	       (character-offset mark 1)
+	       (setq line-number
+		     (with-input-from-region
+			 (in (region mark
+				     (let ((line (mark-line mark)))
+				       (mark line (line-length line)))))
+		       (read in)))
+	       (integerp line-number)
+	       (>= (decf line-number) 0))
+	  (message "Failed to calculate line number, going to line 0."))
+      ;; Calculate the line number under point.
+      (or (eq (mark-line mark) (mark-line point))
+	  (let ((region (region mark point)))
+	    (do-region-lines (line region)
+	      (case (char (line-string line) 0)
+		(#\-)
+		(t (incf line-number))))))
+      ;; Figure out which file.
+      (or (and char (char= char #\=))
+	  (previous-vc-file-command () mark))
+      (or (and (line-offset mark -1 0)
+	       (at* "Index: " mark)
+	       (character-offset mark 7))
+	  (editor-error
+	   "Failed to figure out which file is under comparison."))
+      ;; Edit the file.
+      (find-file-command ()
+			 (subseq (line-string (mark-line mark))
+				 (mark-charpos mark)))
+      (goto-absolute-line-command line-number)
+      (refresh-screen-command))))
 
 
 ;;;; Interface (i.e. used in Dired).
@@ -101,8 +244,33 @@
     (let ((vc-info (funcall maker pathname connect)))
       (if vc-info (return-from make-vc-info vc-info)))))
 
+(defun make-new-vc-info ()
+  "Return a version-control-info struct of type :new."
+  (%make-vc-info :new () () () ()))
+
 
 ;;;; Helper functions.
+
+(defun conflict-p (pathname)
+  "Return t if there is a conflict in PATHNAME, else ()."
+  (with-temp-buffer (buffer pathname)
+    (do-buffer-lines (line buffer)
+      (if (and (> (line-length line) 7)
+	       (at* "<<<<<<<" (mark line 0)))
+	  (return-from conflict-p t)))))
+
+(defun version-> (version1 version2)
+  "Return true if string $version1 is later in time than string $version2."
+  (let ((version1-strings (split version1 #\.))
+	(version2-strings (split version2 #\.)))
+    (while ((string1 (car version1-strings) (car version1-strings))
+	    (string2 (car version2-strings) (car version2-strings)))
+	   ((and string1 (plusp (length string1))
+		 string2 (plusp (length string2))))
+      (if (> (parse-integer string1) (parse-integer string2))
+	  (return-from version-> t))
+      (pop version1-strings)
+      (pop version2-strings))))
 
 (defun current-vc-info (&key (must-exist t))
   "Return the version control info structure for the current buffer."
@@ -239,15 +407,18 @@
   "Commit a prompted file.  If P is true keep any lock.  If Pathname is
    true commit Pathname instead.  If Pathname and Files are true commit the
    files listed in Files which are rooted in directory Pathname."
+  (if files (or pathname (editor-error "$pathname required for $files.")))
   (let* ((pathname (or pathname
 		       (prompt-for-file :prompt "File to commit: "
 					:default
 					(buffer-default-pathname
 					 (current-buffer))
 					:must-exist nil)))
-	 (vc-info (make-vc-info (if (listp pathname)
-				    (car pathname)
-				    pathname))))
+	 (vc-info (make-vc-info (if files
+				    (car files)
+				    (if (listp pathname)
+					(car pathname)
+					pathname)))))
     (funcall (vc-info-commit-fun vc-info)
 	     vc-info nil pathname files p)))
 
@@ -323,6 +494,8 @@
 
 
 ;;;; Log commands.
+
+(defhistory *vc-log-history* *vc-log-history-pointer* 70)
 
 (defun get-log-buffer ()
   (let ((buffer (getstring (value vc-log-entry-buffer) *buffer-names*)))
@@ -400,7 +573,8 @@
     (or buffer
 	(progn
 	  (setf buffer (make-buffer (value vc-comparison-buffer)
-				    :modes '("Fundamental" "VC Log")))
+				    :modes '("Fundamental"
+					     "VC Comparison")))
 	  (turn-auto-save-off buffer)))
     buffer))
 
@@ -521,7 +695,261 @@
 	(cons (modeline-field :vc-status) (cdr third))))
 
 
-;;;; CVS.
+;;;; Subversion (SVN).
+
+(defun svn-insert-log (vc-info stream pathname)
+  "Insert in Stream the log for the file Pathname."
+  (declare (ignore vc-info))
+  (in-directory pathname
+    (do-vc-command t "svn" (list "log" (file-namestring pathname))
+		   :output stream)))
+
+(defun svn-compare (vc-info stream pathname &optional tag1 tag2)
+  "Insert in Stream a comparison of Pathname and the repository version.
+   If tag1 and tag2 are given compare those versions of Pathname."
+  (declare (ignore vc-info))
+  (in-directory pathname
+    (do-vc-command nil "svn"
+		   (if tag1
+		       (list "diff" "-r" (format () "~A:~A" tag1 tag2)
+			     (file-namestring pathname))
+		       (list "diff" (file-namestring pathname)))
+		   :output stream)))
+
+(defun svn-update-file (vc-info buffer pathname files lock always-overwrite-p)
+  "Update Pathname from SVN.  If Pathname and Files is nil update the
+   directory (recursively if *vc-update-file-recurse* is true).  If Files
+   is true then update the list in Files instead."
+  (declare (ignore vc-info lock always-overwrite-p))
+  (let* ((pn-len (length (os-namestring pathname)))
+	 (names (if files
+		    (mapcar (lambda (file)
+			      (subseq (os-namestring file) pn-len))
+			    files)
+		    (list (file-namestring pathname)))))
+    (if files
+	(message "Updating ~A: ~A ..." pathname
+		 ;; FIX
+		 (apply 'concatenate 'simple-string
+			(mapcan (lambda (file) (list file " "))
+				names)))
+	(message "Updating ~A ..." pathname))
+    (in-directory pathname
+      (do-vc-command t "svn" (if (car names)
+				 (cons "update" names)
+				 (if *vc-update-file-recurse*
+				     (list "update" ".")
+				     (list "update" "-N" ".")))
+		     :output *vc-output-stream*))
+    (invoke-hook vc-update-file-hook buffer pathname)
+    (message "Done.")
+    (car names)))
+
+(defun svn-commit (vc-info buffer pathname files keep-lock)
+  "Commit $pathname into SVN repository, offering to add the file if
+   required.  If $files is true commit instead the absolute pathnames
+   listed by $files, which are all rooted in directory $pathname."
+  (declare (ignore keep-lock))
+  (let ((old-buffer (current-buffer))
+	(log-buffer))
+    ;; Add the file(s) if required.
+    (collect ((new))
+      (if files
+	  (dolist (file files)
+	    (let ((file (merge-pathnames file pathname)))
+	      (let ((vc-info (make-vc-info file)))
+		(or (and vc-info
+			 (vc-info-version vc-info))
+		    (new file)))))
+	  (or (and vc-info
+		   (vc-info-version vc-info))
+	      (new pathname)))
+      (when (new)
+	(let ((files (mapcar #'namestring (new))))
+	  (or (prompt-for-y-or-n
+	       :prompt (format () "Add ~A to SVN? "
+			       (if (cdr files)
+				   "multiple files"
+				   (car files)))
+	       :default t)
+	      (editor-error "Commit canceled."))
+	  (when (progn
+		  (message "Adding ~A ..." (if (cdr files)
+					       "multiple files"
+					       (car files)))
+		  (in-directory pathname
+		    (do-vc-command
+		     t "svn"
+		     (cons "add" files)
+		     :output *vc-output-stream*))
+		  ())
+	    (editor-error "Add and commit canceled.")))))
+    ;; Commit the file(s).
+    (let* ((pn-len (length (os-namestring pathname)))
+	   (names (if files
+		      (mapcar (lambda (file)
+				(subseq (os-namestring file) pn-len))
+			      files)
+		      (list (file-namestring pathname))))
+	   (log-name (format nil "SVN Log Entry for ~:[~S~;~S ...~]"
+			     files
+			     (if files
+				 (file-namestring (car names))
+				 (file-namestring pathname))))
+	   (message (if files
+			(format nil "Committing ~A: ~A ..." pathname
+				;; FIX
+				(apply 'concatenate 'simple-string
+				       (mapcan (lambda (file) (list file " "))
+					       names)))
+			(format nil "Committing ~A ..." pathname)))
+	   (allow-delete))
+      (unwind-protect
+	  (when (block in-recursive-edit
+		  (setf log-buffer
+			(make-unique-buffer
+			 log-name
+			 :modes '("Text" "Fill" "Spell" "VC Log Entry")
+			 :delete-hook
+			 (list #'(lambda (buffer)
+				   (declare (ignore buffer))
+				   (or allow-delete
+				       (return-from
+					in-recursive-edit t))))))
+		  (turn-auto-save-off log-buffer)
+		  (let ((string (prompt-in-buffer log-buffer)))
+		    (message message)
+		    (in-directory pathname
+		      (do-vc-command t "svn"
+				     (append (list "commit" "-m" string)
+					     names)
+				     :output *vc-output-stream*)))
+		  (invoke-hook vc-commit-file-hook buffer names)
+		  nil)
+	    (editor-error "SVN commit canceled."))
+	(when (member old-buffer *buffer-list*)
+	  (change-to-buffer old-buffer))
+	(setf allow-delete t)
+	(delete-buffer-if-possible log-buffer)))))
+
+(defun svn-make-modeline-string (vc-info)
+  (let ((version (vc-info-version vc-info)))
+    (if version
+	(format nil "[~A~@[:~A~]~@[:~A~]] "
+		(vc-info-type vc-info)
+		version
+		(case (vc-info-status vc-info)
+		  (:modified "*")
+		  (:committed "C")
+		  (:merged "M")
+		  (:needs-update "NU")
+		  (:needs-merge "NM")))
+	"")))
+
+(defun parse-svn-module (svn-dir)
+  (let ((file (merge-pathnames "entries" svn-dir))
+	;(name (file-namestring pathname))
+	)
+    ;; FIX this reads the version
+    (with-open-file (stream #| FIX |# (namestring file) :direction :input
+			    :if-does-not-exist :error)
+      (dotimes (time 3)
+	(or (read-line stream ()) (return-from parse-svn-module)))
+      (let ((line (read-line stream ())))
+	(or line (return-from parse-svn-module))
+	(read-from-string line ())))))
+
+(defun parse-svn-root (svn-dir)
+  (let* ((file (merge-pathnames "entries" svn-dir))
+	 ;(name (file-namestring pathname))
+	 )
+    ;; FIX this reads the version
+    (with-open-file (stream #| FIX |# (namestring file) :direction :input
+			    :if-does-not-exist :error)
+      (dotimes (time 3)
+	(or (read-line stream ()) (return-from parse-svn-root)))
+      (let ((line (read-line stream ())))
+	(or line (return-from parse-svn-root))
+	(read-from-string line ())))))
+
+(defun parse-svn-entry (entry)
+  "Return the version and date from Entry."
+  (let ((strings (split entry #\/)))
+    (when (and strings (> (length strings) 3))
+      (values (caddr strings) (cadddr strings)))))
+; (parse-svn-entry "   1809 mattm            1097 Nov 21 16:51 README")
+
+(defun parse-svn-entries (svn-dir pathname)
+  "Return the version and date of $pathname, according to $svn-dir."
+  (let* ((file (merge-pathnames "entries" svn-dir))
+	 (name (file-namestring pathname)))
+    (with-open-file (stream #| FIX |# (namestring file) :direction :input
+			    :if-does-not-exist :error)
+      (dotimes (time 3)
+	(or (read-line stream ()) (return-from parse-svn-entries)))
+      (let ((line (read-line stream ())))
+	(or line (return-from parse-svn-entries))
+	(let ((version (string (read-from-string line ())))
+	      (date (file-write-date (merge-pathnames
+				      (concatenate 'simple-string
+						   "text-base/"
+						   name
+						   ".svn-base")
+				      svn-dir))))
+	  (and version date
+	       (values version date)))))))
+
+(defun maybe-make-svn-info (pathname connect)
+  (let* ((dir (directory-namestring (namify pathname)))
+	 (svn-dir
+	  (format () "~A/" (merge-pathnames ".svn" dir)))
+	 (stream (make-string-output-stream)))
+    (when (probe-file svn-dir)
+      ;; FIX for every file this parses entries  (cache with file time check?)
+      (multiple-value-bind (rev-version rev-date)
+			   (parse-svn-entries svn-dir pathname)
+	(let ((vc-info (%make-vc-info :svn
+				      #'svn-insert-log
+				      #'svn-update-file
+				      #'svn-commit
+				      #'svn-make-modeline-string)))
+	  (setf (vc-info-compare-fun vc-info) #'svn-compare)
+#|
+	  (setf (vc-info-module vc-info)
+		(parse-svn-module svn-dir))
+	  (setf (vc-info-repository vc-info)
+		(parse-svn-root svn-dir))
+|#
+	  (setf (vc-info-version vc-info) rev-version)
+	  (let ((entry (when connect
+			 (in-directory dir
+			   (do-vc-command () "svn"
+					  `("ls" "--non-interactive" "-v"
+					    ,(file-namestring pathname))
+					  :output stream))
+			 (get-output-stream-string stream))))
+	    (multiple-value-bind (svn-version svn-date)
+				 (parse-svn-entry entry)
+	      (declare (ignore svn-date))
+	      (setf (vc-info-status vc-info)
+		    (if (and svn-version
+			     (fi (directoryp pathname) (conflict-p pathname)))
+			:conflict
+			(let* ((date (file-write-date pathname))
+			       ;(svn-date (parse-time svn-date))
+			       ;(needs-update (and svn-date rev-date
+			       ;(> svn-date rev-date))))
+			       (needs-update (and svn-version rev-version
+						  (version-> svn-version
+							     rev-version))))
+			  (cond
+			   ((and date rev-date (> date rev-date))
+			    (if needs-update :needs-merge :modified))
+			   (needs-update :needs-update))))))
+	    vc-info))))))
+
+
+;;;; Concurrent Versions System (CVS).
 
 (defun cvs-insert-log (vc-info stream pathname)
   "Insert in Stream the log for the file Pathname."
@@ -535,20 +963,16 @@
    If tag1 and tag2 are given compare those versions of Pathname."
   (declare (ignore vc-info))
   (in-directory pathname
-    (do-vc-command nil "cvs"
+    (do-vc-command () "cvs"
 		   (if tag1
 		       (list "diff" "-r" tag1 "-r" tag2
 			     (file-namestring pathname))
 		       (list "diff" (file-namestring pathname)))
 		   :output stream)))
 
-(defvar *cvs-update-file-recurse* ()
-  "If true cvs-update-file will recurse into subdirectories when updating a
-   directory.")
-
 (defun cvs-update-file (vc-info buffer pathname files lock always-overwrite-p)
   "Update Pathname from CVS.  If Pathname and Files is nil update the
-   directory (recursively if *cvs-update-file-recurse* is true).  If Files
+   directory (recursively if *vc-update-file-recurse* is true).  If Files
    is true then update the list in Files instead."
   (declare (ignore vc-info lock always-overwrite-p))
   (let* ((pn-len (length (os-namestring pathname)))
@@ -567,28 +991,18 @@
     (in-directory pathname
       (do-vc-command t "cvs" (if (car names)
 				 (cons "update" names)
-				 (if *cvs-update-file-recurse*
+				 (if *vc-update-file-recurse*
 				     (list "update" "-dP" ".")
-				     (list "update" "-dPl" ".")))))
+				     (list "update" "-dPl" ".")))
+		     :output *vc-output-stream*))
     (invoke-hook vc-update-file-hook buffer pathname)
     (message "Done.")
     (car names)))
 
-(defvar *vc-log-history* (make-ring 70)
-  "Previously input VC logs.")
 
-(defvar *vc-log-history-pointer* 0
-  "Current position during a historical exploration.")
+#| Old add segment from below.  Added only one file; prompted for a
+   description.
 
-(defun cvs-commit (vc-info buffer pathname files keep-lock)
-  "Commit Pathname into CVS repository, offering to add the file if
-   required.  If Files is true commit instead the absolute pathnames listed
-   by Files, which are all rooted in directory Pathname."
-  (declare (ignore keep-lock))
-  (let ((old-buffer (current-buffer))
-	(allow-delete nil)
-	(descr-buffer nil)
-	(log-buffer nil))
     ;; Add the file if required.
     (or files
 	(and vc-info (vc-info-version vc-info))
@@ -614,7 +1028,8 @@
 			    (do-vc-command t "cvs"
 					   (list "add" "-m"
 						 string
-						 (file-namestring pathname)))))
+						 (file-namestring pathname))
+					   :output *vc-output-stream*)))
 			nil)
 		  (editor-error "Add and commit canceled."))
 	      (when (member old-buffer *buffer-list*)
@@ -622,6 +1037,47 @@
 	      (setf allow-delete t)
 	      (delete-buffer-if-possible descr-buffer))
 	    (editor-error "Commit canceled.")))
+|#
+
+(defun cvs-commit (vc-info buffer pathname files keep-lock)
+  "Commit $pathname into CVS repository, offering to add the file if
+   required.  If $files is true commit instead the absolute pathnames
+   listed by $files, which are all rooted in directory $pathname."
+  (declare (ignore keep-lock))
+  (let ((old-buffer (current-buffer))
+	(log-buffer))
+    ;; Add the file(s) if required.
+    (collect ((new))
+      (if files
+	  (dolist (file files)
+	    (let ((file (merge-pathnames file pathname)))
+	      (let ((vc-info (make-vc-info file)))
+		(or (and vc-info
+			 (vc-info-version vc-info))
+		    (new file)))))
+	  (or (and vc-info
+		   (vc-info-version vc-info))
+	      (new pathname)))
+      (when (new)
+	(let ((files (mapcar #'namestring (new))))
+	  (or (prompt-for-y-or-n
+	       :prompt (format () "Add ~A to CVS? "
+			       (if (cdr files)
+				   "multiple files"
+				   (car files)))
+	       :default t)
+	      (editor-error "Commit canceled."))
+	  (when (progn
+		  (message "Adding ~A ..." (if (cdr files)
+					       "multiple files"
+					       (car files)))
+		  (in-directory pathname
+		    (do-vc-command
+		     t "cvs"
+		     (cons "add" files)
+		     :output *vc-output-stream*))
+		  ())
+	    (editor-error "Add and commit canceled.")))))
     ;; Commit the file(s).
     (let* ((pn-len (length (os-namestring pathname)))
 	   (names (if files
@@ -659,7 +1115,8 @@
 		    (in-directory pathname
 		      (do-vc-command t "cvs"
 				     (append (list "commit" "-m" string)
-					     names))))
+					     names)
+				     :output *vc-output-stream*)))
 		  (invoke-hook vc-commit-file-hook buffer names)
 		  nil)
 	    (editor-error "CVS commit canceled."))
@@ -695,7 +1152,7 @@
       (read-line stream))))
 
 (defun parse-cvs-entry (entry)
-  "Return the version and date from Entry."
+  "Return the version and date from $entry."
   (let ((strings (split entry #\/)))
     (when (and strings (> (length strings) 3))
       (values (caddr strings) (cadddr strings)))))
@@ -713,31 +1170,8 @@
 		(return-from parse-cvs-entries
 			     (values (caddr strings) (cadddr strings))))))))))
 
-(defun cvs-version-> (version1 version2)
-  "Return true if Version1 is later in time than Version2."
-  (let ((version1-strings (split version1 #\.))
-	(version2-strings (split version2 #\.)))
-    (loop for string1 = (car version1-strings)
-          for string2 = (car version2-strings)
-          while (and string1 (plusp (length string1))
-		     string2 (plusp (length string2)))
-          do
-      (if (> (parse-integer string1) (parse-integer string2))
-	  (return-from cvs-version-> t))
-      (pop version1-strings)
-      (pop version2-strings))
-    nil))
-
-(defun conflict-p (pathname)
-  "Return t if there is a conflict in PATHNAME, else ()."
-  (with-temp-buffer (buffer pathname)
-    (do-buffer-lines (line buffer)
-      (if (and (> (line-length line) 7)
-	       (at* "<<<<<<<" (mark line 0)))
-	  (return-from conflict-p t)))))
-
 (defun maybe-make-cvs-info (pathname connect)
-  (let* ((dir (directory-namestring pathname))
+  (let* ((dir (directory-namestring (namify pathname)))
 	 (cvs-dir
 	  (format nil "~A/"
 		  (merge-pathnames "CVS" dir)))
@@ -782,8 +1216,8 @@
 				   ;(needs-update (and cvs-date rev-date
 				   ;(> cvs-date rev-date))))
 				   (needs-update (and cvs-version rev-version
-						      (cvs-version-> cvs-version
-								     rev-version))))
+						      (version-> cvs-version
+								 rev-version))))
 			      (cond
 			       ((and date rev-date (> date rev-date))
 				(if needs-update :needs-merge :modified))
@@ -796,7 +1230,8 @@
 (defun rcs-insert-log (vc-info stream pathname)
   (declare (ignore vc-info))
   (in-directory pathname
-    (do-vc-command t "rlog" (list (file-namestring pathname)) :output stream)))
+    (do-vc-command t "rlog" (list (file-namestring pathname))
+		   :output stream)))
 
 (defvar *translate-file-names-before-locking* nil)
 
@@ -852,7 +1287,8 @@
 	   (backup (if (probe-file file)
 		       (lisp::pick-backup-name file))))
       (when backup (rename-file file backup))
-      (do-vc-command t "co" `(,@(if lock '("-l")) ,file))
+      (do-vc-command t "co" `(,@(if lock '("-l")) ,file)
+		     :output *vc-output-stream*)
       (invoke-hook vc-update-file-hook buffer pathname)
       (when backup (delete-file backup)))))
 
@@ -930,7 +1366,8 @@
       (do-vc-command t "ci" `(,@(if keep-lock '("-l"))
 				,@(if keep-working-copy '("-u"))
 				,filename)
-		     :input log-stream)
+		     :input log-stream
+		     :output *vc-output-stream*)
       (if keep-working-copy
 	  ;; Set the times on the user's file to be equivalent to those of
 	  ;; the RCS file.
@@ -957,7 +1394,8 @@
      (message "Releasing lock on ~A ..." (namestring pathname))
      (let ((file (file-namestring pathname)))
        (in-directory pathname
-	 (do-vc-command t "rcs" `("-u" ,file))
+	 (do-vc-command t "rcs" `("-u" ,file)
+		     :output *vc-output-stream*)
 	 (multiple-value-bind (success dev ino mode)
 			      (unix:unix-stat file)
 	   (declare (ignore ino))
@@ -994,7 +1432,8 @@
   (message "Locking ~A ..." (namestring pathname))
   (in-directory pathname
     (let ((file (file-namestring pathname)))
-      (do-vc-command t "rcs" `("-l" ,file))
+      (do-vc-command t "rcs" `("-l" ,file)
+		     :output *vc-output-stream*)
       (multiple-value-bind (won dev ino mode) (unix:unix-stat file)
 	(declare (ignore ino))
 	(cond (won

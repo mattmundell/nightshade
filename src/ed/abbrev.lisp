@@ -594,6 +594,7 @@ sessions.
 	     :default (value abbrev-pathname-defaults)
 	     :help "Name of the file to write current abbrevs to."
 	     :must-exist nil)))
+  (ensure-directories-exist filename)
   (with-open-file (file filename :direction :output
 			:element-type 'base-char :if-exists :supersede
 			:if-does-not-exist :create)
@@ -687,7 +688,8 @@ sessions.
 (add-hook exit-hook 'save-abbrevs)
 
 (after-editor-initializations
- (if (config:probe-config-file abbrevs-save-name)
-     (read-word-abbrev-file-command
-      ()
-      (config:config-pathname abbrevs-save-name))))
+ (or (ext:get-command-line-switch "noinit")
+     (if (config:probe-config-file abbrevs-save-name)
+	 (read-word-abbrev-file-command
+	  ()
+	  (config:config-pathname abbrevs-save-name)))))

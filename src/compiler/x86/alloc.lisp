@@ -3,6 +3,15 @@
 (in-package "X86")
 
 
+;;;; FIX Test.
+
+(define-vop (vvv)
+  (:args)
+  (:results (result :scs (any-reg)))
+  (:generator 1
+    (inst mov result unbound-marker-type)))
+
+
 ;;;; LIST and LIST*
 
 (define-vop (list-or-list*)

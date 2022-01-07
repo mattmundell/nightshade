@@ -139,6 +139,10 @@
 (defknown allocate-vector ((unsigned-byte 8) index index) (simple-array * (*))
   (flushable movable))
 
+;;; FIX
+(defknown vvv () fixnum
+  (flushable movable))
+
 (defknown make-array-header ((unsigned-byte 8) (unsigned-byte 24)) array
   (flushable movable))
 

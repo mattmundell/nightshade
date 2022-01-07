@@ -6,7 +6,8 @@
 	  *html-handler* *from-name* *mailer*
 
 	  profile-component root-pathname folder-pathname
-	  draft-folder current-folder current-message
+	  draft-folder current-folder trash-folder
+	  current-message add-profile-component
 
 	  sequence-insert sequence-delete sequence-member-p
 	  sequence-strings sequence-list
@@ -191,8 +192,9 @@
 
 ;;; Public
 ;;;
-(defun profile-component (name &optional (pathname (profile-pathname))
-			                 (error-on-open t))
+(defun profile-component (name &key
+			       (pathname (profile-pathname))
+			       error-on-open)
   "Return the trimmed string value for the MH profile component $name.  If
    the component is missing, return ().  This may be used on MH context and
    sequence files as well, due to their having the same format.
@@ -221,6 +223,36 @@
 				     (subseq line (1+ colon))))))
 	    (when eofp (return nil)))))))
 
+(defun add-profile-component (name value &optional (pathname (profile-pathname)))
+  "Add profile component $name with $value to the end of $pathname,
+   creating $pathname if necessary.
+
+   Assume the caller has checked if the component exists already."
+  (if (stringp name)
+      (or (plusp (length name))
+	  (error "$name must be at least one character long."))
+      (error "$name must be a string: ~A" name))
+  (with-open-file (out pathname :direction :output
+		      :if-exists :append
+		      :if-does-not-exist :create)
+    (format out "~A: ~A~%" name value))
+  value)
+
+#|
+(defun set-profile-component (name value &optional (pathname (profile-pathname)))
+  "Set the value of profile component $name in $pathname to $value."
+  (if (stringp name)
+      (or (plusp (length name))
+	  (error "$name must be at least one character long."))
+      (error "$name must be a string: ~A" name))
+  (with-open-file (in pathname)
+    (with-open-file (out (pick-new-file))
+      (loop
+	(multiple-value-bind (line eofp) (read-line in () :eof)
+	  (if (eq line :eof) (return))
+	  (write-line line out))))))
+|#
+
 
 ;;;; Message specs.
 
@@ -228,14 +260,15 @@
 ;;;
 ;;; Return $message converted to an integer or symbol.
 ;;;
-;;; $folder-info must include the highest message.
+;;; Scan $folder to include highest if required.
 ;;;
-(defun clean-message-spec (message folder-info)
+(defun clean-message-spec (message folder)
   (etypecase message
     (integer message)
     (symbol
      (ecase message
-       (:highest (folder-info-highest folder-info))))
+       (:highest
+	(folder-info-highest (scan-folder folder :highest)))))
     (string
      (if (string= message "all")
 	 (error "Message spec \"all\" defines multiple messages.")
@@ -244,7 +277,9 @@
 	       int
 	       ;; Assume message is the name of a sequence.
 	       (ecase= message
-		 ("highest" (folder-info-highest folder-info)))))))))
+		 ("highest"
+		  (folder-info-highest (scan-folder folder
+						    :highest))))))))))
 
 ;;; Internal
 ;;;
@@ -321,14 +356,14 @@
 (defun root-pathname ()
   "Return the pathname of the mail directory.
 
-   Signal an error if the Path component is missing."
+   Add the Path component (with value \"Mail\") if it is missing."
   (let ((pathname (merge-pathnames
 		   (or (profile-component "path")
-		       (error "Mail profile must contain a Path component."))
+		       (add-profile-component "path" "Mail"))
 		   (user-homedir-pathname))))
     (truename
      (ensure-directories-exist
-      (directorify pathname)))))
+      (ensure-trailing-slash pathname)))))
 
 ;;; Public
 ;;;
@@ -352,7 +387,14 @@
 (defun draft-folder ()
   "Return the name of the draft folder."
   (namify (or (profile-component "draft-folder")
-	      (error "There must be a draft-folder profile component"))))
+	      (add-profile-component "draft-folder" "drafts"))))
+
+;;; Public
+;;;
+(defun trash-folder ()
+  "Return the name of the trash folder."
+  (namify (or (profile-component "trash-folder")
+	      (add-profile-component "trash-folder" "trash"))))
 
 ;;; Public
 ;;;
@@ -370,7 +412,7 @@
 
    FIX Updating of the current folder is yet to be implemented (in the
    editor a history keeps track of the current folder)."
-  (profile-component "current-folder" (context-pathname)))
+  (profile-component "current-folder" :pathname (context-pathname)))
 
 ;;; Public
 ;;;
@@ -402,7 +444,7 @@
 (defun %set-current-message (folder message)
   "If $message exists in $folder then set the current message for $folder
    to $message, returning $message, otherwise throw an error."
-  (or (zerop message)
+  (or (zerop (parse-integer (string message) :errorp ()))
       (probe-file (merge-pathnames (string message)
 				   (folder-pathname folder)))
       (error "Message must exist in folder ~A: ~A" folder message))
@@ -792,7 +834,7 @@
 ;;; Public
 ;;;
 (defun sequence-member-p (item seq-list)
-  "Return whether $item is in sequence list $seq-list.  $item can be a
+  "Return true if $item is in sequence list $seq-list.  $item can be a
    string, like \"23\", or a number, like 23."
   (let ((id (typecase item
 	      (string (parse-integer item))
@@ -1035,8 +1077,7 @@
   (mess "(maybe-messages-before-p ~A ~A)" folder message)
   (incf-mess)
   (let* ((folder (namify folder))
-	 (folder-info (scan-folder folder :highest))
-	 (message (clean-message-spec message folder-info)))
+	 (message (clean-message-spec message folder)))
     (unwind-protect
 	(fi (eq message 1)
 	    (let ((lowest (folder-info-lowest (scan-folder folder
@@ -1144,9 +1185,9 @@
 (defun create-folder (folder)
   "Create a mail directory called $folder.
 
-   If \"Folder-Protect\" component exists then use that value as the
-   permission of the directory (in octal), otherwise use #o755
-   (which is drwxr-xr-x).
+   If the \"Folder-Protect\" component exists then use that value as the
+   permission of the directory (in octal), otherwise use #o755 (which is
+   drwxr-xr-x).
 
    Signal an error if creating the directory fails."
   (declare (simple-string folder))
@@ -1253,7 +1294,7 @@
   (or stream (error "$stream must be a stream or t."))
   (if new-p
       (let ((in-sequence (profile-component "unseen-sequence")))
-	(do-folders folder
+	(do-folders (folder)
 	  (format stream "~A~@3<~A~> ~A~%"
 		  prefix
 		  (let ((seqs (sequence-list folder in-sequence))
@@ -1264,7 +1305,7 @@
 			(list (incf count (1+ (- (cdr seq) (car seq)))))))
 		    (if (zerop count) "" count))
 		  folder)))
-      (do-folders folder
+      (do-folders (folder)
 	(format stream "~A~A~%" prefix folder))))
 
 ;;; Internal
@@ -1486,7 +1527,7 @@
 		       (or (scan-message input name)
 			   (progn
 			     ; FIX consider (f (format ..))
-			     ;     equiv of `t'
+			     ;     equiv of `t'  progt,progf?
 			     (format t
 				     "Failed to scan message ~A in ~A~%"
 				     name folder)
@@ -1599,11 +1640,29 @@
 	   (cache-folder folder messages range)
 	 (decf-mess)))
       ((())
-       ;; FIX This can happen if the folder name cache (as in
-       ;; `file-folder-names') is out of date (for example, if the
-       ;; directory is added manually).
-       (decf-mess)
-       (error "~A should be in *folder-table* already." folder))
+       ;; This happens when
+       ;;
+       ;;   - some mechanism outside this running instance of the mail
+       ;;     library adds the directory (another instance of the editor,
+       ;;     manual entry at the OS command line, slave processing...)
+       ;;
+       ;;   - an Fcc field names a new directory
+       ;;
+       ;;   - the draft or trash folders are referenced for the first time
+       ;;
+       ;;   - an error in the code lets the folder name cache (as in
+       ;;     `file-folder-names') get out of date.
+       ;;
+       (let ((folder (strip-folder-name folder)))
+	 (if (mh:folder-exists-p folder)
+	     (progn
+	       (setf (getstring folder (get-folder-table)) t)
+	       (file-folder-names))
+	     (create-folder folder)))
+       (mess "caching new folder first time")
+       (prog1
+	   (cache-folder folder messages range)
+	 (decf-mess)))
       (t
        (let ((date (file-write-date dir)))
 	 (or date (error "Failed to read modification time on ~A." dir))
@@ -1968,8 +2027,8 @@
 
 ;;; Public
 ;;;
-(defmacro do-folders (folder &body body)
-  "do-folders folder body
+(defmacro do-folders ((folder) &body body)
+  "do-folders (folder) body
 
    Run $body on the name of every folder with $folder bound to the name."
   ;; FIX folder.c dother also prints folders named in atr-cur- profile
@@ -2024,7 +2083,8 @@
 	(folder-messages (gensym))
 	(sequences (gensym)))
     `(let ((,folder-messages (folder-info-messages ,folder-info))
-	   (,sequences (folder-info-sequences ,folder-info)))
+	   (,sequences (folder-info-sequences ,folder-info))
+	   (,last))
        (mess "sequences: ~A" ,sequences)
        (if (if ,messages
 	       (or (eq ,messages :all)
@@ -2265,8 +2325,7 @@
 		 ;; FIX cached message list should be an array?
 		 (let ((entry (assoc index info-messages)))
 		   (when entry
-		     (let ((message (car entry)))
-		       (push (car entry) msgs))
+		     (push (car entry) msgs)
 		     (or (minusp (incf range)) (return)))))
 	       (dolist (message msgs)
 		 (mess "summarize ~A" message)
@@ -2426,7 +2485,7 @@ Examples:
 ;;;
 (defun move-messages (source dest messages)
   "Move $messages from folder $source to folder $dest.  Assume $dest exists
-   and $source is readable.
+   and $source is readable.  Return the number of messages moved.
 
    $messages is a [message specification]: a list of any number of message
    ID integers (23), message ID strings (\"23\"), message range pairs
@@ -2452,7 +2511,8 @@ Examples:
 	       (dest-in-seq-list (%sequence-list
 				  in-sequence-name
 				  (folder-info-sequences dest-info)))
-	       (dest-dir (namestring (folder-pathname dest))))
+	       (dest-dir (namestring (folder-pathname dest)))
+	       (count 0))
 	  (mess "move-messages sequences: ~A"
 		(folder-info-sequences source-info))
 	  (in-directory (folder-pathname source)
@@ -2466,6 +2526,7 @@ Examples:
 		      (rename-file (string message)
 				   (format () "~A/~D"
 					   dest-dir dest-id))
+		      (incf count)
 		      ;; Update the cache.
 		      ;;
 		      ;; `update-sequences' adjusts the source sequences
@@ -2495,7 +2556,8 @@ Examples:
 				(message-after
 				 (folder-info-messages source-info)
 				 message)))
-		      (or (string= (strip-folder-name dest) "trash")
+		      (or (string= (strip-folder-name dest)
+				   (trash-folder))
 			  (if (sequence-member-p message
 						 source-in-seq-list)
 			      ;; Add message to the destination "in" sequence.
@@ -2535,7 +2597,7 @@ Examples:
 		(update-sequence dest "highest" (list (cons high
 							    high)))
 		(update-sequence dest "cur" (list (cons high high)))
-		(or (string= (strip-folder-name dest) "trash")
+		(or (string= (strip-folder-name dest) (trash-folder))
 		    (progn
 		      (update-sequence dest
 				       in-sequence-name
@@ -2545,7 +2607,8 @@ Examples:
 		      (setf (folder-info-sequences dest-info)
 			    (in-directory (folder-pathname dest)
 			      (get-sequences))))))
-	      (decf-mess)))))))
+	      (decf-mess))
+	    count)))))
 
 ;;; Public
 ;;;
@@ -2568,8 +2631,8 @@ Examples:
 	 (folder-info (scan-folder folder :sequences))
 	 (messages (clean-messages-spec
 		    messages
-		    (folder-info-sequences folder-info))))
-    (setq folder-info (scan-folder folder messages))
+		    (folder-info-sequences folder-info)))
+	 (folder-info (scan-folder folder messages)))
     (in-directory (folder-pathname folder)
       (do-messages (message entry messages folder folder-info)
 	(with-open-file (input (string message) :direction :input)
@@ -2580,9 +2643,12 @@ Examples:
 ;;; Return ID of the message after $message in $messages.
 ;;;
 (defun message-after (messages message)
-  (caadr (nthcdr (position (assoc message messages)
-			   messages)
-		 messages)))
+  ;; FIX assoc,position should always succeed? do what if fail?
+  (let ((entry (assoc message messages)))
+    (if entry
+	(let ((after (position entry messages)))
+	  (if after
+	      (caadr (nthcdr after messages)))))))
 
 ;;; Internal
 ;;;
@@ -2654,11 +2720,10 @@ Examples:
   (mess "(delete-message ~A ~A ~A)" folder message errorp)
   (incf-mess)
   (let* ((folder (namify folder))
-	 (folder-info (scan-folder folder :highest))
-	 (message (clean-message-spec message folder-info))
+	 (message (clean-message-spec message folder))
 	 (dir (folder-pathname folder))
-	 (current-message (current-message folder)))
-    (setq folder-info (scan-folder folder message))
+	 (current-message (current-message folder))
+	 (folder-info (scan-folder folder message)))
     (in-directory dir
       (unwind-protect
 	  (%delete-message message folder dir folder-info errorp)
@@ -2871,9 +2936,9 @@ Examples:
   "Return the list of message from $messages in $folder that are described
    by $expression.
 
-   For each message in $messages evaluate $expression with *entry* bound to
-   the cache entry of the message.  If the expression returns true then
-   include the message in the return list.
+   For each message in $messages evaluate $expression with mh::*entry*
+   bound to the cache entry of the message.  If the expression returns true
+   then include the message in the return list.
 
    A few functions are predefined for use in $expression. `mh::to',
    `mh::cc', `mh::from', `mh::subject', `mh::content' and `mh::date' search
@@ -2881,6 +2946,13 @@ Examples:
    `mh::after' and `mh::before' check if the message is after or before a
    given date string.  `mh::--' searches for a given string in a given
    header.
+
+   For example,
+
+       (mh:pick-messages \"ram\" '(1 2 3) '(mh::subject \"hemlock\"))
+
+   picks the messages from messages 1, 2 and 3 in folder \"ram\" which have
+   the string \"hemlock\" in the subject.
 
    If $expression is () then pick all of $messages.
 
@@ -2970,9 +3042,9 @@ Examples:
 	     (with-open-file (in comppath :direction :input)
 	       (create-draft dir new in)))
 	    (t
-	     (with-input-from-string (in #.(format () "To:~%~
-						       Cc:~%~
-						       Subject:~%~
+	     (with-input-from-string (in #.(format () "To: ~%~
+						       Cc: ~%~
+						       Subject: ~%~
 						       --------~%"))
 	       (create-draft dir new in)))))
     ;;
@@ -3027,8 +3099,7 @@ Examples:
    Expect $message to be an integer message (2), a string message (\"2\"),
    the symbol :highest or a string naming a sequence."
   (let* ((folder (namify folder))
-	 (folder-info (scan-folder folder :highest))
-	 (message (clean-message-spec message folder-info)))
+	 (message (clean-message-spec message folder)))
     (with-open-file (in
 		     (merge-pathnames (string message)
 				      (folder-pathname folder))
@@ -3054,6 +3125,65 @@ Examples:
 		(format out "~&~A~%" *forward-end*))))
 	new))))
 
+;;; Internal
+;;;
+;;; Return the first email address in $string and the position in $string
+;;; of the end of the address.
+;;;
+;;; FIX + n:src/code/mh.lisp/first-address.lisp
+;;;
+(defun first-address (string)
+  (let ((at-pos (position #\@ string)))
+    (when at-pos
+      (let* ((string (substitute #\space #\newline string))
+	     (start (position '(#\space #\< #\, #\;) string
+			      :from-end t :end at-pos
+			      :test (lambda (one two)
+				      (member two one))))
+	     (end (or (position '(#\space #\> #\, #\;) string
+				:start at-pos
+				:test (lambda (one two)
+					(member two one)))
+		      (length string))))
+	(if start (incf start) (setq start 0))
+	(while () ((member (char string start)
+			   '(#\space #\, #\; #\<)))
+	  (incf start))
+	(while () ((member (char string (1- end))
+			   '(#\space #\, #\; #\>)))
+	  (decf end))
+	(values (subseq string start end) end)))))
+
+;;; Internal
+;;;
+;;; Return the name and address of the email address in $string.
+;;;
+;;; FIX + n:src/tests/code/mh.lisp/parse-address.lisp
+;;;
+(defun parse-address (string)
+  (let ((at-pos (position #\@ string)))
+    (when at-pos
+      (let* ((string (substitute #\space #\newline string))
+	     (start (position '(#\space #\< #\, #\;) string
+			      :from-end t :end at-pos
+			      :test (lambda (one two)
+				      (member two one))))
+	     (space start)
+	     (end (or (position '(#\space #\> #\, #\;) string
+				:start at-pos
+				:test (lambda (one two)
+					(member two one)))
+		      (length string))))
+	(if start (incf start) (setq start 0))
+	(while () ((member (char string start)
+			   '(#\space #\, #\; #\<)))
+	  (incf start))
+	(while () ((member (char string (1- end))
+			   '(#\space #\, #\; #\>)))
+	  (decf end))
+	(values (if space (string-trim " ,;" (subseq string 0 space)))
+		(subseq string start end))))))
+
 ;;; Public
 ;;;
 (defun draft-reply (folder message &optional cc)
@@ -3071,11 +3201,11 @@ Examples:
    Expect $message to be an integer message (2), a string message (\"2\"),
    the symbol :highest or a string naming a sequence."
   (let* ((folder (namify folder))
-	 (folder-info (scan-folder folder :highest))
-	 (message (clean-message-spec message folder-info))
+	 (message (clean-message-spec message folder))
 	 (folder-info (scan-folder folder message))
 	 (messages (folder-info-messages folder-info))
-	 (entry (assoc message messages)))
+	 (entry (assoc message messages))
+	 (to-is-original-to-p))
     (or entry (error "Failed to find ~A in ~A" message folder))
     ; To: Renewals <address@eg.org>
     ; cc: surname@eg.org
@@ -3098,25 +3228,57 @@ Examples:
 		 Reply-To: ~A~%~
 		 --------~%"
 	     ;; To:
-	     (or (cdr (get-header entry "Reply-To"))
-		 (cdr (get-header entry "From"))
-		 "")
+	     (flet ((try-to (address)
+		      (when address
+			(dolist (alt (cons *address*
+					   *alternate-addresses*)
+				     address)
+			  (if (search alt address) (return))))))
+	       (let ((address
+		      (or (try-to (cdr (get-header entry
+						   "Reply-To")))
+			  (try-to (cdr (get-header entry
+						   "From")))
+			  (let ((address (try-to
+					  (car
+					   (split
+					    (cdr (get-header entry
+							     "To"))
+					    '(#\, #\;))))))
+			    (when address
+			      (setq to-is-original-to-p t)
+			      address)))))
+		 (if address
+		     (multiple-value-bind (name address)
+					  (parse-address address)
+		       (if name
+			   (format () "~A <~A>" name address)
+			   address))
+		     "")))
 	     ;; Cc:
-	     (flet ((filter-addresses (to)
+	     (flet ((filter-addresses (to &optional to-is-original-to-p)
 		      (let ((alt-addrs (cons *address*
 					     *alternate-addresses*)))
 			(collect ((new-to))
-			  (dolist (address (split to '(#\, #\;)))
-			    (let ((address (string-trim '(#\space #\tab)
+			  (dolist (address (if to-is-original-to-p
+					       (cdr (split to
+							   '(#\, #\;)))
+					       (split to '(#\, #\;))))
+			    (let ((address (string-trim '(#\space
+							  #\tab
+							  #\newline)
 							address)))
 			      (or (dolist (alt alt-addrs)
 				    (if (search alt address)
 					(return t)))
+				  (zerop (length address))
 				  (if address (new-to address)))))
 			  (new-to))))
-		    (split-addresses (to)
+		    (split-addresses (to &optional to-is-original-to-p)
 		      (collect ((new-to))
-			(dolist (address (split to '(#\, #\;)))
+			(dolist (address (if to-is-original-to-p
+					     (cdr (split to '(#\, #\;)))
+					     (split to '(#\, #\;))))
 			  (if address
 			      (let ((address (string-trim '(#\space
 							    #\tab)
@@ -3128,11 +3290,14 @@ Examples:
 		 (:all
 		  (let* ((cc (sort
 			      (delete-duplicates
-			       (append
-				(split-addresses
-				 (cdr (get-header entry "To")))
-				(split-addresses
-				 (cdr (get-header entry "Cc"))))
+			       (if to-is-original-to-p
+				   (split-addresses
+				    (cdr (get-header entry "Cc")))
+				   (append
+				    (split-addresses
+				     (cdr (get-header entry "To")))
+				    (split-addresses
+				     (cdr (get-header entry "Cc")))))
 			       :test #'string=)
 			      #'string-lessp)))
 		    (mess "cc: ~A" cc)
@@ -3145,11 +3310,14 @@ Examples:
 		 (:others
 		  (let* ((cc (sort
 			      (delete-duplicates
-			       (append
-				(filter-addresses
-				 (cdr (get-header entry "To")))
-				(filter-addresses
-				 (cdr (get-header entry "Cc"))))
+			       (if to-is-original-to-p
+				   (filter-addresses
+				    (cdr (get-header entry "Cc")))
+				   (append
+				    (filter-addresses
+				     (cdr (get-header entry "To")))
+				    (filter-addresses
+				     (cdr (get-header entry "Cc")))))
 			       :test #'string=)
 			      #'string-lessp)))
 		    (mess "cc: ~A" cc)
@@ -3159,7 +3327,6 @@ Examples:
 		    (mess "cc: ~A" (cdr (get-header entry "Cc")))
 		    (mess "fcc: ~A" (filter-addresses
 				     (cdr (get-header entry "Cc"))))
-
 		    (with-output-to-string (stream)
 		      (when cc
 			(format stream "Cc: ~A" (first cc))
@@ -3193,26 +3360,6 @@ Examples:
 
 ;;; Internal
 ;;;
-;;; Return the first email address in $string and the position in $string
-;;; of the end of the address.
-;;;
-(defun parse-address (string)
-  (let ((at-pos (position #\@ string)))
-    (when at-pos
-      (let* ((string (substitute #\space #\newline string))
-	     (start (position #\space string
-			      :from-end t :end at-pos))
-	     (end (or (position #\space string :start at-pos)
-		      (length string))))
-	(if start (incf start) (setq start 0))
-	(while () ((member (char string start) '(#\, #\; #\<)))
-	  (incf start))
-	(while () ((member (char string (1- end)) '(#\, #\; #\>)))
-	  (decf end))
-	(values (subseq string start end) end)))))
-
-;;; Internal
-;;;
 ;;; Write delivery-time headers to $stream.
 ;;;
 (defun finish-headers (stream from &optional msgid)
@@ -3231,12 +3378,11 @@ Examples:
   (declare (ignore to))
   (let* ((pos)
 	 (fcc-folder (cdr (get-header entry "Fcc")))
+	 (fcc-folder (if fcc-folder (namify fcc-folder)))
 	 (fcc-folder-info (if fcc-folder
-			      (scan-folder fcc-folder
-					   :highest)))
+			      (scan-folder fcc-folder :highest)))
 	 (fcc-message (if fcc-folder
-			  (1+ (folder-info-highest
-			       fcc-folder-info))))
+			  (1+ (folder-info-highest fcc-folder-info))))
 	 (fcc (when fcc-folder
 		(ensure-directories-exist
 		 (folder-pathname fcc-folder))
@@ -3282,18 +3428,26 @@ Examples:
       (let ((alist (scan-message fcc)))
 	(when alist
 	  ;; Update the fcc folder cache.
-	  (push (cons (string fcc-message) alist)
-		; FIX msgs should be sorted?
-		;; FIX ok to push for first msg?
-		(folder-info-messages fcc-folder-info))
-	  (setf (folder-info-highest fcc-folder-info)
-		fcc-message)
-	  (setf (folder-info-end fcc-folder-info)
-		fcc-message)
+	  (setf (folder-info-messages fcc-folder-info)
+		(append (folder-info-messages fcc-folder-info)
+			(list (cons fcc-message alist))))
+	  (setf (folder-info-highest fcc-folder-info) fcc-message)
+	  (setf (folder-info-end fcc-folder-info) fcc-message)
+	  (or (folder-info-start fcc-folder-info)
+	      (if (zerop (folder-info-start fcc-folder-info))
+		  (setf (folder-info-start fcc-folder-info)
+			fcc-message)))
+	  ;; Update the disk sequences.
+	  (update-sequence fcc-folder "highest"
+			   (list (cons fcc-message fcc-message)))
+	  (update-sequence fcc-folder "cur"
+			   (list (cons fcc-message fcc-message)))
+	  ;; Set the cache write date.
 	  (setf (folder-info-write-date fcc-folder-info)
 		(file-write-date (folder-pathname
 				  fcc-folder)))))
-      (close fcc))))
+      (close fcc))
+    t))
 
 ;;; Public
 ;;;
@@ -3313,16 +3467,18 @@ Examples:
    ID integers (23), message ID strings (\"23\"), message range pairs
    ((\"20\" . \"23\")), range strings (\"20-23\"), sequence names
    (\"highest\"), the symbol :all, or the string \"all\"."
-  (let* ((folder-info (scan-folder folder :highest))
+  (let* ((folder-info (scan-folder folder :sequences))
 	 (messages (clean-messages-spec
 		    messages
 		    (folder-info-sequences folder-info)))
 	 (folder-info (scan-folder folder messages))
 	 (folder-messages (folder-info-messages folder-info))
 	 (folder-pathname (folder-pathname folder)))
-    (loop for message in messages do
-      (let ((entry (assoc message folder-messages))
-	    (to))
+    (while ((messages messages (cdr messages)))
+	   (messages)
+      (let* ((message (car messages))
+	     (entry (assoc message folder-messages))
+	     (to))
 	(or entry (error "Failed to find ~A in ~A" message folder))
 	(if (get-header entry "Bcc") (error "Bcc"))
 	(if (get-header entry "Resent-Bcc") (error "Resent-Bcc"))
@@ -3335,17 +3491,17 @@ Examples:
 		  ,(cdr (get-header entry "To")))) do
 	    (loop
 	      (multiple-value-bind (address end)
-				   (parse-address string)
+				   (first-address string)
 		(or address (return))
 		(push address to)
 		(setq string (subseq string end)))))
 	  (or to (error "Message must have a destination address."))
 	  (let ((from (if (or resent-to resent-cc)
-			  (or (parse-address (cdr (get-header
+			  (or (first-address (cdr (get-header
 						   entry
 						   "Resent-from")))
 			      (error "Message must have a Resent-From address."))
-			  (or (parse-address (cdr (get-header
+			  (or (first-address (cdr (get-header
 						   entry "From")))
 			      (error "Message must have a From address.")))))
 	    (multiple-value-bind
@@ -3391,8 +3547,7 @@ Examples:
    Expect $message to be an integer message (2), a string message (\"2\"),
    the symbol :highest or a string naming a sequence."
   (let* ((folder (namify folder))
-	 (folder-info (scan-folder folder :highest))
-	 (message (clean-message-spec message folder-info))
+	 (message (clean-message-spec message folder))
 	 (folder-info (scan-folder folder message))
 	 (entry (assoc message (folder-info-messages folder-info))))
     (%write-headers entry headers stream)))
@@ -3410,8 +3565,7 @@ Examples:
    Expect $message to be an integer message (2), a string message (\"2\"),
    the symbol :highest or a string naming a sequence."
   (let* ((folder (namify folder))
-	 (folder-info (scan-folder folder :highest))
-	 (message (clean-message-spec message folder-info))
+	 (message (clean-message-spec message folder))
 	 (headers (get-headers
 		  (assoc message
 			 (folder-info-messages
@@ -3721,18 +3875,20 @@ Examples:
   (incf-mess)
   (let ((continue-p t))
     (push (list pos
-		(with-output-to-string (part)
-		  (while ((line (read-line in ())
-				(read-line in ())))
-			 (line
-			  ;; Reached end of stream.
-			  (setq continue-p ()))
-		    (when (boundary-p line boundary boundary-len)
-		      (or (eq (length line) boundary-len)
-			  ;; At the end boundary.
-			  (setq continue-p ()))
-		      (return))
-		    (format part "~A~%" line)))
+		(string-trim '(#\space #\tab #\newline)
+			     (with-output-to-string (part)
+			       (while ((line (read-line in ())
+					     (read-line in ())))
+				      (line
+				       ;; Reached end of stream.
+				       (setq continue-p ()))
+				 (when (boundary-p line boundary
+						   boundary-len)
+				   (or (eq (length line) boundary-len)
+				       ;; At the end boundary.
+				       (setq continue-p ()))
+				   (return))
+				 (format part "~A~%" line))))
 		headers)
 	  *attachments*)
     (decf-mess)
@@ -3817,14 +3973,14 @@ Examples:
 		      ;; The rest written out due to inlinep being t.
 		      ("delivery-status")
 		      (t
-		       (format out "(FIX new message subtype)~%~%"))))
+		       (format out "[mail handler: FIX new message subtype]~%~%"))))
 		   ("text"
 		    (case= (string-downcase subtype)
 		      ("html"
 		       (setq html-p t))
 		      ("plain")
 		      (t
-		       (format out "(FIX new text subtype)~%~%"))))
+		       (format out "[mail handler: FIX new text subtype]~%~%"))))
 		   ("multipart"
 		    (multiple-value-bind
 			(ret cont-p)
@@ -3937,10 +4093,12 @@ Examples:
   ;; Get the boundary.
   (let* ((boundary (or (and params
 			    (cdr (assoc "boundary" params
-					:test #'string=)))
+					:test (lambda (one two)
+						(string= one (string-downcase two))))))
 		       ;(error "Multipart must have a \"boundary\" parameter.")
 		       (progn
 			 (decf-mess)
+			 (mess "Multipart must have a \"boundary\" parameter.")
 			 (return-from write-multipart ()))))
 	 (boundary-len (+ (length boundary) 2))
 	 (line (read-line in ()))
@@ -4023,6 +4181,7 @@ Examples:
 			       text)))))
 	       (progn
 		 (decf-mess)
+		 (mess "Failed to get Content-Type.")
 		 (return-from write-mime-body))))))
 	(enc (cdr (get-header entry "Content-Transfer-Encoding")))
 	(continue-p)
@@ -4096,7 +4255,8 @@ Examples:
 (defun write-message (folder message stream &optional (headers t))
   ;; FIX general error handling: should throw dedicated err instd?
   "Write $message in $folder to $stream.  Return #t on success, else () and
-   an error message.
+   an error message.  Return a third value, the list of attachment parts,
+   which is suitable for passing as the fourth argument to `get-part'.
 
    If $headers is t write all headers, otherwise expect $headers to be a
    list of capitalized header names and write those headers in that order.
@@ -4104,9 +4264,8 @@ Examples:
    Expect $message to be an integer message (2), a string message (\"2\"),
    the symbol :highest or a string naming a sequence."
   (let* ((folder (namify folder))
-	 (folder-info (scan-folder folder :highest))
-	 (message (clean-message-spec message folder-info)))
-    (setq folder-info (scan-folder folder message))
+	 (message (clean-message-spec message folder))
+	 (folder-info (scan-folder folder message)))
     (with-open-file
 	(in (merge-pathnames (string message)
 			     (folder-pathname folder))
@@ -4133,10 +4292,11 @@ Examples:
 	      (multiple-value-bind
 		  (ret err)
 		  (%write-body in stream entry body-start headers)
-		(if *attachments*
-		    (pushnew (cons :parts (nreverse *attachments*))
-			     (cdr entry)))
-		(values ret err))))))))
+		(let ((parts))
+		  (when *attachments*
+		    (setq parts (nreverse *attachments*))
+		    (pushnew (cons :parts parts) (cdr entry)))
+		  (values ret err parts)))))))))
 
 ;;; Public
 ;;;
@@ -4178,19 +4338,19 @@ Examples:
 
 ;;; Public
 ;;;
-(defun get-part (folder message position)
+(defun get-part (folder message position &optional parts)
   "Return the part at $position in $message from $folder, and the content
    type header of the part.
 
    Expect $message to be an integer message (2), a string message (\"2\"),
    the symbol :highest or a string naming a sequence."
   (let* ((folder (namify folder))
-	 (folder-info (scan-folder folder :highest))
-	 (message (clean-message-spec message folder-info))
+	 (message (clean-message-spec message folder))
 	 (folder-info (scan-folder folder message))
 	 (messages (folder-info-messages folder-info))
 	 (entry (assoc message messages))
-	 (part (assoc position (cdr (assoc :parts (cdr entry))))))
+	 (part (assoc position (or (cdr (assoc :parts (cdr entry)))
+				   parts))))
     (when part
       (let* ((part-headers (caddr part))
 	     (encoding (cdr (assoc "Content-Transfer-Encoding"
@@ -4200,8 +4360,9 @@ Examples:
 				       part-headers
 				       :test #'string=))))
 	(values
-	 (case= encoding
+	 (case= (and encoding (string-downcase encoding))
 	   ("base64" (base64:base64-decode (cadr part)))
+	   ("quoted-printable" (from-quoted (cadr part)))
 	   (t (cadr part)))
 	 content-type)))))
 
@@ -4221,6 +4382,7 @@ Examples:
 	(values
 	 (case= encoding
 	   ("base64" (base64:base64-decode (cadr part)))
+	   ("quoted-printable" (from-quoted (cadr part)))
 	   (t (cadr part)))
 	 content-type)))))
 
@@ -4239,8 +4401,8 @@ Examples:
    the symbol :highest or a string naming a sequence.
 
    FIX Beware, implementation needs testing."
-  (let* ((folder-info (scan-folder folder :highest))
-	 (message (clean-message-spec message folder-info))
+  (let* ((folder (namify folder))
+	 (message (clean-message-spec message folder))
 	 ;; Scan folder again to cache message.
 	 (folder-info (scan-folder folder message))
 	 (new (string (draft-new (merge-pathnames
@@ -4250,9 +4412,8 @@ Examples:
 	 (folder-pathname (folder-pathname folder))
 	 (entry (assoc message folder-messages))
 	 ;; Scan draft folder to cache sequences.
-	 (draft-info (scan-folder draft-folder :highest))
 	 (draft-message (clean-message-spec draft-message
-					    draft-info))
+					    draft-folder))
 	 ;; Scan draft folder again to cache draft message.
 	 (draft-info (scan-folder draft-folder draft-message))
 	 (draft-messages (folder-info-messages draft-info)))
@@ -4335,8 +4496,7 @@ Examples:
       (error "$component contains a colon: ~A" component))
   (incf-mess)
   (let* ((folder (namify folder))
-	 (folder-info (scan-folder folder :highest))
-	 (message (clean-message-spec message folder-info))
+	 (message (clean-message-spec message folder))
 	 (folder-info (scan-folder folder message))
 	 (messages (folder-info-messages folder-info))
 	 (entry (assoc message messages))
@@ -4660,6 +4820,8 @@ Examples:
 	(inet-quit pop-stream)))))
 
 
+;;;; Test support.
+
 (defmacro with-fresh-state (&rest body)
   "with-fresh-state body
 

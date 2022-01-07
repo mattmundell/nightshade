@@ -6,6 +6,8 @@
 ;; manual and ICCCM.  This code was written many months after flushing the
 ;; original copyrighted CMUCL Xlib interface from the Nightshade tree.
 
+;; FIX consider deb pkg xspecs
+
 (in-package "XLIB")
 
 ;; FIX
@@ -22,19 +24,19 @@
 (export '(bell
 	  bitmap-image
 	  ;;
-	  boole-0 boole-1 boole-and boole-and-reversed
-	  boole-copy boole-and-inverted boole-noop
-	  boole-xor boole-or boole-nor boole-equiv
-	  boole-invert boole-or-reverse boole-copy-inverted
-	  boole-or-inverted boole-nand
+	  x-boole-0 x-boole-and x-boole-and-reversed
+	  x-boole-copy x-boole-and-inverted x-boole-noop
+	  x-boole-xor x-boole-or x-boole-nor x-boole-equiv
+	  x-boole-invert x-boole-or-reverse x-boole-copy-inverted
+	  x-boole-or-inverted x-boole-nand
 	  ;;
 	  clear-area clear-window
-	  create-gcontext create-pixmap create-cursor
-	  create-font-cursor create-window
+	  create-cursor create-font-cursor create-image create-gcontext
+	  create-pixmap create-window
 	  clipboard
 	  close-display
 	  color-pixel
-	  copy-area
+	  copy-area copy-plane
 	  cut-buffer
 	  default-keysym-index
 	  destroy-window
@@ -42,15 +44,19 @@
 	  display display-default-screen display-fd
 	  display-finish-output display-force-output
 	  display-roots
-	  draw-rectangle draw-image-glyphs
-	  drawable-x drawable-y drawable-width drawable-height
+	  draw-arc draw-image-glyphs draw-line draw-lines
+	  draw-rectangle draw-rectangles
+	  drawable-border-width drawable-class
+	  drawable-depth drawable-height
+	  drawable-override-redirect drawable-width
+	  drawable-x drawable-y
 	  drawable-display
 	  event-case event-listen
 	  font-ascent font-descent font-path
 	  free-cursor free-gcontext free-pixmap
 	  get-best-authorization
-	  gcontext-background gcontext-foreground gcontext-font
-	  gcontext-plane-mask
+	  gcontext-background gcontext-foreground gcontext-function
+	  gcontext-font gcontext-plane-mask
 	  handle-selection-clear handle-selection-request
 	  image-x-hot image-y-hot
 	  keycode->keysym
@@ -73,8 +79,8 @@
 	  unmap-window
 	  window
 	  window-background window-border window-cursor window-display
-	  window-event-mask window-id window-map-stat window-name
-	  window-priority window-property window-wm-name
+	  window-event-mask window-from-id window-id window-map-state
+	  window-name window-priority window-property window-wm-name
 	  with-gcontext with-state
 	  wm-normal-hints
 	  wm-size-hints-height-inc wm-size-hints-min-height
@@ -83,7 +89,7 @@
 	  wm-size-hints-width-inc wm-size-hints-x wm-size-hints-y))
 
 
-;;;; Structures.
+;;;; Types, structures.
 
 ;; FIX The aliens returned from alien XLIB functions are stored in these
 ;; structures as integers instead of SAPs (and aliens?).  This is so that
@@ -114,9 +120,6 @@
    ))
 
 (defstruct (drawable)
-  ;; FIX Can a drawable be moved to another display?  If so, the
-  ;; XWindowAttributes contains a screen field that could be used to
-  ;; XDisplayOfScreen, instead of caching the display here.
   (display () :type (or display null))
   (x-drawable () :type (or integer null)))
 
@@ -133,18 +136,16 @@
   (display () :type (or display null))
   (x-cursor () :type (or integer null)))
 
-(defstruct (image)
-  x-hot
-  y-hot
-  width
-  height
-  data)
-
 (defstruct (pixmap (:include drawable))
   x-hot
   y-hot
   width
   height)
+
+;; FIX OK for image to include drawable?
+(defstruct (image (:include pixmap))
+  depth
+  data)
 
 (defstruct (ximage)
   ximage)
@@ -192,7 +193,7 @@
 (defvar *alien-caller-2-hooks* '(handle-x-error))
 
 (defun serve-alien-caller-2 (one two)
-  (loop for hook in *alien-caller-2-hooks* do
+  (dolist (hook *alien-caller-2-hooks*)
     (if (funcall hook one two)
 	(return-from serve-alien-caller-2 t))))
 
@@ -287,13 +288,23 @@
 (defsetf display-default-screen set-display-default-screen
   "Set the default screen of $display to $screen.")
 
+(def-alien-routine ("XSync" x-sync) int
+  (display system-area-pointer) ; type Display*
+  (discard boolean))
+
+(def-alien-variable ("true" x-true) int)
+(def-alien-variable ("false" x-false) int)
+(def-alien-variable ("none" x-none) int)
+
 (defun display-finish-output (display)
   ; FIX (x-flush (display-display display))?
+  (x-sync (int-sap (display-x-display display)) x-false)
   ;(finish-output (display-input-stream display))
   )
 
 (defun display-force-output (display)
   ; FIX (x-sync (display-display display))?
+  (x-sync (int-sap (display-x-display display)) x-false)
   ;(force-output (display-input-stream display))
   )
 
@@ -563,7 +574,7 @@
 				       (int-sap screen)))))
 
 
-;;;; Bitmaps, Pixmaps.
+;;;; Images, Bitmaps, Pixmaps.
 
 (def-alien-routine ("XWriteBitmapFile" x-write-bitmap-file) int
   (display system-area-pointer) ; type Display
@@ -679,33 +690,56 @@
 ;;; Public
 ;;;
 (defun bitmap-image (&rest rows)
-  "Return an image created from the bit vectors listed in the args."
+  "Return an image created from the bit vectors listed in $rows."
+  ;; FIX orig xlib possibly takes vector elements other than 'bit, to incr
+  ;;     depth
   (let* ((bit-len (length (car rows)))
-	 (len (multiple-value-bind
-		  (res rem)
-		  (truncate (length (car rows)) 8)
+	 ;; FIX (x-bitmap-pad display)
+	 (len (multiple-value-bind (res rem)
+				   (truncate bit-len 8)
 		(if (plusp rem) (1+ res) res)))
 	 (data (make-alien unsigned-char (* (length rows) len)))
 	 (data-offset 0)) ; in bytes
     ;; Fill array "data" with the bitmap defined in $rows.
-    (loop for row in rows do
+    (dolist (row rows)
       (let ((row-offset 0)) ; in bits
-	(loop for byte from 0 to (1- len) do
+	(while ((byte 0 (1+ byte)))
+	       ((< byte len))
 	  (let ((char 0))
 	    ;; Translate the bits to a char code.
-	    (loop for bit from 0 to 7
-	      while (< (+ row-offset bit) bit-len) do
-	      (incf char (expt (bit row (+ row-offset bit)) 2))
-	      (incf row-offset))
+	    (while ((bit 0 (1+ bit)))
+		   ((and (< bit 8)
+			 (< (+ row-offset bit) bit-len)))
+	      (or (zerop (bit row (+ row-offset bit)))
+		  (incf char (expt 2 bit))))
+	    (incf row-offset 8)
 	    ;; Write the char code to the array "data".
-	    (setf (deref data (+ data-offset byte)) char))
-	  (incf data-offset len))))
+	    (setf (deref data data-offset) char)
+	    (incf data-offset)))))
     ;; Create the image.
     (make-image :x-hot 0
 		:y-hot 0
+		:depth 1
 		:width bit-len
 		:height (length rows)
 		:data data)))
+
+#|
+(defun print-bits (sap width height)
+  (multiple-value-bind (cols rem) (truncate width 8)
+    ;(if rem (error "Width must be a multiple of 8: ~A" width))
+    (if (plusp rem) (incf cols))
+
+    (with-alien ((chars (* unsigned-char)
+			:local (sap-alien sap (* unsigned-char))))
+      (dotimes (row height)
+	(dotimes (col cols)
+	  ;(format t " ~A ~A " (deref chars (+ (* row cols) col)) (+ (* row cols) col))
+	  (format t "~8,'0B" (deref chars (+ (* row cols) col))))
+	(terpri)))))
+
+(xlib::print-bits (alien:alien-sap (xlib::image-data b)) (xlib::image-width b) (xlib::image-height b))
+|#
 
 (def-alien-routine ("XCreatePixmap" x-create-pixmap)
 		   system-area-pointer ; type Pixmap
@@ -762,6 +796,9 @@
 
 ;;; Public
 ;;;
+;;; FIX returns ximage while create-image returns image
+;;;       perhaps convert ximage to image
+;;;
 (defun get-image (drawable gcontext
 		  &key (x 0) (y 0) (width 1) (height 1))
   "Get an image of $width by $height at $x and $y of $drawable."
@@ -771,7 +808,6 @@
 			  x y width height
 			  (gcontext-plane-mask gcontext)
 			  x-xy-pixmap)))
-    (format t "img: ~A~%" img)
     (fi (zerop (sap-int img))
 	(make-ximage :ximage img))))
 
@@ -793,6 +829,31 @@
   (height unsigned-int)
   (bitmap-pad int)
   (bytes-per-line int))
+
+;;; Public
+;;;
+(defun create-image (&key depth data)
+  "Make an image with $depth from $data."
+  (if depth (or (eq depth 1) (error "FIX depth <> 1")))
+  (etypecase data
+    ;(x-image)?
+    (null
+     (make-image :x-hot 0
+		 :y-hot 0
+		 :depth 0
+		 :width 0
+		 :height 0))
+    (array ; FIX bit array
+     ; FIX for higher depth maybe adjust rows
+     (let ((list)
+	   (cols (array-dimension data 1)))
+       (dotimes (row-index (array-dimension data 0))
+	 (let ((row (make-array cols :element-type 'bit)))
+	   (dotimes (col-index cols)
+	     (setf (aref row col-index)
+		   (aref data row-index col-index)))
+	   (push row list)))
+       (apply #'bitmap-image (nreverse list))))))
 
 (def-alien-routine ("XPutImage" x-put-image) int
   (display system-area-pointer) ; type Display*
@@ -830,8 +891,7 @@
 		      (x-create-image display
 				      (x-default-visual-of-screen
 				       screen)
-				      (screen-root-depth
-				       (sap-int screen))
+				      (image-depth image)
 				      x-xy-bitmap
 				      0 ; offset
 				      (cast (image-data image)
@@ -839,15 +899,14 @@
 				      (image-width image)
 				      (image-height image)
 				      ;; FIX check
-				      (x-bitmap-pad display)
+				      8 ;(x-bitmap-pad display)
+				      ; bytes-per-line
 				      (multiple-value-bind
 					  (res rem)
-					  (truncate (x-bitmap-unit
-						     display)
+					  (truncate (image-width image)
 						    8)
 					(if (plusp rem)
 					    (1+ res) res)))))
-      (format t "img: ~A~%" img)
       (fi (null-alien img)
 	  (progn
 	    (x-put-image display
@@ -857,19 +916,31 @@
 			 0 0
 			 x y
 			 width height)
-	    (format t "put~%")
 	    (x-destroy-image img))))))
 
 
 ;;;; Graphics contexts.
 
-(def-alien-variable ("gCForeground" x-gc-foreground) long)
 (def-alien-variable ("gCBackground" x-gc-background) long)
-(def-alien-variable ("gCFunction" x-gc-function) long)
-(def-alien-variable ("gCFont" x-gc-font) long)
-(def-alien-variable ("gCPlaneMask" x-gc-plane-mask) long)
+(def-alien-variable ("gCFillStyle"  x-gc-fill-style) long)
+(def-alien-variable ("gCFont"       x-gc-font)       long)
+(def-alien-variable ("gCForeground" x-gc-foreground) long)
+(def-alien-variable ("gCFunction"   x-gc-function)   long)
 (def-alien-variable ("gCGraphicsExposures" x-gc-graphics-exposures)
 		    long)
+(def-alien-variable ("gCLineStyle" x-gc-line-style) long)
+(def-alien-variable ("gCLineWidth" x-gc-line-width) long)
+(def-alien-variable ("gCPlaneMask" x-gc-plane-mask) long)
+(def-alien-variable ("gCStipple"   x-gc-stipple)    long)
+
+(def-alien-variable ("lineSolid"      x-line-solid)       long)
+(def-alien-variable ("lineOnOffDash"  x-line-on-off-dash) long)
+(def-alien-variable ("lineDoubleDash" x-line-double-dash) long)
+
+(def-alien-variable ("fillOpaqueStippled" x-fill-opaque-stippled) long)
+(def-alien-variable ("fillSolid"          x-fill-solid)           long)
+(def-alien-variable ("fillStippled"       x-fill-stippled)        long)
+(def-alien-variable ("fillTiled"          x-fill-tiled)           long)
 
 (def-alien-type ()
   (struct x-gc-values
@@ -904,55 +975,89 @@
   (value-mask unsigned-long)
   (values (* (struct x-gc-values))))
 
-(defvar boole-0             #x0)
-(defvar boole-and           #x1)
-(defvar boole-and-reversed  #x2)
-(defvar boole-copy          #x3)
-(defvar boole-and-inverted  #x4)
-(defvar boole-noop          #x5)
-(defvar boole-xor           #x6)
-(defvar boole-or            #x7)
-(defvar boole-nor           #x8)
-(defvar boole-equiv         #x9)
-(defvar boole-invert        #xa)
-(defvar boole-or-reverse    #xb)
-(defvar boole-copy-inverted #xb)
-(defvar boole-or-inverted   #xb)
-(defvar boole-nand          #xb)
-(defvar boole-1             #xf)
+;; FIX original interface took lisp boole-*, now takes these directly
+(defconstant x-boole-0             #x0)
+(defconstant x-boole-and           #x1)
+(defconstant x-boole-and-reversed  #x2)
+(defconstant x-boole-copy          #x3)
+(defconstant x-boole-and-inverted  #x4)
+(defconstant x-boole-noop          #x5)
+(defconstant x-boole-xor           #x6)
+(defconstant x-boole-or            #x7)
+(defconstant x-boole-nor           #x8)
+(defconstant x-boole-equiv         #x9)
+(defconstant x-boole-invert        #xa)
+(defconstant x-boole-or-reverse    #xb)
+(defconstant x-boole-copy-inverted #xb)
+(defconstant x-boole-or-inverted   #xb)
+(defconstant x-boole-nand          #xb)
+(defconstant x-boole-1             #xf)
 
 (defvar x-all-planes #xFFFFFFFFFFFFFFFF
   "Mask for all planes.")
 
 ;;; Public
 ;;;
-(defun create-gcontext (&key drawable
-			     function
+(defun create-gcontext (&key background
+			     drawable
+			     exposures
+			     fill-style
 			     foreground
-			     background
 			     font
-			     exposures)
+			     function
+			     line-style
+			     line-width
+			     plane-mask
+			     stipple)
   "Create and return a graphics context."
   (or drawable (error "FIX need drawable"))
   (with-alien ((gc-values (struct x-gc-values))
 	       (mask unsigned-long :local 0))
-    (setf (slot gc-values 'plane-mask) x-all-planes)
-    (when foreground
-      (setf (slot gc-values 'foreground) foreground)
-      (setq mask (logior mask x-gc-foreground)))
+    (when plane-mask
+      (if (eq plane-mask :all)
+	  (setf (slot gc-values 'plane-mask) x-all-planes)
+	  (setf (slot gc-values 'plane-mask) plane-mask))
+      (setq mask (logior mask x-gc-plane-mask)))
     (when background
       (setf (slot gc-values 'background) background)
       (setq mask (logior mask x-gc-background)))
-    (when function
-      (setf (slot gc-values 'function) function)
-      (setq mask (logior mask x-gc-function)))
-    (when font
-      (setf (slot gc-values 'font)
-	    (slot (deref font) 'fid))
-      (setq mask (logior mask x-gc-font)))
     (when exposures
       (setf (slot gc-values 'graphics-exposures) exposures)
       (setq mask (logior mask x-gc-graphics-exposures)))
+    (when fill-style
+      (setf (slot gc-values 'fill-style)
+	    (ecase fill-style
+	      (:opaque-stippled  x-fill-opaque-stippled)
+	      (:solid            x-fill-solid)
+	      (:stippled         x-fill-stippled)
+	      (:tiled            x-fill-tiled)))
+      (setq mask (logior mask x-gc-fill-style)))
+    (when font
+      (or (null-alien font)
+	  (progn
+	    (setf (slot gc-values 'font)
+		  (slot (deref font) 'fid))
+	    (setq mask (logior mask x-gc-font)))))
+    (when foreground
+      (setf (slot gc-values 'foreground) foreground)
+      (setq mask (logior mask x-gc-foreground)))
+    (when function
+      (setf (slot gc-values 'function) function)
+      (setq mask (logior mask x-gc-function)))
+    (when line-style
+      (setf (slot gc-values 'line-style)
+	    (ecase line-style
+	      (:solid         x-line-solid)
+	      (:dashed        x-line-on-off-dash)
+	      (:double-dashed x-line-double-dash)))
+      (setq mask (logior mask x-gc-line-style)))
+    (when line-width
+      (setf (slot gc-values 'line-width) line-width)
+      (setq mask (logior mask x-gc-line-width)))
+    (when stipple
+      (setf (slot gc-values 'stipple)
+	    (int-sap (pixmap-x-drawable stipple)))
+      (setq mask (logior mask x-gc-stipple)))
     (let ((display (drawable-display drawable)))
       (make-gcontext :x-gcontext
 		     (sap-int (x-create-gc
@@ -977,11 +1082,15 @@
 ;;; Public
 ;;;
 (defmacro with-gcontext ((gcontext
-			  &key exposures
-			       foreground
-			       background
+			  &key background
+			       exposures
+			       fill-style
 			       font
-			       function)
+			       foreground
+			       function
+			       line-style
+			       line-width
+			       stipple)
 			 &body body)
   (let ((gc-values (gensym)))
     `(with-alien ((,gc-values (struct x-gc-values)))
@@ -989,27 +1098,57 @@
 				  (gcontext-display ,gcontext)))
 			(int-sap (gcontext-x-gcontext ,gcontext))
 			(logior x-gc-background
-				x-gc-foreground
+				x-gc-fill-style
 				x-gc-font
-				x-gc-function)
+				x-gc-foreground
+				x-gc-function
+				x-gc-graphics-exposures
+				x-gc-line-style
+				x-gc-line-width
+				x-gc-stipple)
 			(addr ,gc-values))
        (let ((,gcontext (create-gcontext
-			 :drawable (gcontext-drawable ,gcontext)
-			 :foreground (or ,foreground
-					 (slot ,gc-values 'foreground))
 			 :background (or ,background
 					 (slot ,gc-values 'background))
+			 :drawable (gcontext-drawable ,gcontext)
+			 :exposures (or ,exposures
+					(slot ,gc-values
+					      'graphics-exposures))
+			 :fill-style (or ,fill-style
+					 (case (slot ,gc-values
+						      'fill-style)
+					   (x-fill-opaque-stippled
+					    :opaque-stippled)
+					   (x-fill-solid
+					    :solid)
+					   (x-fill-stippled
+					    :stippled)
+					   (x-fill-tiled
+					    :tiled)))
 			 :font (or ,font
 				   (x-query-font
 				    (int-sap (display-x-display
 					      (gcontext-display
 					       ,gcontext)))
 				    (slot ,gc-values 'font)))
-			 :exposures (or ,exposures
-					(slot ,gc-values
-					      'graphics-exposures))
+			 :foreground (or ,foreground
+					 (slot ,gc-values 'foreground))
 			 :function (or ,function
-				       (slot ,gc-values 'function)))))
+				       (slot ,gc-values 'function))
+			 :line-style (or ,line-style
+					 (let ((style
+						(slot ,gc-values
+						      'line-style)))
+					   (fi (zerop style)
+					       style)))
+			 :line-width (or ,line-width
+					 (slot ,gc-values 'line-width))
+			 :stipple (or ,stipple
+				      (let ((x-stipple
+					     (slot ,gc-values
+						   'stipple)))
+					(fi (null-alien x-stipple)
+					    ,stipple))))))
 	 (unwind-protect
 	     (progn ,@body)
 	   (free-gcontext ,gcontext))))))
@@ -1102,6 +1241,30 @@
 ;;
 (defsetf gcontext-font set-gcontext-font
   "Set the font in $gcontext to $font.")
+
+;;; Public
+;;;
+(defun gcontext-function (gcontext)
+  (with-alien ((gc-values (struct x-gc-values)))
+    (x-get-gc-values (int-sap (display-x-display
+			       (gcontext-display gcontext)))
+		     (int-sap (gcontext-x-gcontext gcontext))
+		     x-gc-function
+		     (addr gc-values))
+    (slot gc-values 'function)))
+
+(defun set-gcontext-function (gcontext function)
+  "Set the function in $gcontext to $function."
+  (with-alien ((gc-values (struct x-gc-values)))
+    (setf (slot gc-values 'function) function)
+    (x-change-gc (int-sap (display-x-display
+			   (gcontext-display gcontext)))
+		 (int-sap (gcontext-x-gcontext gcontext))
+		 x-gc-function
+		 (addr gc-values))))
+;;
+(defsetf gcontext-function set-gcontext-function
+  "Set the function in $gcontext to $function.")
 
 ;;; Public
 ;;;
@@ -1381,7 +1544,6 @@
     (serial unsigned-long)
     (send-event-p boolean)
     (display system-area-pointer) ; type Display
-    (event (* t)) ; type Window
     (window system-area-pointer) ; type Window
     (width int)
     (height int)))
@@ -1629,10 +1791,6 @@
 
 ;;;; Events.
 
-(def-alien-routine ("XSync" x-sync) int
-  (display system-area-pointer) ; type Display*
-  (discard boolean))
-
 (defvar *release-current-event* ()
   "Bound to () around event handler calls.  If true afterwards the event is
    left off the X queue (if it was going to be returned to the queue at
@@ -1649,6 +1807,11 @@
   (screen system-area-pointer)) ; type Screen
 
 (def-alien-routine ("XCheckMaskEvent" x-check-mask-event) long
+  (display system-area-pointer) ; type Display*
+  (mask long)
+  (event (* (union x-event))))
+
+(def-alien-routine ("XMaskEvent" x-mask-event) long
   (display system-area-pointer) ; type Display*
   (mask long)
   (event (* (union x-event))))
@@ -1698,7 +1861,9 @@
 			  (struct x-circulate-request-event)
 			  ,x-substructure-redirect-mask)
     (,x-gravity-notify :gravity-notify (struct x-gravity-event))
-    (,x-resize-request :resize-request (struct x-resize-request-event))
+    (,x-resize-request :resize-request (struct x-resize-request-event)
+		       ;; FIX right?
+		       ,x-resize-redirect-mask)
     (,x-configure-request :configure-request
 			  (struct x-configure-request-event))
     (,x-circulate-request :circulate-request
@@ -1772,7 +1937,9 @@
   "Request $window to select on the events in $mask."
   (x-select-input (int-sap (display-x-display (window-display window)))
 		  (int-sap (window-x-drawable window))
-		  mask)
+		  (if (listp mask)
+		      (apply #'make-event-mask mask)
+		      mask))
   (pushnew (cons window mask) *window-event-masks*))
 ;;
 (defsetf window-event-mask set-window-event-mask
@@ -1845,7 +2012,6 @@
 		 (clauses
 		  (if (slot-lets)
 		      `(,key
-			(force-output)
 			(let ((,event
 			       (cast
 				(addr ,event)
@@ -1863,7 +2029,7 @@
 		      `(,key
 			;(format t "key 2 was ~A~%" ',key)
 			,@forms))))))
-	(loop for case in cases do
+	(dolist (case cases)
 	  (if (eq (car case) t)
 	      (setq otherwise-p t)
 	      (keys (if (listp (car case))
@@ -1878,25 +2044,42 @@
 			      (or (member :selection-request keylist)
 				  (member :selection-notify keylist))))
 			;; Any type of event.
-			`(if (event-listen ,display)
+			`(if ,timeout
+			     (if (event-listen ,display)
+				 (progn
+				   (format t "x-next-event~%")
+				   (let ((ret (x-next-event
+					       (int-sap (display-x-display
+							 ,display))
+					       (addr ,event))))
+				     ;(warn "ret: ~A" ret)
+				     ret)
+				   1)
+				 0)
 			     (progn
-			       ;(warn "next-event")
-			       (let ((ret (x-next-event
-					   (int-sap (display-x-display
-						     ,display))
-					   (addr ,event))))
-				 ;(warn "ret: ~A" ret)
-				 ret)
-			       1)
-			     0)
+			       (format t "x-next-event~%")
+			       (x-next-event
+				(int-sap (display-x-display
+					  ,display))
+				(addr ,event))
+			       1))
 			;; Some of the types of events.
-			`(x-check-mask-event
-			  (int-sap (display-x-display ,display))
-			  (xlib::make-event-mask ,@(apply #'append (keys)))
-			  (addr ,event)))))
+			`(if ,timeout
+			     (progn
+			       (format t "x-check-mask-event~%")
+			       (x-check-mask-event
+				(int-sap (display-x-display ,display))
+				(xlib::make-event-mask ,@(apply #'append (keys)))
+				(addr ,event)))
+			     (progn
+			       (format t "x-check-mask-event~%")
+			       (x-mask-event
+				(int-sap (display-x-display ,display))
+				(xlib::make-event-mask ,@(apply #'append (keys)))
+				(addr ,event)))))))
 	`(progn
-	   (if (if ,timeout (plusp ,timeout) t)
-	       (error "FIX implement waiting"))
+	   (if (and ,timeout (plusp ,timeout))
+	       (error "FIX implement timed waiting"))
 	   (with-alien ((,event (union x-event)))
 	     ; FIX
 	     ;(declaim (inline x-check-mask-event x-put-back-event
@@ -1919,6 +2102,7 @@
 		       *release-current-event*
 		       ,result
 		       (progn
+			 (format t "x-put-back-event~%")
 			 (x-put-back-event
 			  (int-sap (display-x-display ,display))
 			  (addr ,event))))
@@ -2204,7 +2388,6 @@
 		:type         (slot event 'type)
 		:serial       (slot event 'serial)
 		:send-event   (slot event 'send-event-p)
-		:event        (slot event 'event)
 		:width        (slot event 'width)
 		:height       (slot event 'height))))
     (.#x-configure-request
@@ -2339,8 +2522,6 @@
 		   x-configure-notify))
        ())))
 
-(def-alien-variable ("true" x-true) int)
-
 ;;; Public
 ;;;
 (defun process-event (display
@@ -2359,6 +2540,7 @@
 	     (addr event))
 	    x-true)
 	(let (*release-current-event*)
+	  (format t "process-event in~%")
 	  (unwind-protect
 	      ;(ed::msg "p-e event type ~A" (slot event 'type))
 	      ;(ed::msg "p-e event window ~A" (slot event 'window))
@@ -2485,6 +2667,12 @@
 (def-alien-variable ("cWCursor" x-cw-cursor) long)
 (def-alien-variable ("cWOverrideRedirect" x-cw-override-redirect) long)
 
+;;; Public
+;;;
+(defun window-from-id (display id)
+  "Return the window with $id."
+  (make-window :x-drawable id
+	       :display display))
 
 ;;; Public
 ;;;
@@ -2519,11 +2707,13 @@
 	     ;; $pixmap is a pixel.
 	     (setf (slot attributes 'background-pixel)
 		   background)
-	     (logior valuemask x-cw-back-pixel))
+	     (setf valuemask
+		   (logior valuemask x-cw-back-pixel)))
 	    (t
 	     (setf (slot attributes 'background-pixmap)
 		   background)
-	     (logior valuemask x-cw-back-pixmap)))))
+	     (setf valuemask
+		   (logior valuemask x-cw-back-pixmap))))))
     (when border
       (or (eq border :none) ; FIX correct?
 	  (typecase border
@@ -2531,19 +2721,23 @@
 	     ;; $border is a pixel.
 	     (setf (slot attributes 'border-pixel)
 		   border)
-	     (logior valuemask x-cw-border-pixel))
+	     (setf valuemask
+		   (logior valuemask x-cw-border-pixel)))
 	    (t
 	     ;; $border is a pixmap.
 	     (setf (slot attributes 'border-pixmap)
 		   (int-sap (pixmap-x-drawable border)))
-	     (logior valuemask x-cw-border-pixmap)))))
+	     (setf valuemask
+		   (logior valuemask x-cw-border-pixmap))))))
     (when override-redirect
       (setf (slot attributes 'override-redirect-p) x-true)
-      (logior valuemask x-cw-override-redirect))
+      (setf valuemask
+	    (logior valuemask x-cw-override-redirect)))
     (when cursor
       (setf (slot attributes 'cursor)
 	    (int-sap (cursor-x-cursor cursor)))
-      (logior valuemask x-cw-cursor))
+      (setf valuemask
+	    (logior valuemask x-cw-cursor)))
     (let* ((display (int-sap (display-x-display
 			      (window-display parent))))
 	   (depth (or depth
@@ -2849,6 +3043,14 @@
   (window system-area-pointer) ; type Window
   (attributes (* (struct x-window-attributes))))
 
+#|
+(def-alien-routine ("XChangeWindowAttributes" x-change-window-attributes) int
+  (display system-area-pointer) ; type Display
+  (window system-area-pointer) ; type Window
+  (valuemask unsigned-long)
+  (attributes (* (struct x-window-attributes))))
+|#
+
 ;;; Public
 ;;;
 (defmacro with-state ((window) &body body)
@@ -2916,6 +3118,7 @@
 ;;;
 ;; FIX defined to implement defsetf; correct?
 (defun window-priority (window)
+  (declare (ignore window))
   (error "FIX"))
 ;;
 (defun set-window-priority (window priority)
@@ -2976,7 +3179,6 @@
 				(addr length)
 				(addr length-after)
 				(addr data)))
-	(format t "format ~A~%" format)
 	; FIX xfree (deref data)
 	(cast data c-string)))))
 
@@ -3406,8 +3608,8 @@
 	    (setf (slot (deref event) 'window) x-requestor-sap)
 	    (format t "  set slot display to ~A~%" x-display-sap)
 	    (setf (slot (deref event) 'display) x-display-sap)
-	    (format t "  set slot send-event-p to ~A~%" x-true)
-	    (setf (slot (deref event) 'send-event-p) x-true)
+	    (format t "  set slot send-event-p to ~A~%" t)
+	    (setf (slot (deref event) 'send-event-p) t)
 	    (format t "  send event~%")
 	    (format
 	     t "  send event ret ~A~%"
@@ -3445,7 +3647,7 @@
 		   system-area-pointer ; type Cursor
   (display system-area-pointer) ; type Display*
   (source (* t)) ; type Pixmap
-  (mask (* t)) ; type Pixmap
+  (mask system-area-pointer) ; type Pixmap
   (foreground-color (* t)) ; type XColor*
   (background-color (* t)) ; type XColor*
   (x unsigned-int)
@@ -3457,15 +3659,23 @@
 			   x y
 			   foreground background)
   "Create a cursor from pixmap $source with $mask, $foreground colour and
-   $background colour, FIX at $x $y."
+   $background colour, with hotspot at $x $y relative to the origin of
+   $source."
+  (or source (error "FIX $source required"))
+  (or foreground (error "$foreground required"))
+  (or background (error "$background required"))
   (let* ((display (pixmap-display source))
 	 (cursor (sap-int (x-create-pixmap-cursor
 			   (int-sap (display-x-display display))
-			   source mask
-			   foreground background
+			   (int-sap (pixmap-x-drawable source))
+			   (if mask
+			       (int-sap (pixmap-x-drawable mask))
+			       (int-sap x-none))
+			   foreground
+			   background
 			   x y))))
-    ;; FIX check cursor?
-    (make-cursor :x-cursor cursor :display display)))
+    (fi (zerop cursor)
+	(make-cursor :x-cursor cursor :display display))))
 
 (def-alien-routine ("XCreateFontCursor" x-create-font-cursor)
 		   system-area-pointer ; type Cursor
@@ -3518,7 +3728,7 @@
 ;;; Public
 ;;;
 (defun draw-line (drawable gcontext x1 y1 x2 y2)
-  "Draw a point."
+  "Draw a line."
   (or (eq (display-x-display (drawable-display drawable))
 	  (display-x-display (gcontext-display gcontext)))
       (error "Drawable and gcontext must be on same display."))
@@ -3526,6 +3736,130 @@
 	       (int-sap (drawable-x-drawable drawable))
 	       (int-sap (gcontext-x-gcontext gcontext))
 	       x1 y1 x2 y2))
+
+(def-alien-routine ("XDrawLines" x-draw-lines) int
+  (display system-area-pointer) ; type Display
+  (drawable (* t)) ; type Drawable
+  (gc (* t)) ; type GC
+  (points (* (struct x-point))) ; type *XPoints
+  (npoints int)
+  (mode int))
+
+(def-alien-type ()
+  (struct x-point
+    (x short)
+    (y short)))
+
+(def-alien-routine ("XFillPolygon" x-fill-polygon) int
+  (display system-area-pointer) ; type Display
+  (drawable (* t)) ; type Drawable
+  (gc (* t)) ; type GC
+  (points (* (struct x-point)))
+  (npoints int)
+  (shape int)
+  (mode int))
+
+(def-alien-variable ("coordModeOrigin" x-coord-mode-origin) int)
+(def-alien-variable ("coordModePrevious" x-coord-mode-previous) int)
+(def-alien-variable ("complex" x-complex) int)
+(def-alien-variable ("convex" x-convex) int)
+(def-alien-variable ("nonconvex" x-nonconvex) int)
+
+;;; Public
+;;;
+(defun draw-lines (drawable gcontext points
+			    &key relative-p fill-p
+			         (shape :complex))
+  "Draw many lines."
+  (or (eq (display-x-display (drawable-display drawable))
+	  (display-x-display (gcontext-display gcontext)))
+      (error "Drawable and gcontext must be on same display."))
+
+  (multiple-value-bind (num-points remainder)
+		       (truncate (length points) 2)
+    (or (zerop remainder) (error "Odd number of line points."))
+
+    ;; FIX free alien?
+    (let ((x-points (make-alien (struct x-point) num-points)))
+
+      ;; Fill array "x-points" with the points defined in $points.
+      (while ((points points (cdr points))
+	      (offset 0 (1+ offset)))
+	     (points)
+	(setf (slot (deref x-points offset) 'x) (car points))
+	(setq points (cdr points))
+	(setf (slot (deref x-points offset) 'y) (car points)))
+
+      (x-draw-lines (int-sap (display-x-display
+			      (drawable-display drawable)))
+		    (int-sap (drawable-x-drawable drawable))
+		    (int-sap (gcontext-x-gcontext gcontext))
+		    x-points
+		    num-points
+		    (if relative-p
+			x-coord-mode-previous
+			x-coord-mode-origin))
+
+      (if fill-p
+	  (x-fill-polygon (int-sap (display-x-display
+				    (drawable-display drawable)))
+			  (int-sap (drawable-x-drawable drawable))
+			  (int-sap (gcontext-x-gcontext gcontext))
+			  x-points
+			  num-points
+			  (ecase shape
+			    (:complex x-complex)
+			    (:convex x-convex)
+			    (:nonconvex x-nonconvex))
+			  (if relative-p
+			      x-coord-mode-previous
+			      x-coord-mode-origin))))))
+
+(def-alien-routine ("XDrawArc" x-draw-arc) int
+  (display system-area-pointer) ; type Display
+  (drawable (* t)) ; type Drawable
+  (gc (* t)) ; type GC
+  (x int)
+  (y int)
+  (width unsigned-int)
+  (height unsigned-int)
+  (angle1 int)
+  (angle2 int))
+
+(def-alien-routine ("XFillArc" x-fill-arc) int
+  (display system-area-pointer) ; type Display
+  (drawable (* t)) ; type Drawable
+  (gc (* t)) ; type GC
+  (x int)
+  (y int)
+  (width unsigned-int)
+  (height unsigned-int)
+  (angle1 int)
+  (angle2 int))
+
+;;; Public
+;;;
+(defun draw-arc (drawable gcontext x y width height angle1 angle2 fill-p)
+  "Draw an arc.
+
+   If $fill-p is true then fill the arc."
+  (or (eq (display-x-display (drawable-display drawable))
+	  (display-x-display (gcontext-display gcontext)))
+      (error "Drawable and gcontext must be on same display."))
+  (x-draw-arc (int-sap (display-x-display (drawable-display drawable)))
+	      (int-sap (drawable-x-drawable drawable))
+	      (int-sap (gcontext-x-gcontext gcontext))
+	      x y width height
+	      (if (zerop angle1) 0 (truncate (* 64 angle1)))
+	      (if (zerop angle2) 0 (truncate (* 64 angle2))))
+  (if fill-p
+      (x-fill-arc (int-sap (display-x-display
+			    (drawable-display drawable)))
+		  (int-sap (drawable-x-drawable drawable))
+		  (int-sap (gcontext-x-gcontext gcontext))
+		  x y width height
+		  (if (zerop angle1) 0 (truncate (* 64 angle1)))
+		  (if (zerop angle2) 0 (truncate (* 64 angle2))))))
 
 (def-alien-routine ("XDrawRectangle" x-draw-rectangle) int
   (display system-area-pointer) ; type Display
@@ -3547,10 +3881,10 @@
 
 ;;; Public
 ;;;
-(defun draw-rectangle (drawable gcontext x y width height &optional fillp)
+(defun draw-rectangle (drawable gcontext x y width height &optional fill-p)
   "Draw a rectangle of $width and $height at $x $y on $drawable.
 
-   If $fillp is true fill the rectangle."
+   If $fill-p is true fill the rectangle."
   (or (eq (display-x-display (drawable-display drawable))
 	  (display-x-display (gcontext-display gcontext)))
       (error "Drawable and gcontext must be on same display."))
@@ -3560,13 +3894,86 @@
 		    (int-sap (gcontext-x-gcontext gcontext))
 		    x y
 		    width height)
-  (if fillp
+  (if fill-p
       (x-fill-rectangle (int-sap (display-x-display
 				  (drawable-display drawable)))
 			(int-sap (drawable-x-drawable drawable))
 			(int-sap (gcontext-x-gcontext gcontext))
 			x y
 			width height)))
+
+(def-alien-type ()
+  (struct x-rectangle
+    (x short)
+    (y short)
+    (width unsigned-short)
+    (height unsigned-short)))
+
+(def-alien-routine ("XDrawRectangles" x-draw-rectangles) int
+  (display system-area-pointer) ; type Display
+  (drawable (* t)) ; type Drawable
+  (gc (* t)) ; type GC
+  (rectangles (* (struct x-rectangle)))
+  (nrectangles int))
+
+(def-alien-routine ("XFillRectangles" x-fill-rectangles) int
+  (display system-area-pointer) ; type Display
+  (drawable (* t)) ; type Drawable
+  (gc (* t)) ; type GC
+  (rectangles (* (struct x-rectangle)))
+  (nrectangles int))
+
+;;; Public
+;;;
+(defun draw-rectangles (drawable gcontext points fill-p)
+  "Draw rectangles on $drawable, as described by list $rectangles:
+
+       (x1 y1 width1 height1 x2 y2 width2 height2 ...)
+
+   If $fill-p is true then fill the rectangles."
+  (or (eq (display-x-display (drawable-display drawable))
+	  (display-x-display (gcontext-display gcontext)))
+      (error "Drawable and gcontext must be on same display."))
+
+  (multiple-value-bind (num-rectangles remainder)
+		       (truncate (length points) 4)
+    (or (zerop remainder)
+	(error "Number of points must be a multiple of 4: ~A"
+	       (length points)))
+
+    ;; FIX free alien?
+    (let ((x-rectangles (make-alien (struct x-rectangle)
+				    num-rectangles)))
+
+      ;; Fill array "x-rectangles" with the rectangles defined in array
+      ;; $points.
+      (while ((index 0 (1+ index))
+	      (point-index 0))
+	     ((< index num-rectangles))
+	(let ((x-rectangle (deref x-rectangles index)))
+	  (setf (slot x-rectangle 'x)
+		(aref points point-index))
+	  (setf (slot x-rectangle 'y)
+		(aref points (incf point-index)))
+	  (setf (slot x-rectangle 'width)
+		(aref points (incf point-index)))
+	  (setf (slot x-rectangle 'height)
+		(aref points (incf point-index)))))
+
+      (x-draw-rectangles
+       (int-sap (display-x-display (drawable-display drawable)))
+       (int-sap (drawable-x-drawable drawable))
+       (int-sap (gcontext-x-gcontext gcontext))
+       x-rectangles
+       num-rectangles)
+
+      (if fill-p
+	  (x-fill-rectangles
+	   (int-sap (display-x-display (drawable-display drawable)))
+	   (int-sap (drawable-x-drawable drawable))
+	   (int-sap (gcontext-x-gcontext gcontext))
+	   x-rectangles
+	   num-rectangles)))))
 
 (def-alien-routine ("XCopyArea" x-copy-area) int
   (display system-area-pointer) ; type Display
@@ -3597,6 +4004,38 @@
 	       (int-sap (gcontext-x-gcontext gcontext))
 	       x y width height
 	       dest-x dest-y))
+
+(def-alien-routine ("XCopyPlane" x-copy-plane) int
+  (display system-area-pointer) ; type Display
+  (src (* t)) ; type Drawable
+  (dest (* t)) ; type Drawable
+  (gc (* t)) ; type GC
+  (src-x int)
+  (src-y int)
+  (width unsigned-int)
+  (height unsigned-int)
+  (dest-x int)
+  (dest-y int)
+  (plane unsigned-long))
+
+;;; Public
+;;;
+(defun copy-plane (source gcontext plane x y width height
+			  dest dest-x dest-y)
+  "Copy area of $width by $height size from drawable $source at $x $y to
+   $dest at $dest-x $dest-y."
+  (or (and (eq (display-x-display (drawable-display source))
+	       (display-x-display (drawable-display dest)))
+	   (eq (display-x-display (drawable-display dest))
+	       (display-x-display (gcontext-display gcontext))))
+      (error "Source, gcontext and destination must be on same display."))
+  (x-copy-plane (int-sap (display-x-display (gcontext-display gcontext)))
+		(int-sap (drawable-x-drawable source))
+		(int-sap (drawable-x-drawable dest))
+		(int-sap (gcontext-x-gcontext gcontext))
+		x y width height
+		dest-x dest-y
+		plane))
 
 (def-alien-routine ("XGetGeometry" x-get-geometry)
 		   system-area-pointer ; type Status
@@ -3675,6 +4114,21 @@
 		      (addr window-height)
 		      (addr border-width)
 		      (addr depth))
+#|
+      (format t "x ~A~%" window-x)
+      (format t "y ~A~%" window-y)
+      (format t "width ~A~%" window-width)
+      (format t "height ~A~%" window-height)
+      (format t "border-width ~A~%" border-width)
+      (format t "depth ~A~%" depth)
+      (format t "--~%")
+      (with-alien ((attribs (struct x-window-attributes)))
+	(x-get-window-attributes
+	 x-display-sap
+	 x-drawable-sap
+	 (addr attribs))
+	(format t "x ~A~%" (slot attribs 'x)))
+|#
       (x-move-resize-window x-display-sap
 			    x-drawable-sap
 			    (or x window-x)
@@ -3682,29 +4136,152 @@
 			    (or width window-width)
 			    (or height window-height)))))
 
+(defun drawable-depth (drawable)
+  "Return the depth of $drawable."
+  (declare (type drawable drawable))
+  (let ((x-display-sap (int-sap
+			(display-x-display
+			 (drawable-display drawable))))
+	(x-drawable-sap (int-sap
+			 (drawable-x-drawable drawable))))
+    (with-alien ((root (* t)) ; type Window
+		 (window-x int)
+		 (window-y int)
+		 (window-width unsigned-int)
+		 (window-height unsigned-int)
+		 (border-width unsigned-int)
+		 (depth unsigned-int))
+      (x-get-geometry x-display-sap
+		      x-drawable-sap
+		      (addr root)
+		      (addr window-x)
+		      (addr window-y)
+		      (addr window-width)
+		      (addr window-height)
+		      (addr border-width)
+		      (addr depth))
+      depth)))
+
+(defconstant x-window-changes-x            1)
+(defconstant x-window-changes-y            2)
+(defconstant x-window-changes-width        4)
+(defconstant x-window-changes-height       8)
+(defconstant x-window-changes-border-width 16)
+(defconstant x-window-changes-sibling      32)
+(defconstant x-window-changes-stack-mode   64)
+
+(def-alien-type ()
+  (struct x-window-changes
+    (x int)
+    (y int)
+    (width int)
+    (height int)
+    (border-width int)
+    (sibling (* t)) ; type Window*
+    (stack-mode int)))
+
+(def-alien-routine ("XConfigureWindow" x-configure-window) int
+  (display system-area-pointer) ; type Display
+  (window system-area-pointer) ; type Window
+  (valuemask unsigned-long)
+  (changes (* (struct x-window-changes))))
+
+(defmacro set-drawable-slot (drawable slot mask)
+  (let ((x-display-sap (gensym))
+	(x-drawable-sap (gensym))
+	(valuemask (gensym))
+	(changes (gensym)))
+    `(let ((,x-display-sap (int-sap
+			    (display-x-display
+			     (drawable-display ,drawable))))
+	   (,x-drawable-sap (int-sap
+			     (drawable-x-drawable ,drawable))))
+       (with-alien ((,valuemask long :local ,mask)
+		    (,changes (struct x-window-changes)))
+	 (setf (slot ,changes ',slot) ,slot)
+	 (x-configure-window ,x-display-sap
+			     ,x-drawable-sap
+			     ,valuemask
+			     (addr ,changes))))))
+
+(defun drawable-x (window)
+  (with-state (window)
+    (let ((assoc (assoc window *available-attributes* :test #'equalp)))
+      (or assoc (error "Attributes for ~A should be available." window))
+      (slot (cdr assoc) 'x))))
+
 (defun set-drawable-x (drawable x)
-  (move-and-resize-window drawable :x x))
+  (set-drawable-slot drawable x x-window-changes-x))
 ;;
 (defsetf drawable-x set-drawable-x
   "Set the x of $drawable to $x.")
 
+(defun drawable-y (window)
+  (with-state (window)
+    (let ((assoc (assoc window *available-attributes* :test #'equalp)))
+      (or assoc (error "Attributes for ~A should be available." window))
+      (slot (cdr assoc) 'y))))
+
 (defun set-drawable-y (drawable y)
-  (move-and-resize-window drawable :y y))
+  (set-drawable-slot drawable y x-window-changes-y))
 ;;
 (defsetf drawable-y set-drawable-y
   "Set the y of $drawable to $y.")
 
+;;; Public
+;;;
+(defun drawable-width (window)
+  (with-state (window)
+    (let ((assoc (assoc window *available-attributes* :test #'equalp)))
+      (or assoc (error "Attributes for ~A should be available." window))
+      (slot (cdr assoc) 'width))))
+
 (defun set-drawable-width (drawable width)
-  (move-and-resize-window drawable :width width))
+  (set-drawable-slot drawable width x-window-changes-width))
 ;;
 (defsetf drawable-width set-drawable-width
   "Set the width of $drawable to $width.")
 
+;;; Public
+;;;
+(defun drawable-height (window)
+  (with-state (window)
+    (let ((assoc (assoc window *available-attributes* :test #'equalp)))
+      (or assoc (error "Attributes for ~A should be available." window))
+      (slot (cdr assoc) 'height))))
+
 (defun set-drawable-height (drawable height)
-  (move-and-resize-window drawable :height height))
+  (set-drawable-slot drawable height x-window-changes-height))
 ;;
 (defsetf drawable-height set-drawable-height
   "Set the height of $drawable to $height.")
+
+;;; Public
+;;;
+(defun drawable-border-width (window)
+  (with-state (window)
+    (let ((assoc (assoc window *available-attributes* :test #'equalp)))
+      (or assoc (error "Attributes for ~A should be available." window))
+      (slot (cdr assoc) 'border-width))))
+
+;;; Public
+;;;
+(defun drawable-class (window)
+  (with-state (window)
+    (let ((assoc (assoc window *available-attributes* :test #'equalp)))
+      (or assoc (error "Attributes for ~A should be available." window))
+      (case (slot (cdr assoc) 'class)
+	(x-input-output     :input-output)
+	(x-input-only       :input-only)
+	(x-copy-from-parent :copy-from-parent)))))
+
+;;; Public
+;;;
+(defun drawable-override-redirect (window)
+  (with-state (window)
+    (let ((assoc (assoc window *available-attributes* :test #'equalp)))
+      (or assoc (error "Attributes for ~A should be available." window))
+      (slot (cdr assoc) 'override-redirect-p))))
 
 (def-alien-routine ("XDrawImageString" x-draw-image-string) int
   (display system-area-pointer) ; type Display*
@@ -3765,6 +4342,7 @@
 ;;;
 (defun default-keysym-index (display scan-code bits)
   "Return the keysym index for $scan-code and $bits on $display."
+  (declare (ignore display scan-code bits))
 ;   (with-alien ((keysyms-per-keycode int :locals 0))
 ;     (x-get-keyboard-mapping (int-sap (display-x-display display))
 ; 			    scan-code
@@ -3958,11 +4536,25 @@
   "Return the x value of $hints."
   (slot hints 'x)) ; FIX historic slot
 
+(defun set-wm-size-hints-x (hints x)
+  "Set the x slot of $hints to $x."
+  (setf (slot hints 'x) x))
+;;
+(defsetf wm-size-hints-x set-wm-size-hints-x
+  "Set the x slot of $hints to $x.")
+
 ;;; Public
 ;;;
 (defun wm-size-hints-y (hints)
   "Return the y value of $hints."
   (slot hints 'y)) ; FIX historic slot
+
+(defun set-wm-size-hints-y (hints y)
+  "Set the y slot of $hints to $y."
+  (setf (slot hints 'y) y))
+;;
+(defsetf wm-size-hints-y set-wm-size-hints-y
+  "Set the y slot of $hints to $y.")
 
 ;;; Public
 ;;;
@@ -4131,7 +4723,8 @@
 					  (* (struct x-size-hints))))
 	    (if (null-alien normal-hints)
 		(setq normal-hints ())
-		(logior (slot normal-hints 'flags) 0))))
+		(setf (slot normal-hints 'flags)
+		      (logior (slot normal-hints 'flags) 0)))))
       (when normal-hints
 	;; FIX maybe clear (or set ppos) if u-s-p-p is ()a
 	(if user-specified-position-p
@@ -4266,7 +4859,7 @@
 
 (setq s (display-default-screen d))
 (setq g (create-gcontext :drawable w
-			 :function boole-1
+			 :function x-boole-1
 			 :foreground (screen-black-pixel s)
 			 :background (screen-white-pixel s)))
 
@@ -4295,7 +4888,7 @@
 (draw-image-glyphs w g 10 10 "top")
 
 (setq g2 (create-gcontext :drawable w
-			  :function boole-1
+			  :function x-boole-1
 			  :foreground (screen-white-pixel s)
 			  :background (screen-black-pixel s)))
 
@@ -4317,11 +4910,11 @@
 
 (setq s (display-default-screen d))
 (setq g2 (create-gcontext :drawable w
-			  :function boole-1
+			  :function x-boole-1
 			  :foreground (screen-white-pixel s)
 			  :background (screen-black-pixel s)))
 (setq g (create-gcontext :drawable w
-			 :function boole-1
+			 :function x-boole-1
 			 :foreground (screen-black-pixel s)
 			 :background (screen-white-pixel s)))
 
@@ -4355,7 +4948,7 @@
 	 (pixmap (xlib:create-pixmap :width 16 :height 16
 				     :depth 1 :x-drawable root))
 	 (gc (xlib:create-gcontext
-	      :drawable pixmap :function boole-1
+	      :drawable pixmap :function x-boole-1
 	      :foreground (screen-black-pixel  (xlib:display-default-screen d))
 	      :background (screen-white-pixel  (xlib:display-default-screen d)))))
     (xlib:put-image pixmap gc image :x 0 :y 0 :width 16 :height 16)
@@ -4367,7 +4960,7 @@
 	 (pixmap (xlib:create-pixmap :width 16 :height 16
 				     :depth 1 :x-drawable root))
 	 (gc (xlib:create-gcontext
-	      :drawable pixmap :function boole-1
+	      :drawable pixmap :function x-boole-1
 	      :foreground (screen-black-pixel  (xlib:display-default-screen d))
 	      :background (screen-white-pixel  (xlib:display-default-screen d)))))
     (xlib:put-image pixmap gc image :x 0 :y 0 :width 16 :height 16)
@@ -4379,7 +4972,7 @@
 (get-cursor-pixmap (screen-root s) (truename "e:hemlock11.cursor"))
 (setq p (xlib:create-pixmap :width 16 :height 16 :depth 1 :x-drawable (screen-root s)))
 (setq gc (xlib:create-gcontext
-	  :drawable p :function boole-1
+	  :drawable p :function x-boole-1
 	  :foreground (screen-black-pixel  (xlib:display-default-screen d))
 	  :background (screen-white-pixel  (xlib:display-default-screen d))))
 (put-image p gc b :x 0 :y 0 :width 16 :height 16)
@@ -4689,6 +5282,20 @@ xxx
   ;(setq m #b111111111111111111110000000000000000000000000000000000000000000000000000000)  ; + 20  yet
   ;(setq m #b11111111111111111111111111111111111111111100000000000000000000000)
 
+  (setq m (make-event-mask :key-press ; :key-release
+			   :button-press :button-release
+			   :enter-window :leave-window
+			   :exposure
+			   :structure-notify ; :configure-notify
+			   :focus-in :resize-request
+			   ;;
+; 			 :graphics-exposure
+; 			 :focus-out
+ 			 :visibility-notify
+ 			 :resize-request
+;			 :property-notify
+			 ))
+
   (setf (window-event-mask w) m)
   (map-window w))
 
@@ -4809,7 +5416,7 @@ xxx
 	 (pixmap (xlib:create-pixmap :width width :height height
 				     :depth depth :x-drawable root))
 	 (gc (xlib:create-gcontext :drawable pixmap
-				   :function boole-1
+				   :function x-boole-1
 				   :foreground *default-foreground-pixel*
 				   :background *default-background-pixel*)))
     (xlib:put-image pixmap gc image
@@ -4821,7 +5428,7 @@ xxx
 
 (setq s (display-default-screen d))
 (setq g (create-gcontext :drawable w
-			 :function boole-1
+			 :function x-boole-1
 			 :foreground (screen-black-pixel s)
 			 :background (screen-white-pixel s)))
 
@@ -4887,7 +5494,7 @@ xxx
   (setq s (display-default-screen d))
 
   (setq g (create-gcontext :drawable w
-			   :function boole-1
+			   :function x-boole-1
 			   :foreground (screen-black-pixel s)
 			   :background (screen-white-pixel s)))
 
@@ -4932,7 +5539,7 @@ xxx
 	    (error "failed to open font")))
 
   (setq g (create-gcontext :drawable w
-			   :function boole-1
+			   :function x-boole-1
 ;			   :font font
 			   :foreground (screen-black-pixel s)
 			   :background (screen-white-pixel s)))
@@ -4944,6 +5551,7 @@ xxx
     (declare (ignore event-window root child same-screen-p root-x
 		     root-y time send-event-p  x y modifiers))
     (format t "handle-key-press ~A~%" key-code)
+    (sleep 5)
     (setf (window-background w)
 	  (screen-white-pixel (display-default-screen d)))
     (clear-window w)
@@ -4955,7 +5563,7 @@ xxx
     ;(draw-image-glyphs w g 100 100 (format () "~A" event-key))
 
     (xlib:with-gcontext (g :font font
-			   :function xlib:boole-xor
+			   :function xlib:x-boole-xor
 			   :foreground (logxor
 					(screen-black-pixel
 					 (display-default-screen d))
@@ -4969,20 +5577,21 @@ xxx
 			      root-x root-y modifiers time key-code send-event-p)
     (declare (ignore event-window root child same-screen-p root-x
 		     root-y time send-event-p  x y modifiers))
-    (format t "handle-key-press ~A~%" key-code)
+    (format t "handle-key-press2 ~A~%" key-code)
+    (sleep 5)
     (setf (window-background w)
 	  (screen-white-pixel (display-default-screen d)))
     (clear-window w)
     (draw-rectangle w g 35 70 50 50)
     (draw-image-glyphs w g 100 10 (format () "~A" (incf *counter*)))
-    (draw-image-glyphs w g 50 50 (format () "~A" (primary-selection d w)))
+    (draw-image-glyphs w g 50 50 (format () "~A" (selection d w)))
 
     (xlib:with-gcontext (g :font font)
       (draw-image-glyphs w g 100 100 (format () "~A" event-key)))
     ;(draw-image-glyphs w g 100 100 (format () "~A" event-key))
 
     (xlib:with-gcontext (g :font font
-			   :function xlib:boole-xor
+			   :function xlib:x-boole-xor
 			   :foreground (logxor
 					(screen-black-pixel
 					 (display-default-screen d))
@@ -5061,6 +5670,11 @@ xxx
   (display-force-output d)
 
   (dotimes (i 100000) (system:serve-event)))
+
+
+(unmap-window w)
+(close-display d)
+
 
 (key-from-type (slot #:G123 'type))
 
@@ -5164,5 +5778,4 @@ xxx
       (unmap-window w)
       (unmap-window w2)
       (close-display d))))
-
 |#

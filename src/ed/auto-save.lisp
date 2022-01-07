@@ -131,15 +131,18 @@ The next two variables determine the naming of checkpoint files.
 	   (if (value auto-save-verbosely)
 	       (message "Saving ~A" ns))
 	   (handler-case (progn
-			   (write-file (buffer-region buffer) pathname
-				       :keep-backup nil
-				       :access #o600) ;read/write by owner.
+			   (write-file
+			    (buffer-region buffer)
+			    pathname
+			    :keep-backup nil
+			    :access #o600) ;read/write by owner.
 			   t)
 	     (error (condition)
-	       (loud-message "Auto Save failure: ~A" condition)
+	       (loud-message "Auto Save failure (~A): ~A"
+			     pathname condition)
 	       nil)))
 	  (t
-	   (message "Can't write ~A" ns)
+	   (message "Write protected: ~A" ns)
 	   nil))))
 
 ;; FIX doc
@@ -249,7 +252,7 @@ The next two variables determine the naming of checkpoint files.
 (defun change-save-frequency (name kind where new-value)
   (declare (ignore name kind where))
   (setq new-value (truncate new-value))
-  (remove-scheduled-event 'checkpoint-all-buffers)
+  (remove-scheduled-function 'checkpoint-all-buffers)
   (when (and new-value
 	     (plusp new-value))
     (schedule-event new-value 'checkpoint-all-buffers t)))

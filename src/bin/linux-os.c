@@ -1,5 +1,5 @@
 /*
- * Linux-os.c.
+ * linux-os.c.
  * From FreeBSD-os.c
  * From osf1-os.c,v 1.1 94/03/27 15:30:51 hallgren Exp $
  *
@@ -129,12 +129,18 @@ os_vm_address_t os_validate(os_vm_address_t addr, os_vm_size_t len)
 
   DPRINTF(0, (stderr, "os_validate %x %d => ", addr, len));
 
-  addr = mmap(addr, len, OS_VM_PROT_ALL, flags, -1, 0);
-
-  if (addr == (os_vm_address_t) -1)
+  /* FIX This check is just to quiet the perror output.  Why is what
+         requesting zero bytes? */
+  if (len > 0)
     {
-      perror("mmap (addr ");
-      return NULL;
+
+      addr = mmap(addr, len, OS_VM_PROT_ALL, flags, -1, 0);
+
+      if (addr == (os_vm_address_t) -1)
+	{
+	  perror("mmap");
+	  return NULL;
+	}
     }
 
   DPRINTF(0, (stderr, "%x\n", addr));

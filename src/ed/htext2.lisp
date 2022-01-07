@@ -297,7 +297,7 @@ paragraphs, Lisp forms, etc.
 
 (defun mark-after (mark)
   "Change $mark to point one character after the current position.  If
-   $mark points after the last character, then return nil and leave mark as
+   $mark points after the last character, then return () and leave mark as
    it is."
   (let ((line (mark-line mark))
 	(charpos (mark-charpos mark)))

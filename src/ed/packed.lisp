@@ -177,7 +177,10 @@
       (setf (buffer-writable buffer) t)
       (delete-region (buffer-region buffer))
       (with-output-to-mark (stream (buffer-point buffer))
-	(describe-package (value package) stream))
+	(let ((package (value package)))
+	  (if (packagep package)
+	      (describe-package package stream)
+	      (describe-package-from-meta package stream))))
       (setf (buffer-writable buffer) nil)
       (setf (buffer-modified buffer) nil)
       (buffer-start (buffer-point buffer)))))
@@ -212,28 +215,48 @@
 
 (defun refresh-manage-package (buffer window)
   (let ((mark (copy-mark (buffer-point buffer)
-			 :left-inserting)))
+			 :left-inserting))
+	(metas))
     (unwind-protect
-	(package::do-packages (meta)
-	  (let ((name (lisp::pkg-info-name meta)))
-	    (setf (getf (line-plist (mark-line mark)) 'package)
-		  meta)
-	    (insert-string
-	     mark
-	     (let ((doc (lisp::pkg-info-doc meta)))
-	       (format () " ~C~C ~@20<~A~>~:[~;~A~]~%"
-		       (if (package::loaded-p name)
-			   #\l
-			   #\space)
-		       (if (package::installed-p name)
-			   #\i
-			   #\space)
-		       name
-		       doc
-		       (if doc
-			   (replace-newlines
-			    (safe-subseq doc
-					 0 (- (window-width window) 26)))))))))
+	(progn
+	  ;; FIX improve sort-lines and sort the buffer lines instead of
+	  ;; buffering here too
+	  ;;
+	  ;; Buffer meta info.
+	  (package:do-packages (meta)
+	    (push meta metas))
+	  ;; Sort meta info.
+	  (setq metas (sort metas #'string<=
+			    :key #'lisp::pkg-info-name))
+	  ;; Insert meta info.
+	  (dolist (meta metas)
+	    (let ((name (lisp::pkg-info-name meta)))
+	      (setf (getf (line-plist (mark-line mark)) 'package) meta)
+	      (insert-string
+	       mark
+	       (let ((doc (lisp::pkg-info-doc meta)))
+		 ;; First two spaces reserved for D and *.
+		 (format () "  ~C~C~C ~@20<~A~>~:[~;~A~]~%"
+			 (if (and (package:installed-p name)
+				  (if (package:local-version name)
+				      (> (package:local-version name)
+					 (package:meta-version name))
+				      t))
+			     #\m
+			     #\space)
+			 (if (package::loaded-p name)
+			     #\l
+			     #\space)
+			 (if (package::installed-p name)
+			     #\i
+			     #\space)
+			 name
+			 doc
+			 (if doc
+			     (replace-newlines
+			      (safe-subseq doc
+					   0 (- (window-width window)
+						26))))))))))
       (delete-mark mark))))
 
 (defcommand "Update Meta Info" ()
@@ -273,18 +296,25 @@
   "If the current package has changed then copy it back to the repository."
   (let ((name (lisp::pkg-info-name
 	       (package-managed-at-mark (current-point)))))
+    (or (package:local-version name)
+	(editor-error
+	 "Local version of package must have a version number."))
     (when (prompt-for-y-or-n :prompt `("Commit package ~A? " ,name))
+      ;; FIX mv to package:commit
+      ;; FIX lock server
       (if (package:update-meta-from-server)
 	  (progn
-	    (or (package:local-version name)
-		(editor-error "Failed to get local version number of package ~A."
-			      name))
 	    (or (package:meta-version name)
-		(editor-error "Failed to get server version number of package ~A."
-			      name))
+		(editor-error
+		 "Failed to get server version number of package ~A."
+		 name))
 	    (if (> (package:local-version name)
 		   (package:meta-version name))
-		(package:commit name)
+		(progn
+		  (package:commit name)
+		  ;; FIX commit must  update server meta
+		  ;; FIX              release server
+		  )
 		(if (= (package:local-version name)
 		       (package:meta-version name))
 		    (editor-error "Package ~A is up-to-date on the server." name)
@@ -298,14 +328,17 @@
 
 (defcommand "Packman Refresh" ()
   "Refresh the current buffer."
-  (let ((buffer (current-buffer)))
+  (let* ((buffer (current-buffer))
+	 (lines (count-lines (region (buffer-start-mark buffer)
+				     (buffer-point buffer)))))
     (when (string= (buffer-major-mode buffer) "PackMan")
       (setf (buffer-writable buffer) t)
       (delete-region (buffer-region buffer))
       (refresh-manage-package buffer (current-window))
       (setf (buffer-writable buffer) nil)
       (setf (buffer-modified buffer) nil)
-      (buffer-start (buffer-point buffer)))))
+      (buffer-start (buffer-point buffer))
+      (line-offset (buffer-point buffer) (1- lines)))))
 
 (defun package-managed-at-mark (mark)
   (or (getf (line-plist (mark-line mark)) 'package)

@@ -5,7 +5,7 @@
 (export '(config-pathname from-config-file probe-config-file
 	  to-config-file))
 
-(defvar *config-directory* #p"home:.nightshade/")
+(defvar *config-directory* #p"conf:")
 
 (defmacro from-config-file ((stream pathname) &body body)
   "Execute $body with $stream open for read on $pathname merged with

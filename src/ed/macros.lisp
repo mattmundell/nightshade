@@ -577,7 +577,7 @@ the editor.
 		  ,result)
 	       (,call-forms ,line-var)))))))
 
-(defmacro do-lines-from-mark ((line-var mark &key backwards) &body forms)
+(defmacro do-lines-from-mark ((line-var mark &key backwards after) &body forms)
   "do-lines-from-mark (line-var mark) {declaration}* {form}*.
 
    Execute $forms for each line in $buffer with the line bound to
@@ -595,7 +595,11 @@ the editor.
 					 (region ,mark
 						 (buffer-end-mark
 						  (mark-buffer ,mark))))
-				     (,call-forms ,line-var)
+				     ,(if after
+					  `(progn
+					     (,call-forms ,line-var)
+					     ,after)
+					  `(,call-forms ,line-var))
 				     :backwards ,backwards)
 	   (,call-forms ,line-var))))))
 
@@ -804,7 +808,7 @@ the editor.
   `(let ((,buffer (make-unique-buffer (symbol-name (gensym)))))
      ,(if pathname
 	  `(elet ((ed::read-file-hook))
-	     (ed::read-buffer-file ,pathname ,buffer)))
+	     (ed::read-buffer-file ,pathname ,buffer t)))
      (unwind-protect
 	 (progn
 	   ,@decls
@@ -1001,50 +1005,72 @@ Random typeout buffers are always in `Fundamental' mode.
 ;; FIX handle when in echo area
 (defmacro with-pop-up-window ((buffer-var window-var
 					  &key
-					  (buffer-name "Random Typeout")
+					  (buffer-name "Pseudo Random Typeout")
 					  modes
 					  modeline-fields
 					  delete-hook)
 			      &body (body decls))
-  (let ((new-window (gensym))
-	(old-buffer (gensym)))
+  (let ((new-buffer (gensym))
+	(new-window (gensym))
+	(old-buffer (gensym))
+	(old-window (gensym))
+	(old-next-buffer (gensym)))
     `(let* ((,buffer-var)
-	    (,old-buffer (current-buffer))
+	    (,new-buffer)
+	    (,old-buffer (window-buffer (current-window)))
+	    (,old-window (current-window))
 	    (,new-window
 	     (if (eq (next-window (current-window)) (current-window))
 		 (make-window (window-display-start (current-window))
-			      :error ()))))
+			      :error ())))
+	    (,old-next-buffer (fi ,new-window
+				  (window-buffer
+				   (next-window ,old-window)))))
        (unwind-protect
-	   (let ((,window-var (or ,new-window (current-window))))
+	   (let ((,window-var (or ,new-window
+				  (next-window (current-window)))))
 	     ,@decls
-	     (setq ,buffer-var (make-unique-buffer
-				,buffer-name
-				:modes (or ,modes (value ed::default-modes))
-				:modeline-fields (or ,modeline-fields
-						     (value ed::default-modeline-fields))
-				:delete-hook ,delete-hook))
+	     (setq ,buffer-var
+		   (setq ,new-buffer
+			 (make-unique-buffer
+			  ,buffer-name
+			  :modes (or ,modes (value ed::default-modes))
+			  :modeline-fields
+			  (or ,modeline-fields
+			      (value ed::default-modeline-fields))
+			  :delete-hook ,delete-hook)))
 	     (setf (window-buffer ,window-var) ,buffer-var)
-	     (if ,new-window (setf (current-window) ,new-window))
+	     (setf (current-window) ,window-var)
 	     (setf (current-buffer) ,buffer-var)
 	     ,@body)
 	 (and ,new-window
 	      (> (length *window-list*) 2)
 	      (delete-window ,new-window))
-	 (when ,buffer-var
-	   (when (member ,buffer-var *buffer-list*)
-	     (let ((new (or (and ,old-buffer
-				 (member ,old-buffer *buffer-list*)
-				 ,old-buffer)
-			    (let ((b (car *buffer-list*)))
-			      (if (eq b ,old-buffer)
-				  (cadr *buffer-list*)
-				  b)))))
-	       (dolist (window *window-list*)
-		 (if (equal (window-buffer window) ,buffer-var)
-		     (setf (window-buffer window) new)))
-	       (if (eq (current-buffer) ,buffer-var)
-		   (setf (current-buffer) new))))
-	   (delete-buffer ,buffer-var))))))
+	 (let ((new (or (and ,old-buffer
+			     (member ,old-buffer *buffer-list*)
+			     ,old-buffer)
+			(while ((bufs *buffer-list* (cdr bufs)))
+			       ((and bufs (eq (car bufs) ,new-buffer))
+				(or (car bufs) ,new-buffer))))))
+	   (if (member ,old-window *window-list*)
+	       (setf (current-window) ,old-window))
+	   (setf (current-buffer) new)
+	   (setf (window-buffer (current-window)) new))
+	 (let ((new (if ,new-window
+			(ed::after-buffer)
+			(or (and ,old-next-buffer
+				 (member ,old-next-buffer *buffer-list*)
+				 ,old-next-buffer)
+			    (while ((bufs *buffer-list* (cdr bufs)))
+				   ((and bufs (eq (car bufs) ,new-buffer))
+				    (or (car bufs) ,new-buffer)))))))
+	   (or (eq ,new-buffer new)
+	       (progn
+		 (dolist (window *window-list*)
+		   (if (equal (window-buffer window) ,new-buffer)
+		       (setf (window-buffer window) new)))
+		 (when (member ,new-buffer *buffer-list*)
+		   (delete-buffer ,new-buffer)))))))))
 
 ;; FIX window should auto-close if original buffer is q'd
 ;;       eg initial diary entry popup win should close on keypress q
@@ -1056,8 +1082,7 @@ Random typeout buffers are always in `Fundamental' mode.
 					  modeline-fields
 					  delete-hook)
 			      &body (body decls))
-  (let ((new-window (gensym))
-	(old-buffer (gensym)))
+  (let ((new-window (gensym)))
     `(let* ((,buffer-var)
 	    (,new-window
 	     (if (eq (next-window (current-window)) (current-window))

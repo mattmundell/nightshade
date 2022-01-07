@@ -283,6 +283,7 @@
 
 
 #[ Virtual Machine
+
 [ VM Introduction               ]
 [ Data types, storage resources ]
 [ Characters                    ]

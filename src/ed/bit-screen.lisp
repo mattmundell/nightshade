@@ -97,10 +97,13 @@ Bind the corresponding up character to the command described here.
 ;;; Also, :no-exposure events are sent when a :graphics-exposure event could
 ;;; have been sent but wasn't.
 ;;;
-#|
+
 ;;; This is an old handler that doesn't do anything clever about multiple
 ;;; exposures.
-(defun hunk-exposed-region (hunk &key y height &allow-other-keys)
+;(defun hunk-exposed-region (hunk &key y height &allow-other-keys)
+(defun old-hunk-exposed-region (hunk event-key event-window x y width height
+				 foo bar &optional baz quux)
+  (declare (ignore event-key event-window x width foo bar baz quux))
   (if (bitmap-hunk-lock hunk)
       (setf (bitmap-hunk-trashed hunk) t)
       (let ((liftp (and (eq *cursor-hunk* hunk) *cursor-dropped*)))
@@ -131,7 +134,6 @@ Bind the corresponding up character to the command described here.
 			 (the fixnum (bitmap-hunk-modeline-pos hunk))))
 	    (hunk-replace-modeline hunk)))
 	(when liftp (drop-cursor)))))
-|#
 
 ;;; HUNK-EXPOSED-REGION redisplays the appropriate rectangle from the hunk
 ;;; dis-lines.  Don't do anything if the hunk is trashed since redisplay is
@@ -190,7 +192,7 @@ Bind the corresponding up character to the command described here.
 			 (setf result-y y)
 			 (setf result-height height)
 			 t)
-			(t nil))))
+			(t ()))))
     (values result-y result-height)))
 
 ;;; COELESCE-EXPOSED-REGIONS insert sorts exposed region events from the X
@@ -493,6 +495,40 @@ Bind the corresponding up character to the command described here.
 ;;; :configure-notify events are sent because we select :structure-notify.
 ;;; This buys us a lot of events we have to write dummy handlers to ignore.
 ;;;
+;;; :resize-request events are sent because we select :resize-request.
+;;; :visibility-notify events are sent because we select :visibility-notify
+;;; to get :resize-request.
+;;;
+
+(defun hunk-resized (object event-key event-window width
+			    height send-event-p)
+  (declare (ignore event-key event-window send-event-p))
+  (ed:msg "hr . . . ~A ~A ." width height)
+  (typecase object
+    (bitmap-hunk
+     (fi (and (= width (bitmap-hunk-width object))
+	      (= height (bitmap-hunk-height object)))
+	 (progn
+	   #|
+	   (hunk-changed object width height ())
+	   ;; Under X11, don't redisplay since an exposure event is coming next.
+	   (setf (bitmap-hunk-trashed object) t)
+	   |#
+	   (setf (bitmap-hunk-trashed object) t)
+	   (hunk-changed object width height t))))
+    (window-group
+     (let ((old-width (window-group-width object))
+	   (old-height (window-group-height object)))
+       (fi (and (= width old-width) (= height old-height))
+	   (window-group-changed object width height))))))
+;;;
+(ext:serve-resize-request *editor-windows* #'hunk-resized)
+
+(defun handle-visibility-notify (object key window state send-event-p)
+  (declare (ignore object key window state send-event-p))
+  t)
+;;;
+(ext:serve-visibility-notify *editor-windows* #'hunk-resized)
 
 ;;; HUNK-RECONFIGURED -- Internal.
 ;;;
@@ -510,16 +546,17 @@ Bind the corresponding up character to the command described here.
 		   above-sibling override-redirect-p send-event-p))
   (typecase object
     (bitmap-hunk
-     (when (or (/= width (bitmap-hunk-width object))
-	       (/= height (bitmap-hunk-height object)))
-       (hunk-changed object width height nil)
-       ;; Under X11, don't redisplay since an exposure event is coming next.
-       (setf (bitmap-hunk-trashed object) t)))
+     (fi (and (= width (bitmap-hunk-width object))
+	      (= height (bitmap-hunk-height object)))
+	 (progn
+	   (hunk-changed object width height nil)
+	   ;; Under X11, don't redisplay since an exposure event is coming next.
+	   (setf (bitmap-hunk-trashed object) t))))
     (window-group
      (let ((old-width (window-group-width object))
 	   (old-height (window-group-height object)))
-       (when (or (/= width old-width) (/= height old-height))
-	 (window-group-changed object width height))))))
+       (fi (and (= width old-width) (= height old-height))
+	   (window-group-changed object width height))))))
 ;;;
 (ext:serve-configure-notify *editor-windows* #'hunk-reconfigured)
 
@@ -862,13 +899,13 @@ Bind the corresponding up character to the command described here.
 (defvar *create-window-hook* #'default-create-window-hook
   "A function called when `make-window' executes under CLX.
 
-   The function is passed the CLX display, x (from `make-window'), y (from
-   `make-window'), width (from `make-window'), height (from `make-window'),
-   a name for the window's icon-name, font-family (from `make-window'),
-   modelinep (from `make-window'), and whether the window will have a
-   thumb-bar meter.
+   The function must accept the CLX display, x (from `make-window'), y
+   (from `make-window'), width (from `make-window'), height (from
+   `make-window'), a name for the window's icon-name, font-family (from
+   `make-window'), modelinep (from `make-window'), and whether the window
+   will have a thumb-bar meter.
 
-   The function returns a window or () to indicate failure.")
+   The function must return a window, or () to indicate failure.")
 
 ;;; BITMAP-MAKE-WINDOW -- Internal.
 ;;;
@@ -908,9 +945,8 @@ Bind the corresponding up character to the command described here.
       ;; A window is only really mapped when it is viewable.  It is said to
       ;; be mapped if a map request has been sent whether it is handled or
       ;; not.
-      (loop (when (and (eq (xlib:window-map-state xwindow) :viewable)
-		       (eq (xlib:window-map-state xparent) :viewable))
-	      (return)))
+      (until () ((and (eq (xlib:window-map-state xwindow) :viewable)
+		      (eq (xlib:window-map-state xparent) :viewable))))
       ;; Clear the window.
       (setf (xlib:window-background xwindow)
 	    (color-pixel display
@@ -1017,6 +1053,13 @@ Bind the corresponding up character to the command described here.
 	     (new-min (minimum-window-height font-height modelinep
 					     thumb-p)))
 	(declare (fixnum cw cy ch new-ch))
+#|
+	(ed::msg "ch ~A" ch)
+	(ed::msg "n-ch ~A" new-ch)
+	(ed::msg "cy ~A" cy)
+	(ed::msg "mp ~A" modelinep)
+	(ed::msg "fh ~A" font-height)
+|#
 	;; See if we have room for a new window.  This should really
 	;; check the current window and the new one against their
 	;; relative fonts and the minimal window columns and line
@@ -1037,8 +1080,7 @@ Bind the corresponding up character to the command described here.
 					thumb-p
 					(font-family-width font-family)
 					font-height)
-	      win)
-	    nil)))))
+	      win))))))
 
 ;;; MAKE-XWINDOW-LIKE-WINDOW -- Interface.
 ;;;
@@ -1097,7 +1139,7 @@ Bind the corresponding up character to the command described here.
     (when (and (eq *cursor-hunk* hunk) *cursor-dropped*) (lift-cursor))
     (xlib:display-force-output display)
     (bitmap-delete-and-reclaim-window-space xwindow window)
-    (loop (unless (deleting-window-drop-event display xwindow) (return)))
+    (while () ((deleting-window-drop-event display xwindow)))
     (let ((device (device-hunk-device hunk)))
       (setf (device-hunks device) (delete hunk (device-hunks device))))
     (cond ((eq hunk (bitmap-hunk-next hunk))
@@ -1105,8 +1147,7 @@ Bind the corresponding up character to the command described here.
 	   (remove-xwindow-object xparent)
 	   (xlib:display-force-output display)
 	   (funcall *delete-window-hook* xparent)
-	   (loop (unless (deleting-window-drop-event display xparent)
-		   (return)))
+	   (while () ((deleting-window-drop-event display xparent)))
 	   (let ((window (find-if-not #'(lambda (window)
 					  (eq window *echo-area-window*))
 				      *window-list*)))
@@ -1189,7 +1230,7 @@ Bind the corresponding up character to the command described here.
 
 ;;; DELETING-WINDOW-DROP-EVENT -- Internal.
 ;;;
-;;; This checks for any events on win.  If there is one, remove it from the
+;;; This checks for an event on win.  If there is one, remove it from the
 ;;; queue and return t.  Otherwise, return nil.
 ;;;
 (defun deleting-window-drop-event (display win)
@@ -1289,7 +1330,6 @@ Bind the corresponding up character to the command described here.
 (defun bitmap-set-foreground-color (window color)
   "Set the foreground color of $window to $color."
   (let* ((hunk (window-hunk window))
-	 (xwindow (bitmap-hunk-xwindow hunk))
 	 (display (bitmap-device-display (device-hunk-device hunk)))
 	 (gcontext (bitmap-hunk-gcontext hunk)))
     (setf (xlib:gcontext-foreground gcontext)
@@ -1298,12 +1338,11 @@ Bind the corresponding up character to the command described here.
 (defun bitmap-set-background-color (window color)
   "Set the background color of $window to $color."
   (let* ((hunk (window-hunk window))
-	 (xwindow (bitmap-hunk-xwindow hunk))
 	 (display (bitmap-device-display (device-hunk-device hunk)))
 	 (gcontext (bitmap-hunk-gcontext hunk)))
     (setf (xlib:gcontext-background gcontext)
 	  (color-pixel display color))
-    (setf (xlib:window-background xwindow)
+    (setf (xlib:window-background (bitmap-hunk-xwindow hunk))
 	  (color-pixel display color))))
 
 
@@ -1347,51 +1386,51 @@ Bind the corresponding up character to the command described here.
 ;;;
 (defun default-random-typeout-hook (device window height)
   (declare (fixnum height))
-    (let* ((display (bitmap-device-display device))
-	   (root (xlib:screen-root (xlib:display-default-screen display)))
-	   (full-height (xlib:drawable-height root))
-	   (actual-height (if window
-			      (multiple-value-bind (x y) (window-root-xy window)
-				(declare (ignore x) (fixnum y))
-				(min (- full-height y xwindow-border-width*2)
-				     height))
-			      (min (- full-height *random-typeout-start-y*
-				      xwindow-border-width*2)
-				   height)))
-	   (win (cond (window
-		       (setf (xlib:drawable-height window) actual-height)
-		       window)
-		      (t
-		       (let ((win (xlib:create-window
-				   :parent root
-				   :x *random-typeout-start-x*
-				   :y *random-typeout-start-y*
-				   :width *random-typeout-start-width*
-				   :height actual-height
-				   :background
-				   (color-pixel
-				    display
-				    (or (value ed::initial-background-color)
-					'(1 1 1))) ; White.
-				   :border-width xwindow-border-width
-				   :border *default-border-pixmap*
-				   :event-mask random-typeout-xevents-mask
-				   :override-redirect :on :class :input-output
-				   :cursor *editor-cursor*
-				   :input ())))
-			 (xlib:set-wm-properties
-			  win :name "Pop-up Display" :icon-name "Pop-up Display"
-			  :resource-name "Nightshade Editor"
-			  :x *random-typeout-start-x*
-			  :y *random-typeout-start-y*
-			  :width *random-typeout-start-width*
-			  :height actual-height
-			  :user-specified-position-p t :user-specified-size-p t
-			  ;; Tell OpenLook pseudo-X11 server we want input.
-			  :input :on)
-			 win))))
-	   (gcontext (if (not window) (default-gcontext win))))
-      (values win gcontext)))
+  (let* ((display (bitmap-device-display device))
+	 (root (xlib:screen-root (xlib:display-default-screen display)))
+	 (full-height (xlib:drawable-height root))
+	 (actual-height (if window
+			    (multiple-value-bind (x y) (window-root-xy window)
+			      (declare (ignore x) (fixnum y))
+			      (min (- full-height y xwindow-border-width*2)
+				   height))
+			    (min (- full-height *random-typeout-start-y*
+				    xwindow-border-width*2)
+				 height)))
+	 (win (cond (window
+		     (setf (xlib:drawable-height window) actual-height)
+		     window)
+		    (t
+		     (let ((win (xlib:create-window
+				 :parent root
+				 :x *random-typeout-start-x*
+				 :y *random-typeout-start-y*
+				 :width *random-typeout-start-width*
+				 :height actual-height
+				 :background
+				 (color-pixel
+				  display
+				  (or (value ed::initial-background-color)
+				      '(1 1 1))) ; White.
+				 :border-width xwindow-border-width
+				 :border *default-border-pixmap*
+				 :event-mask random-typeout-xevents-mask
+				 :override-redirect :on :class :input-output
+				 :cursor *editor-cursor*
+				 :input ())))
+		       (xlib:set-wm-properties
+			win :name "Pop-up Display" :icon-name "Pop-up Display"
+			:resource-name "Nightshade Editor"
+			:x *random-typeout-start-x*
+			:y *random-typeout-start-y*
+			:width *random-typeout-start-width*
+			:height actual-height
+			:user-specified-position-p t :user-specified-size-p t
+			;; Tell OpenLook pseudo-X11 server we want input.
+			:input :on)
+		       win))))
+	 (gcontext (fi window (default-gcontext win))))
+    (values win gcontext)))
 
 (defvar *random-typeout-hook* #'default-random-typeout-hook
   "A function called when random typeout occurs under CLX.
@@ -1431,9 +1470,7 @@ Bind the corresponding up character to the command described here.
 		(setq exit t))
 	    ())
 	  (t ()
-	     (setq exit t)))
-	;; FIX added, perhaps should be in event-case
-	(system:serve-event 0)))))
+	     (setq exit t)))))))
 
 (defun change-bitmap-random-typeout-window (hwindow height)
   (update-modeline-field (window-buffer hwindow) hwindow :more-prompt)
@@ -1481,7 +1518,7 @@ Bind the corresponding up character to the command described here.
 		 device (bitmap-hunk-xwindow hunk)
 		 (+ (* height (font-family-height *default-font-family*))
 		    hunk-top-border (bitmap-hunk-bottom-border hunk)
-		hunk-modeline-top hunk-modeline-bottom))
+		    hunk-modeline-top hunk-modeline-bottom))
       ;;
       ;; When gcontext, we just made the window, so tie some stuff together.
       (when gcontext
@@ -1859,9 +1896,11 @@ Bind the corresponding up character to the command described here.
 ;;; any stuff that doesn't fit.
 ;;;
 (defun set-hunk-size (hunk w h &optional modelinep)
+  ;(ed::msg "s . . ~A ~A" h modelinep)
   (let* ((font-family (bitmap-hunk-font-family hunk))
 	 (font-width (font-family-width font-family))
 	 (font-height (font-family-height font-family)))
+    ;(ed::msg "fh ~A" font-height)
     (setf (bitmap-hunk-height hunk) h)
     (setf (bitmap-hunk-width hunk) w)
     (setf (bitmap-hunk-char-width hunk)
@@ -1871,6 +1910,7 @@ Bind the corresponding up character to the command described here.
 			       (bitmap-hunk-bottom-border hunk)))
 	   (hwin (bitmap-hunk-window hunk))
 	   (modelinep (or modelinep (and hwin (window-modeline-buffer hwin)))))
+      ;(ed::msg "hmb ~A" h-minus-borders)
       (setf (bitmap-hunk-char-height hunk)
 	    (max (if modelinep
 		     (1- (truncate (- h-minus-borders
@@ -1878,6 +1918,7 @@ Bind the corresponding up character to the command described here.
 				   font-height))
 		     (truncate h-minus-borders font-height))
 		 minimum-window-lines))
+      ;(ed::msg "bhch ~A" (bitmap-hunk-char-height hunk))
       (setf (bitmap-hunk-modeline-pos hunk)
 	    (if modelinep (- h font-height
 			     hunk-modeline-top hunk-modeline-bottom))))))
@@ -2029,7 +2070,6 @@ Bind the corresponding up character to the command described here.
 
 (defun reverse-video-frob-hunk (hunk)
   (let* ((gcontext (bitmap-hunk-gcontext hunk))
-	 (display (bitmap-device-display (bitmap-hunk-device hunk)))
 	 (old-fore (xlib:gcontext-foreground gcontext)))
     (setf (xlib:gcontext-foreground gcontext)
 	  (xlib:gcontext-background gcontext))

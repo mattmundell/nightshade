@@ -216,21 +216,24 @@ the low-level input loop when there is no available input from the user.
 	 (when (setf key-event (dq-event stream))
 	   (dolist (f (variable-value 'ed::input-hook)) (funcall f))
 	   (return))
+
 	 (invoke-scheduled-events)
-	 (unless (or (system:serve-event 0)
-		     (internal-redisplay))
-	   (internal-redisplay)
-	   (when nrw-fun (funcall nrw-fun t))
-	   (let ((wait (next-scheduled-event-wait)))
-	     (if wait (system:serve-event wait) (system:serve-event)))))
-       (when nrw-fun (funcall nrw-fun nil))
-       (when (abort-key-event-p key-event)
-	 ;; ignore-abort-attempts-p must exist outside the macro.
-	 ;; in this case it is bound in GET-KEY-EVENT.
-	 (or ignore-abort-attempts-p
+	 (or (system:serve-event 0)
+	     (internal-redisplay)
 	     (progn
-	       (beep)
-	       (signal 'editor-top-level-catcher ()))))
+	       (if nrw-fun (funcall nrw-fun t))
+	       (let ((wait (next-scheduled-event-wait)))
+		 (if wait
+		     (system:serve-event wait)
+		     (system:serve-event))))))
+       (if nrw-fun (funcall nrw-fun ()))
+       (if (abort-key-event-p key-event)
+	   ;; ignore-abort-attempts-p must exist outside the macro.
+	   ;; in this case it is bound in GET-KEY-EVENT.
+	   (or ignore-abort-attempts-p
+	       (progn
+		 (beep)
+		 (signal 'editor-top-level-catcher ()))))
        key-event)))
 ) ;eval-when
 
@@ -252,7 +255,7 @@ the low-level input loop when there is no available input from the user.
   hunks)      ; List of bitmap-hunks which input to this stream.
 
 #+clx
-;;; There's actually no difference from the TTY case...
+;;; It's actually the same as the TTY case...
 (defun windowed-get-key-event (stream ignore-abort-attempts-p)
   (tty-get-key-event stream ignore-abort-attempts-p))
 
@@ -262,7 +265,7 @@ the low-level input loop when there is no available input from the user.
 
 #+clx
 (defun windowed-clear-input (stream)
-  (loop (unless (system:serve-event 0) (return)))
+  (loop (or (system:serve-event 0) (return)))
   (block-interrupts
    (let* ((head (editor-input-head stream))
 	  (next (input-event-next head)))
@@ -280,8 +283,8 @@ the low-level input loop when there is no available input from the user.
       (return t))
     ;;
     ;; If nothing is pending, check the queued input.
-    (unless (system:serve-event 0)
-      (return (not (null (input-event-next (editor-input-head stream))))))))
+    (or (system:serve-event 0)
+	(return (not (null (input-event-next (editor-input-head stream))))))))
 
 
 ;;;; Editor input from a tty.
@@ -358,7 +361,7 @@ the low-level input loop when there is no available input from the user.
 	(if (buffer-modeline-field-p *echo-area-buffer* :busy-or-menu)
 	    (update-modeline-field *echo-area-buffer* *echo-area-window*
 				   (modeline-field :busy-or-menu)))
-	(redisplay)
+	(internal-redisplay)
 	(funcall (editor-input-get editor-input)
 		 editor-input ignore-abort-attempts-p))
     (if (buffer-modeline-field-p *echo-area-buffer* :busy)
@@ -367,7 +370,7 @@ the low-level input loop when there is no available input from the user.
     (if (buffer-modeline-field-p *echo-area-buffer* :busy-or-menu)
 	(update-modeline-field *echo-area-buffer* *echo-area-window*
 			       (modeline-field :busy-or-menu)))
-    (redisplay)))
+    (internal-redisplay)))
 
 ;;; UNGET-KEY-EVENT -- Public.
 ;;;

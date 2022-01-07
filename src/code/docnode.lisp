@@ -7,9 +7,9 @@
 
 #[ A Test Node
 
-Paragraph 1
+Paragraph 1 is one line.
 
-Paragraph 2 across multiple lines... ababa convert a description of a
+Paragraph 2 spans multiple lines... ababa convert a description of a
 document into a function that produces the baba ababa... containing a link
 [ A Test Node ].
 
@@ -25,7 +25,7 @@ Inlined documentation:
 
 {variable:*print-readably*}
 
-{command:Extended Command}
+{command:Save File}
 
 {evariable:Spaces per Tab}
 
@@ -65,8 +65,8 @@ a bullet list
 
     A verbatim line.
 
-    A verbatim paragraph.  A paragraph across multiple lines where each
-    line is indented by at least four spaces.
+    A verbatim paragraph.  That is, a paragraph across multiple lines where
+    each line is indented by at least four spaces.
 
 == Section 4 ==
 

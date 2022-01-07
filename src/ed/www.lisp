@@ -651,7 +651,8 @@
 				    (current-window))
 				   (line-start mark))))))))))
       (when add-to-history
-	(let* ((current-history (variable-value 'current-www-history :buffer buffer))
+	(let* ((current-history (variable-value 'current-www-history
+						:buffer buffer))
 	       (history-element (cons location ()))
 	       (new-history (cons history-element current-history)))
 	  (if current-history
@@ -888,6 +889,27 @@
 	(change-to-buffer buffer)
 	(www-command))))
 
+(defcommand "View URL" ()
+  "View a prompted URL externally."
+  (view-url (prompt-for-string
+	     :default (url-at-point)
+	     :trim t
+	     :prompt "Find URL externally: "
+	     :help "URL to browse externally.")))
+
+(defcommand "Encyclopedia" (p)
+  "View a prompted URL.  With a prefix, view externally."
+  (let ((url (concatenate 'simple-string
+			 "http://en.wikipedia.org/wiki/"
+			 (prompt-for-string
+			  :default (word-at-point)
+			  :trim t
+			  :prompt (if p
+				      "External encyclopedia: "
+				      "Encyclopedia: ")
+			  :help "Word to open in encyclopedia."))))
+    (if p (view-url url) (www-command () url))))
+
 (defcommand "Copy WWW Buffer" (p (buffer (current-buffer)))
   "Create and switch to a copy of the current buffer, which must be a WWW
    Buffer."
@@ -911,3 +933,89 @@
   (or (value www-url) (editor-error "Must be in a WWW buffer."))
   (www-refresh buffer (value www-url)
 	       :source (if (value www-source) nil t)))
+
+
+;;;; Links (like bookmarks).
+
+(defun highlight-links-line (line chi-info)
+  (or (zerop (line-length line))
+      (if (member (next-character (mark line 0)) '(#\tab #\space))
+	  (chi-mark line 0 *comment-font* :comment chi-info))))
+
+(defun highlight-links-buffer (buffer)
+  (highlight-chi-buffer buffer highlight-links-line))
+
+(defun highlight-visible-links-buffer (buffer)
+  (highlight-visible-chi-buffer buffer highlight-links-line))
+
+(defun setup-links-mode (buffer)
+  (highlight-visible-links-buffer buffer)
+  (setf (buffer-writable buffer) ())
+  (pushnew '("Links" t highlight-visible-links-buffer) *mode-highlighters*))
+
+(defmode "Links" :major-p t
+  :setup-function 'setup-links-mode
+  :documentation "Bookmark browsing mode.")
+
+(defcommand "Links" ()
+  "Switch to the links buffer."
+  (find-file-command () ":links")
+  (setf (buffer-major-mode (current-buffer)) "Links"))
+
+(defun line-link (line)
+  (or (zerop (line-length line))
+      (member (next-character (mark line 0)) '(#\tab #\space))
+      (line-string line)))
+
+(defcommand "Links WWW" ()
+  "Browse the current link in the web browser."
+  (let ((link (line-link (current-line))))
+    (if link (www-command () link))))
+
+(defcommand "Links WWW Externally" ()
+  "Browse the current link in a external web browser."
+  "Switch to the links buffer."
+  (let ((link (line-link (current-line))))
+    (if link (view-url link))))
+
+(defcommand "Links Find" ()
+  "Find the current link."
+  (let ((link (line-link (current-line))))
+    (if link (find-command () link))))
+
+(defcommand "Links Edit" ()
+  "Edit the buffer."
+  (let ((buffer (current-buffer)))
+    (setf (buffer-major-mode buffer) "Fundamental")
+    (setf (buffer-writable buffer) t)
+    (unwind-protect
+	(do-recursive-edit)
+      (and (buffer-writable buffer)
+	   (buffer-modified buffer)
+	   (save-file-command () buffer))
+      (setf (buffer-writable buffer) ())
+      (setf (buffer-major-mode buffer) "Links"))))
+
+(defcommand "Links Next Link" (p)
+  "In a Links buffer, move point to the next link.  With a prefix move that
+   many links forwards (backwards if prefix is negative)."
+  (let ((point (current-point))
+	(p (or p 1)))
+    (cond ((zerop p))
+	  ((minusp p)
+	   (while ((count p))
+		  ((and (< count 0)
+			(line-offset point -1 0)))
+	     (or (member (next-character point) '(#\newline #\space #\tab))
+		 (incf count))))
+	  (t
+	   (while ((count (or p 1)))
+		  ((and (> count 0)
+			(line-offset point 1 0)))
+	     (or (member (next-character point) '(#\newline #\space #\tab))
+		 (decf count)))))))
+
+(defcommand "Links Previous Link" (p)
+  "In a Links buffer, move point to the previous link.  With a prefix move
+   that many links backwards (forwards if prefix is negative)."
+  (links-next-link-command (- (or p 1))))

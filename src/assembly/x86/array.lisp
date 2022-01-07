@@ -99,7 +99,7 @@
   (inst mov esi -1)
   (inst shl esi :cl)
   (inst not esi)
-  ;; Use the mask to strip off the bits we arn't interested in, and merge
+  ;; Use the mask to strip off the bits we aren't interested in, and merge
   ;; the remaining bits with the result.
   (inst and eax esi)
   (inst rol result 5)

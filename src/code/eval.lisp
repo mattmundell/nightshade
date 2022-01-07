@@ -200,6 +200,7 @@ FIX apply, funcall?
   "Evaluate $original-exp in a null lexical environment, and return the
    result or results." ; FIX pathname position
   (declare (optimize (safety 1)))
+  (declare (ignore pathname position)) ; FIX
   (let ((exp (macroexpand original-exp)))
 ; FIX bind error
 ;    	(eval::*interp-source-hack* pathname)

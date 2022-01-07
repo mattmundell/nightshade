@@ -149,7 +149,7 @@ beginning of the line or deleting backwards a word.
 	  (delete-region *parse-input-region*)
 	  (insert-string (region-start *parse-input-region*)
 			 (namestring
-			  (if (directoryp result)
+			  (if (and win (directoryp result))
 			      (ensure-trailing-slash result)
 			      result))))
 	(or win
@@ -157,7 +157,7 @@ beginning of the line or deleting backwards a word.
 	      (when (value help-on-ambiguity)
 		(force-output *echo-area-stream*)
 		(help-on-parse-command))
-	      (if (value beep-on-ambiguity)
+	      (if (and result (value beep-on-ambiguity))
 		  (editor-error "Ambiguous.")))))))
 
 (defcommand "Complete Keyword" ()
@@ -242,8 +242,9 @@ beginning of the line or deleting backwards a word.
 					      (string last-key-char)))))
 	     (insert-string (region-start *parse-input-region*) new-typein)
 	     (force-output *echo-area-stream*)
-	     (when (or (eq key :complete)
-		       (and ambig (string= new-typein typein)))
+	     (when (and (value help-on-ambiguity)
+			(or (eq key :complete)
+			    (and ambig (string= new-typein typein))))
 	       (help-on-parse-command))))))
       (t
        (editor-error "Cannot complete input for this prompt.")))

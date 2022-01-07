@@ -12,10 +12,10 @@ buffer similar to that of a terminal.  When there is a typescript in a buffer,
 the `Typescript' minor mode is present.  Some of the commands described in
 this section are also used by `Eval' mode (page pagerefeval-mode.)
 
-Typescripts are simple to use.  the editor inserts output from the process into
-the buffer.  To give the process input, use normal editing to insert the input
-at the end of the buffer, and then type Return to confirm sending the
-input to the process.
+Typescripts are simple to use.  The editor inserts output from the process
+into the buffer.  To give the process input, use normal editing to insert
+the input at the end of the buffer, and then type Return to confirm sending
+the input to the process.
 
 {command:Confirm Typescript Input}
 {evariable:Unwedge Interactive Input Confirm}
@@ -315,14 +315,14 @@ allowing the editor to control the process which uses the typescript.
    This also has the effect of throwing the slave Lisp to top level, which
    cancels any pending operations or queued input.  This is the only way to
    be sure the user is cleanly set up again after messing up the input
-   region.  When this is (), simply beeps and echo that the input area is
+   region.  When this is (), simply beep and echo that the input area is
    invalid."
   (let ((ts (typescript-data-or-lose)))
     (let ((input (get-interactive-input)))
       (when input
 	(let ((string (region-to-string input)))
 	  (declare (simple-string string))
-	  (insert-character (current-point) #\NewLine)
+	  (insert-character (current-point) #\newline)
 	  (wire:remote (ts-data-wire ts)
 	    (ts-stream-accept-input (ts-data-stream ts)
 				    (concatenate 'simple-string

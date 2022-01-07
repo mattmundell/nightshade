@@ -15,7 +15,9 @@
     (do* ((point (copy-mark region-start))
 	  (point-line (mark-line point) (mark-line point)))
 	 ((eq point-line end-line))
-      (push (line-string (mark-line point)) lines)
+      (push (cons (line-string (mark-line point))
+		  (line-plist (mark-line point)))
+	    lines)
       (or (line-offset point 1)
 	  (return-from nil)))
     (when lines
@@ -27,8 +29,11 @@
 	;; Sort the list and re-insert the lines.
 	(let ((mark (current-point)))
 	  (move-mark mark region-start)
-	  (dolist (line (sort lines predicate))
-	    (insert-string mark line)
+	  (dolist (line (sort lines
+			      (lambda (one two)
+				(funcall predicate (car one) (car two)))))
+	    (insert-string mark (car line))
+	    (setf (line-plist (mark-line mark)) (cdr line))
 	    (insert-character mark #\newline)))
 	(make-region-undo :twiddle "sort-lines"
 			  new-region

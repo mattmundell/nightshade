@@ -50,8 +50,8 @@
     (do-files (file path :recurse t)
       (let ((loc (loc file)))
 	(incf total loc)
-	(ed::msg "~A: ~A" file loc)))
-    (ed::msg "TOTAL: ~A" total)))
+	(ed::message "~A: ~A" file loc)))
+    (ed::message "TOTAL: ~A" total)))
 
 (count-in "c:*.lisp")     57841
 (count-in "code:*.lisp")  97350

@@ -81,4 +81,4 @@
 	  ret)
       (handler-case
 	  (mh:root-pathname)
-	(error () (setq ret t)))))))
+	(error () (setq ret t))))))

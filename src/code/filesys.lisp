@@ -13,11 +13,14 @@
 ;;         vs touch-file, ensure-directories-exist
 ;;                           ^- if dir exists leaves time same
 ;;         maybe  touch,ensure-file, touch,ensure-dir[s]
-(export '(truename probe-file user-homedir-pathname directory
+(export '(*literal-pathnames*
+	  truename probe-file probe-local-file user-homedir-pathname
+	  directory
           rename-file copy-file symlink-file touch-file truncate-file
 	  add-dir
 	  delete-file trash-file delete-dir
-	  file-author file-kind file-mode file-size file-stats file-write-date
+	  file-author file-kind file-kind-from-mode file-mode
+	  file-size file-stats file-write-date
 	  hiddenp hidden-name-p
 	  directorify namify ensure-trailing-slash
 	  directoryp directory-name-p filep file-name-p
@@ -28,7 +31,7 @@
 
 (in-package "EXTENSIONS")
 
-(export '(print-directory
+(export '(dir= file= print-directory
 	  ; FIX if analagous to *-files below would print all files,dirs in given pathname
 	  ;         print-files-from-list? pass list arg as key to directory?
 	  print-files
@@ -115,8 +118,8 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 ;;; cause it to be treated as a regular character.
 
 (defun remove-backslashes (namestr start end)
-  "Remove and occurences of \\ from the string because we've already
-   checked for whatever they may have been backslashed."
+  "Remove any occurences of \\ from the string because we've already
+   checked for whatever they may have been backslashing."
   (declare (type simple-base-string namestr)
 	   (type index start end))
   (let* ((result (make-string (- end start)))
@@ -143,11 +146,12 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
     (shrink-vector result dst)))
 
 (defvar *ignore-wildcards* ())
+(defvar *literal-pathnames* ())
 
 (defun maybe-make-pattern (namestr start end)
   (declare (type simple-base-string namestr)
 	   (type index start end))
-  (if *ignore-wildcards*
+  (if (or *ignore-wildcards* *literal-pathnames*)
       (subseq namestr start end)
       (collect ((pattern))
 	(let (quoted any-quotes last-regular-char
@@ -188,7 +192,7 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 			 (if close-bracket
 			     (progn
 			       (flush-pending-regulars)
-			       (pattern (list :character-set
+			       (pattern (cons :character-set
 					      (subseq namestr
 						      (1+ index)
 						      close-bracket)))
@@ -371,23 +375,25 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
   (etypecase thing
     ((member :wild) "*")
     (simple-string
-     (let* ((srclen (length thing))
-	    (dstlen srclen))
-       (dotimes (i srclen)
-	 (case (schar thing i)
-	   ((#\* #\? #\[)
-	    (incf dstlen))))
-       (let ((result (make-string dstlen))
-	     (dst 0))
-	 (dotimes (src srclen)
-	   (let ((char (schar thing src)))
-	     (case char
+     (if *literal-pathnames*
+	 (copy-seq thing)
+	 (let* ((srclen (length thing))
+		(dstlen srclen))
+	   (dotimes (i srclen)
+	     (case (schar thing i)
 	       ((#\* #\? #\[)
-		(setf (schar result dst) #\\)
-		(incf dst)))
-	     (setf (schar result dst) char)
-	     (incf dst)))
-	 result)))
+		(incf dstlen))))
+	   (let ((result (make-string dstlen))
+		 (dst 0))
+	     (dotimes (src srclen)
+	       (let ((char (schar thing src)))
+		 (case char
+		   ((#\* #\? #\[)
+		    (setf (schar result dst) #\\)
+		    (incf dst)))
+		 (setf (schar result dst) char)
+		 (incf dst)))
+	     result))))
     (pattern
      (collect ((strings))
        (dolist (piece (pattern-pieces thing))
@@ -549,7 +555,7 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 ;;;; Wildcard matching.
 
 (defun %enumerate-files (directory pathname verify-existance function
-				   check-for-subdirs)
+				   check-for-subdirs follow-links)
   (declare (simple-string directory))
   (let ((name (%pathname-name pathname))
 	(type (%pathname-type pathname))
@@ -592,7 +598,8 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 					     (namestring
 					      (merge-pathnames
 					       file
-					       directory)))
+					       directory))
+					     (fi follow-links))
 					    :directory))
 				   (concatenate 'string
 						directory
@@ -611,7 +618,8 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 	    (setf file (concatenate 'string file "."
 				    (quick-integer-to-string version))))
 	(if check-for-subdirs
-	    (let ((kind (unix:unix-file-kind file t))) ; FIX if remote?
+	    ; FIX if remote? is that psb in this func?
+	    (let ((kind (unix:unix-file-kind file t)))
 	      (when (if verify-existance kind t)
 		(funcall function (if (eq kind :directory)
 				      (concatenate 'string
@@ -643,20 +651,20 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 	       (eq name :wild)
 	       (eq type :wild))
 	   (internet:do-remote-directory (directory file)
-	     (or (string= file ".")
-		 (string= file "..")
-		 (multiple-value-bind
-		     (file-name file-type file-version)
-		     (let ((*ignore-wildcards* t))
-		       (extract-name-type-and-version
-			file 0 (length file)))
-		   (when (and (components-match file-name name)
-			      (components-match file-type type)
-			      (components-match file-version version))
-		     (funcall function
-			      (concatenate 'string
-					   directory
-					   file)))))))
+					 (or (string= file ".")
+					     (string= file "..")
+					     (multiple-value-bind
+						 (file-name file-type file-version)
+						 (let ((*ignore-wildcards* t))
+						   (extract-name-type-and-version
+						    file 0 (length file)))
+					       (when (and (components-match file-name name)
+							  (components-match file-type type)
+							  (components-match file-version version))
+						 (funcall function
+							  (concatenate 'string
+								       directory
+								       file)))))))
 	  (t
 	   (let ((file (concatenate 'string directory name)))
 	     (or (null type) (eq type :unspecific)
@@ -678,8 +686,8 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 ;;; :wild-inferiors.
 ;;;
 (defun %enumerate-directories (head tail pathname verify-existance
-			       follow-links nodes function
-			       check-for-subdirs)
+				    follow-links nodes function
+				    check-for-subdirs)
   (declare (simple-string head))
   (macrolet ((unix-xstat (name)
 	       `(if follow-links
@@ -687,7 +695,7 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 		    (unix:unix-lstat ,name)))
 	     (with-directory-node-noted ((head) &body body)
 	       `(multiple-value-bind (res dev ino mode)
-		    (unix-xstat ,head)
+				     (unix-xstat ,head)
 		  (when (and res (eql (logand mode unix:s-ifmt) unix:s-ifdir))
 		    (let ((nodes (cons (cons dev ino) nodes)))
 		      ,@body))))
@@ -695,7 +703,7 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 	       `(let ((dir (unix:open-dir ,directory)))
 		  (when dir
 		    (unwind-protect
-			 (loop
+			(loop
 			  (let ((,name (unix:read-dir dir)))
 			    (cond ((null ,name)
 				   (return))
@@ -706,20 +714,20 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 		      (unix:close-dir dir))))))
     (fi tail
 	(%enumerate-files head pathname verify-existance function
-			  check-for-subdirs)
+			  check-for-subdirs follow-links)
 	(let ((piece (car tail)))
 	  (etypecase piece
 	    (simple-string
 	     (let ((head (concatenate 'string head piece)))
 	       (with-directory-node-noted (head)
-		 (%enumerate-directories (concatenate 'string head "/")
-					 (cdr tail) pathname
-					 verify-existance follow-links
-					 nodes function
-					 check-for-subdirs))))
+					  (%enumerate-directories (concatenate 'string head "/")
+								  (cdr tail) pathname
+								  verify-existance follow-links
+								  nodes function
+								  check-for-subdirs))))
 	    (search-list
 	     (or (string= head "/")
- 		 (error "A search list can only come first in a pathname."))
+		 (error "A search list can only come first in a pathname."))
 	     (%enumerate-remote-directories (concat (remote-pathname-host pathname)
 						    ":")
 					    (cdr tail) pathname
@@ -731,50 +739,50 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 				     nodes function
 				     check-for-subdirs)
 	     (do-directory-entries (name head)
-	       (let ((subdir (concatenate 'string head name)))
-		 (multiple-value-bind (res dev ino mode)
-		     (unix-xstat subdir)
-		   (declare (type (or fixnum null) mode))
-		   (when (and res (eql (logand mode unix:s-ifmt) unix:s-ifdir))
-		     (unless (dolist (dir nodes ())
-			       (when (and (eql (car dir) dev)
-					  (eql (cdr dir) ino))
-				 (return t)))
-		       (let ((nodes (cons (cons dev ino) nodes))
-			     (subdir (concatenate 'string subdir "/")))
-			 (%enumerate-directories subdir tail pathname
-						 verify-existance
-						 follow-links
-						 nodes function
-						 check-for-subdirs))))))))
+				   (let ((subdir (concatenate 'string head name)))
+				     (multiple-value-bind (res dev ino mode)
+							  (unix-xstat subdir)
+				       (declare (type (or fixnum null) mode))
+				       (when (and res (eql (logand mode unix:s-ifmt) unix:s-ifdir))
+					 (unless (dolist (dir nodes ())
+						   (when (and (eql (car dir) dev)
+							      (eql (cdr dir) ino))
+						     (return t)))
+					   (let ((nodes (cons (cons dev ino) nodes))
+						 (subdir (concatenate 'string subdir "/")))
+					     (%enumerate-directories subdir tail pathname
+								     verify-existance
+								     follow-links
+								     nodes function
+								     check-for-subdirs))))))))
 	    ((or pattern (member :wild))
 	     (do-directory-entries (name head)
-	       (when (or (eq piece :wild) (pattern-matches piece name))
-		 (let ((subdir (concatenate 'string head name)))
-		   (multiple-value-bind (res dev ino mode)
-		       (unix-xstat subdir)
-		     (declare (type (or fixnum null) mode))
-		     (when (and res
-				(eql (logand mode unix:s-ifmt) unix:s-ifdir))
-		       (let ((nodes (cons (cons dev ino) nodes))
-			     (subdir (concatenate 'string subdir "/")))
-			 (%enumerate-directories subdir (rest tail) pathname
-						 verify-existance follow-links
-						 nodes function
-						 check-for-subdirs))))))))
+				   (when (or (eq piece :wild) (pattern-matches piece name))
+				     (let ((subdir (concatenate 'string head name)))
+				       (multiple-value-bind (res dev ino mode)
+							    (unix-xstat subdir)
+					 (declare (type (or fixnum null) mode))
+					 (when (and res
+						    (eql (logand mode unix:s-ifmt) unix:s-ifdir))
+					   (let ((nodes (cons (cons dev ino) nodes))
+						 (subdir (concatenate 'string subdir "/")))
+					     (%enumerate-directories subdir (rest tail) pathname
+								     verify-existance follow-links
+								     nodes function
+								     check-for-subdirs))))))))
 	    ((member :up)
 	     (let ((head (concatenate 'string head "..")))
 	       (with-directory-node-noted (head)
-		 (%enumerate-directories (concatenate 'string head "/")
-					 (rest tail) pathname
-					 verify-existance follow-links
-					 nodes function
-					 check-for-subdirs)))))))))
+					  (%enumerate-directories (concatenate 'string head "/")
+								  (rest tail) pathname
+								  verify-existance follow-links
+								  nodes function
+								  check-for-subdirs)))))))))
 
 ;;; %enumerate-remote-directories  --   Internal
 ;;;
 (defun %enumerate-remote-directories (head tail pathname verify-existance
-				      follow-links nodes function)
+					   follow-links nodes function)
   (declare (simple-string head))
   (macrolet ((with-directory-node-noted ((head) &body body)
 	       (declare (ignore head))
@@ -785,7 +793,7 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 	       `(let ((dir (unix:open-dir ,directory)))
 		  (when dir
 		    (unwind-protect
-			 (loop
+			(loop
 			  (let ((,name (unix:read-dir dir)))
 			    (cond ((null ,name)
 				   (return))
@@ -801,10 +809,10 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 	    (simple-string
 	     (let ((head (concatenate 'string head piece)))
 	       (with-directory-node-noted (head)
-		 (%enumerate-remote-directories (concatenate 'string head "/")
-						(cdr tail) pathname
-						verify-existance follow-links
-						nodes function))))
+					  (%enumerate-remote-directories (concatenate 'string head "/")
+									 (cdr tail) pathname
+									 verify-existance follow-links
+									 nodes function))))
 	    (search-list
 	     (error "A search list can only come first in a pathname."))
 	    ((member :wild-inferiors)
@@ -813,46 +821,46 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 					    verify-existance follow-links
 					    nodes function)
 	     (do-directory-entries (name head)
-	       (let ((subdir (concatenate 'string head name)))
-		 (multiple-value-bind (res dev ino mode)
-		     (file-stats subdir)
-		   (declare (type (or fixnum null) mode))
-		   (when (and res (eql (logand mode unix:s-ifmt) unix:s-ifdir))
-		     (unless (dolist (dir nodes ())
-			       (when (and (eql (car dir) dev)
-					  (eql (cdr dir) ino))
-				 (return t)))
-		       (let ((nodes (cons (cons dev ino) nodes))
-			     (subdir (concatenate 'string subdir "/")))
-			 (%enumerate-remote-directories subdir tail pathname
-							verify-existance follow-links
-							nodes function))))))))
+				   (let ((subdir (concatenate 'string head name)))
+				     (multiple-value-bind (res dev ino mode)
+							  (file-stats subdir)
+				       (declare (type (or fixnum null) mode))
+				       (when (and res (eql (logand mode unix:s-ifmt) unix:s-ifdir))
+					 (unless (dolist (dir nodes ())
+						   (when (and (eql (car dir) dev)
+							      (eql (cdr dir) ino))
+						     (return t)))
+					   (let ((nodes (cons (cons dev ino) nodes))
+						 (subdir (concatenate 'string subdir "/")))
+					     (%enumerate-remote-directories subdir tail pathname
+									    verify-existance follow-links
+									    nodes function))))))))
 	    ((or pattern (member :wild))
 	     (error "FIX %enumerate-remote-directories with :wild")
 	     #|
 	     (internet:do-remote-directory (dir name head)
-	       (when (or (eq piece :wild) (pattern-matches piece name))
-		 (let ((subdir (concatenate 'string head name)))
-		   (multiple-value-bind (res dev ino mode)
-		       (unix-xstat subdir)
-		     (declare (type (or fixnum null) mode))
-		     (when (and res
-				(eql (logand mode unix:s-ifmt) unix:s-ifdir))
-		       (let ((nodes (cons (cons dev ino) nodes))
-			     (subdir (concatenate 'string subdir "/")))
-			 (%enumerate-remote-directories subdir (rest tail) pathname
-							verify-existance follow-links
-							nodes function)))))))
+					   (when (or (eq piece :wild) (pattern-matches piece name))
+					     (let ((subdir (concatenate 'string head name)))
+					       (multiple-value-bind (res dev ino mode)
+								    (unix-xstat subdir)
+						 (declare (type (or fixnum null) mode))
+						 (when (and res
+							    (eql (logand mode unix:s-ifmt) unix:s-ifdir))
+						   (let ((nodes (cons (cons dev ino) nodes))
+							 (subdir (concatenate 'string subdir "/")))
+						     (%enumerate-remote-directories subdir (rest tail) pathname
+										    verify-existance follow-links
+										    nodes function)))))))
 	     |#
 	     )
 	    ((member :up)
 	     (error "FIX %enumerate-remote-directories with :up")
 	     (let ((head (concatenate 'string head "..")))
 	       (with-directory-node-noted (head)
-		 (%enumerate-remote-directories (concatenate 'string head "/")
-						(rest tail) pathname
-						verify-existance follow-links
-						nodes function)))))))))
+					  (%enumerate-remote-directories (concatenate 'string head "/")
+									 (rest tail) pathname
+									 verify-existance follow-links
+									 nodes function)))))))))
 
 (defmacro enumerate-matches ((var pathname &optional result
 				  &key
@@ -873,19 +881,22 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
   ;; FIX pass check-for-subdirs to remote functions
   (if (pathname-type pathname)
       (or (pathname-name pathname)
-	  (error "Pathname must have a name if it has a type:~%  ~S" pathname)))
+	  (error "Pathname must have a name if it has a type:~%  ~S"
+		 pathname)))
   (let ((directory (pathname-directory pathname)))
     (if directory
 	(ecase (car directory)
 	  (:absolute
 	   (if (remote-pathname-p pathname)
-	       (%enumerate-remote-directories (concat (remote-pathname-host pathname)
-						      ":/"
-						      ;; FIX a guess
-						      (directory-namestring pathname))
-					      () pathname
-					      verify-existance follow-links
-					      () function)
+	       (%enumerate-remote-directories
+		(concat (remote-pathname-host pathname)
+			":/"
+			(directory-namestring
+			 (remote-pathname-local
+			  pathname)))
+		() pathname
+		verify-existance follow-links
+		() function)
 	       (%enumerate-directories (directory-namestring pathname)
 				       () pathname
 				       verify-existance follow-links
@@ -905,7 +916,7 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 	(if (remote-pathname-p pathname)
 	    (%enumerate-remote-files "" pathname verify-existance function)
 	    (%enumerate-files "" pathname verify-existance function
-			      check-for-subdirs)))))
+			      check-for-subdirs follow-links)))))
 
 
 ;;;; OS-NAMESTRING -- public
@@ -916,7 +927,7 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
    Return a string for $pathname that is suitable for passing to the
    underlying OS.
 
-   Expand search-lists and wildcards.  If $pathname a search list alone,
+   Expand search-lists and wildcards.  If $pathname is a search list alone,
    for example \"home:\", then return the first directory in the search
    list, and if that search list is empty return ().
 
@@ -941,11 +952,11 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 	    (enumerate-matches (name pathname ()
 				     :verify-existance for-input
 				     :follow-links t)
-			       (when (if executable-only
-					 (and (eq (unix:unix-file-kind name) :file)
-					      (unix:unix-access name unix:x_ok))
-					 t)
-				 (names name)))
+	       (when (if executable-only
+			 (and (eq (unix:unix-file-kind name) :file)
+			      (unix:unix-access name unix:x_ok))
+			 t)
+		 (names name)))
 	    (let ((names (names)))
 	      (when names
 		(if (cdr names)
@@ -965,17 +976,19 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
   "Return the pathname for the actual file described by pathname.  An error
    of type file-error is signalled if no such file exists, or the pathname
    is wild."
-  (if (wild-pathname-p pathname)
-      (error 'simple-file-error
-	     :format-control "Bad place for a wild pathname."
-	     :pathname pathname)
-      (let ((result (probe-file pathname)))
-	(or result
-	    (error 'simple-file-error
-		   :pathname pathname
-		   :format-control "The file ~S does not exist."
-		   :format-arguments (list (namestring pathname))))
-	result)))
+  (or *ignore-wildcards*
+      *literal-pathnames*
+      (if (wild-pathname-p pathname)
+	  (error 'simple-file-error
+		 :format-control "Bad place for a wild pathname."
+		 :pathname pathname)))
+  (let ((result (probe-file pathname)))
+    (or result
+	(error 'simple-file-error
+	       :pathname pathname
+	       :format-control "The file ~S does not exist."
+	       :format-arguments (list (namestring pathname))))
+    result))
 
 ;; FIX replaced by remote-pathname-local
 ;;; Host-Path  --  Public
@@ -1005,27 +1018,130 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
    Return the type of $pathname as a second value.  If $check-for-links is
    true and $pathname is a symlink then return :link instead of the type of
    the truename."
-  (if (wild-pathname-p pathname)
-      (error 'simple-file-error
-	     :pathname pathname
-	     :format-control "Bad place for a wild pathname.")
-      (if (remote-pathname-p pathname)
-	  (internet:probe-remote-file pathname)
-	  (let ((namestring (os-namestring pathname t)))
-	    (when namestring
-	      (let ((kind (unix:unix-file-kind (namify namestring) check-for-links)))
-		(when kind
-		  (let ((truename (unix:unix-resolve-links
-				   (unix:unix-maybe-prepend-current-directory
-				    namestring))))
-		    (if truename
-			(let ((*ignore-wildcards* t))
-			  (values (pathname (unix:unix-simplify-pathname truename))
-				  kind))
-			(values () kind))))))))))
+  (or *ignore-wildcards*
+      *literal-pathnames*
+      (if (wild-pathname-p pathname)
+	  (error 'simple-file-error
+		 :pathname pathname
+		 :format-control "Bad place for a wild pathname.")))
+  (if (remote-pathname-p pathname)
+      (internet:probe-remote-file pathname)
+      (probe-local-file pathname
+			:check-for-links check-for-links)))
+
+;;; Internal
+;;;
+;;; Return a $string or a copy of $string, stripping off any trailing slash
+;;; if $string is a directory name.
+;;;
+(defun %namify (string)
+  (if (zerop (length string))
+      ""
+      (let ((last (1- (length string))))
+	(if (char= (schar string last) #\/)
+	    (subseq string 0 last)
+	    string))))
+
+;;; Probe-Local-File  --  Public
+;;;
+(defun probe-local-file (pathname &key check-for-links)
+  (let ((namestring (os-namestring pathname t)))
+    (when namestring
+      (let ((kind (unix:unix-file-kind (%namify namestring) check-for-links)))
+	(when kind
+	  (let ((truename (unix:unix-resolve-links
+			   (unix:unix-maybe-prepend-current-directory
+			    namestring))))
+	    (if truename
+		(let ((*ignore-wildcards* t))
+		  (values (pathname (unix:unix-simplify-pathname truename))
+			  kind))
+		(values () kind))))))))
 
 
 ;;;; Other random operations.
+
+;;; File=  --  Public
+;;;
+(defun file= (one two &key check-for-links)
+  "Return true if the files $one and $two have exactly the same content.
+
+   If $check-for-links is true then compare the link for a symlink instead
+   of the destination of the link."
+  (let ((type-one (file-kind one :check-for-links check-for-links))
+	(type-two (file-kind two :check-for-links check-for-links)))
+    (if (eq type-one :directory)
+	(error "$one names a directory."))
+    (if (eq type-two :directory)
+	(error "$two names a directory."))
+    (flet ((%file= (one two)
+	     (and (eq (file-size one :check-for-links check-for-links)
+		      (file-size two :check-for-links check-for-links))
+		  (with-open-file (in-one one :element-type 'unsigned-byte)
+		    (with-open-file (in-two two :element-type 'unsigned-byte)
+		      (loop
+			(let ((byte (read-byte in-one () :eof)))
+			  (or (eq byte (read-byte in-two () :eof)) (return))
+			  (if (eq byte :eof) (return t)))))))))
+      (if check-for-links
+	  (if (eq type-one :symlink)
+	      (and (eq type-two :symlink)
+		   ;; FIX correct for links to links?
+		   (equal (symlink-dest one) (symlink-dest two)))
+	      (if (eq type-two :file) (%file= one two)))
+	  (%file= one two)))))
+
+;;; Compare-Sub-Entities  --  Internal
+;;;
+;;; If $file is same in current directory and in $two return true, else
+;;; return false.  Assume $file exists in current directory.
+;;;
+(defun %dir= (two file check-for-links)
+  (let ((two-file (merge-pathnames file two)))
+    (if (directoryp file :check-for-links check-for-links)
+	(if (directoryp two-file :check-for-links check-for-links)
+	    (dir= file two-file :check-for-links check-for-links))
+	(if (file-kind two-file :check-for-links check-for-links)
+	    ;; $two-file also exists.
+	    (fi (directoryp two-file
+			    :check-for-links check-for-links)
+		(file= file two-file
+		       :check-for-links check-for-links))))))
+
+;;; File=  --  Public
+;;;
+(defun dir= (one two &key check-for-links)
+  "Return true if the directories $one and $two have exactly the same
+   content.
+
+   That is, return true if the directories contain the same number of files
+   and subdirectories which have the same content and the same names,
+   recursively."
+  (or (eq (file-kind one :check-for-links check-for-links) :directory)
+      (error "$one must name a directory."))
+  (or (eq (file-kind two :check-for-links check-for-links) :directory)
+      (error "$two must name a directory."))
+
+  (let ((ents1 0)
+	(ents2 0)
+	(one (ensure-trailing-slash one))
+	(two (ensure-trailing-slash two)))
+    ;; Count the number of entities in two.
+    (in-directory two
+      (do-files (file ""
+		      :recurse t
+		      :follow-links (fi check-for-links))
+	(incf ents2)))
+    ;; Recurse into $one, comparing with two and counting entities.
+    (in-directory one
+      (do-files (file ""
+		      :recurse t
+		      :follow-links (fi check-for-links))
+	(or (%dir= two file check-for-links)
+	    (return-from dir=))
+	(incf ents1)))
+    ;; $two may contain more entities than $one.
+    (= ents1 ents2)))
 
 ;;; Rename-File  --  Public
 ;;;
@@ -1221,8 +1337,8 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 ;;; Symlink-File  --  Public
 ;;;
 (defun symlink-file (link dest)
-  "Symlink $link to $dest, so that $link points to $dest.  Return true
-   on success, else signal a file-error."
+  "Symlink $link to $dest, so that $link points to $dest.  Return true on
+   success, else signal a file-error."
   ;; Fill in the file name if $link (the new link) is a directory.
   (if (directoryp link :check-for-links t)
       (setq link (merge-pathnames
@@ -1302,7 +1418,8 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 (defun delete-file (file)
   "Delete $file, returning true.  On failure signal a file-error.  If $file
    is a symlink then delete the symlink instead of the destination."  ; FIX is this consistent?
-  (if (remote-pathname-p file)
+  (if (fi (probe-file file :check-for-links t)
+	  (remote-pathname-p file))
       (or (internet:delete-remote-file file)
 	  (error 'simple-file-error
 		 :pathname file
@@ -1392,64 +1509,77 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
    :directory, :link or :special, otherwise return ()."
   (nth-value 1 (probe-file file :check-for-links check-for-links)))
 
+;;; File-Kind-From-Mode  --  Public
+;;;
+(defun file-kind-from-mode (mode)
+  "Return the file kind described in file mode integer $mode, one of :file,
+   :directory, :link or :special.  $mode is the same as the fourth value
+   that `file-stats' returns."
+  (unix:unix-file-kind-from-mode mode))
+
 ;;; File-Write-Date  --  Public
 ;;;
 (defun file-write-date (file &key check-for-links)
   "If $file exists return $file's modification date in universal format,
    else return ().  Signal an error of type file-error if $file is a wild
    pathname."
-  (if (wild-pathname-p file)
-      (error 'simple-file-error
-	     :pathname file
-	     :format-control "Bad place for a wild pathname.")
-      (if (remote-pathname-p file)
-	  (multiple-value-bind (reslt err ino mode nlink uid gid rdev size atime mtime)
-			       (internet:remote-file-stats file)
-	    (declare (ignore err ino mode nlink uid gid rdev size atime))
-	    (if reslt (+ unix-to-universal-time mtime)))
-	  (let ((name (os-namestring file t)))
-	    (when name
-	      (multiple-value-bind
-		  (res dev-or-err ino mode nlink uid gid rdev size atime mtime)
-		  (if check-for-links
-		      (unix:unix-lstat name)
-		      (unix:unix-stat name))
-		(declare (ignore ino mode nlink uid gid rdev size atime))
-		(if res
-		    (+ unix-to-universal-time mtime)
-		    (values () dev-or-err))))))))
+  (or *ignore-wildcards*
+      *literal-pathnames*
+      (if (wild-pathname-p file)
+	  (error 'simple-file-error
+		 :pathname file
+		 :format-control "Bad place for a wild pathname.")))
+  (if (remote-pathname-p file)
+      (multiple-value-bind (reslt err ino mode nlink uid gid rdev size atime mtime)
+			   (internet:remote-file-stats file)
+	(declare (ignore err ino mode nlink uid gid rdev size atime))
+	(if reslt (+ unix-to-universal-time mtime)))
+      (let ((name (os-namestring file t)))
+	(when name
+	  (multiple-value-bind
+	      (res dev-or-err ino mode nlink uid gid rdev size atime mtime)
+	      (if check-for-links
+		  (unix:unix-lstat name)
+		  (unix:unix-stat name))
+	    (declare (ignore ino mode nlink uid gid rdev size atime))
+	    (if res
+		(+ unix-to-universal-time mtime)
+		(values () dev-or-err)))))))
 
 ;; FIX Warning: Hairy setf expander for function FILE-WRITE-DATE.
+;;   check-for-links?
 ;;
 (defun set-file-write-date (file date &key check-for-links)
   "Set the modification date of $file to universal format $date.  Signal an
    error of type file-error if $file is a wild pathname."
-  (if (wild-pathname-p file)
-      (error 'simple-file-error
-	     :pathname file
-	     :format-control "Bad place for a wild pathname.")
-      (if (remote-pathname-p file)
-	  (internet:set-remote-write-date file date)
-	  (let ((name (os-namestring file t)))
-	    (when name
-	      ;; FIX how to set time of link? possible?
-	      (if (and check-for-links (symlinkp file))
-		  ;; Silently succeed.
-		  (return-from set-file-write-date t)))
-	      (let ((unix-date (- date unix-to-universal-time)))
-		(multiple-value-bind (status errno)
-				     ;; FIX get usec how?
-				     (unix:unix-utimes name
-						       unix-date 0
-						       unix-date 0)
-		  (or status
-		      (error 'simple-file-error
-			     :pathname file
-			     :format-control
-			     (format () "Failed to set write date of file ~S: ~A"
-				     name
-				     (unix:get-unix-error-msg errno))))
-		  date))))))
+  (or *ignore-wildcards*
+      *literal-pathnames*
+      (if (wild-pathname-p file)
+	  (error 'simple-file-error
+		 :pathname file
+		 :format-control "Bad place for a wild pathname.")))
+  (if (remote-pathname-p file)
+      (internet:set-remote-write-date file date)
+      (let ((name (os-namestring file t)))
+	(when name
+	  ;; FIX how to set time of link? possible?
+	  (if (and check-for-links (symlinkp file))
+	      ;; Silently succeed.
+	      (return-from set-file-write-date t)))
+	(let ((unix-date (- date unix-to-universal-time)))
+	  (multiple-value-bind (status errno)
+			       ;; FIX get usec how?
+			       (unix:unix-utimes name
+						 unix-date 0
+						 unix-date 0)
+	    (or status
+		(error 'simple-file-error
+		       :pathname file
+		       :format-control
+		       (format () "Failed to set write date of file ~S: ~A"
+			       name
+			       (unix:get-unix-error-msg errno))))
+	    date)))))
 ;;
 (defsetf file-write-date set-file-write-date)
 
@@ -1460,20 +1590,22 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
   "Return the author of $file as a string if author can be determined, else
    ().  Signals an error of type file-error if file doesn't exist, or file
    is a wild pathname."
-  (if (wild-pathname-p file)
-      (error 'simple-file-error
-	     :pathname file
-	     "Bad place for a wild pathname.")
-      (let ((name (os-namestring (pathname file) t)))
-	(or name
-	    (error 'simple-file-error
-		   :pathname file
-		   :format-control "file must exist: ~A."
-		   :format-arguments (list file)))
-	(multiple-value-bind (winp dev ino mode nlink uid)
-			     (unix:unix-stat name)
-	  (declare (ignore dev ino mode nlink))
-	  (if winp (lookup-login-name uid))))))
+  (or *ignore-wildcards*
+      *literal-pathnames*
+      (if (wild-pathname-p file)
+	  (error 'simple-file-error
+		 :pathname file
+		 "Bad place for a wild pathname.")))
+  (let ((name (os-namestring (pathname file) t)))
+    (or name
+	(error 'simple-file-error
+	       :pathname file
+	       :format-control "file must exist: ~A."
+	       :format-arguments (list file)))
+    (multiple-value-bind (winp dev ino mode nlink uid)
+			 (unix:unix-stat name)
+      (declare (ignore dev ino mode nlink))
+      (if winp (lookup-login-name uid)))))
 
 ;; FIX file-perm
 ;; FIX check-for-links
@@ -1483,22 +1615,24 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
   "Return the file mode of $file, or () on failure to get the mode.  Signal
    an error of type file-error if $file doesn't exist, or if $file is a
    wild pathname."
-  (if (wild-pathname-p file)
-      (error 'simple-file-error
-	     :pathname file
-	     "Bad place for a wild pathname.")
-      (let ((name (os-namestring (pathname file) t)))
-	(or name
-	    (error 'simple-file-error
-		   :pathname file
-		   :format-control "~S doesn't exist."
-		   :format-arguments (list file)))
-	(multiple-value-bind (res dev ino mode)
-			     (unix:unix-stat name)
-	  (declare (ignore dev ino))
-	  (if res (logand mode (logior unix:writeall
-				       unix:readall
-				       unix:execall)))))))
+  (or *ignore-wildcards*
+      *literal-pathnames*
+      (if (wild-pathname-p file)
+	  (error 'simple-file-error
+		 :pathname file
+		 "Bad place for a wild pathname.")))
+  (let ((name (os-namestring (pathname file) t)))
+    (or name
+	(error 'simple-file-error
+	       :pathname file
+	       :format-control "~S doesn't exist."
+	       :format-arguments (list file)))
+    (multiple-value-bind (res dev ino mode)
+			 (unix:unix-stat name)
+      (declare (ignore dev ino))
+      (if res (logand mode (logior unix:writeall
+				   unix:readall
+				   unix:execall))))))
 
 (defun parse-mode-perm (string pos)
   "Return the base permissions (ie as if setting group permissions) defined
@@ -1577,36 +1711,38 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 
    Mode can be a Unix mode number, one of the Unix permission symbols
    described for `unix:unix-chmod', or an update string such as \"a+wr\"."
-  (if (wild-pathname-p file)
-      (error 'simple-file-error
-	     :pathname file
-	     "Bad place for a wild pathname.")
-      (let ((name (os-namestring (pathname file) t)))
-	(or name
+  (or *ignore-wildcards*
+      *literal-pathnames*
+      (if (wild-pathname-p file)
+	  (error 'simple-file-error
+		 :pathname file
+		 "Bad place for a wild pathname.")))
+  (let ((name (os-namestring (pathname file) t)))
+    (or name
+	(error 'simple-file-error
+	       :pathname file
+	       :format-control "~S must exist."
+	       :format-arguments (list file)))
+    (when (stringp mode)
+      (multiple-value-bind (success dev ino current-mode)
+			   (unix:unix-stat name)
+	(declare (ignore ino))
+	(or success
 	    (error 'simple-file-error
 		   :pathname file
-		   :format-control "~S must exist."
-		   :format-arguments (list file)))
-	(when (stringp mode)
-	  (multiple-value-bind (success dev ino current-mode)
-			       (unix:unix-stat name)
-	    (declare (ignore ino))
-	    (or success
-		(error 'simple-file-error
-		       :pathname file
-		       :format-control "failed to stat ~S"
-		       :format-arguments
-		       (list file
-			     (unix:get-unix-error-msg dev))))
-	    (setq mode (update-mode current-mode mode))))
-	(multiple-value-bind (res errno)
-			     (unix:unix-chmod name mode)
-	  (if res
-	      (logand mode (logior unix:execall
-				   unix:readall
-				   unix:writeall))
-	      (error "Error setting mode:~A"
-		     (unix:get-unix-error-msg errno)))))))
+		   :format-control "failed to stat ~S"
+		   :format-arguments
+		   (list file
+			 (unix:get-unix-error-msg dev))))
+	(setq mode (update-mode current-mode mode))))
+    (multiple-value-bind (res errno)
+			 (unix:unix-chmod name mode)
+      (if res
+	  (logand mode (logior unix:execall
+			       unix:readall
+			       unix:writeall))
+	  (error "Error setting mode: ~A"
+		 (unix:get-unix-error-msg errno))))))
 ;;;
 (defsetf file-mode set-file-mode)
 
@@ -1616,22 +1752,24 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 (defun file-size (file &key check-for-links)
   "Return the file size of $file, or () on failure.  Signal an error of
    type file-error if file doesn't exist, or file is a wild pathname."
-  (if (wild-pathname-p file)
-      (error 'simple-file-error
-	     :pathname file
-	     "Bad place for a wild pathname.")
-      (let ((name (os-namestring (pathname file) t)))
-	(or name
-	    (error 'simple-file-error
-		   :pathname file
-		   :format-control "File must exist: ~S."
-		   :format-arguments (list file)))
-	(multiple-value-bind (res dev ino mode nlink uid gid rdev size)
-			     (if check-for-links
-				 (unix:unix-lstat name)
-				 (unix:unix-stat name))
-	  (declare (ignore dev ino mode nlink uid gid rdev))
-	  (if res size)))))
+  (or *ignore-wildcards*
+      *literal-pathnames*
+      (if (wild-pathname-p file)
+	  (error 'simple-file-error
+		 :pathname file
+		 "Bad place for a wild pathname.")))
+  (let ((name (os-namestring (pathname file) t)))
+    (or name
+	(error 'simple-file-error
+	       :pathname file
+	       :format-control "File must exist: ~S."
+	       :format-arguments (list file)))
+    (multiple-value-bind (res dev ino mode nlink uid gid rdev size)
+			 (if check-for-links
+			     (unix:unix-lstat name)
+			     (unix:unix-stat name))
+      (declare (ignore dev ino mode nlink uid gid rdev))
+      (if res size))))
 
 ;;; File-Stats  --  Public
 ;;;
@@ -1693,25 +1831,30 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 			       :version (or (pathname-version ,dir) :wild))))
 	(enumerate-matches (,name ,pn () :follow-links ,follow-links
 				  :check-for-subdirs ,check-for-subdirs)
-	  ;; Depth first. FIX should do the dir name first?
-	  (if (and ,recurse (eq (unix:unix-file-kind (namify ,name)
-						     (fi ,follow-links))
-				:directory))
-	      (do-dir (concatenate 'string ,name "/")))
 	  (cond ((and ,backups ,all)
 		 ,@body)
 		(,backups
 		 ;; Filter out hidden files.
-		 (let ((,slash (position #\/ (namify ,name) :from-end t)))
+		 (let ((,slash (position #\/ (namify ,name)
+					 :from-end t)))
 		   (when (if ,slash
 			     (or (= (1+ ,slash) (length ,name))
-				 (fi (char= (schar ,name (1+ ,slash)) #\.) t))
+				 (fi (char= (schar ,name (1+ ,slash))
+					    #\.)))
 			     (fi (char= (schar ,name 0) #\.) t))
+		     ;; Depth first.  FIX should do the dir name first?
+		     (if (and ,recurse
+			      (eq (unix:unix-file-kind
+				   (namify ,name)
+				   (fi ,follow-links))
+				  :directory))
+			 (do-dir (concatenate 'string ,name "/")))
 		     ,@body)))
 		(,all
 		 ;; Filter out backup files.
 		 (or (let ((,name (if (and ,check-for-subdirs
-					   (eq (unix:unix-file-kind ,name t)
+					   (eq (unix:unix-file-kind
+						,name t)
 					       :directory))
 				     ;; Strip off the slash.  Assume
 				     ;; name is at least one char.
@@ -1723,6 +1866,13 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 			   (string= (pathname-version ,name) "BAK")
 			   (string= (pathname-version ,name) "CKP")))
 		     (progn
+		       ;; Depth first.  FIX should do the dir name first?
+		       (if (and ,recurse
+				(eq (unix:unix-file-kind
+				     (namify ,name)
+				     (fi ,follow-links))
+				    :directory))
+			   (do-dir (concatenate 'string ,name "/")))
 		       ,@body)))
 		(t
 		 ;; Filter out both backup and hidden files.
@@ -1741,8 +1891,18 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 		       (let ((,slash (position #\/ ,file :from-end t)))
 			 (when (if ,slash
 				   (or (= (1+ ,slash) (length ,file))
-				       (fi (char= (schar ,file (1+ ,slash)) #\.) t))
+				       (fi (char= (schar ,file
+							 (1+ ,slash))
+						  #\.)))
 				   (fi (char= (schar ,file 0) #\.) t))
+			   ;; Depth first.  FIX should do the dir name
+			   ;; first?
+			   (if (and ,recurse
+				    (eq (unix:unix-file-kind
+					 (namify ,name)
+					 (fi ,follow-links))
+					:directory))
+			       (do-dir (concatenate 'string ,name "/")))
 			   ,@body)))))))))))
 
 ;;; Public.
@@ -2006,8 +2166,7 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 	       :format-control
 	       "$pathname must name an existing directory: ~S."
 	       :format-arguments (list pathname)))
-    (let* ((*ignore-wildcards* ())
-	   (merge-dir (fi truenamep
+    (let* ((merge-dir (fi truenamep
 			  (if absolute
 			      (current-directory)
 #| FIX was
@@ -2058,8 +2217,8 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
   "Print a terse, multi-column wildname listing of directory $pathname to
    $stream.  The listing is sorted by pathname with `string<'.
 
-   If $return-list if true then return a list of the matched pathnames,
-   else return ().
+   If $return-list is true then return a list of the matched pathnames as
+   strings, else return ().
 
    Other keywords:
 
@@ -2096,7 +2255,6 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 	(print-directory-verbose pathname contents all return-list coldefs)
 	(print-directory-formatted pathname contents all return-list))))
 
-;; FIX format-files? print sounds like printer
 ;;; PRINT-FILES is exported from EXTENSIONS.
 ;;;
 (defun print-files (pathname files
@@ -2209,29 +2367,74 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
   (let ((result)
 	(col-posns)
 ;	(root-len (length (namestring pathname)))
-	)
-    (format t "v Directory of ~A :~%" (namestring pathname))
+	(longest-user 0)
+	(longest-size 0)
+	(cache (make-array (length contents) :initial-element ()))
+	(index 0))
     (in-directory pathname
+      (if t #| (if coldefs
+		   (or (member :uid coldefs)
+		       (member :size coldefs))
+		   t) |#
+	  ;; Find the length of the longest user name and file size.
+	  (dolist (file-or-more contents
+				(progn
+				  (incf longest-user)
+				  (incf longest-size)))
+	    (let* ((file (if (listp file-or-more)
+			     (car file-or-more)
+			     file-or-more))
+		   (*ignore-wildcards* t)
+		   (*literal-pathnames* t)
+		   (stats (multiple-value-list
+			   (file-stats file :check-for-links t))))
+	      ;; Cache the file statistics instead of calling file-stats
+	      ;; again in the loop below, in case this is a slow remote
+	      ;; directory.
+	      (setf (aref cache index) stats)
+	      (incf index)
+	      (when (car stats)
+		;; User name.
+		(let* ((uid (nth 5 stats))
+		       (name (format () "~A"
+				     (if uid
+					 (or (lookup-login-name uid)
+					     uid)
+					 ""))))
+		  (if (> (length name) longest-user)
+		      (setq longest-user (length name))))
+		;; Size.
+		(let ((size (nth 8 stats)))
+		  (if (zerop size)
+		      1
+		      (let ((digits (truncate (1+ (log size 10)))))
+			(if (> digits longest-size)
+			    (setq longest-size digits)))))))))
+      (setf index 0)
+      (format t "v Directory of ~A :~%" (namestring pathname))
       (if coldefs
 	  ;;; Print according to column definitions.
 	  (let ((pos 0)
 		(first t))
 	    (or (listp coldefs) (error "COLDEFS must be a list."))
 	    (dolist (file-or-more contents)
-	      (let* ((file (if (listp file-or-more)
-			       (car file-or-more)
-			       file-or-more)))
+	      (let ((file (if (listp file-or-more)
+			      (car file-or-more)
+			      file-or-more)))
 		(multiple-value-bind
-		    (reslt dev-or-err ino mode nlink uid gid rdev size atime mtime namestring)
-		    (file-stats file)
+		    (reslt dev-or-err ino mode nlink uid
+		     gid rdev size atime mtime namestring)
+		    (apply #'values (aref cache index))
 		  (declare (ignore ino gid rdev atime namestring)
-			   (fixnum uid mode))
+			   (type (or fixnum null) uid mode))
 		  (let ((tail (subseq file 0)))
 		    (fi reslt
 			(progn
 			  (format t "Failed to stat ~A -- ~A.~%"
 				  tail
-				  (if dev-or-err (unix:get-unix-error-msg dev-or-err) ""))
+				  (if dev-or-err
+				      (unix:get-unix-error-msg dev-or-err)
+				      ""))
 			  (if return-list (push () result)))
 			(progn
 			  (dolist (coldef coldefs)
@@ -2246,26 +2449,39 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 			       (princ (nth coldef file-or-more))
 			       (when first
 				 (push `(,coldef . ,pos) col-posns)
-				 (incf pos (length (nth coldef file-or-more)))))
+				 (incf pos
+				       (length (nth coldef
+						    file-or-more)))))
 			      (keyword
 			       (case coldef
 				 (:mode  (print-mode mode)
 					 (when first
-					   (push `(:mode . ,pos) col-posns)
+					   (push `(:mode . ,pos)
+						 col-posns)
 					   (incf pos 10)))
-				 (:nlink (format t "~2D" nlink)
+				 (:nlink (format t "~3D" nlink)
 					 (when first
-					   (push `(:nlink . ,pos) col-posns)
-					   (incf pos 2)))
-				 (:uid   (format t "~8A"
-						 (or (lookup-login-name uid) uid))
-					 (when first
-					   (push `(:uid . ,pos) col-posns)
-					   (incf pos 8)))
-				 (:size  (format t "~8D" size)
+					   (push `(:nlink . ,pos)
+						 col-posns)
+					   (incf pos 3)))
+				 (:uid
+				  (format t
+					  (format () "~~~AA"
+						  longest-user)
+					  (if uid
+					      (or (lookup-login-name
+						   uid))
+					      ""))
+				  (when first
+				    (push `(:uid . ,pos) col-posns)
+				    (incf pos longest-user)))
+				 (:size  (format t
+						 (format () "~~~AD"
+							 longest-size)
+						 size)
 					 (when first
 					   (push `(:size . ,pos) col-posns)
-					   (incf pos 8)))
+					   (incf pos longest-size)))
 				 (:date  (format t "~12A"
 						 (multiple-value-bind (sec min hr date month year day ds tz)
 								      (get-decoded-time)
@@ -2276,7 +2492,7 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 					   (incf pos 12)))
 				 (:name
 				  (if first (push `(:name . ,pos) col-posns))
-				  (let ((name (if (= (logand mode unix:s-ifmt) unix:s-iflnk)
+				  (let ((name (if (eq (file-kind-from-mode mode) :link)
 						  ;; FIX could print min part of link path
 						  (let ((link (symlink-dest (namify file))))
 						    (format () "~A --> ~A"
@@ -2291,16 +2507,19 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 			  (terpri)
 			  (when return-list
 			    (push tail result)))))))
+	      (incf index)
 	      (setq first ())))
 	  ;;; Print the usual column format directly.
 	  (progn
 	    (setq col-posns
-		  '((:mode . 0) (:links . 12) (:user . 14) (:size . 23)
-		    (:date . 32) (:name . 45)))
+		  `((:mode . 0) (:links . 12) (:user . 16)
+		    (:size . ,(+ 17 longest-user))
+		    (:date . ,(+ 17 longest-user longest-size))
+		    (:name . ,(+ 29 longest-user longest-size))))
 	    (dolist (file contents)
 	      (multiple-value-bind
 		  (reslt dev-or-err ino mode nlink uid gid rdev size atime mtime namestring)
-		  (file-stats file :check-for-links t)
+		  (apply #'values (aref cache index))
 		(declare (ignore ino gid rdev atime)
 			 (type (or fixnum null) uid mode))
 		(fi reslt
@@ -2318,20 +2537,23 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 		      (multiple-value-bind (sec min hour date month year day ds tz)
 					   (get-decoded-time)
 			(declare (ignore sec min hour date month day ds))
-			(format t " ~2D ~8A ~8D ~12A "
+			(format t (format ()
+					  " ~~3D ~~~AA ~~~AD ~~12A "
+					  longest-user
+					  longest-size)
 				nlink
 				(or (lookup-login-name uid) uid)
 				size
 				(decode-universal-time-for-files mtime year tz))
-			(if (eq (file-kind file :check-for-links t) :link)
-			    ;; FIX could print min part of link path
+			(if (eq (file-kind-from-mode mode) :link)
 			    (let ((link (symlink-dest (namify namestring))))
 			      (format t "~A --> ~A~%"
 				      (namify tail) link))
 			    (format t "~A~%" tail)))
 		      (when return-list
-			(push tail result)))))))))
-    (values (nreverse result) col-posns)))
+			(push tail result)))))
+	      (incf index)))))
+    (values (nreverse result) col-posns cache)))
 
 (defun decode-universal-time-for-files (time current-year tz)
   (multiple-value-bind (sec min hour day month year)
@@ -2688,7 +2910,9 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
    of the possible expansions if $pathname contains a search list.  On
    success return t, else return $pathname and a string describing the
    error."
-  (if (wild-pathname-p pathname) (error "Wild pathname given."))
+  (or *ignore-wildcards*
+      *literal-pathnames*
+      (if (wild-pathname-p pathname) (error "Wild pathname given.")))
   (let ((dir "/") (result pathname) err)
     (loop
       for parts =
@@ -2697,11 +2921,14 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 		(progn
 		  (setq dir (concat (remote-pathname-host pathname) ":"))
 		  (remote-pathname-local pathname))
-		(enumerate-search-list
-		 (path (merge-pathnames pathname
-					;; FIX was unix-cur-dir
-					(current-directory)))
-		 (return path)))))
+		(let ((result))
+		  (enumerate-search-list
+		   (path (merge-pathnames pathname
+					  ;; FIX was unix-cur-dir
+					  (current-directory)))
+		   (setq result path)
+		   (return))
+		  result))))
       then (cdr parts) while parts do
       (setq dir (concatenate 'simple-string dir
 			     (if (eq (car parts) :up) ".." (car parts))
@@ -2763,13 +2990,7 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 (defun namify (pathname)
   "Return a string for $pathname, stripping off any trailing slash if
    $pathname is a directory name."
-  (let ((string (namestring pathname)))
-    (if (zerop (length string))
-	""
-	(let ((last (1- (length string))))
-	  (if (char= (schar string last) #\/)
-	      (subseq string 0 last)
-	      string)))))
+  (%namify (namestring pathname)))
 
 ;;; Public
 ;;;
@@ -2784,7 +3005,8 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
 (defun directoryp (pathname &key check-for-links)
   "Return true if $pathname names a directory, that is, if the file named
    by $pathname exists as a directory."
-  (if (remote-pathname-p pathname)
+  (if (fi (probe-local-file pathname :check-for-links check-for-links)
+	  (remote-pathname-p pathname))
       ;; FIX remote-file-kind? build remote into file-kind?
       (multiple-value-bind (success-p kind)
 			   (probe-file pathname
@@ -2888,11 +3110,13 @@ matches.)  Filesystem operations treat :wild-inferiors the same as :wild.
   (or (eq (format:directive-count base "~D") 2)
       (error "$base must have two ~~D `format' directives: ~A"
 	     base))
-  (until* ((code (1+ *last-new-code*) (1+ code))
+  (while* ((code (1+ *last-new-code*) (1+ code))
 	   (name (format () base (unix:unix-getpid) code)
 		 (format () base (unix:unix-getpid) code)))
-	  ((with-open-file (stream name
-				   :if-exists ()
+	  ((probe-file name)
+	   ;; FIX Should be atomic with call to `probe-file'.
+	   (with-open-file (stream name
+				   :if-exists :error
 				   :if-does-not-exist :create)
 	     t)
 	   (setq *last-new-code* code)

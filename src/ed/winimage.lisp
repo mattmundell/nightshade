@@ -72,10 +72,11 @@
 		      (window-buffer window)))
 	(start offset) new-num)
        ((or (= pos height) (null line))
-	;;    If we have run off the bottom or run out of lines then we are
-	;; done.  At this point Trail is the last line displayed and Current is
-	;; whatever comes after it, possibly the-sentinel.
-	;;    We always say that last-changed is the last line so that we
+	;; If we have run off the bottom or run out of lines then we are
+	;; done.  At this point Trail is the last line displayed and
+	;; Current is whatever comes after it, possibly the-sentinel.
+	;;
+	;; We always say that last-changed is the last line so that we
 	;; don't have to max in the old last-changed.
 	(setf (window-last-changed window) trail)
 	;; If there are extra lines at the end that need to be deleted
@@ -88,16 +89,16 @@
 	    (shiftf (cdr last) spare-lines (cdr trail) the-sentinel))
 	  (setf (window-last-line window) trail))
 	(setf (window-spare-lines window) spare-lines)
-	;;    If first-changed has not been set then we set the first-changed
-	;; to the first line we looked at if it does not come after the
-	;; new position of the old first-changed.
+	;; If first-changed has not been set then we set the first-changed
+	;; to the first line we looked at if it does not come after the new
+	;; position of the old first-changed.
 	(unless changed
 	  (when (> (dis-line-position (car (window-first-changed window)))
 		   (dis-line-position (car save)))
 	    (setf (window-first-changed window) (cdr save)))))
 
     (setq new-num (line-number line))
-    ;; If a line has been deleted, it's line-%buffer is smashed; we unlink
+    ;; If a line has been deleted, its line-%buffer is smashed; we unlink
     ;; any dis-line which displayed such a line.
     (cond
      ((fi (eq (line-%buffer old-line) buffer))
@@ -123,7 +124,7 @@
      ;; of the screen - delete it.  The-Sentinel fails this test because
      ;; it's line-number is most-positive-fixnum.
      ((< (line-number old-line) new-num)
-      ;; FIX think this this happens in tranpose lines case
+      ;; FIX think this happens in tranpose lines case
       (do ((ptr (cdr current) (cdr ptr))
 	   (prev current ptr))
 	  ((>= (line-number (dis-line-line (car ptr))) new-num)
@@ -215,9 +216,9 @@
 
 ;;; maybe-change-window  --  Internal
 ;;;
-;;;    This macro is "Called" in update-window-image whenever it finds that
-;;; the chars of the line and the dis-line don't match.  This may happen for
-;;; several reasons:
+;;; This macro is "Called" in update-window-image whenever it finds that
+;;; the chars of the line and the dis-line don't match.  This may happen
+;;; for several reasons:
 ;;;
 ;;; 1] The previous line was unchanged, but wrapped, so the dis-line-chars
 ;;; are nil.  In this case we just skip over the extension lines.
@@ -229,10 +230,10 @@
 ;;; 3] A line is deleted, off the top of the screen, or moved.  Bug out
 ;;; to Move-Lines.
 ;;;
-;;;    There are two possible results, either we return NIL, and Line,
-;;; Trail and Current are updated, or we return T, in which case
-;;; Update-Window-Image should terminate immediately.  Changed is true
-;;; if a changed line changed lines FIX? has been found.
+;;; There are two possible results, either we return NIL, and Line, Trail
+;;; and Current are updated, or we return T, in which case
+;;; Update-Window-Image should terminate immediately.  Changed is true if a
+;;; changed line changed lines FIX? has been found.
 ;;;
 (eval-when (compile eval)
 (defmacro maybe-change-window (window changed line offset trail current width)
@@ -559,9 +560,9 @@
 
 ;;; maybe-change-window  --  Internal
 ;;;
-;;;    This macro is "Called" in update-window-image whenever it finds that
-;;; the chars of the line and the dis-line don't match.  This may happen for
-;;; several reasons:
+;;; This macro is "Called" in update-window-image whenever it finds that
+;;; the chars of the line and the dis-line don't match.  This may happen
+;;; for several reasons:
 ;;;
 ;;; 1] The previous line was unchanged, but wrapped, so the dis-line-chars
 ;;; are nil.  In this case we just skip over the extension lines.
@@ -573,10 +574,10 @@
 ;;; 3] A line is deleted, off the top of the screen, or moved.  Bug out
 ;;; to Move-Lines.
 ;;;
-;;;    There are two possible results, either we return NIL, and Line,
-;;; Trail and Current are updated, or we return T, in which case
-;;; Update-Window-Image should terminate immediately.  Changed is true
-;;; if a changed line changed lines FIX? has been found.
+;;; There are two possible results, either we return NIL, and Line, Trail
+;;; and Current are updated, or we return T, in which case
+;;; Update-Window-Image should terminate immediately.  Changed is true if a
+;;; changed line changed lines FIX? has been found.
 ;;;
 (defmacro maybe-change-window2 (window changed line offset trail current width)
   `(let* ((cc (car ,current))

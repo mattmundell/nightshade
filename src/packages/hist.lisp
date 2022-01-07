@@ -8,6 +8,7 @@
 ;;; spread of values, and again to actually produce the histogram.
 
 (defpackage "HIST"
+  (:version 0)
   (:use "LISP")
   (:export "HIST" "HIST-RECORD")
   (:documentation

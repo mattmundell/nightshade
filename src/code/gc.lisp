@@ -285,7 +285,7 @@ garbage collection.
 
 ;;; *GC-VERBOSE*
 ;;;
-(defvar *gc-verbose* t
+(defvar *gc-verbose* ()
   "If true the functions bound to *gc-notify-before* and *gc-notify-after*
    are called before and after a garbage collection occurs, respectively.
    If :beep, causes the default notify functions to beep.")

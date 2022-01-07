@@ -17,7 +17,7 @@
 
 ; FIX mv nntp interface out to code:, add login,passwd
 
-#[ The Netnews Interface
+#[ Netnews
 
 [ Introduction to Editor Netnews ]
 [ Setting Up Netnews             ]
@@ -65,6 +65,22 @@ file containing the newsgroups you want to read.
 
 [ News Browse Mode ]
 ]#
+
+
+;;;; Highlighting.
+
+(defun highlight-news-headers-line (line chi-info)
+  (let ((line-length (line-length line)))
+    (when (> line-length 13)
+      (chi-mark line 14 *special-form-font* :special-form chi-info)
+      (if (> line-length 35)
+	  (chi-mark line 36 *string-font* :string chi-info)))))
+
+(defun highlight-news-headers-buffer (buffer)
+  (highlight-chi-buffer buffer highlight-news-headers-line))
+
+(defun highlight-visible-news-headers-buffer (buffer)
+  (highlight-visible-chi-buffer buffer highlight-news-headers-line))
 
 
 ;;;; Netnews data structures.
@@ -152,7 +168,13 @@ file containing the newsgroups you want to read.
   ;; The stream on which we request everything but headers from NNTP.
   stream)
 
+(defun setup-news-headers-mode (buffer)
+  (highlight-visible-news-headers-buffer buffer)
+  (pushnew '("News Headers" t highlight-visible-news-headers-buffer)
+	   *mode-highlighters*))
+
 (defmode "News Headers" :major-p t
+  :setup-function #'setup-news-headers-mode
   :short-name "News-Headers")
 
 
@@ -1303,6 +1325,7 @@ also commands that ease getting from one header to another.
    When on the first visible header, and there are more previous messages
    insert the headers for these messages, otherwise go on to the next group
    in \"Netnews Groups\"."
+  (declare (ignore p))
   (let ((point (buffer-point headers-buffer))
 	(nn-info (variable-value 'netnews-info :buffer headers-buffer)))
     (with-mark ((original-position point)
@@ -2529,58 +2552,60 @@ n and p in this mode.
 
 #[ Netnews Bindings Wallchart
 
+Key bindings for the editor [Netnews] interface.
+
 == Global bindings ==
 
-Netnews Post Message                      C-x P
+    Netnews Post Message                      C-x P
 
 == News Headers and News Message modes ==
 
-Netnews Next Article                      n
-Netnews Previous Article                  p
-Netnews Go to Next Group                  g
-Netnews Group Punt Messages               G
-List All Groups                           l
-Netnews Append to File                    a
-Netnews Forward Message                   f
-Netnews Reply to Sender in Other Window   r
-Netnews Reply to Group in Other Window    R
-Netnews Quit Starting Here                .
+    Netnews Next Article                      n
+    Netnews Previous Article                  p
+    Netnews Go to Next Group                  g
+    Netnews Group Punt Messages               G
+    List All Groups                           l
+    Netnews Append to File                    a
+    Netnews Forward Message                   f
+    Netnews Reply to Sender in Other Window   r
+    Netnews Reply to Group in Other Window    R
+    Netnews Quit Starting Here                .
 
 == News Headers mode bindings ==
 
-Netnews Show Article                      Space
-Netnews Previous Line                     C-p, Uparrow
-Netnews Next Line                         C-n, Downarrow
-Netnews Headers Scroll Window Down        C-v
-Netnews Headers Scroll Window Up          M-v
-Netnews Select Message Buffer             H-m
-Netnews Exit                              q
-Netnews Headers File Message              o
+    Netnews Show Article                      Space
+    Netnews Previous Line                     C-p, Uparrow
+    Netnews Next Line                         C-n, Downarrow
+    Netnews Headers Scroll Window Down        C-v
+    Netnews Headers Scroll Window Up          M-v
+    Netnews Select Message Buffer             H-m
+    Netnews Exit                              q
+    Netnews Headers File Message              o
 
 == News-Message mode bindings ==
 
-Netnews Message Scroll Down               Space
-Scroll Window Up                          Backspace
-Netnews Goto Headers Buffer               H-h, ^
-Netnews Message Keep Buffer               k
-Netnews Message Quit                      q
-Netnews Message File Message              o
-Netnews Goto Post Buffer                  H-p
-Netnews Goto Draft Buffer                 H-d
-Insert Message Region                     H-y
+    Netnews Message Scroll Down               Space
+    Scroll Window Up                          Backspace
+    Netnews Goto Headers Buffer               H-h, ^
+    Netnews Message Keep Buffer               k
+    Netnews Message Quit                      q
+    Netnews Message File Message              o
+    Netnews Goto Post Buffer                  H-p
+    Netnews Goto Draft Buffer                 H-d
+    Insert Message Region                     H-y
 
 == Post mode bindings ==
 
-Netnews Select Message Buffer             H-m
-Netnews Deliver Post                      H-s
-Netnews Abort Post                        H-q
-Insert Message Buffer                     H-y
+    Netnews Select Message Buffer             H-m
+    Netnews Deliver Post                      H-s
+    Netnews Abort Post                        H-q
+    Insert Message Buffer                     H-y
 
 == News-Browse mode bindings ==
 
-Netnews Quit Browse                       q
-Netnews Browse Add Group To File          a
-Netnews Browse Read Group                 Space
-Next Line                                 n
-Previous Line                             p
+    Netnews Quit Browse                       q
+    Netnews Browse Add Group To File          a
+    Netnews Browse Read Group                 Space
+    Next Line                                 n
+    Previous Line                             p
 ]#

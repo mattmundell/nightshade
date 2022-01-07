@@ -6,7 +6,7 @@
 ;;;
 ;;; or
 ;;;
-;;;    build-small/lisp/lisp -core build-small/lisp/lisp.core \
+;;;    build-small/bin/lisp \
 ;;;        -eval "(defvar build \"build2/\")" \
 ;;;        -load src/tools/clean-build.lisp
 

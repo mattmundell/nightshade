@@ -46,6 +46,11 @@
 		 (eval (read stream)))))
     (or (typep meta 'lisp::pkg-info)
 	(error "Failed to read package information from ~A" file))
+    (or (lisp::pkg-info-version meta)
+	(error "Package version required in ~A" file))
+    (or (integerp (lisp::pkg-info-version meta))
+	(error "Package version must be an integer: ~A"
+	       (lisp::pkg-info-version meta)))
     meta))
 
 ;;; Public
@@ -58,6 +63,7 @@
 		  :recurse () :backups () :check-for-subdirs ())
     (or (string= (pathname-name file) "packages")
 	(string= (pathname-type file) "test")
+	(hidden-name-p file)
 	(progn
 	  (if (gethash (pathname-name file) *meta-data*)
 	      (error "Package ~A defined twice."
@@ -101,6 +107,7 @@
 		(write `(setf (gethash ,key *meta-data*)
 			      (lisp::make-pkg-info
 			       :name ,(lisp::pkg-info-name value)
+			       :version ,(lisp::pkg-info-version value)
 			       :doc ,(lisp::pkg-info-doc value)))
 		       :stream file :readably t)
 		(terpri file)
@@ -291,20 +298,27 @@
 ;;; Public
 ;;;
 (defun local-file (name)
-  "Return the pathname of the local source file representing $name.  If
+  "Return the pathname of the local source file that represents $name.  If
    $name is in a subdirectory of the package tree then return the file in
    the subdirectory that is named like the package."
   (if (string= name "packages")
-      (error "Package \"packages\" is reserved for the package meta information."))
+      (error "Package \"packages\" is reserved for the meta information."))
   (let ((file (merge-pathnames (concat (string-downcase name)
 				       ".lisp")
 			       "library:packages/")))
     (if (probe-file file)
-	(if (directoryp file)
-	    (merge-pathnames (ensure-trailing-slash file)
-			     (concat (pathname-name file)
-				     ".lisp"))
-	    file))))
+	file
+	(let ((pathname (merge-pathnames (concat (string-downcase name)
+						 ".pkg")
+					 "library:packages/")))
+	  (fi (probe-file pathname)
+	      (error "Failed to find package \"~A\"." name)
+	      (if (directoryp pathname)
+		  (merge-pathnames (concat (string-downcase name)
+					   ".lisp")
+				   (ensure-trailing-slash
+				    pathname))
+		  (error "Package \"~A\" should be a directory." name)))))))
 
 ;;; Public
 ;;;

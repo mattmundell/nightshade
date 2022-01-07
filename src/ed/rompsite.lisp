@@ -12,10 +12,8 @@
 (export '(show-mark editor-beep editor-sleep
 	  *input-transcript* fun-defined-from-pathname
 	  editor-describe-function pause
-	  store-cut-region store-cut-string
-	  store-selection-region store-selection-string store-clipboard
-	  fetch-cut-string fetch-selection fetch-clipboard
-	  schedule-event remove-scheduled-event
+	  schedule-event
+	  remove-scheduled-event remove-scheduled-function
 	  enter-window-autoraise
 	  windowed-monitor-p
 	  ;;
@@ -24,6 +22,12 @@
 	  ;; below.
 	  ;;
 	  default-font))
+
+#+clx
+(export '(store-cut-region store-cut-string
+	  store-selection-region
+	  store-selection-string store-clipboard
+	  fetch-cut-string fetch-selection fetch-clipboard))
 
 
 
@@ -59,27 +63,30 @@
 ;;; These are used for selecting X events.
 #+clx
 (eval-when (compile load eval)
+  (makunbound 'group-interesting-xevents) ; FIX for + :resize-request
   (defconstant group-interesting-xevents
-    '(:structure-notify :key-press)))
+    '(:visibility-notify :resize-request :structure-notify :key-press)))
 #+clx
 (defconstant group-interesting-xevents-mask
   (apply #'xlib:make-event-mask group-interesting-xevents))
 
 #+clx
 (eval-when (compile load eval)
-  (makunbound 'child-interesting-xevents) ; FIX for - :keymap-notify
+  (makunbound 'child-interesting-xevents) ; FIX for - :keymap-notify, + :resize-request
   (defconstant child-interesting-xevents
     '(:key-press :button-press :button-release :structure-notify :exposure
-		 :enter-window :leave-window :focus-in)))
+		 :enter-window :leave-window :focus-in
+		 :visibility-notify :resize-request)))
 #+clx
 (defconstant child-interesting-xevents-mask
   (apply #'xlib:make-event-mask child-interesting-xevents))
 
 #+clx
 (eval-when (compile load eval)
+  (makunbound 'random-typeout-xevents) ; FIX for + :resize-request
   (defconstant random-typeout-xevents
     '(:key-press :button-press :button-release :enter-window :leave-window
-		 :exposure)))
+		 :exposure :visibility-notify :resize-request)))
 #+clx
 (defconstant random-typeout-xevents-mask
   (apply #'xlib:make-event-mask random-typeout-xevents))
@@ -250,7 +257,7 @@
 	 (top-width (max 0 (- w (ash side-border 1))))
 	 (right-x (- w side-border))
 	 (bottom-y (- h top-border)))
-    (xlib:with-gcontext (gcontext :function xlib:boole-invert)
+    (xlib:with-gcontext (gcontext :function xlib:x-boole-invert)
       (flet ((zot ()
 	       (xlib:draw-rectangle xwin gcontext 0 0 side-border h t)
 	       (xlib:draw-rectangle xwin gcontext side-border bottom-y
@@ -273,7 +280,7 @@
 	 (width (bitmap-hunk-width hunk))
 	 (height (or (bitmap-hunk-modeline-pos hunk)
 		     (bitmap-hunk-height hunk))))
-    (xlib:with-gcontext (gcontext :function xlib:boole-invert)
+    (xlib:with-gcontext (gcontext :function xlib:x-boole-invert)
       (xlib:draw-rectangle xwin gcontext 0 0 width height t)
       (xlib:display-force-output display)
       (sleep 0.1)
@@ -418,6 +425,7 @@ auto-saving files, reminding the user, etc.
 
 {function:ed:schedule-event}
 {function:ed:remove-scheduled-event}
+{function:ed:remove-scheduled-function}
 ]#
 
 ;;; The time queue provides a ROUGH mechanism for scheduling events to
@@ -431,7 +439,8 @@ auto-saving files, reminding the user, etc.
 ;;; NEXT-SCHEDULED-EVENT-WAIT and INVOKE-SCHEDULED-EVENTS are used in the
 ;;; editor stream in methods.
 ;;;
-;;; SCHEDULE-EVENT and REMOVE-SCHEDULED-EVENT are exported interfaces.
+;;; SCHEDULE-EVENT, REMOVE-SCHEDULED-EVENT and REMOVE-SCHEDULED-FUNCTION
+;;; are exported interfaces.
 
 (defstruct (tq-event (:print-function print-tq-event)
 		     (:constructor make-tq-event
@@ -443,14 +452,20 @@ auto-saving files, reminding the user, etc.
 
 (defun print-tq-event (obj stream n)
   (declare (ignore n))
-  (format stream "#<Tq-Event ~S>" (tq-event-function obj)))
+  (format stream "#<Tq-Event ~A ~S>"
+	  (format-universal-time ()
+				 (internal-real-to-universal-time
+				  (tq-event-time obj)))
+	  (tq-event-function obj)))
 
 (defvar *time-queue* nil
   "This is the time priority queue used in editor input streams for event
    scheduling.")
 
 (defvar *invoking-event* nil
-  "True while running the function for an event.")
+  "Set to the event while running the function for an event.")
+
+(declaim (special *suicide*))
 
 ;;; QUEUE-TIME-EVENT inserts event into the time priority queue *time-queue*.
 ;;; Event is inserted before the first element that it is less than (which
@@ -486,8 +501,8 @@ auto-saving files, reminding the user, etc.
 ;;; the queue.  Each function is called on how many seconds, roughly, went
 ;;; by since the last time it was called (or scheduled).  If it has an
 ;;; interval, we re-queue it.  While invoking the function, bind
-;;; *invoking-event* to t in case the event function tries to read off
-;;; *editor-input*.
+;;; *invoking-event* to the event in case the event function tries to read
+;;; off *editor-input* or cancels itself.
 ;;;
 (defun invoke-scheduled-events ()
   (or *invoking-event*
@@ -497,23 +512,27 @@ auto-saving files, reminding the user, etc.
 	  (let* ((event (car *time-queue*))
 		 (event-time (tq-event-time event)))
 	    (cond ((>= time event-time)
-		   (let ((*invoking-event* t))
-		     (funcall (tq-event-function event)
-			      (round (- time (tq-event-last-time event))
-				     internal-time-units-per-second)))
-		   (block-interrupts
-		    (pop *time-queue*)
-		    (let ((interval (tq-event-interval event)))
-		      (when interval
-			(setf (tq-event-time event) (+ time interval))
-			(setf (tq-event-last-time event) time)
-			(queue-time-event event)))))
+		   (let ((*suicide*))
+		     (let ((*invoking-event* event))
+		       (funcall (tq-event-function event)
+				(round (- time (tq-event-last-time event))
+				       internal-time-units-per-second)))
+		     (block-interrupts
+		      (pop *time-queue*)
+		      (or *suicide*
+			  (let ((interval (tq-event-interval event)))
+			    (when interval
+			      (setf (tq-event-time event) (+ time interval))
+			      (setf (tq-event-last-time event) time)
+			      (queue-time-event event)))))))
 		  (t (return))))))))
 
 (defun schedule-event (time function &optional (repeat t) (absolute nil))
   "Schedule $function to be called at some time.
 
-   The editor runs `Schedule Event Hook' after the event is scheduled.
+   Return the event, or () if time is absolute and in the past.
+
+   Run `Schedule Event Hook' after scheduling the event.
 
    If $absolute is true then call $function at universal time $time and, if
    $repeat is true, every $repeat seconds thereafter.  If $time is t call
@@ -531,7 +550,11 @@ auto-saving files, reminding the user, etc.
 	 (itime (if absolute
 		    (if (eq time t)
 			now
-			(universal-to-internal-real-time time))
+			(let ((new
+			       (universal-to-internal-real-time time)))
+			  (if (< new now)
+			      (return-from schedule-event))
+			  new))
 		    (* internal-time-units-per-second time)))
 	 (event (if absolute
 		    (make-tq-event itime now
@@ -544,14 +567,26 @@ auto-saving files, reminding the user, etc.
 				   (if repeat itime)
 				   function))))
     (queue-time-event event)
-; FIX
-;    (invoke-hook ed::schedule-event-hook event)
+    (invoke-hook ed::schedule-event-hook event)
     event))
 
-(defun remove-scheduled-event (function)
-  "Removes FUNCTION, which was queued with SCHEDULE-EVENT."
-  (setf *time-queue* (delete function *time-queue* :key
-			     #'tq-event-function)))
+(defun remove-scheduled-event (event)
+  "Remove $event, which was queued with `schedule-event'."
+  (if (equalp event *invoking-event*)
+      (setq *suicide* t)
+      (setf *time-queue*
+	    (delete event *time-queue* :test #'equalp))))
+
+(defun remove-scheduled-function (function)
+  "Remove $function, which was queued with `schedule-event'."
+  (when *time-queue*
+    (if (eql (tq-event-function (car *time-queue*)) function)
+	(setq *suicide* t))
+    (setf *time-queue*
+	  (cons (car *time-queue*)
+		(if (cdr *time-queue*)
+		    (delete function (cdr *time-queue*)
+			    :key #'tq-event-function))))))
 
 
 ;;;; Editor sleeping.
@@ -730,14 +765,14 @@ auto-saving files, reminding the user, etc.
 #+clx
 (defun get-editor-cursor (display)
   (when *editor-cursor* (xlib:free-cursor *editor-cursor*))
-  #| FIX
-  (let* ((cursor-file (truename (variable-value 'ed::cursor-bitmap-file)))
-	 (mask-file (probe-file (make-pathname :type "mask"
-					       :defaults cursor-file)))
+#|
+  (let* ((cursor-file ) ; (truename (variable-value 'ed::cursor-bitmap-file))) FIX
+	 (mask-file ) ; (probe-file (make-pathname :type "mask" :defaults cursor-file))) FIX
 	 (root (xlib:screen-root (xlib:display-default-screen display)))
-	 (mask-pixmap (if mask-file (get-cursor-pixmap root mask-file))))
+	 ;(mask-pixmap (if mask-file (get-cursor-pixmap root mask-file))))
+	 (mask-pixmap (get-cursor-pixmap root *cursor-mask-bitmap*))) ; cursor-file))) FIX
     (multiple-value-bind (cursor-pixmap cursor-x-hot cursor-y-hot)
-			 (get-cursor-pixmap root cursor-file)
+			 (get-cursor-pixmap root *cursor-bitmap*) ; cursor-file) FIX
       (setf *editor-cursor*
 	    (xlib:create-cursor :source cursor-pixmap :mask mask-pixmap
 				:x cursor-x-hot :y cursor-y-hot
@@ -745,17 +780,57 @@ auto-saving files, reminding the user, etc.
 				:background *cursor-background-color*))
       (xlib:free-pixmap cursor-pixmap)
       (when mask-pixmap (xlib:free-pixmap mask-pixmap))))
-  |#
+|#
+  ;; X encourages use of the font cursor, instead of the above.
   (setf *editor-cursor* (xlib:create-font-cursor display 2)))
+
+#|
+#+clx
+(defvar *cursor-bitmap* '(#*11111111111111111111111111111111
+			  #*00000000000000011000000000000000
+			  #*00000000000000011000000000000000
+			  #*00000000000000011000000000000000
+			  #*00000000000000011000000000000000
+			  #*00000000000000011000000000000000
+			  #*00000000000000011000000000000000
+			  #*00000000000000011000000000000000
+			  #*00000000000000011000000000000000
+			  #*00000000000000011000000000000000
+			  #*00000000000000011000000000000000
+			  #*00000000000000011000000000000000
+			  #*00000000000000011000000000000000
+			  #*00000000000000011000000000000000
+			  #*00000000000000011000000000000000
+			  #*11111111111111111111111111111111))
+
+#+clx
+(defvar *cursor-mask-bitmap* '(#*11111111111111111111111111111111
+			       #*00000000000000011000000000000000
+			       #*00000000000000011000000000000000
+			       #*00000000000000011000000000000000
+			       #*00000000000000011000000000000000
+			       #*00000000000000011000000000000000
+			       #*00000000000000011000000000000000
+			       #*00000000000000011000000000000000
+			       #*00000000000000011000000000000000
+			       #*00000000000000011000000000000000
+			       #*00000000000000011000000000000000
+			       #*00000000000000011000000000000000
+			       #*00000000000000011000000000000000
+			       #*00000000000000011000000000000000
+			       #*00000000000000011000000000000000
+			       #*11111111111111111111111111111111))
+|#
 
 #+clx
 (defun get-cursor-pixmap (root pathname)
-  (let* ((image (xlib:read-bitmap-file pathname))
-	 (pixmap (xlib:create-pixmap :width 16 :height 16
+  (let* ( ;(image (xlib:read-bitmap-file root pathname)) FIX
+	 (image (apply #'xlib:bitmap-image pathname)) ; *cursor-bitmap*)) FIX
+	 (pixmap (xlib:create-pixmap :width 32 :height 32
 				     :depth 1 :drawable root))
 	 (display (xlib:drawable-display root))
 	 (gc (xlib:create-gcontext
-	      :drawable pixmap :function xlib:boole-1
+	      :drawable pixmap :function xlib:x-boole-xor ; xlib:x-boole-1
 	      :foreground
 	      (color-pixel display
 			   (or (value ed::initial-background-color)
@@ -764,7 +839,7 @@ auto-saving files, reminding the user, etc.
 	      (color-pixel display
 			   (or (value ed::initial-foreground-color)
 			       '(0 0 0))))))
-    (xlib:put-image pixmap gc image :x 0 :y 0 :width 16 :height 16)
+    (xlib:put-image pixmap gc image :x 0 :y 0 :width 32 :height 32)
     (xlib:free-gcontext gc)
     (values pixmap (xlib:image-x-hot image) (xlib:image-y-hot image))))
 
@@ -785,7 +860,7 @@ auto-saving files, reminding the user, etc.
 	 (pixmap (xlib:create-pixmap :width width :height height
 				     :depth depth :drawable root))
 	 (gc (xlib:create-gcontext :drawable pixmap
-				   :function xlib:boole-1
+				   :function xlib:x-boole-1
 				   :foreground
 				   (color-pixel
 				    display
@@ -887,6 +962,7 @@ auto-saving files, reminding the user, etc.
 
 #+clx
 (defun clipboard-on (&optional name)
+  (declare (ignore name))
   (let ((hunk (window-hunk (current-window))))
     (xlib:set-selection (bitmap-device-display
 			 (device-hunk-device hunk))
@@ -1032,7 +1108,8 @@ auto-saving files, reminding the user, etc.
 	(let ((flags (alien:slot sg 'unix:sg-flags)))
 	  (setq old-flags flags)
 	  (setf (alien:slot sg 'unix:sg-flags)
-		(logand #-(or hpux irix freebsd glibc2) (logior flags unix:tty-cbreak)
+		(logand #-(or hpux irix freebsd glibc2)
+			(logior flags unix:tty-cbreak)
 			(lognot unix:tty-echo)
 			(lognot unix:tty-crmod)))
 	  (multiple-value-bind

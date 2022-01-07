@@ -107,7 +107,6 @@
   (load "ed:debug")
   (load "ed:netnews")
   (load "ed:parse-scribe")
-  (load "ed:parse-css")
   (load "ed:info")
   (ed::get-info-directory)
   (load "ed:ginfo")
@@ -124,6 +123,7 @@
   (load "ed:line-end")
   (load "ed:refresh")
   (load "ed:testcoms")
+  (load "ed:hex")
 
   (load "ed:ed-integrity")
   (load "ed:edi-integrity")

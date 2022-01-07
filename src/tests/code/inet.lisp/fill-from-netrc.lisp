@@ -67,3 +67,27 @@
     (letf (((search-list "home:") (list dir)))
       (let ((account (internet:make-inet-account "new")))
 	(internet:fill-from-netrc account)))))
+
+(deftest fill-from-netrc ((internet:make-inet-account "new-name"
+						      "name2"
+						      "pwd2"
+						      "ftp")
+			  fill-from-netrc-3
+			  :test #'equalp)
+  "Test `fill-from-netrc' with a fallback."
+  (with-test-dir (dir ".netrc")
+    (in-directory dir
+      (to-file (stream ".netrc")
+	(write-line "machine machine.org" stream)
+	(write-line "login name" stream)
+	(write-line "password pwd" stream)
+	(write-line "protocol ssh" stream)
+	(write-line "" stream)
+	(write-line "default" stream)
+	(write-line "login name2" stream)
+	(write-line "password pwd2" stream)
+	(write-line "protocol ftp" stream)))
+
+    (letf (((search-list "home:") (list dir)))
+      (let ((account (internet:make-inet-account "new-name")))
+	(internet:fill-from-netrc account)))))

@@ -54,37 +54,36 @@ print syntax
 ]#
 
 ;;; These functions perform basic list operations:
-
-(defun car (list) "Return the 1st object in a list." (car list))
-(defun cdr (list) "Return all but the first object." (cdr list))
-(defun cadr (list) "Return the 2nd object in a list." (cadr list))
-(defun cdar (list) "Return the cdr of the 1st sublist." (cdar list))
-(defun caar (list) "Return the car of the 1st sublist." (caar list))
-(defun cddr (list) "Return all but the 1st two objects of a list." (cddr list))
-(defun caddr (list) "Return the 1st object in the cddr of a list." (caddr list))
-(defun caadr (list) "Return the 1st object in the cadr of a list." (caadr list))
-(defun caaar (list) "Return the 1st object in the caar of a list." (caaar list))
-(defun cdaar (list) "Return the cdr of the caar of a list." (cdaar list))
-(defun cddar (list) "Return the cdr of the cdar of a list." (cddar list))
-(defun cdddr (list) "Return the cdr of the cddr of a list." (cdddr list))
-(defun cadar (list) "Return the car of the cdar of a list." (cadar list))
-(defun cdadr (list) "Return the cdr of the cadr of a list." (cdadr list))
-(defun caaaar (list) "Return the car of the caaar of a list." (caaaar list))
-(defun caaadr (list) "Return the car of the caadr of a list." (caaadr list))
-(defun caaddr (list) "Return the car of the caddr of a list." (caaddr list))
-(defun cadddr (list) "Return the car of the cdddr of a list." (cadddr list))
-(defun cddddr (list) "Return the cdr of the cdddr of a list." (cddddr list))
-(defun cdaaar (list) "Return the cdr of the caaar of a list." (cdaaar list))
-(defun cddaar (list) "Return the cdr of the cdaar of a list." (cddaar list))
-(defun cdddar (list) "Return the cdr of the cddar of a list." (cdddar list))
-(defun caadar (list) "Return the car of the cadar of a list." (caadar list))
-(defun cadaar (list) "Return the car of the cdaar of a list." (cadaar list))
-(defun cadadr (list) "Return the car of the cdadr of a list." (cadadr list))
-(defun caddar (list) "Return the car of the cddar of a list." (caddar list))
-(defun cdaadr (list) "Return the cdr of the caadr of a list." (cdaadr list))
-(defun cdadar (list) "Return the cdr of the cadar of a list." (cdadar list))
-(defun cdaddr (list) "Return the cdr of the caddr of a list." (cdaddr list))
-(defun cddadr (list) "Return the cdr of the cdadr of a list." (cddadr list))
+(defun car (list) "Return the first item in $list." (car list))
+(defun cdr (list) "Return all but the first item." (cdr list))
+(defun cadr (list) "Return the second item in $list." (cadr list))
+(defun cdar (list) "Return the cdr of the first sublist." (cdar list))
+(defun caar (list) "Return the car of the first sublist." (caar list))
+(defun cddr (list) "Return all but the first two items of $list." (cddr list))
+(defun caddr (list) "Return the first item in the cddr of $list." (caddr list))
+(defun caadr (list) "Return the first item in the cadr of $list." (caadr list))
+(defun caaar (list) "Return the first item in the caar of $list." (caaar list))
+(defun cdaar (list) "Return the cdr of the caar of $list." (cdaar list))
+(defun cddar (list) "Return the cdr of the cdar of $list." (cddar list))
+(defun cdddr (list) "Return the cdr of the cddr of $list." (cdddr list))
+(defun cadar (list) "Return the car of the cdar of $list." (cadar list))
+(defun cdadr (list) "Return the cdr of the cadr of $list." (cdadr list))
+(defun caaaar (list) "Return the car of the caaar of $list." (caaaar list))
+(defun caaadr (list) "Return the car of the caadr of $list." (caaadr list))
+(defun caaddr (list) "Return the car of the caddr of $list." (caaddr list))
+(defun cadddr (list) "Return the car of the cdddr of $list." (cadddr list))
+(defun cddddr (list) "Return the cdr of the cdddr of $list." (cddddr list))
+(defun cdaaar (list) "Return the cdr of the caaar of $list." (cdaaar list))
+(defun cddaar (list) "Return the cdr of the cdaar of $list." (cddaar list))
+(defun cdddar (list) "Return the cdr of the cddar of $list." (cdddar list))
+(defun caadar (list) "Return the car of the cadar of $list." (caadar list))
+(defun cadaar (list) "Return the car of the cdaar of $list." (cadaar list))
+(defun cadadr (list) "Return the car of the cdadr of $list." (cadadr list))
+(defun caddar (list) "Return the car of the cddar of $list." (caddar list))
+(defun cdaadr (list) "Return the cdr of the caadr of $list." (cdaadr list))
+(defun cdadar (list) "Return the cdr of the cadar of $list." (cdadar list))
+(defun cdaddr (list) "Return the cdr of the caddr of $list." (cdaddr list))
+(defun cddadr (list) "Return the cdr of the cdadr of $list." (cddadr list))
 (defun cons (se1 se2) "Return a list with se1 as the car and se2 as the cdr."
                       (cons se1 se2))
 
@@ -115,11 +114,11 @@ print syntax
       (tree-equal-test-not x y test-not)
       (tree-equal-test x y test)))
 
-(defun endp (object)
-  "The recommended way to test for the end of a list.  True if Object is
-   nil, false if Object is a cons, and an error for any other types of
+(defun endp (item)
+  "The recommended way to test for the end of a list.  True if $item is
+   nil, false if $item is a cons, and an error for any other types of
    arguments."
-  (endp object))
+  (endp item))
 
 (defun list-length (list)
   "Return the length of the given List, or Nil if the List is circular."
@@ -133,53 +132,53 @@ print syntax
     (when (and (eq y z) (> n 0)) (return nil))))
 
 (defun nth (n list)
-  "Return the nth object in a list where the car is the zero-th element."
+  "Return the $n'th item in $list where the car is the zero-th item."
   (car (nthcdr n list)))
 
 (defun first (list)
-  "Return the 1st object in a list or NIL if the list is empty."
+  "Return the first item in $list or NIL if the list is empty."
   (car list))
 (defun second (list)
-  "Return the 2nd object in a list or NIL if there is no 2nd object."
+  "Return the second item in $list or NIL if there are fewer items."
   (cadr list))
 (defun third (list)
-  "Return the 3rd object in a list or NIL if there is no 3rd object."
+  "Return the third item in $list or NIL if there are fewer items."
   (caddr list))
 (defun fourth (list)
-  "Return the 4th object in a list or NIL if there is no 4th object."
+  "Return the fourth item in $list or NIL if there are fewer items."
   (cadddr list))
 (defun fifth (list)
-  "Return the 5th object in a list or NIL if there is no 5th object."
+  "Return the fifth item in $list or NIL if there are fewer items."
   (car (cddddr list)))
 (defun sixth (list)
-  "Return the 6th object in a list or NIL if there is no 6th object."
+  "Return the sixth item in $list or NIL if there are fewer items."
   (cadr (cddddr list)))
 (defun seventh (list)
-  "Return the 7th object in a list or NIL if there is no 7th object."
+  "Return the seventh item in $list or NIL if there are fewer items."
   (caddr (cddddr list)))
 (defun eighth (list)
-  "Return the 8th object in a list or NIL if there is no 8th object."
+  "Return the eighth item in $list or NIL if there are fewer items."
   (cadddr (cddddr list)))
 (defun ninth (list)
-  "Return the 9th object in a list or NIL if there is no 9th object."
+  "Return the ninth item in $list or NIL if there are fewer items."
   (car (cddddr (cddddr list))))
 (defun tenth (list)
-  "Return the 10th object in a list or NIL if there is no 10th object."
+  "Return the tenth item in $list or NIL if there are fewer items."
   (cadr (cddddr (cddddr list))))
 (defun rest (list)
-  "Means the same as the cdr of a list."
+  "Means the same as the `cdr' of $list."
   (cdr list))
 
 (defun nthcdr (n list)
   (declare (type index n))
-  "Performs the cdr function n times on a list."
+  "Performs the `cdr' function `n' times on $list."
   (do ((i n (1- i))
        (result list (cdr result)))
       ((not (plusp i)) result)
       (declare (type index i))))
 
 (defun last (list &optional (n 1))
-  "Return the last N conses of a list."
+  "Return the last $n conses of $list."
   (declare (type index n))
   (do ((checked-list list (cdr checked-list))
        (returned-list list)
@@ -709,7 +708,7 @@ print syntax
     res))
 
 ;;; Destination and source are setf-able and many-evaluable.  Sets the source
-;;; to the cdr, and "conses" the 1st elt of source to destination.
+;;; to the cdr, and "conses" the first elt of source to destination.
 ;;;
 (defmacro steve-splice (source destination)  ; FIX steve?
   `(let ((temp ,source))
@@ -1018,7 +1017,7 @@ print syntax
   "Applies fn to successive CDRs of lists, returns NCONC of results."
   (map1 function (cons list more-lists) :nconc nil))
 
-;; FIX reconsider
+;; FIX reconsider  (reduce #'concat '("a" "b"))
 (defun mapconcat (function list &optional (spacer "") spacer-first)
   "Return the concatenation of the results of applying FUNCTION to
    succussive CARs of LIST.  Insert SPACER between each result, and if
@@ -1068,6 +1067,7 @@ print syntax
    function $test."
   (iterate iter ((one list))
     (when one
+      ;; FIX use `member' instd of looping?
       (let ((one-element (car one)))
 	(dolist (two (cdr one))
 	  (if (funcall test one-element two)

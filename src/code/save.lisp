@@ -89,12 +89,23 @@ To resume a saved file, type:
 	(or (parse-unix-search-list :home)
 	    (list (current-unix-directory))))
   (setf (search-list ":") "home:")
+  (setf (search-list "conf:") '("home:.nightshade/"))
 
   (setf (search-list "library:")
 	(or (parse-unix-search-list :nightshadelib)
-	    '(#+mach  "/usr/misc/.nightshade/lib/"
-	      #+linux "/usr/local/lib/nightshade/"
-	      #-(or mach linux) "/usr/local/lib/nightshade/lib/"))))
+	    (let ((loc (concatenate 'simple-string
+				    (directory-namestring
+				     ;; Too early to use
+				     ;; *command-line-utility-name*.
+				     (car lisp::lisp-command-line-list))
+				    "../lib/nightshade/")))
+	      (format t "loc: ~A~%" loc)
+	      (format t "probe-file loc: ~A~%" (probe-file loc))
+	      ;; If loc is relative the current dir must be the same as it
+	      ;; was when the program started.
+	      (if (probe-file loc) (list (truename loc))))
+	    '(#+mach "/usr/misc/.nightshade/lib/"
+	      #-mach "/usr/local/lib/nightshade/"))))
 
 
 ;;;; SAVE-LISP itself.
@@ -183,7 +194,11 @@ To resume a saved file, type:
 		 (if site-init
 		     (load site-init :if-does-not-exist nil :verbose nil))
 		 (and process-command-line
-		      (find-switch "edit")
+		      (or (find-switch "edit")
+			  (member (file-namestring
+				   ext:*command-line-utility-name*)
+				  '("ne" "net")
+				  :test #'string=))
 		      (setf *editor-lisp-p* t))
 		 (and load-init-file
 		      (or (and process-command-line (find-switch "noinit"))

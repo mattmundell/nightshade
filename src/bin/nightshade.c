@@ -175,14 +175,41 @@ void main(int argc, char *argv[], char *envp[])
 	    } while (*lib++ == ':');
 	}
 	if (core == NULL) {
-	    /* Note: the /usr/misc/.nightshade/lib/ default path is also wired
-	       into the lisp code in .../code/save.lisp. */
+	    struct stat statbuf;
+
 #ifdef MACH
-	    strcpy(buf, "/usr/misc/.nightshade/lib/");
+	    // FIX
 #else
-	    strcpy(buf, "/usr/local/lib/nightshade/");
+	    /* Try find the core relative to the program invocation
+	       name. */
+	    char* slash;
+	    strcpy(buf, argv[0]);
+	    slash = strrchr(buf, '/');
+	    if (slash) {
+	        strcpy(slash+1, "../lib/nightshade/");
+		strcpy(slash+19, default_core);
+	    } else {
+	        strcpy(buf, "../lib/nightshade/");
+		strcpy(buf+18, default_core);
+	    }
+
 #endif
-	    strcat(buf, default_core);
+
+	    if (stat(buf, &statbuf)) {
+		/* Failed to find core relative to program name. */
+
+		/* Note: the /usr/misc/.nightshade/lib/ default path is
+		   also wired into the lisp code in FIX .../code/save.lisp.
+		*/
+#ifdef MACH
+		strcpy(buf, "/usr/misc/.nightshade/lib/");
+#else
+	        strcpy(buf, "/usr/local/lib/nightshade/");
+#endif
+	        strcat(buf, default_core);
+	    }
+
+
 	    core = buf;
 	}
     }
@@ -234,7 +261,7 @@ void main(int argc, char *argv[], char *envp[])
     SetSymbolValue(PSEUDO_ATOMIC_INTERRUPTED, make_fixnum(0));
 #endif
 
-    /* Convert the argv and envp to something Lisp can grok. */
+    /* Convert the argv and envp to something Lisp can understand. */
     SetSymbolValue(LISP_COMMAND_LINE_LIST, alloc_str_list(argv));
     SetSymbolValue(LISP_ENVIRONMENT_LIST, alloc_str_list(envp));
 

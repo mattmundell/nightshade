@@ -119,7 +119,7 @@
 ;;; the current window is the echo area window, just pretend everything is
 ;;; okay; this keeps the region highlighted while we're in there.
 ;;;
-(defun highlight-active-region (window)
+(defun highlight-active-region (&optional window)
   (unless (eq window *echo-area-window*)
     (when (value highlight-active-region)
       (cond ((region-active-p)
@@ -135,6 +135,8 @@
 ;;;
 ;;; Moved to context highlighting hook below.
 ;(add-hook redisplay-hook 'highlight-active-region)
+(add-hook activate-region-hook 'highlight-active-region)
+(add-hook pacify-region-hook 'highlight-active-region)
 
 ;;; LAST-CHI-MARK  --  Internal
 ;;;
@@ -235,11 +237,16 @@
     (with-mark ((start (region-start region)))
       (if (mark= start end)
 	  (return-from check-active-region-font-marks))
-      (or (and first-active-mark
-	       last-active-mark
-	       (mark-line first-active-mark)
-	       (eq (current-buffer)
-		   (line-buffer (mark-line first-active-mark))))
+
+      (or (and first-active-mark (car last-active-mark))
+	  (return-from check-active-region-font-marks))
+
+      (or (and (mark-line first-active-mark)
+	       (mark-line (car last-active-mark)))
+	  (return-from check-active-region-font-marks))
+
+      (or (eq (current-buffer)
+	      (line-buffer (mark-line first-active-mark)))
 	  (return-from check-active-region-font-marks))
 
       (and (mark= start first-active-mark)
@@ -349,9 +356,9 @@
   "Index of the font to use for comments.")
 (defvar *string-font* 0
   "Index of the font to use for strings.")
-(defvar *variable-name-font* 0
+(defvar *variable-font* 0
   "Index of the font to use for variable names.")
-(defvar *function-name-font* 0
+(defvar *function-font* 0
   "Index of the font to use for variable names.")
 (defvar *preprocessor-font* 0
   "Index of the font to use for preprocessor directives.")
@@ -427,6 +434,12 @@
 ;;; Clear signatures on any chi-marks in $region.
 ;;;
 (defun clear-chi-signatures (region)
+  (if (mark> (region-start region) (region-end region))
+      ;; Assume something like `Exchange Point and Mark' happened.
+      (let ((old-end (region-end region))
+	    (old-start (region-start region)))
+	(setf (region-end region) old-start
+	      (region-start region) old-end)))
   (until ((line (mark-line (region-start region)) (line-next line))
 	  (end (line-next (mark-line (region-end region)))))
 	 ((eq line end))
@@ -512,7 +525,8 @@
 	  (when chi-info
 	    (dolist (mark (chi-info-font-marks chi-info))
 	      (let ((charpos (mark-charpos mark)))
-		(when (and (>= charpos start-charpos)
+		(when (and (mark-line mark)
+			   (>= charpos start-charpos)
 			   (<= charpos end-charpos))
 		  (push (list (mark-charpos mark)
 			      (mark-line mark)
@@ -532,7 +546,8 @@
 		(old))
 	    (when chi-info
 	      (dolist (mark (chi-info-font-marks chi-info))
-		(when (>= (mark-charpos mark) start-charpos)
+		(when (and (mark-line mark)
+			   (>= (mark-charpos mark) start-charpos))
 		  (push (list (mark-charpos mark)
 			      (mark-line mark)
 			      (edi::font-mark-font mark) ; FIX
@@ -552,7 +567,9 @@
 			(old))
 		    (when chi-info
 		      (dolist (mark (chi-info-font-marks chi-info))
-			(when (<= (mark-charpos mark) end-charpos)
+			(when (and (mark-line mark)
+				   (<= (mark-charpos mark)
+				       end-charpos))
 			  (push (list (mark-charpos mark)
 				      (mark-line mark)
 				      (edi::font-mark-font mark) ; FIX
@@ -569,12 +586,13 @@
 		  (old))
 	      (when chi-info
 		(dolist (mark (chi-info-font-marks chi-info))
-		  (push (list (mark-charpos mark)
-			      (mark-line mark)
-			      (edi::font-mark-font mark) ; FIX
-			      (font-mark-fore-color mark)
-			      (font-mark-back-color mark))
-			*active-chi-mark-info*)
+		  (when (mark-line mark)
+		    (push (list (mark-charpos mark)
+				(mark-line mark)
+				(edi::font-mark-font mark) ; FIX
+				(font-mark-fore-color mark)
+				(font-mark-back-color mark))
+			  *active-chi-mark-info*))
 		  (push mark old))
 		(setf (chi-info-font-marks chi-info)
 		      (set-difference (chi-info-font-marks chi-info)
@@ -646,7 +664,7 @@
   `(let ((*context*)
 	 (line (mark-line (buffer-start-mark ,buffer))))
      ;; Move to the first changed line.
-     (loop while (and line (line-same-p line)) do
+     (while () ((and line (line-same-p line)))
        (setq line (line-next line)))
      (when line
        ;; Setup context from previous line.
@@ -657,7 +675,7 @@
 		 (setq *context* (chi-info-end-context chi-info))))))
        ;; Call the highlighter on each line.
        (catch 'highlight-exit
-	 (loop while line do
+	 (while () (line)
 	   (ensure-chi-info line)
 	   (let* ((chi-info (getf (line-plist line) 'chi-info))
 		  (*last-used-mark* (cons nil (chi-info-font-marks chi-info))))
@@ -821,9 +839,9 @@
     (when info
       (dolist (fmark (ch-info-font-marks info))
 	(if (mark-line fmark) (delete-font-mark fmark)))
-      (setf (ch-info-font-marks info) nil)
+      (setf (ch-info-font-marks info) ())
       ;; Force line to be reconsidered on next refresh.
-      (setf (ch-info-signature info) nil))))
+      (setf (ch-info-signature info) ()))))
 
 (defcommand "Highlight Trailing Space" (p)
   "Highlight trailing whitespace on lines in the current buffer.  With a
@@ -853,7 +871,7 @@
 	    (setf (ch-info-font-marks info)
 		  (delq fmark (ch-info-font-marks info)))))
 	;; Force line to be reconsidered on next refresh.
-	(setf (ch-info-signature info) nil)))))
+	(setf (ch-info-signature info) ())))))
 
 (defun highlight-window-trailing-space (window)
   ;; FIX may need to use window height instead
@@ -877,7 +895,7 @@
 	    (setf (ch-info-font-marks info)
 		  (delq fmark (ch-info-font-marks info)))))
       ;; Force line to be reconsidered on next refresh.
-      (setf (ch-info-signature info) nil))))
+      (setf (ch-info-signature info) ()))))
 
 (defun highlight-visible-trailing-space (buffer &optional existp)
   "Highlight trailing whitespace in the visible portions of buffer."

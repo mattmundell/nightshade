@@ -38,7 +38,7 @@ If no \code{:initial-value} is specified, arrays are initialized to zero.
 
 ;;;; Random accessor functions.
 
-;;; These functions are needed by the interpreter, 'cause the compiler
+;;; These functions are needed by the interpreter, because the compiler
 ;;; inlines them.
 
 (macrolet ((frob (name)

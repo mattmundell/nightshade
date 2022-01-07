@@ -24,7 +24,7 @@ OBJS = $(patsubst %.c,%.o,$(patsubst %.S,%.o,$(patsubst %.s,%.o,$(SRCS))))
 %: RCS/%,v
 
 nightshade.nm: nightshade # xlib.o
-	echo 'Map file for lisp version ' `cat version` > ,nightshade.nm
+	echo 'Map file for nightshade version ' `cat version` > ,nightshade.nm
 	$(NM) nightshade | grep -v " F \| U " >> ,nightshade.nm
 	mv ,nightshade.nm nightshade.nm
 

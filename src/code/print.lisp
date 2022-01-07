@@ -23,8 +23,8 @@
 
 (defvar *print-readably* nil
   "If true, all objects will printed readably.  If readably printing is
-  impossible, an error will be signalled.  This overrides the value of
-  *PRINT-ESCAPE*.")
+   impossible, an error will be signalled.  This overrides the value of
+   *PRINT-ESCAPE*.")
 (defvar *print-escape* T
   "Flag which indicates that slashification is on.  See the manual")
 (defvar *print-pretty* nil
@@ -151,8 +151,8 @@
   object)
 
 (defun print (object &optional stream)
-  "Outputs a terpri, the mostly READable printed represenation of OBJECT, and
-   space to the stream."
+  "Outputs a terpri, the mostly READable printed representation of OBJECT,
+   and space to the stream."
   (let ((stream (out-synonym-of stream)))
     (terpri stream)
     (prin1 object stream)
@@ -570,7 +570,7 @@
 
 ;;; OUTPUT-QUOTED-SYMBOL-NAME  --  Internal
 ;;;
-;;;    Out Pname (a symbol-name or package-name) surrounded with |'s, and with
+;;; Out Pname (a symbol-name or package-name) surrounded with |'s, and with
 ;;; any embedded |'s or \'s escaped.
 ;;;
 (defun output-quoted-symbol-name (pname stream)
@@ -629,9 +629,9 @@
 
 ;;;; Escaping symbols.
 
-;;;    When we print symbols we have to figure out if they need to be
-;;; printed with escape characters.  This isn't a whole lot easier than
-;;; reading symbols in the first place.
+;;; When we print symbols we have to figure out if they need to be printed
+;;; with escape characters.  This isn't a whole lot easier than reading
+;;; symbols in the first place.
 ;;;
 ;;; For each character, the value of the corresponding element is a fixnum with
 ;;; bits set corresponding to attributes that the character has.  At characters
@@ -718,7 +718,7 @@
 
 ;;; SYMBOL-QUOTEP  --  Internal
 ;;;
-;;;    A FSM-like thingie that determines whether a symbol is a potential
+;;; A FSM-like thingie that determines whether a symbol is a potential
 ;;; number or has evil characters in it.
 ;;;
 (defun symbol-quotep (name)
@@ -1244,29 +1244,24 @@
 ;;; fixed format with no exponent.  The interpretation of the arguments is as
 ;;; follows:
 ;;;
-;;;     X        - The floating point number to convert, which must not be
-;;;                negative.
-;;;     WIDTH    - The preferred field width, used to determine the number
-;;;                of fraction digits to produce if the FDIGITS parameter
-;;;                is unspecified or NIL.  If the non-fraction digits and the
-;;;                decimal point alone exceed this width, no fraction digits
-;;;                will be produced unless a true value of FDIGITS has been
-;;;                specified.  Field overflow is not considerd an error at this
-;;;                level.
-;;;     FDIGITS  - The number of fractional digits to produce. Insignificant
-;;;                trailing zeroes may be introduced as needed.  May be
-;;;                unspecified or NIL, in which case as many digits as possible
-;;;                are generated, subject to the constraint that there are no
-;;;                trailing zeroes.
-;;;     SCALE    - If this parameter is specified or non-NIL, then the number
-;;;                printed is (* x (expt 10 scale)).  This scaling is exact,
-;;;                and cannot lose precision.
-;;;     FMIN     - This parameter, if specified or non-NIL, is the minimum
-;;;                number of fraction digits which will be produced, regardless
-;;;                of the value of WIDTH or FDIGITS.  This feature is used by
-;;;                the ~E format directive to prevent complete loss of
-;;;                significance in the printed value due to a bogus choice of
-;;;                scale factor.
+;;;  X - The floating point number to convert, which must not be negative.
+;;;  WIDTH - The preferred field width, used to determine the number of
+;;;  fraction digits to produce if the FDIGITS parameter is unspecified or
+;;;  NIL.  If the non-fraction digits and the decimal point alone exceed
+;;;  this width, no fraction digits will be produced unless a true value of
+;;;  FDIGITS has been specified.  Field overflow is not considerd an error
+;;;  at this level.  FDIGITS - The number of fractional digits to produce.
+;;;  Insignificant trailing zeroes may be introduced as needed.  May be
+;;;  unspecified or NIL, in which case as many digits as possible are
+;;;  generated, subject to the constraint that there are no trailing
+;;;  zeroes.  SCALE - If this parameter is specified or non-NIL, then the
+;;;  number printed is (* x (expt 10 scale)).  This scaling is exact, and
+;;;  cannot lose precision.  FMIN - This parameter, if specified or
+;;;  non-NIL, is the minimum number of fraction digits which will be
+;;;  produced, regardless of the value of WIDTH or FDIGITS.  This feature
+;;;  is used by the ~E format directive to prevent complete loss of
+;;;  significance in the printed value due to a bogus choice of scale
+;;;  factor.
 ;;;
 ;;; Most of the optional arguments are for the benefit for FORMAT and are not
 ;;; used by the printer.
@@ -1275,14 +1270,12 @@
 ;;; (VALUES DIGIT-STRING DIGIT-LENGTH LEADING-POINT TRAILING-POINT DECPNT)
 ;;; where the results have the following interpretation:
 ;;;
-;;;     DIGIT-STRING    - The decimal representation of X, with decimal point.
-;;;     DIGIT-LENGTH    - The length of the string DIGIT-STRING.
-;;;     LEADING-POINT   - True if the first character of DIGIT-STRING is the
-;;;                       decimal point.
-;;;     TRAILING-POINT  - True if the last character of DIGIT-STRING is the
-;;;                       decimal point.
-;;;     POINT-POS       - The position of the digit preceding the decimal
-;;;                       point.  Zero indicates point before first digit.
+;;;  DIGIT-STRING - The decimal representation of X, with decimal point.
+;;;  DIGIT-LENGTH - The length of the string DIGIT-STRING.  LEADING-POINT -
+;;;  True if the first character of DIGIT-STRING is the decimal point.
+;;;  TRAILING-POINT - True if the last character of DIGIT-STRING is the
+;;;  decimal point.  POINT-POS - The position of the digit preceding the
+;;;  decimal point.  Zero indicates point before first digit.
 ;;;
 ;;; NOTE:  FLONUM-TO-STRING goes to a lot of trouble to guarantee accuracy.
 ;;; Specifically, the decimal number printed is the closest possible
@@ -1438,17 +1431,18 @@
 
 ;;; SCALE-EXPONENT  --  Internal
 ;;;
-;;;    Given a non-negative floating point number, SCALE-EXPONENT returns a new
-;;; floating point number Z in the range (0.1, 1.0] and an exponent E such
-;;; that Z * 10^E is (approximately) equal to the original number.  There may
-;;; be some loss of precision due the floating point representation.  The
-;;; scaling is always done with long float arithmetic, which helps printing of
-;;; lesser precisions as well as avoiding generic arithmetic.
+;;; Given a non-negative floating point number, SCALE-EXPONENT returns a
+;;; new floating point number Z in the range (0.1, 1.0] and an exponent E
+;;; such that Z * 10^E is (approximately) equal to the original number.
+;;; There may be some loss of precision due the floating point
+;;; representation.  The scaling is always done with long float arithmetic,
+;;; which helps printing of lesser precisions as well as avoiding generic
+;;; arithmetic.
 ;;;
-;;;    When computing our initial scale factor using EXPT, we pull out part of
-;;; the computation to avoid over/under flow.  When denormalized, we must pull
-;;; out a large factor, since there is more negative exponent range than
-;;; positive range.
+;;; When computing our initial scale factor using EXPT, we pull out part of
+;;; the computation to avoid over/under flow.  When denormalized, we must
+;;; pull out a large factor, since there is more negative exponent range
+;;; than positive range.
 ;;;
 (defun scale-exponent (original-x)
   (let* ((x (coerce original-x 'long-float)))
@@ -1496,7 +1490,7 @@
 
 ;;; PRINT-FLOAT-EXPONENT  --  Internal
 ;;;
-;;;    Print the appropriate exponent marker for X and the specified exponent.
+;;; Print the appropriate exponent marker for X and the specified exponent.
 ;;;
 (defun print-float-exponent (x exp stream)
   (declare (float x) (integer exp) (stream stream))
@@ -1515,7 +1509,7 @@
 
 ;;; FLOAT-FORMAT-NAME  --  Internal
 ;;;
-;;;    Return the string name of X's float format.
+;;; Return the string name of X's float format.
 ;;;
 (defun float-format-name (x)
   (declare (float x))
@@ -1527,7 +1521,7 @@
 
 ;;; OUTPUT-FLOAT-INFINITY  --  Internal
 ;;;
-;;;    Write out an infinity using #. notation, or flame out if
+;;; Write out an infinity using #. notation, or flame out if
 ;;; *print-readably* is true and *read-eval* is false.
 ;;;
 (defun output-float-infinity (x stream)
@@ -1548,7 +1542,7 @@
 
 ;;; OUTPUT-FLOAT-NAN  --  Internal
 ;;;
-;;;    Output a #< NaN or die trying.
+;;; Output a #< NaN or die trying.
 ;;;
 (defun output-float-nan (x stream)
   (print-unreadable-object (x stream)
@@ -1558,7 +1552,7 @@
 
 ;;; OUTPUT-FLOAT  --  Internal
 ;;;
-;;;    Functioned called by OUTPUT-OBJECT to handle floats.
+;;; Functioned called by OUTPUT-OBJECT to handle floats.
 ;;;
 (defun output-float (x stream)
   (cond
@@ -1606,7 +1600,7 @@
 
 ;;; OUTPUT-CHARACTER  --  Internal
 ;;;
-;;;    If *print-escape* is false, just do a WRITE-CHAR, otherwise output the
+;;; If *print-escape* is false, just do a WRITE-CHAR, otherwise output the
 ;;; character name or the character in the #\char format.
 ;;;
 (defun output-character (char stream)
@@ -1673,7 +1667,7 @@
 
 ;;; OUTPUT-INTERPRETED-FUNCTION  --  Internal
 ;;;
-;;;    Print the name or definition of an interpreted function.
+;;; Print the name or definition of an interpreted function.
 ;;;
 (defun output-interpreted-function (subr stream)
   (multiple-value-bind

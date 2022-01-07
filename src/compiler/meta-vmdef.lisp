@@ -1890,6 +1890,7 @@
 ;;;
 (defmacro vop* (name node block args results &rest info)
   "VOP* Name Node Block (Arg* More-Args) (Result* More-Results) Info*
+
    Like VOP, but allows for emission of templates with arbitrary numbers of
    arguments, and for emission of templates using already-created TN-Ref lists.
 

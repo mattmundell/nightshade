@@ -3,6 +3,30 @@
 (in-package "ED")
 
 
+;;;; Highlighting.
+
+(defun highlight-calendar-line (line chi-info)
+  (let ((mark (mark line 0)))
+    (when (next-character mark)
+      (if (char= (next-character mark) #\M)
+	  ;; Day of week heading.
+	  (chi-mark line 0 *comment-font* :comment chi-info)
+	  (progn
+	    (find-attribute mark :whitespace #'zerop)
+	    (let ((char (next-character mark)))
+	      (cond ((digit-char-p char))
+		    (t
+		     ;; Month and year heading.
+		     (chi-mark line 0 *string-font*
+			       :string chi-info)))))))))
+
+(defun highlight-calendar (buffer)
+  (highlight-chi-buffer buffer highlight-calendar-line))
+
+(defun highlight-visible-calendar (buffer)
+  (highlight-visible-chi-buffer buffer highlight-calendar-line))
+
+
 ;;;; Structure.
 
 (defevar "Diary File"
@@ -12,10 +36,17 @@
 (defevar "Show Diary on Start"
   "If true pop-up the diary initially.")
 
-(defmode "Calendar" :major-p t :documentation "Calendar mode.")
+(defun setup-calendar-mode (buffer)
+  (highlight-visible-calendar buffer)
+  (pushnew '("Calendar" t highlight-visible-calendar)
+	   *mode-highlighters*))
+
+(defmode "Calendar" :major-p t
+  :setup-function #'setup-calendar-mode
+  :documentation "Calendar mode.")
 
 (defun setup-diary-mode (buffer)
-  "Setup BUFFER for diary mode."
+  "Setup $buffer for diary mode."
   (refresh-diary-reminders buffer)
   (highlight-visible-diary buffer)
   (pushnew '("Diary" () highlight-visible-diary)
@@ -80,25 +111,35 @@
 (defun cancel-reminder (reminder)
   "Cancel *reminders* entry Reminder."
   (setq *reminders* (delq reminder *reminders*))
-  (remove-scheduled-event (edi::tq-event-function (cadr reminder))))
+  (remove-scheduled-event (cadr reminder)))
 
 (defun cancel-diary-reminder (reminder)
   "Cancel *diary-reminders* entry Reminder."
   (setq *diary-reminders* (delq reminder *diary-reminders*))
-  (remove-scheduled-event (edi::tq-event-function (cadr reminder))))
+  (remove-scheduled-event (cadr reminder)))
 
 (defun universal-time-to-diary-date (time)
   (multiple-value-bind
       (secs mins hours day month year weekday dst tz)
       (decode-universal-time time)
     (declare (ignore secs mins hours weekday dst tz))
-    (format nil "~A ~A, ~A"
+    (format () "~A ~A, ~A"
 	    (aref ext::abbrev-month-table (1- month)) day year)))
 
 (defun make-cal-search-pattern (kind direction pattern)
   (setq *last-calendar-search-pattern*
 	(new-search-pattern kind direction pattern
 			    *last-calendar-search-pattern*)))
+
+(defun calendar-time-at-point ()
+  "Return the universal time at point."
+  (multiple-value-bind (day month year)
+		       (calendar-date-at-point)
+    (encode-universal-time
+     1 1 1 ; sec min hr
+     (parse-integer day)
+     (month-number month)
+     (parse-integer year))))
 
 (defun calendar-date-at-point ()
   "Return day, month, year if there's a calendar date at point, else invoke
@@ -127,9 +168,11 @@
       (or (line-offset mark -1)
 	  (error "Failed to move up to day name heading."))
       (if (find (next-character mark) "MoTuWehFrSau")
-	  (return-from nil)))
-    (or (eq (next-character mark) #\M)
-	(find-pattern mark *calendar-mo-back-pattern*))
+	  (return)))
+    (if (char= (next-character mark) #\o)
+	(mark-before mark)
+	(or (char= (next-character mark) #\M)
+	    (find-pattern mark *calendar-mo-back-pattern*)))
 
     ;; Parse the month and year.
     (line-offset mark -1)
@@ -416,9 +459,9 @@
 		  (reader-error ()))))))))))
 
 (defun refresh-diary-reminders (buffer)
-  "Re-schedule the *diary-reminders* according to diary BUFFER."
+  "Re-schedule the *diary-reminders* according to diary $buffer."
   (let ((mark (copy-mark (buffer-mark buffer))))
-    (loop for reminder in *diary-reminders* do
+    (dolist (reminder *diary-reminders*)
       (cancel-diary-reminder reminder))
     (move-mark mark (buffer-start-mark buffer))
     (multiple-value-bind
@@ -440,20 +483,23 @@
 	    (multiple-value-bind (time text)
 				 (diary-reminder-at-mark
 				  mark tz dst line-end)
-	      (if (and time (> time now))
-		  (push (list text
-			      (schedule-event
-			       time
-			       (lambda (secs)
-				 (declare (ignore secs))
-				 (let ((reminder (assoc text *diary-reminders*)))
-				   (when reminder
-				     (cancel-diary-reminder reminder)))
-				 (message "Diary reminder: ~A" text)
-				 (with-pop-up-display (stream)
-				   (format stream "Diary reminder: ~A" text)))
-			       nil t))
-			*diary-reminders*))))
+	      (when (and time (> time now))
+		(push (list text
+			    (schedule-event
+			     time
+			     (lambda (secs)
+			       (declare (ignore secs))
+			       (let ((rem (assoc text
+						 *diary-reminders*)))
+				 (when rem
+				   (cancel-diary-reminder rem)))
+			       (message "Diary reminder: ~A" text)
+			       (with-pop-up-display (stream)
+				 (format stream "Diary reminder: ~A"
+					 text)))
+			     nil ; repeat
+			     t)) ; absolute
+		      *diary-reminders*))))
 	  (let ((line (line-next (mark-line mark))))
 	    (or line (return))
 	    (edi::change-line mark line)
@@ -462,6 +508,8 @@
 
 
 ;;;; Calendar and Diary Commands.
+
+(defvar *calendar-buffer* ())
 
 (defun refresh-calendar-buffer (buffer date)
   "Refresh the calendar in $buffer."
@@ -476,69 +524,18 @@
       (elet ((flush-trailing-whitespace t))
 	(flush-trailing-whitespace buffer)))))
 
-(defcommand "Calendar" (p)
-  "Switch to the calendar buffer."
-  (let* ((buf-name "Calendar")
-	 (new-buffer (make-buffer buf-name
-				  :modes '("Calendar")))
-	 (buffer (or new-buffer (getstring buf-name
-					   *buffer-names*)))
-	 (date (if p (prompt-for-date) (get-universal-time))))
-    (if new-buffer
-	(progn
-	  (refresh-calendar-buffer buffer date)
-	  (defevar "Calendar Months"
-	    "The number of months in the buffer."
-	    :buffer buffer
-	    :value 3)
-	  (goto-today-command nil buffer))
-	(progn
-	  (or (string= (buffer-major-mode buffer) "Calendar")
-	      ;; FIX
-	      (editor-error "Buffer \"Calendar\" in use."))
-	  (when p
-	    (refresh-calendar-buffer buffer date)
-	    (buffer-start (buffer-point buffer)))))
-    (change-to-buffer buffer)))
-
-(defcommand "Refresh Calendar" (p (buffer (current-buffer)))
-  "Refresh the calendar buffer."
-  "Refresh the calendar buffer Buffer."
-  (declare (ignore p))
-  (or (string= (buffer-major-mode buffer) "Calendar")
-      (editor-error "Buffer must be in Calendar mode."))
-  (with-writable-buffer (buffer)
-    (delete-region (buffer-region buffer))
-    (multiple-value-bind
-	(secs mins hours day month year)
-	(get-decoded-time)
-      (declare (ignore secs mins hours day))
-      (let ((start-month-index (- month
-				  (floor *calendar-columns* 2)
-				  1)))
-	(insert-calendar (buffer-point buffer)
-			 (1+ (mod start-month-index 12))
-			 (+ year (floor start-month-index 12))
-			 (value calendar-months))
-      (elet ((flush-trailing-whitespace t))
-	(flush-trailing-whitespace buffer)))))
-  (goto-today-command nil buffer))
-
-(defcommand "Goto Today" (p (buffer (current-buffer)))
-  "If in the calendar buffer move point to today."
-  "Move point to today in calendar buffer Buffer."
-  (declare (ignore p))
+(defun goto-date (date buffer)
   (or (string= (buffer-major-mode buffer) "Calendar")
       (editor-error "Buffer must be in Calendar mode."))
   (let ((point (buffer-point buffer)))
     (buffer-start point)
     (multiple-value-bind
 	(secs mins hours day month year weekday dst tz)
-	(get-decoded-time)
+	(decode-universal-time date)
       (declare (ignore secs mins hours dst tz))
       (let ((pattern (make-cal-search-pattern
 		      :string-sensitive :forward
-		      (format nil "~A ~A" (month-name month) year))))
+		      (format () "~A ~A" (month-name month) year))))
 	(when (find-pattern point pattern)
 	  (line-offset point 1)
 	  (when (find-pattern point *calendar-mo-back-pattern*)
@@ -566,6 +563,60 @@
 				  (read stream)
 				(reader-error ()))))
 			(return-from ())))))))))))
+
+(defcommand "Calendar" (p)
+  "Switch to the calendar buffer."
+  (let* ((buffer (or *calendar-buffer*
+		     (setq *calendar-buffer*
+			   (make-unique-buffer
+			    "Calendar"
+			    :modes '("Calendar")
+			    :delete-hook
+			    (list (lambda (buffer)
+				    (declare (ignore buffer))
+				    (setq *calendar-buffer* ())))))))
+	 (date (if p (prompt-for-date) (get-universal-time))))
+    (defevar "Calendar Months"
+      "The number of months in the buffer."
+      :buffer buffer
+      :value 3)
+    (goto-date-command () date buffer)
+    (change-to-buffer buffer)))
+
+(defcommand "Goto Date" (p (date (prompt-for-date))
+			   (buffer (current-buffer)))
+  "Center the calendar buffer around a prompted date."
+  "Center the calendar buffer around $date."
+  (declare (ignore p))
+  (or (string= (buffer-major-mode buffer) "Calendar")
+      (editor-error "Buffer must be in Calendar mode."))
+  (with-writable-buffer (buffer)
+    (delete-region (buffer-region buffer))
+    (multiple-value-bind
+	(secs mins hours day month year)
+	(decode-universal-time date)
+      (declare (ignore secs mins hours day))
+      (let ((start-month-index (- month
+				  (floor *calendar-columns* 2)
+				  1)))
+	(insert-calendar (buffer-point buffer)
+			 (1+ (mod start-month-index 12))
+			 (+ year (floor start-month-index 12))
+			 (variable-value 'calendar-months
+					 :buffer buffer))
+	(elet ((flush-trailing-whitespace t))
+	  (flush-trailing-whitespace buffer)))))
+  (goto-date date buffer))
+
+(defcommand "Refresh Calendar" (p (buffer (current-buffer)))
+  "Refresh the calendar buffer."
+  "Refresh the calendar buffer Buffer."
+  (goto-date-command p (calendar-time-at-point) buffer))
+
+(defcommand "Goto Today" (p (buffer (current-buffer)))
+  "If in the calendar buffer move point to today."
+  "Move point to today in calendar buffer Buffer."
+  (goto-date-command p (get-universal-time) buffer))
 
 (defcommand "Calendar Show Year" (p (buffer (current-buffer)))
   "Show the whole year."
@@ -675,20 +726,22 @@
   (in-pop-up-window (buffer window
 			    :buffer-name "Diary"
 			    :modes '("Diary Entry"))
-    (with-output-to-mark (stream (buffer-point buffer))
-      (write-diary date stream))
-    (buffer-start (buffer-point buffer))))
+    (with-writable-buffer (buffer)
+      (with-output-to-mark (stream (buffer-point buffer))
+	(write-diary date stream))
+      (buffer-start (buffer-point buffer)))))
 
 (defcommand "Show Diary Entries" ()
   "Pop-up diary entry for day at point if in Calendar, else for today."
   (if (string= (buffer-major-mode (current-buffer)) "Calendar")
       (multiple-value-bind (day month year)
 			   (calendar-date-at-point)
-	(diary-command nil
-		       (format nil "~A ~A, ~A"
-			       (aref ext::abbrev-month-table
-				     (1- (month-number month)))
-			       day year)))
+	(diary-command ()
+		       (encode-universal-time
+			1 1 1 ; sec min hr
+			(parse-integer day)
+			(1+ (month-number month))
+			(parse-integer year))))
       (diary-command)))
 
 (defcommand "Insert Diary Entry" ()
@@ -739,6 +792,19 @@
 	    (mark-after point))
 	  (insert-today-command)))))
 
+(defcommand "Goto Date in Diary" ()
+  "Switch to the diary with point at the end of the last diary entry for a
+   prompted date."
+  (goto-today-in-diary-command () (universal-time-to-diary-date
+				   (prompt-for-date))))
+
+(defcommand "Goto Current Date in Diary" ()
+  "Switch to the diary with point at the end of the last diary entry for
+   the date under point."
+  (or (string= (buffer-major-mode (current-buffer)) "Calendar")
+      (editor-error "Current buffer must be in Calendar mode."))
+  (goto-today-in-diary-command () (calendar-date-at-point)))
+
 (defcommand "Insert Today"
 	    (&optional p (date (universal-time-to-diary-date
 				(get-universal-time))))
@@ -748,7 +814,7 @@
 		 ;; FIX prhps filter-tildes elsewhere (more below)
 		 (filter-tildes
 		  (or (value diary-file)
-		      (editor-error
+	      (editor-error
 	       "Filename required in variable `Diary File'."))))))
     (change-to-buffer buffer)
     (let ((mark (current-point)))
@@ -787,12 +853,11 @@
 
 (defcommand "Refresh Diary Reminders" ()
   "Refresh the diary reminders."
-  (let ((buffer (find-file-buffer
-		 (filter-tildes
-		  (or (value diary-file)
+  (let ((pathname (or (value diary-file)
 		      (editor-error
-		       "Filename required in variable `Diary File'."))))))
-    (refresh-diary-reminders buffer)))
+		       "Filename required in variable `Diary File'."))))
+    (if (probe-file pathname)
+	(refresh-diary-reminders (find-file-buffer pathname)))))
 
 (defun insert-diary-reminders (stream)
   "Insert diary reminders at Stream."
@@ -974,6 +1039,19 @@
 ;   :value (internet:fill-from-netrc
 ; 	  (internet:make-inet-account "localhost")))
 
+;; FIX get mh to do the headers?
+(defun write-diary-mail (stream to from date)
+  (format stream "To: ~A~%From: ~A~%Subject: Diary entries for ~A~%~%"
+	  to
+	  from
+	  ; FIX merge time printing into format
+	  (format-universal-time () date :style :abbreviated
+				 :print-seconds ()
+				 :print-meridian ()
+				 :print-timezone ()))
+  (write-diary date stream)
+  t)
+
 (defun mail-diary-entries ()
   "Mail the diary entries for today to the user.  Return true on success,
    else signal an editor error."
@@ -983,16 +1061,10 @@
 	(from mh::*address*))
     (multiple-value-bind
 	(success error)
-	;; FIX old smtp-mail format
-	(internet:smtp-mail (stream to from (value diary-smtp-account))
-	  (format stream "To: ~A~%Subject: Diary entries for ~A~%"
-		  to
-		  ; FIX merge time printing into format
-		  (format-universal-time () date :style :abbreviated
-					 :print-seconds ()
-					 :print-meridian ()
-					 :print-timezone ()))
-	  (write-diary date stream))
+	(internet:smtp-mail to from
+			    (value diary-smtp-account)
+			    #'write-diary-mail
+			    date)
       (or success
 	  (editor-error "Failed to mail diary: ~A." error)))))
 
@@ -1004,9 +1076,7 @@
   "Mail diary for today if the diary was last mailed before today."
   (declare (ignore seconds))
   (when (value online)
-    ;; FIX home: error
-    (let ((diary-mail-file "/home/matt/.nightshade-diary-date"))
-      (probe-file diary-mail-file)
+    (let ((diary-mail-file (config:config-pathname "diary-date")))
       (let ((last (with-open-file (stream diary-mail-file :direction :input
 					  :if-does-not-exist ())
 		    (if stream (read stream) 0)))

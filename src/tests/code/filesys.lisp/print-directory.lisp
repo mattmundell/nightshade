@@ -420,7 +420,7 @@ a    dir/~%"
 			 dir))
       (dired:delete-file dir :recurse t))))
 
-(deftest print-directory (t print-directory-73)
+(deftest print-directory (t print-directory-74)
   "Test verbose `print-directory' with :all t on a directory with files
    and subdirectories, including hidden files and directories."
   (let* ((spec '("a" ".a" "dir/" ".dir0/" ".b.BAK" ".dir2.BAK/"))

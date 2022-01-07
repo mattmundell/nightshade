@@ -689,9 +689,9 @@ entire file.
 ]#
 
 (defcommand "Evaluate Defun" ()
-  "Evaluates the current or next top-level form.  If the current region is
+  "Evaluate the current or next top-level form.  If the current region is
    active, then evaluate it."
-  "Evaluates the current or next top-level form."
+  "Evaluate the current or next top-level form."
   (if (region-active-p)
       (evaluate-region-command)
       (region-eval (defun-region (current-point)))))

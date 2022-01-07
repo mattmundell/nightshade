@@ -34,7 +34,7 @@
 ;;;; Stuff to emit noise.
 
 ;;; Note: we use the regular assembler, but we don't use any ``instructions''
-;;; because there is no way to keep our byte-code instructions seperate from
+;;; because there is no way to keep our byte-code instructions separate from
 ;;; the instructions used by the native backend.  Besides, we don't want to do
 ;;; any scheduling or anything like that, anyway.
 

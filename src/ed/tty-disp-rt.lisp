@@ -11,7 +11,30 @@
   (setf *editor-input-handler*
 	(system:add-fd-handler 0 :input #'get-editor-tty-input))
   (standard-device-init)
+
+
+  (device-write-string (format () "def~%"))
+  (when (device-force-output device)
+    (funcall (device-force-output device)))
+
+  (device-write-string (format () "abc~%~C~%" (code-char #xfc)))
+  (when (device-force-output device)
+    (funcall (device-force-output device)))
+
   (device-write-string (tty-device-init-string device))
+
+  (device-write-string (format () "abc~%~C~%" (code-char #xfc)))
+  (when (device-force-output device)
+    (funcall (device-force-output device)))
+
+  (device-write-string (format () "~C%%G" #\escape)) ; UTF-8
+
+  (device-write-string (format () "abc~%~C~%" (code-char #xfc)))
+  (when (device-force-output device)
+    (funcall (device-force-output device)))
+
+  ;(unix:unix-exit)
+
   (redisplay-all)
   ;; FIX Redisplay again to force painting of entire background.
   (redisplay-all))

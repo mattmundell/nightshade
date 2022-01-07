@@ -86,7 +86,7 @@
 (write-sheet *sheet*)
 
 (maphash (lambda (k v)
-	   (ed::msg "k ~A t ~A v ~A" k (type-of k) v))
+	   (ed::message "k ~A t ~A v ~A" k (type-of k) v))
 	 (sheet-cells *sheet*))
 |#
 

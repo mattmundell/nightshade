@@ -3,13 +3,14 @@
 (in-package "EDI")
 
 (export '(*buffer-list*
-	  buffer-modified buffer-region buffer-name buffer-pathname
+	  buffer-modified buffer-region buffer-deep-region
+	  buffer-name buffer-pathname
 	  buffer-major-mode buffer-minor-mode buffer-modeline-fields
 	  buffer-modeline-field-p
 	  current-buffer current-point current-line
 	  in-recursive-edit exit-recursive-edit abort-recursive-edit
 	  recursive-edit defmode mode-major-p mode-variables mode-documentation
-	  unique-buffer-name make-unique-buffer
+	  parse-unique-name unique-buffer-name make-unique-buffer
 	  make-buffer delete-buffer copy-buffer with-writable-buffer
 	  buffer-start-mark buffer-end-mark recursive-edit))
 
@@ -119,6 +120,7 @@ character.
 {function:ed:buffer-name}
 {evariable:Buffer Name Hook}
 {function:ed:buffer-region}
+{function:ed:buffer-deep-region}
 {function:ed:buffer-pathname}
 {evariable:Buffer Pathname Hook}
 {function:ed:buffer-write-date}
@@ -197,6 +199,22 @@ character.
     (delete-region old)
     (ninsert-region (region-start old) new-region)
     old))
+
+(defun buffer-deep-region (buffer)
+  "Return the deep region of $buffer.  This region is used to represent the
+   actual file contents when a mode such as Hex mode enhances the actual
+   `buffer-region'.
+
+   This can be set with `setf'."
+  (buffer-%deep-region buffer))
+
+(defun %set-buffer-deep-region (buffer new-region)
+  (let ((old (buffer-deep-region buffer)))
+    (if old (delete-region old))
+    (if (and old new-region)
+	(ninsert-region (region-start old) new-region)
+	(setf (buffer-%deep-region buffer) new-region))
+    new-region))
 
 (defun buffer-name (buffer)
   "Return the name, which is a string, of $buffer.
@@ -880,6 +898,7 @@ calls editor-error.
 {variable:ed:*buffer-history*}
 {function:ed:change-to-buffer}
 {function:ed:previous-buffer}
+{function:ed:after-buffer}
 ]#
 
 (defvar *current-buffer* ()
@@ -929,7 +948,8 @@ calls editor-error.
    ().
 
    $delete-hook lists delete hooks specific to this buffer, which
-   `delete-buffer' invokes along with *Delete Buffer Hook*.
+   `delete-buffer' invokes with this buffer before invoking *Delete Buffer
+   Hook*.
 
    Enter the created buffer into the list *buffer-list* at $position, :top
    for the front of the list, :bottom for the end of the list and :ring for
@@ -947,6 +967,7 @@ calls editor-error.
 	   (buffer (internal-make-buffer
 		    :%name name
 		    :%region region
+		    :%deep-region ()
 		    :modes (list (mode-object-name object))
 		    :mode-objects (list object)
 		    :bindings (make-hash-table)
@@ -1020,11 +1041,16 @@ calls editor-error.
       (setf (line-%buffer (mark-line (region-start region)))
 	    new-buffer))
     (if (buffer-writable new-buffer)
-	(setf (buffer-region new-buffer)
-	      (copy-region (buffer-region buffer)))
+	(progn
+	  (setf (buffer-region new-buffer)
+		(copy-region (buffer-region buffer)))
+	  (setf (buffer-deep-region new-buffer)
+		(copy-region (buffer-deep-region buffer))))
 	(with-writable-buffer (new-buffer)
 	  (setf (buffer-region new-buffer)
-		(copy-region (buffer-region buffer)))))
+		(copy-region (buffer-region buffer)))
+	  (setf (buffer-deep-region new-buffer)
+		(copy-region (buffer-deep-region buffer)))))
 
     ;; Copy the buffer point position and kind.
     (let ((mark (copy-mark (buffer-start-mark new-buffer) :left-inserting))
@@ -1089,25 +1115,32 @@ calls editor-error.
     (invoke-hook ed::make-buffer-hook new-buffer)
     new-buffer))
 
+;;; Public
+;;;
+(defun parse-unique-name (name)
+  (let ((pos (position #\space name :from-end t)))
+    (or pos (return-from parse-unique-name name))
+    (if (parse-integer (subseq name pos) :errorp ())
+	(values (subseq name 0 pos) (subseq name (1+ pos)))
+	name)))
+
 (defun make-unique-buffer (name &key (modes (value ed::default-modes))
 				     (modeline-fields
 				      (value ed::default-modeline-fields))
 				     delete-hook
 				     position)
-  (loop
-    for num = 1 then (1+ num)
-    for buffer = (make-buffer name
-			      :modes modes
-			      :modeline-fields modeline-fields
-			      :delete-hook delete-hook
-			      :position position)
-        then (make-buffer (format () "~A ~D" name num)
-			  :modes modes
-			  :modeline-fields modeline-fields
-			  :delete-hook delete-hook
-			  :position position)
-    do
-    (if buffer (return-from make-unique-buffer buffer))))
+  (until ((num 1 (1+ num))
+	  (buffer (make-buffer name
+			       :modes modes
+			       :modeline-fields modeline-fields
+			       :delete-hook delete-hook
+			       :position position)
+		  (make-buffer (format () "~A ~D" name num)
+			       :modes modes
+			       :modeline-fields modeline-fields
+			       :delete-hook delete-hook
+			       :position position)))
+	 (buffer buffer)))
 
 
 ;;;; Buffer start and end marks.
@@ -1186,7 +1219,7 @@ the point points between characters, it is sometimes said to point at a
 character, in which case the character after the point is referred to.
 
 The cursor is the visible indication of the current focus of attention: a
-rectangular blotch under X Windows, or the hardware cursor on a terminal.
+rectangular block under X Windows, or the hardware cursor on a terminal.
 The cursor is usually displayed on the character which is immediately after
 the point, but it may be displayed in other places.  Wherever the cursor is
 displayed it indicates the current focus of attention.  When input is being

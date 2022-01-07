@@ -309,8 +309,11 @@ write dates, and so forth, all of the Lisp file functions are available.
 	(with-input-from-region (in region)
 	  (internet:write-remote-file pathname in if-exists-action))
 	(let* ((buffer (mark-buffer (region-start region)))
-	       (convert-info (if (editor-bound-p 'ed::ed-converted-info
-						 :buffer buffer)
+	       ;; buffer should be () if region is a deep region.
+	       (convert-info (if (and buffer
+				      (editor-bound-p
+				       'ed::ed-converted-info
+				       :buffer buffer))
 				 (variable-value 'ed::ed-converted-info
 						 :buffer buffer))))
 	  (with-open-file (file (or (cadr convert-info) pathname)

@@ -11,10 +11,10 @@
 ;;; Y-OR-N-P  --  Public.
 ;;;
 (defun y-or-n-p (&optional format-string &rest arguments)
-  "Y-OR-N-P prints the message, if any, and reads characters from *QUERY-IO*
-   until the user enters y or Y as an affirmative, or either n or N as a
-   negative answer.  It ignores preceding whitespace and asks again if you
-   enter any other characters."
+  "Print the message, if any, and read characters from *query-io* until
+   receiving either y or Y as an affirmative answer, or n or N as a
+   negative answer.  Ignore preceding whitespace and ask again on receiving
+   any other characters."
   (when format-string
     (fresh-line *query-io*)
     (apply #'format *query-io* format-string arguments))
@@ -23,15 +23,15 @@
 	   (ans (if (string= line "")
 		    #\? ;Force CASE below to issue instruction.
 		    (schar line 0))))
-      (unless (whitespacep ans)
-	(case ans
-	  ((#\y #\Y) (return t))
-	  ((#\n #\N) (return nil))
-	  (t
-	   (write-line "Type \"y\" for yes or \"n\" for no. " *query-io*)
-	   (when format-string
-	     (apply #'format *query-io* format-string arguments))
-	   (force-output *query-io*)))))))
+      (or (whitespacep ans)
+	  (case ans
+	    ((#\y #\Y) (return t))
+	    ((#\n #\N) (return nil))
+	    (t
+	     (write-line "Type \"y\" for yes or \"n\" for no. " *query-io*)
+	     (when format-string
+	       (apply #'format *query-io* format-string arguments))
+	     (force-output *query-io*)))))))
 
 ;;; YES-OR-NO-P  --  Public.
 ;;;

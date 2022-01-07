@@ -3,9 +3,9 @@
 ;;; ASCII table printing.
 
 (defpackage "ASCII"
+  (:version 2)
   (:export "print-ascii")
   (:use "LISP" "EXT")
-  (:version 1)
   (:documentation "ASCII table printing."))
 
 (in-package "ASCII")

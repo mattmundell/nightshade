@@ -96,40 +96,50 @@
 		 (= first-charpos last-charpos))
       (modifying-buffer buffer
 	(cond ((eq first-line last-line)
-	       ;; Simple case -- just skip over the characters:
+	       ;; Simple case.
+	       ;;
+	       ;; Skip over the characters,
 	       (modifying-line first-line start)
 	       (let ((num (- last-charpos first-charpos)))
 		 (setq right-open-pos (+ right-open-pos num))
-		 ;; and fix up any marks in there:
+		 ;; Leave only the last of any font marks.
+		 (let ((last))
+		   (dolist (mark (line-marks first-line))
+		     (when (and (fast-font-mark-p mark)
+				(>= (mark-charpos mark) first-charpos)
+				(<= (mark-charpos mark) last-charpos))
+		       (if last
+			   (when (> (mark-charpos mark)
+				    (mark-charpos last))
+			     (delete-font-mark last)
+			     (setq last mark))
+			   (setq last mark))))
+		   (if (and last (= line-cache-length right-open-pos))
+		       (delete-font-mark last)))
+		 ;; And fix up any marks in there.
 		 (move-some-marks (charpos first-line)
 		   (if (> charpos first-charpos)
 		       (if (<= charpos last-charpos)
 			   first-charpos
 			   (- charpos num))
-		       charpos))
-		 ;; Leave only the last of any font marks.
-		 (let ((last))
-		   (loop for mark in (line-marks first-line) do
-		     (when (and (fast-font-mark-p mark)
-				(>= (mark-charpos mark) first-charpos)
-				(<= (mark-charpos mark) last-charpos))
-		       (if last (delete-font-mark last))
-		       (setq last mark)))
-		   (if (and last (eq (next-character last) #\linefeed))
-		       (delete-font-mark last)))))
+		       charpos))))
 	      (t
-	       ;; hairy case -- squish lines together:
+	       ;; Hairy case.
+	       ;;
+	       ;; Squish lines together.
 	       (close-line)
 	       (let* ((first-chars (line-chars first-line))
 		      (last-chars (line-chars last-line))
 		      (last-length (length last-chars)))
 		 (declare (simple-string last-chars first-chars))
 		 ;; Cons new chars for the first line.
-		 (let* ((length (+ first-charpos (- last-length last-charpos)))
+		 (let* ((length (+ first-charpos
+				   (- last-length last-charpos)))
 			(new-chars (make-string length)))
-		   (%sp-byte-blt first-chars 0 new-chars 0 first-charpos)
-		   (%sp-byte-blt last-chars last-charpos new-chars first-charpos
-				 length)
+		   (%sp-byte-blt first-chars 0 new-chars 0
+				 first-charpos)
+		   (%sp-byte-blt last-chars last-charpos
+				 new-chars first-charpos length)
 		   (setf (line-chars first-line) new-chars))
 		 ;; Clear font marks from first line.
 		 (loop for mark in (line-marks first-line) do
@@ -163,7 +173,8 @@
 				(< (mark-charpos mark) last-charpos))
 		       (if last (delete-font-mark last))
 		       (setq last mark)))
-		   (if (and last (eq last-charpos (line-length last-line)))
+		   (if (and last
+			    (eq last-charpos (line-length last-line)))
 		       (delete-font-mark last)))
 		 ;; Adjust the marks on the last line.
 		 (move-some-marks (charpos last-line first-line)
@@ -171,10 +182,11 @@
 		       first-charpos
 		       (+ (- charpos last-charpos)
 			  first-charpos)))
-		 ;; And splice the losers out:
+		 ;; And splice the losers out.
 		 (let ((next (line-next last-line)))
 		   (setf (line-next first-line) next)
-		   (when next (setf (line-previous next) first-line))))))))))
+		   (when next
+		     (setf (line-previous next) first-line))))))))))
 
 
 ;;;; DELETE-AND-SAVE-REGION.
@@ -198,39 +210,50 @@
      (t
       (modifying-buffer buffer
 	(cond ((eq first-line last-line)
-	       ;; simple case -- just skip over the characters:
+	       ;; Simple case.
+	       ;;
+	       ;; Skip over the characters.
 	       (modifying-line first-line start)
 	       (let* ((num (- last-charpos first-charpos))
 		      (new-right (+ right-open-pos num))
 		      (new-chars (make-string num))
 		      (new-line (make-line
 				 :chars new-chars  :number 0
-				 :%buffer (incf *disembodied-buffer-counter*))))
+				 :%buffer
+				 (incf *disembodied-buffer-counter*))))
 		 (declare (simple-string new-chars))
-		 (%sp-byte-blt open-chars right-open-pos new-chars 0 num)
+		 (%sp-byte-blt open-chars right-open-pos
+			       new-chars 0 num)
 		 (setq right-open-pos new-right)
-		 ;; Adjust any marks in the region.
+		 ;; Leave only the last of any font marks.
+		 (let ((last))
+		   (dolist (mark (line-marks first-line))
+		     (when (and (fast-font-mark-p mark)
+				(>= (mark-charpos mark) first-charpos)
+				(<= (mark-charpos mark) last-charpos))
+		       (if last
+			   (when (> (mark-charpos mark)
+				    (mark-charpos last))
+			     (delete-font-mark last)
+			     (setq last mark))
+			   (setq last mark))))
+		   (if (and last (= line-cache-length right-open-pos))
+		       (delete-font-mark last)))
+		 ;; Adjust any marks affected by the change in the region.
 		 (move-some-marks (charpos first-line)
 		   (if (> charpos first-charpos)
 		       (if (<= charpos last-charpos)
 			   first-charpos
 			   (- charpos num))
 		       charpos))
-		 ;; Leave only the last of any font marks.
-		 (let ((last))
-		   (loop for mark in (line-marks first-line) do
-		     (when (and (fast-font-mark-p mark)
-				(>= (mark-charpos mark) first-charpos)
-				(<= (mark-charpos mark) last-charpos))
-		       (if last (delete-font-mark last))
-		       (setq last mark)))
-		   (if (and last (eq (next-character last) #\newline))
-		       (delete-font-mark last)))
-		 ;; And return the region with the nuked characters:
-		 (internal-make-region (mark new-line 0 :right-inserting)
-				       (mark new-line num :left-inserting))))
+		 ;; And return the region with the nuked characters.
+		 (internal-make-region
+		  (mark new-line 0 :right-inserting)
+		  (mark new-line num :left-inserting))))
 	      (t
-	       ;; hairy case -- squish lines together:
+	       ;; Hairy case.
+	       ;;
+	       ;; Squish lines together.
 	       (close-line)
 	       (let* ((first-chars (line-chars first-line))
 		      (last-chars (line-chars last-line))
@@ -243,19 +266,24 @@
 		      (saved-line (make-line :chars saved-first-chars
 					     :%buffer count)))
 		 (declare (simple-string first-chars last-chars
-					 saved-first-chars saved-last-chars))
+					 saved-first-chars
+					 saved-last-chars))
 		 ;; Cons new chars for victim line.
-		 (let* ((length (+ first-charpos (- last-length last-charpos)))
+		 (let* ((length (+ first-charpos
+				   (- last-length last-charpos)))
 			(new-chars (make-string length)))
-		   (%sp-byte-blt first-chars 0 new-chars 0 first-charpos)
-		   (%sp-byte-blt last-chars last-charpos new-chars first-charpos
-				 length)
+		   (%sp-byte-blt first-chars 0 new-chars 0
+				 first-charpos)
+		   (%sp-byte-blt last-chars last-charpos
+				 new-chars first-charpos length)
 		   (setf (line-chars first-line) new-chars))
-		 ;; Make a region with all the lost stuff:
-		 (%sp-byte-blt first-chars first-charpos saved-first-chars 0
+		 ;; Make a region with all the lost stuff.
+		 (%sp-byte-blt first-chars first-charpos
+			       saved-first-chars 0
 			       saved-first-length)
-		 (%sp-byte-blt last-chars 0 saved-last-chars 0 last-charpos)
-		 ;; Mash the chars and buff of the last line.
+		 (%sp-byte-blt last-chars 0 saved-last-chars
+			       0 last-charpos)
+		 ;; Mash the chars and buffer of the last line.
 		 (setf (line-chars last-line) saved-last-chars
 		       (line-%buffer last-line) count)
 		 ;; Adjust the marks of the lines in the middle and mash
@@ -265,14 +293,14 @@
 		      (setf (line-%buffer last-line) count))
 		   (setf (line-%buffer line) count)
 		   ;; Clear font marks from line.
-		   (loop for mark in (line-marks line) do
+		   (dolist (mark (line-marks line))
 		     (when (and (fast-font-mark-p mark)
 				(>= (mark-charpos mark) first-charpos))
 		       (delete-font-mark mark)))
 		   (move-some-marks (ignore line first-line)
 		     (declare (ignore ignore))
 		     first-charpos))
-		 ;; And splice the losers out:
+		 ;; And splice the losers out.
 		 (let ((next (line-next first-line))
 		       (after (line-next last-line)))
 		   (setf (line-next saved-line) next
@@ -282,7 +310,7 @@
 		     (setf (line-previous after) first-line
 			   (line-next last-line) nil)))
 		 ;; Clear font marks from first line.
-		 (loop for mark in (line-marks first-line) do
+		 (dolist (mark (line-marks first-line))
 		   (when (and (fast-font-mark-p mark)
 			      (>= (mark-charpos mark) first-charpos))
 		     (delete-font-mark mark)))
@@ -291,27 +319,32 @@
 		   (if (> charpos first-charpos)
 		       first-charpos
 		       charpos))
-		 ;; Clear font marks from last line.
+		 ;; Leave only last font mark on last line.
 		 (let ((last))
-		   (loop for mark in (line-marks last-line) do
+		   (dolist (mark (line-marks last-line))
 		     (when (and (fast-font-mark-p mark)
 				(< (mark-charpos mark) last-charpos))
-		       (if last (delete-font-mark last))
-		       (setq last mark)))
-		   (if (and last (eq last-charpos (line-length last-line)))
-		       (delete-font-mark last)))
+		       (if last
+			   (when (> (mark-charpos mark)
+				    (mark-charpos last))
+			     (delete-font-mark last)
+			     (setq last mark))
+			   (setq last mark))))
+		   (and last
+			(eq last-charpos (line-length last-line))
+			(delete-font-mark last)))
 		 ;; Adjust the marks on the last line.
 		 (move-some-marks (charpos last-line first-line)
 		   (if (<= charpos last-charpos)
 		       first-charpos
 		       (+ (- charpos last-charpos)
 			  first-charpos)))
-		 ;; And return the region with the nuked characters:
+		 ;; And return the region with the nuked characters.
 		 (renumber-region
 		  (internal-make-region
 		   (mark saved-line 0 :right-inserting)
-		   (mark last-line last-charpos :left-inserting)))))))))))
-
+		   (mark last-line last-charpos
+			 :left-inserting)))))))))))
 
 
 ;;;; COPY-REGION.
@@ -365,7 +398,6 @@
 	    (setf (line-next previous) new-line)
 	    (setq previous new-line))))))))
 
-
 
 ;;;; FILTER-REGION.
 
@@ -391,7 +423,7 @@
 
      - leave its argument as it is
 
-     - leave the returned string as it was returned after returning
+     - leave the returned string as it was returned, after returning
 
      - return a string that is a valid line (it is an error for the string
        to contain newlines.

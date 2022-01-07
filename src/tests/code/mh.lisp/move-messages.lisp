@@ -419,7 +419,7 @@ Ending.
 	     (mh:current-message "dest"))))))
 
 (deftest move-messages ('((1) (1) 1  (1 2) (2) 2)
-			move-messages-28)
+			move-messages-29)
   "Test `move-messages', specifying a string range of many."
   (with-test-dir (folder "Mail/folder/" "Mail/dest/")
     (letf (((search-list "home:") (list folder)))
@@ -445,7 +445,7 @@ Ending.
 	     (mh:current-message "dest"))))))
 
 (deftest move-messages ('(() (1) () () (1))
-			move-messages-29)
+			move-messages-30)
   "Test `move-messages' moving multiple messages, checking that sequences
    are adjusted."
   (with-test-dir (folder "Mail/folder/" "Mail/dest/")

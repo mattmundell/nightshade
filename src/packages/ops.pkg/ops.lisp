@@ -1,8 +1,8 @@
 ;;; -*- Package: OPS -*-
 
 (defpackage "OPS"
-  (:use "LISP" "EXT")
   (:version 0)
+  (:use "LISP" "EXT")
   (:documentation "OPS."))
 
 ;************************************************************************

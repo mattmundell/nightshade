@@ -52,7 +52,7 @@ Bank statement format:
 		(if (> len (nth 2 lens))
 		    (setf (car (cddr lens)) len))))
 	    contentlist)
-    (ed::msg "FIX lens ~A" lens)
+    (ed::message "FIX lens ~A" lens)
     ;; insert all entries
     (mapcar (lambda (line)
 	      (let ((out (string-to-number (cdr (nth 5 line))))

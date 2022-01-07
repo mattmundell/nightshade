@@ -2,7 +2,7 @@
 "ambiguous-files.lisp" 3417516190
 "complete-file.lisp" 3417516205
 "copy-dir.lisp" 3407945966
-"copy-file.lisp" 3419011921
+"copy-file.lisp" 3439726040
 "current-directory.lisp" 3417516312
 "delete-dir.lisp" 3417518235
 "delete-file.lisp" 3417518254
@@ -30,14 +30,14 @@
 "map-files.lisp" 3419012147
 "namify.lisp" 3417519880
 "os-namestring.lisp" 3419011258
-"parse-mode-string.lisp" 3417520199
+"parse-mode-string.lisp" 3440343379
 "pick-new-dir.lisp" 3419013206
-"pick-new-file.lisp" 3419013138
+"pick-new-file.lisp" 3431706492
 "pick-new-name.lisp" 3419013186
-"print-directory.lisp" 3417520560
+"print-directory.lisp" 3439673494
 "print-files.lisp" 3417520589
 "probe-file.lisp" 3417526378
-"relate-pathname.lisp" 3419010386
+"relate-pathname.lisp" 3440338348
 "rename-file.lisp" 3417521256
 "symlink-dest.lisp" 3417521248
 "symlink-file.lisp" 3417521241

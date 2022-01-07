@@ -7,7 +7,7 @@
 	  make-inet-account inet-account inet-account-protocol
 	  inet-account-server
 	  inet-stream inet-stream-response make-inet-stream
-	  inet-command inet-quit
+	  inet-command inet-para-command inet-quit
 	  pop-dele pop-init pop-retr pop-stat
 	  telnet-init
 	  ftp-command ftp-connect-passive ftp-add-dir ftp-release-dir
@@ -21,7 +21,9 @@
 	  add-remote-directory release-remote-directory
 	  do-remote-directory remote-file-stats get-remote-file put-remote-file
 	  delete-remote-file probe-remote-file read-remote-file
-	  write-remote-file set-remote-write-date))
+	  write-remote-file set-remote-write-date
+	  ;;
+	  *services* probe-service start-service stop-service))
 
 ;; FIX ftp tar.bz2 transfer leaves ~ trailing garbage after final newline
 ;;        due to `transfer', recheck
@@ -59,45 +61,46 @@
    The word that starts the line is the field name, the rest of the line is
    the field value.  Return a list of entries where each entry is a list
    with the field name first and the value of the field next."
-  (collect ((entries))
-    (from-file (stream pathname)
-      (labels ((blank-char-p (char)
-		 (if (member char '(#\space #\tab)) t))
-	       (blank-line-p (line)
-		 (every #'blank-char-p line))
-	       ;; Read and return the field in line.
-	       (read-field (line)
-		 (until ((index 0 (1+ index))
-			 (end (1- (length line))))
-			((or (= index end)
-			     (blank-char-p (char line index)))
-			 (if (= index end) (incf index))
-			 (list (subseq line 0 index)
-			       ;; Read over any whitespace between.
-			       (while ((index index (1+ index)))
-				      ((and (<= index end)
-					    (blank-char-p (char line index)))
-				       (subseq line index)))))))
-	       ;; Read and return the entry starting at line.
-	       (read-entry (line)
-		 (collect ((entry))
-		   (while ((line line (read-line stream ())))
-			  (line (entry))
-		     (if (or (zerop (length line))
-			     (blank-char-p (aref line 0)))
-			 (return (entry))
-			 (entry (read-field line)))))))
-	;; Read over lines between entries, calling `read-entry' to read
-	;; the entries.
-	(while ((line (read-line stream ()) (read-line stream ())))
-	       (line)
-	  (or (zerop (length line))
-	      (blank-char-p (aref line 0))
-	      (let ((entry (read-entry line)))
-		(if entry
-		    (entries entry)
-		    (return)))))))
-    (entries)))
+  (when (probe-file pathname)
+    (collect ((entries))
+      (from-file (stream pathname)
+	(labels ((blank-char-p (char)
+		   (if (member char '(#\space #\tab)) t))
+		 (blank-line-p (line)
+		   (every #'blank-char-p line))
+		 ;; Read and return the field in line.
+		 (read-field (line)
+		   (until ((index 0 (1+ index))
+			   (end (1- (length line))))
+			  ((or (= index end)
+			       (blank-char-p (char line index)))
+			   (if (= index end) (incf index))
+			   (list (subseq line 0 index)
+				 ;; Read over any whitespace between.
+				 (while ((index index (1+ index)))
+					((and (<= index end)
+					      (blank-char-p (char line index)))
+					 (subseq line index)))))))
+		 ;; Read and return the entry starting at line.
+		 (read-entry (line)
+		   (collect ((entry))
+		     (while ((line line (read-line stream ())))
+			    (line (entry))
+		       (if (or (zerop (length line))
+			       (blank-char-p (aref line 0)))
+			   (return (entry))
+			   (entry (read-field line)))))))
+	  ;; Read over lines between entries, calling `read-entry' to read
+	  ;; the entries.
+	  (while ((line (read-line stream ()) (read-line stream ())))
+		 (line)
+	    (or (zerop (length line))
+		(blank-char-p (aref line 0))
+		(let ((entry (read-entry line)))
+		  (if entry
+		      (entries entry)
+		      (return)))))))
+      (entries))))
 
 (defun fill-from-netrc (account)
   ;; FIX describe .netrc format
@@ -139,7 +142,7 @@
 						    :test #'string=))
 				       (inet-account-server account)))
 			      netrc)))
-       (or machine
+       (fi machine
 	   ;; Account holds more info (machine), fill with fallback if
 	   ;; available.
 	   (let ((netrc-list (find "default" netrc
@@ -154,58 +157,64 @@
 	       (setf (inet-account-protocol account)
 		     (cadr (assoc "protocol" netrc-list
 				  :test #'string=)))
-	       (return-from fill-from-netrc t))
-	     (return-from fill-from-netrc ())))
-       (fi (account-user account)
-	   (if (inet-account-protocol account)
-	       ;; Look for an entry with the given protocol.
-	       (let ((protocol (keep-if (lambda (ele)
-					  (equal (cadr (assoc "protocol" ele
-							      :test #'string=))
-						 (inet-account-protocol account)))
-					machine)))
-		 (if protocol
-		     ;; Fill from the first protocol matching entry.
-		     (progn
-		       (fill-password (car protocol))
-		       t)
-		     ;; Account holds more info (protocol).
-		     ()))
-	       ;; Fill from the first machine matching entry.
-	       (progn
-		 (fill-protocol (car machine))
-		 (fill-password (car machine))
-		 (fill-login (car machine))
-		 t))
-	   ;; Look for an entry with the given login.
-	   (let ((login (keep-if (lambda (ele)
-				   (equal (cadr (assoc "login" ele
+	       t))
+	   (fi (account-user account)
+	       (if (inet-account-protocol account)
+		   ;; Look for an entry with the given protocol.
+		   (let ((protocol
+			  (keep-if
+			   (lambda (ele)
+			     (equal (cadr (assoc "protocol" ele
+						 :test #'string=))
+				    (inet-account-protocol
+				     account)))
+			   machine)))
+		     (if protocol
+			 ;; Fill from the first protocol matching entry.
+			 (progn
+			   (fill-password (car protocol))
+			   t)
+			 ;; Account holds more info (protocol).
+			 ()))
+		   ;; Fill from the first machine matching entry.
+		   (progn
+		     (fill-protocol (car machine))
+		     (fill-password (car machine))
+		     (fill-login (car machine))
+		     t))
+	       ;; Look for an entry with the given login.
+	       (let ((login (keep-if
+			     (lambda (ele)
+			       (equal (cadr (assoc "login" ele
+						   :test #'string=))
+				      (account-user account)))
+			     machine)))
+		 (fi login
+		     ;; Account holds more info (login).
+		     ()
+		     (fi (inet-account-protocol account)
+			 ;; Fill from the first entry with the given login.
+			 (progn
+			   (fill-protocol (car login))
+			   (fill-password (car login))
+			   t)
+			 ;; Look for an entry with the given protocol.
+			 (let ((protocol
+				(keep-if
+				 (lambda (ele)
+				   (equal (cadr (assoc "protocol" ele
 						       :test #'string=))
-					  (account-user account)))
+					  (inet-account-protocol
+					   account)))
 				 machine)))
-	     (fi login
-		 ;; Account holds more info (login).
-		 ()
-		 (fi (inet-account-protocol account)
-		     ;; Fill from the first entry with the given login.
-		     (progn
-		       (fill-protocol (car login))
-		       (fill-password (car login))
-		       t)
-		     ;; Look for an entry with the given protocol.
-		     (let ((protocol (keep-if (lambda (ele)
-						(equal (cadr (assoc "protocol" ele
-								    :test #'string=))
-						       (inet-account-protocol account)))
-					      machine)))
-		       (if protocol
-			   ;; Fill from the first password matching entry.
-			   (progn
-			     (fill-password (car protocol))
-			     t)
-			   ;; Account holds more info (protocol).
-			   ()))))))))))
-;; FIX deftest
+			   (if protocol
+			       ;; Fill from the first password matching
+			       ;; entry.
+			       (progn
+				 (fill-password (car protocol))
+				 t)
+			       ;; Account holds more info (protocol).
+			       ())))))))))))
 
 
 ;;;; Stream.
@@ -242,7 +251,7 @@
 				   (format () "file ~S" file)
 				   (format () "descriptor ~D" fd)))
 			 auto-close)
-  (declare (type lisp::index fd) (type (or index null) timeout)
+  (declare (type lisp::index fd) (type (or lisp::index null) timeout)
 	   (type (member :none :line :full) buffering))
   "Create and return a stream for the given Unix file descriptor.
    If input is true, allow input operations.
@@ -277,6 +286,10 @@
 
 
 ;;;; Controller processes and streams.
+
+(defstruct ftp-controller
+  stream
+  dir)
 
 ;; FIX close all on exit
 (defvar *controllers* ()
@@ -317,9 +330,11 @@
     ("ssh"
      (fi (process-alive-p controller)))
     ("ftp"
-     (if (open-stream-p controller) (ftp-timed-out-p controller)))
+     (let ((stream (ftp-controller-stream controller)))
+       (if (open-stream-p stream) (ftp-timed-out-p stream))))
     (t
-     (if (open-stream-p controller) (ftp-timed-out-p controller)))))
+     (let ((stream (ftp-controller-stream controller)))
+       (if (open-stream-p stream) (ftp-timed-out-p stream))))))
 
 
 ;;;; General.
@@ -360,6 +375,10 @@
   (let ((line (setf (inet-stream-response stream) (read-line stream))))
     (mess "<- ~A" line)
     (and (plusp (length line)) #| (char= (char line 0) #\+) FIX |# line)))
+
+(defun inet-para-command (stream command &rest command-args)
+  (apply #'mess (concat "-> " command) command-args)
+  (write-inet stream command command-args))
 
 ;;; Public.
 ;;;
@@ -736,30 +755,34 @@
 
 (defun ftp-translate-command (command)
   (let ((parts (split command '(#\space))))
-    (concat (case= (string-upcase (car parts))
-	      ("?"      "HELP")
-	      ("ASCII"  "TYPE A")
-	      ("BIN"    "TYPE I")
-	      ("BYE"    "QUIT")
-	      ("CD"     "CWD")
-	      ("MKDIR"  "MKD")
-	      ("RM"     "DELE")
-	      ("RMDIR"  "RMD")
-	      (t (car parts)))
-	    (subseq command (length (car parts))))))
+    (concatenate 'simple-string
+		 (case= (string-upcase (car parts))
+		   ("?"      "HELP")
+		   ("ASCII"  "TYPE A")
+		   ("BIN"    "TYPE I")
+		   ("BYE"    "QUIT")
+		   ("CD"     "CWD")
+		   ("MKDIR"  "MKD")
+		   ("RM"     "DELE")
+		   ("RMDIR"  "RMD")
+		   (t (car parts)))
+		 (subseq command (length (car parts))))))
 
-(defun read-lines (stream line code)
-  (loop for next = (read-line stream) do
+(defun read-lines (stream line end)
+  (while ((next (read-line stream) (read-line stream))
+	  (end-length (length end)))
+	 (next)
     (setq line (format () "~a~%~a"
 		       (subseq line 0 (1- (length line)))
 		       next))
-    (and (> (length next) 2)
-	 (string= next code :end1 3)
+    (and (>= (length next) end-length)
+	 (string= next end :end1 end-length)
 	 (return)))
   line)
 
 (defun read-any-lines (stream line)
-  (loop for next = (read-line stream ()) while next do
+  (while ((next (read-line stream ()) (read-line stream ())))
+	 (next)
     (setq line (format () "~a~%~a"
 		       (subseq line 0 (1- (length line)))
 		       next)))
@@ -776,12 +799,12 @@
 		     (read-line stream)))
 	 (code (and (plusp (length line))
 		    (parse-integer line :junk-allowed t))))
-    ;(mess "ftp< ~A" line)
+    (mess "ftp< ~A" line)
     (case code
       ((()))
       (211 ; Status.
        (setf (inet-stream-response stream)
-	     (read-lines stream line "211")))
+	     (read-lines stream line "211 ")))
       (213 ; Stat.
        (setf (inet-stream-response stream)
 	     (read-lines stream line "213")))
@@ -828,12 +851,14 @@
 			 (ftp-command stream
 				      "PASS ~A"
 				      (inet-account-password account)))))
-		 (progn
-		   (store-controller stream
+		 (let ((controller (make-ftp-controller
+				      :stream stream
+				      :dir "/")))
+		   (store-controller controller
 				     (inet-account-server account)
 				     "ftp"
 				     (account-user account))
-		   stream))
+		   controller))
 	    (progn
 	      (write-inet stream "QUIT")
 	      (ignore-errors (close stream))
@@ -854,6 +879,220 @@
 			(pop split) (pop split))
 		(+ (ash (parse-integer (pop split)) 8)
 		   (parse-integer (pop split) :junk-allowed t)))))))
+
+(defun ftp-ls (control data out &optional (spec "") details-p)
+  (when (ftp-command control (format () (if details-p "LIST ~A" "NLST ~A") spec))
+    ;; FIX check response
+    (transfer data out)
+    (setf (inet-stream-response control) (read-line control))))
+
+;;; Public
+;;;
+(defun ftp-list-dir (account directory out)
+  (let* ((controller (ftp-init account *ftp-port* *ftp-timeout*))
+	 (control (ftp-controller-stream controller)))
+    (or (ftp-command control "CWD /")
+	(error "Failed to change to root directory."))
+    (if (if directory
+	    (or (string= directory "")
+		(ftp-command control "CWD ~A" directory))
+	    t)
+	(when (ftp-command control "PASV")
+	  (multiple-value-bind (host port)
+			       (parse-pasv control)
+	    (let ((in (raw-connect host port *ftp-timeout* "FTP")))
+	      (unwind-protect
+		  (ftp-ls control in out "" t)
+		(close in))))))))
+
+(defun ftp-put-file (account src dest)
+  "Put local file SRC into DEST at ACCOUNT."
+  (let* ((controller (ftp-init account *ftp-port* *ftp-timeout*))
+	 (control (ftp-controller-stream controller)))
+    (or (ftp-command control "CWD /")
+	(error "Failed to change to root directory."))
+    (let ((dest-dir (directory-namestring dest)))
+      (if (if dest-dir
+	      (or (string= dest-dir "")
+		  (ftp-command control "CWD ~A" dest-dir))
+	      t)
+	  (if (ftp-command control "TYPE I")
+	      (if (ftp-command control "PASV")
+		  (multiple-value-bind (host port)
+				       (parse-pasv control)
+		    (let ((out (raw-connect host port
+					    *ftp-timeout* "FTP")))
+		      (if (ftp-command control "STOR ~A"
+				       (file-namestring dest))
+			  (progn
+			    (unwind-protect
+				(progn
+				  (etypecase src
+				    (stream
+				     (transfer src out))
+				    ((or pathname string)
+				     (with-open-file (in src)
+				       (transfer in out))))
+				  t)
+			      (close out))
+			    (ftp-read-response control))
+			  (values () (inet-stream-response control)))))
+		  (values () (inet-stream-response control)))
+	      (values () (inet-stream-response control)))
+	  (values () (inet-stream-response control))))))
+
+(defun ftp-get-file (account src dest)
+  "Get $src from $account into local file $dest."
+  (let* ((controller (ftp-init account *ftp-port* *ftp-timeout*))
+	 (control (ftp-controller-stream controller)))
+    (or (ftp-command control "CWD /")
+	(error "Failed to change to root directory."))
+    (let ((src-dir (directory-namestring src)))
+      (when (if src-dir
+		(or (string= src-dir "")
+		    (ftp-command control "CWD ~A" src-dir))
+		t)
+	(when (ftp-command control "TYPE I")
+	  (when (ftp-command control "PASV")
+	    (multiple-value-bind (host port)
+				 (parse-pasv control)
+	      (let ((in (raw-connect host port *ftp-timeout* "FTP")))
+		(unwind-protect
+		    (when (ftp-command control "RETR ~A" (file-namestring src))
+		      (etypecase dest
+			(stream
+			 (transfer in dest))
+			(pathname
+			 (with-open-file (out dest
+					      :direction :output
+					      :if-does-not-exist :create)
+			   (transfer in out))))
+		      (ftp-read-response control)
+		      t)
+		  (close in))))))))))
+
+(defun ftp-add-dir (account pathname)
+  "Add directory $pathname to $account."
+  (let* ((controller (ftp-init account *ftp-port* *ftp-timeout*))
+	 (control (ftp-controller-stream controller)))
+    (or (ftp-command control "CWD /")
+	(error "Failed to change to root directory."))
+    (ftp-command control "MKDIR ~A" pathname)))
+
+(defun ftp-release-dir (account pathname)
+  "Release directory $pathname from $account."
+  (let* ((controller (ftp-init account *ftp-port* *ftp-timeout*))
+	 (control (ftp-controller-stream controller)))
+    (or (ftp-command control "CWD /")
+	(error "Failed to change to root directory."))
+    (ftp-command control "RMDIR ~A" pathname)))
+
+(defmacro do-ftp-directory ((account path file) &body body)
+  "Do $body with $file bound to every file in $path at $account."
+  (let ((controller (gensym)) (control (gensym)) (resp (gensym))
+	(path2 (gensym)) (in (gensym)))
+    `(let* ((,controller (ftp-init ,account *ftp-port* *ftp-timeout*))
+	    (,control (ftp-controller-stream ,controller)))
+       (or (ftp-command ,control "CWD /")
+	   (error "Failed to change to root directory."))
+       (let ((,path2 (if (if ,path (string= (namestring ,path) "") t)
+			 "/"
+			 (namestring ,path))))
+	 ;; FIX consider just treating vars as streams, automatically
+	 (let ((,resp (with-output-to-string (str)
+			(ftp-ls ,control
+				(ftp-connect-passive ,control)
+				str
+				,path2))))
+	   ;(mess "resp ~A" ,resp)
+	   (with-input-from-string (,in ,resp)
+	     (while ((,file (read-line ,in ()) (read-line ,in ())))
+		    (,file)
+	       ;; Flush trailing linefeeds.
+	       (setq ,file
+		     (file-namestring (string-right-trim '(#\return) ,file)))
+	       ,@body)))))))
+
+(defun ftp-probe-file (account path)
+  "If $path exists at $account return t and the kind of $path (:file or
+   :directory), else return ()."
+  (let* ((controller (ftp-init account *ftp-port* *ftp-timeout*))
+	 (control (ftp-controller-stream controller)))
+    (or (string= (ftp-controller-dir controller) "/")
+	(ftp-command controller "CWD /")
+	(error "Failed to change to root directory."))
+    (if (if path (string= path "") t)
+	(setq path "/"))
+    ;(mess "rsp1: .~A." (inet-stream-response control))
+    (when (ftp-command control "STAT ~A" path)
+      (let ((resp (inet-stream-response control))
+	    (pos 0))
+	(and (plusp (length resp))
+	     (char= (char resp (1- (length resp))) #\return)
+	     (setf (char resp (1- (length resp))) #\newline))
+	;(mess "rsp: .~A." resp)
+	(loop repeat 3 do
+	  (setq pos (1+ (or (position #\newline resp :start pos)
+			    (return-from ftp-probe-file ())))))
+	(values t (if (position #\newline resp :start pos)
+		      :directory :file))))))
+
+(defun ftp-delete-file (account path)
+  "Delete $path at FTP $account.  Return true if successful."
+  (let* ((controller (ftp-init account *ftp-port* *ftp-timeout*))
+	 (control (ftp-controller-stream controller)))
+    (or (ftp-command control (format () "CWD /~A"
+				     (directory-namestring path)))
+	(error "Failed to change to /~A."
+	       (directory-namestring path)))
+    (ftp-command control "DELE ~A" (file-namestring path))))
+
+(defun ftp-file-stats (account pathname)
+  "Return information about $pathname: result dev-or-err mode nlink uid gid
+   rdev size atime mtime."
+  (let* ((controller (ftp-init account *ftp-port* *ftp-timeout*))
+	 (control (ftp-controller-stream controller)))
+    (or (string= (ftp-controller-dir controller) "/")
+	(ftp-command controller "CWD /")
+	(error "Failed to change to root directory."))
+    (if (if pathname (string= pathname "") t)
+	(setq pathname "/"))
+    (when (ftp-command control "STAT ~A" pathname)
+      (let ((resp (inet-stream-response control))
+	    (pos 0))
+	(when (> (length resp) 2)
+	  (if (char= (char resp (1- (length resp))) #\return)
+	      (setf (char resp (1- (length resp))) #\newline)))
+	;(mess "rsp: ~A" resp)
+	(setq pos (1+ (or (position #\newline resp :start pos)
+			  (return-from ftp-file-stats ()))))
+	(multiple-value-bind (success-p perms links uid gid size mod-time)
+			     (parse-ls-line (subseq resp pos))
+	  (when success-p
+	    (values t () (parse-mode-string perms) links uid gid size mod-time)))))))
+
+(defun ftp-timed-out-p (stream)
+  "Return t if $stream has timed out."
+  (if (listen stream)
+      (ftp-read-response stream)
+      (handler-case
+	  (ftp-command stream "NOOP")
+	(error ()
+	       (ignore-errors (close stream))
+	       (return-from ftp-timed-out-p t))))
+  ;; In either above, ftp-read-response closes $stream if it has timed out.
+  (fi (open-stream-p stream)))
+
+
+;;;; Gopher.
+
+#|
+(defun ftp-command (stream command &rest command-args)
+  (let ((command (ftp-translate-command command)))
+    (write-inet stream command command-args)
+    ;; Wait a bit in case the command is slow.
+    (sleep 0.07) ; FIX how to garauntee response?
+    (ftp-read-response stream)))
 
 (defun ftp-ls (control data out &optional (spec "") details-p)
   (when (ftp-command control (format () (if details-p "LIST ~A" "NLST ~A") spec))
@@ -1043,6 +1282,7 @@
 	     (return-from ftp-timed-out-p t))))
   ;; In either above, ftp-read-response closes $stream if it has timed out.
   (fi (open-stream-p stream)))
+|#
 
 
 ;;;; HyperText Transfer Protocol (HTTP).
@@ -1308,7 +1548,7 @@
   "Copy $src from $account into local file $dest."
   (let* ((dest1 (if (streamp dest)
 		    (pick-new-file)
-		    dest))
+		    (namestring dest)))
 	 (process (run-program "scp" (list ;"-B" ; Batch.
 				      (format () "~A@~A:~A"
 					      (account-user account)
@@ -1538,9 +1778,9 @@
 
    Call the function $writer to write the entire message, including the
    headers.  Pass $writer the following arguments: the stream to which to
-   write, $to, $from and $writer-args.  $writer must return true on success, false
-   and an error message otherwise.  Return the values returned from
-   $writer."
+   write, $to, $from and $writer-args.  $writer must return true on
+   success, false and an error message otherwise.  Return the values
+   returned from $writer."
   (%smtp-mail (stream to from account)
     (apply writer stream to from writer-args)))
 
@@ -1696,3 +1936,266 @@ FIX parse session user  1213495500-24881
 		       ":tmp/out"))
 
 |#
+
+
+;;;; FTP Server
+
+(export '(start-ftp-server stop-ftp-server))
+
+;;; Internal
+;;;
+;;; The FTP server handler.
+;;;
+(defvar *ftp-server* ())
+
+;;; Internal
+;;;
+;;; List of FTP server sessions.
+;;;
+(defvar *ftp-server-sessions* ())
+
+(defun service-reply (string)
+  ;; FIX
+  (declare (ignore string)))
+
+(defun starts (line string)
+  ;; FIX
+  (declare (ignore line string)))
+
+(defun serve-ftp-login (socket)
+  (let* ((stream (get-session-stream *ftp-server-sessions* socket))
+	 (line (read-line stream ())))
+    ;; FIX if line () close session
+    (if (starts line "USER")
+	(service-reply "0 OK") ; FIX read more lines or install next handler
+	(service-reply
+	 "500 Error.  Start with \"USER <username> | anonymous\"."))))
+
+(defun accept-ftp-session (socket)
+  (multiple-value-bind
+      (newconn)
+      (ext:accept-tcp-connection socket)
+    (when newconn
+      (system:add-fd-handler
+       newconn :input #'serve-ftp-login))))
+
+;;; Public
+;;;
+(defun start-ftp-server ()
+  (or *ftp-server*
+      (let ((socket (ext:create-inet-listener *ftp-port*)))
+	(setq *ftp-server*
+	      (system:add-fd-handler
+	       socket :input
+	       #'accept-ftp-session)))))
+
+;;; Public
+;;;
+(defun stop-ftp-server ()
+  (when *ftp-server*
+    (system:remove-fd-handler *ftp-server*)
+    (setq *ftp-server* ())))
+
+
+;;;; Echo Service
+
+;;; Internal
+;;;
+;;; The FTP server handler.
+;;;
+(defvar *ftp-server* ())
+
+;;; Internal
+;;;
+;;; List of FTP server sessions.
+;;;
+(defvar *ftp-server-sessions* ())
+
+(defun serve-ftp-login (socket)
+  (let* ((stream (get-session-stream *ftp-server-sessions* socket))
+	 (line (read-line stream ())))
+    ;; FIX if line () close session
+    (if (starts line "USER")
+	(service-reply "0 OK") ; FIX read more lines or install next handler
+	(service-reply
+	 "500 Error.  Start with \"USER <username> | anonymous\"."))))
+
+
+;;;; Service support.
+
+;;; Internal
+;;;
+;;; A list of all Internet services.
+;;;
+(defvar *services* (make-string-table))
+
+(defstruct service
+  name
+  starter
+  stopper
+  prober
+  handler)
+
+(defun accept-session (socket handler sessions-var)
+  (multiple-value-bind
+      (newconn addr)
+      (ext:accept-tcp-connection socket)
+    (declare (ignore addr))
+    (when newconn
+      (let ((stream (make-inet-stream newconn
+				      :input t :output t
+				      :buffering :none)))
+	(set sessions-var
+	     (cons (list newconn
+			 stream
+			 (system:add-fd-handler newconn :input handler))
+		   (symbol-value sessions-var)))))))
+
+(defun get-session-stream (sessions socket)
+  (cadr (assoc socket sessions)))
+
+(defun get-session-handler (sessions socket)
+  (caddr (assoc socket sessions)))
+
+(defun end-session (sessions-var socket)
+  (let* ((sessions (symbol-value sessions-var))
+	 (assoc (assoc socket sessions)))
+    (system:remove-fd-handler (caddr assoc))
+    (set sessions-var (delete assoc sessions))
+    ;; FIX do something if err
+    (unix:unix-close socket)))
+
+(defmacro defservice (name port handler)
+  (let* ((restartp (gensym))
+	 (name (string-upcase name))
+	 (starter-name (intern (format ()
+				       "START-~A-SERVICE"
+				       name)))
+	 (stopper-name (intern (format ()
+				       "STOP-~A-SERVICE"
+				       name)))
+	 (service-defvar-name (intern (format ()
+					      "*~A-SERVICE*"
+					      name)))
+	 (port-var (intern (format ()
+				   "*~A-SERVICE-PORT*"
+				   name)))
+	 (sessions-var (intern (format ()
+				       "*~A-SERVICE-SESSIONS*"
+				       name))))
+    `(progn
+       (let ((,restartp (and (getstring ,name *services*)
+			     (probe-service ,name))))
+	 (if ,restartp (stop-service ,name))
+	 (defvar ,service-defvar-name ())
+	 (defvar ,port-var ,port)
+	 (defvar ,sessions-var ())
+	 (defun ,starter-name ()
+	   (or ,service-defvar-name
+	       ;; FIX try read port with unix-getservbyname
+	       (let ((socket (ext:create-inet-listener ,port-var)))
+		 (setq ,service-defvar-name
+		       (system:add-fd-handler
+			socket :input
+			(lambda (socket)
+			  (accept-session socket
+					  ,handler
+					  ',sessions-var)))))))
+	 (defun ,stopper-name ()
+	   (when ,service-defvar-name
+	     (let ((socket (lisp::handler-descriptor
+			    ,service-defvar-name)))
+	       (system:remove-fd-handler ,service-defvar-name)
+	       ;; FIX close all sessions
+	       (close-socket socket))
+	     (setq ,service-defvar-name ())))
+	 (setf (getstring ,name *services*)
+	       (make-service :name ,name
+			     :starter #',starter-name
+			     :stopper #',stopper-name
+			     :handler ,handler))
+	 (when ,restartp
+	   (start-service ,name)
+	   (warn ,(format () "Restarted service ~A." name)))))))
+
+(export '(start-service stop-service))
+
+(defun start-service (name)
+  (let ((service (getstring name *services*)))
+    (if service (funcall (service-starter service)))))
+
+
+;;;; Echo service.
+
+(defun serve-echo (socket)
+  ;; FIX if first listen () close session
+  (while ((stream (get-session-stream *echo-service-sessions* socket)))
+	 ((listen stream))
+    ;; FIX will this read block if something else reads the data here?
+    (let ((line (read-line stream ())))
+      (or line (return))
+      (write-line line stream))))
+
+(defservice "echo" 7777 #'serve-echo)
+
+
+;;;; HTTP service.
+
+(defun serve-http (socket)
+  (let ((stream (get-session-stream *http-service-sessions* socket)))
+    ;; FIX if listen is () close session
+    (when (listen stream)
+      ;; FIX will this read block if something else reads the data here?
+      (let ((line (read-line stream ())))
+	(cond
+	 ((and line
+	       (> (length line) 4)
+	       (string= (string-upcase line :end 3) "GET" :end1 3))
+	  (let* ((rest (string-trim '(#\space #\tab
+					      #\newline #\return)
+				    (subseq line 4)))
+		 (full-name (subseq rest 0 (position #\space rest)))
+		 (name (if (char= (char full-name 0) #\/)
+			   (subseq full-name 1)
+			   full-name))
+		 (pathname (merge-pathnames name "http:")))
+	    (multiple-value-bind (exists type)
+				 (probe-file pathname)
+	      (if exists
+		  (if (eq type :directory)
+		      (in-directory pathname
+			(if (probe-file "index.html")
+			    (from-file (in "index.html")
+			      (transfer in stream))
+			    (print-directory "" stream
+					     :all t :verbose t)))
+		      (from-file (in pathname) (transfer in stream)))
+		  (format stream
+			  "404 Error: failed to probe file: \"~A\".~%"
+			  name)))))
+	 (t
+	  (format stream
+		  "400 Error: failed to parse request: \"~A\".~%"
+		  line)))
+	(end-session '*http-service-sessions* socket)))))
+
+(setf (search-list "http:") "/var/www/")
+
+(defservice "http" 8080 #'serve-http)
+
+
+;;;; More service support.
+;;;
+;;; Service support functions that must follow the service definitions
+;;; above so that the support functions work the previous way when
+;;; redefining services above.
+
+(defun stop-service (name)
+  "Stop service $name."
+  (let ((service (getstring name *services*)))
+    (if service (funcall (service-stopper service)))))
+
+(defun probe-service (name)
+  "Return true if service $name is running."
+  (symbol-value (intern (format () "*~A-SERVICE*"
+				(string-upcase name)))))

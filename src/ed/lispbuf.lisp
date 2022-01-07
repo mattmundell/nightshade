@@ -42,18 +42,18 @@ editor Lisp environment from the editor.
 
 #[ Eval Mode
 
-`Eval' mode is a minor mode that simulates a read
-eval print loop running within the editor process.  Since Lisp
-program development is usually done in a separate eval server process (see section
-[Eval Servers]), `Eval' mode is used primarily for debugging code
-that must run in the editor process.  `Eval' mode shares some commands with
-`Typescript' mode: see section [Typescripts].
+`Eval' mode is a minor mode that simulates a read eval print loop running
+within the editor process.  Since Lisp program development is usually done
+in a separate eval server process (see section [Eval Servers]), `Eval' mode
+is used primarily for inspecting code that must run in the editor process.
+`Eval' mode shares some commands with `Typescript' mode: see section
+[Typescripts].
 
 `Eval' mode doesn't completely support terminal I/O: it binds
 `standard-output' to a stream that inserts into the buffer and
-`standard-input' to a stream that signals an error for all operations.
-the editor cannot correctly support the interactive evaluation of forms that read
-from the `Eval' interactive buffer.
+`standard-input' to a stream that signals an error for all operations.  the
+editor cannot correctly support the interactive evaluation of forms that
+read from the `Eval' interactive buffer.
 
 {command:Select Eval Buffer}
 {command:Confirm Eval Input}

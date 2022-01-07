@@ -4,10 +4,10 @@
 "array-tran.lisp" 3408220436
 "backend.lisp" 3419584050
 "bit-util.lisp" 3410189366
-"byte-comp.lisp" 3408220436
+"byte-comp.lisp" 3427898264
 "c.log" 3408220437
 "checkgen.lisp" 3420913480
-"codegen.lisp" 3419753389
+"codegen.lisp" 3429115101
 "constraint.lisp" 3420904210
 "control.lisp" 3418731864
 "copyprop.lisp" 3419151797
@@ -16,7 +16,7 @@
 "debug.lisp" 3419661965
 "dfo.lisp" 3420283985
 "disassem.lisp" 3411570889
-"dump.lisp" 3419849944
+"dump.lisp" 3428400796
 "dyncount.lisp" 3418971108
 "entry.lisp" 3418973223
 "tn.lisp" 3418457510
@@ -24,7 +24,7 @@
 "eval-comp.lisp" 3416333992
 "eval.lisp" 3408220441
 "float-tran.lisp" 3408220441
-"fndb.lisp" 3415530456
+"fndb.lisp" 3439629674
 "globaldb.lisp" 3416761849
 "globals.lisp" 3408220446
 "gtn.lisp" 3418731805
@@ -43,8 +43,8 @@
 "macros.lisp" 3419931990
 "main.lisp" 3427193141
 "node.lisp" 3420550558
-"meta-vmdef.lisp" 3419234133
-"new-assem.lisp" 3419836894
+"meta-vmdef.lisp" 3427897044
+"new-assem.lisp" 3427990608
 "pack.lisp" 3419660811
 "proclaim.lisp" 3417879296
 "profile.lisp" 3408220465
@@ -57,7 +57,7 @@
 "stack.lisp" 3418731079
 "statcount.lisp" 3408220473
 "typetran.lisp" 3413052507
-"vmdef.lisp" 3427033597
+"vmdef.lisp" 3427894980
 "vop.lisp" 3419582386
 "generic/" NIL
 "hppa/" NIL

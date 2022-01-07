@@ -46,7 +46,7 @@
     (when (move-to-prefix-start mark)
       (let ((prefix (region-to-string (region mark (current-point)))))
 	(if (string= prefix "")
-	    (editor-error "No possible abbreviation preceding point")
+	    (editor-error "No possible abbreviation preceding point.")
 	    (progn
 	      (setq *buffers* (mapcar #'window-buffer *window-list*))
 	      (setq *buffers*
@@ -116,8 +116,8 @@
 		       (progn
 			 (undo-previous-expansion)
 			 (editor-error (if *seen-expansions*
-					   "Expanding `~A' wrapped"
-					   "Failed to expand `~A'")
+					   "Expanding `~A' wrapped."
+					   "Failed to expand `~A'.")
 				       string))))
 		  :temporary)
 		 :backward string))))

@@ -106,7 +106,7 @@ character positions.
 
 ;;; real-line-length
 ;;;
-;;; Return as values the X position and the number of times wrapped if one
+;;; Return as values the X position and the number of times wrapped if one FIX
 ;;; to display the characters from Start to End of Line starting at an X
 ;;; position of 0 wrapping Width wide.  %SP-Find-Character-With-Attribute
 ;;; is used to find charaters with funny representation much as in

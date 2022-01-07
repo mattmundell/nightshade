@@ -89,6 +89,8 @@
 (defun get-info-directory ()
   "Return the Info directory node."
   (or *info*
+      (editor-error "FIX need parse-manual (in parse-scribe.lisp)")
+#|
       (setq *info*
 	    (let ((dir (make-directory-node)))
 	      (do ((manuals info-dir-manuals (cdr manuals))
@@ -110,7 +112,9 @@
 			    (setf (parse:node-content dir) node))
 			(setq content node)))
 		    (mapcar (lambda (l) (close (car l))) first-stream))))
-	      dir)))
+	      dir))
+|#
+      )
   t)
 
 (defun get-info-directory () "Documentation")
@@ -264,11 +268,7 @@
   "Move point to the previous reference, wrapping if required."
   (next-info-reference-command (fi p)))
 
-(defvar *info-prompt-history* (make-ring 200)
-  "Previously prompted Info nodes.")
-
-(defvar *info-prompt-history-pointer* 0
-  "Current position during a historical exploration.")
+(defhistory *info-prompt-history* *info-prompt-history-pointer* 200)
 
 (defun prompt-for-info-node ()
   (prompt-for-keyword (list lisp::*documentation*)
@@ -356,7 +356,7 @@
 	       (when pos
 		 (buffer-start (current-point))
 		 (character-offset (current-point) (+ pos offset 1))))))))
-      (t (editor-error "Only docnode editing implemented.")))))
+      (t (editor-error "Only docnode editing is implemented.")))))
 
 
 ;;; Helper functions.
@@ -392,6 +392,7 @@
   "Return node referred to by Name."
   (or (gethash name (value ed::info-references)) name))
 
+#|
 (defun find-heading (head)
   "Find a heading node in head-node Head."
   (do ((part (parse:node-content head) (parse:node-next part)))
@@ -403,12 +404,14 @@
 	 (typecase text-part
 	   (heading-node
 	    (return-from find-heading text-part))))))))
+|#
 
 (defun insert-nodes (mark node)
   "Insert Node and any siblings following Node, recursively, at Mark."
   (insert-node mark node)
   (if (parse:node-next node) (insert-nodes mark (parse:node-next node))))
 
+#|
 (defun insert-source-node (mark node)
   "Insert Node at Mark, recursively."
   (etypecase node
@@ -430,6 +433,7 @@
 	   (reverse-find-attribute start :word-delimiter #'zerop)
 	   (insert-string start "::"))
 	 (line-offset start 1 0))))
+
     ;; Scribe manual nodes.
     (epsilon-node)
     (make-node)
@@ -1279,13 +1283,16 @@
 	      (insert-character mark content)))
 	 (string
 	  (insert-string mark content)))))))
+|#
 
 #|
 (progn (setq *info* (ed::value ed::info-node)) t)
 |#
 
+#|
 (defun translate-all-manuals ()
-  (loop for node = *info* then (parse:node-next node) while node do
+  (while ((node *info* (parse:node-next node)))
+	 (node)
     (translate-manuals node)))
 
 (defun translate-manuals (node &optional buff)
@@ -1293,7 +1300,9 @@
   (let ((buffer (or buff (make-unique-buffer "manual"))))
     (insert-source-node (buffer-point buffer) node)
     ;; Recurse into subsections.
-    (loop for node = (parse:node-content node) then (parse:node-next node) while node do
+    (while ((node (parse:node-content node)
+		  (parse:node-next node)))
+	   (node)
       (typecase node
 	(manual-node
 	 (translate-manuals node buffer))
@@ -1303,6 +1312,7 @@
 	 (translate-manuals node buffer))
 	(subsection-node
 	 (translate-manuals node buffer))))))
+|#
 
 (defun filter-info (mark)
   (while () ((find-character mark #\{))
@@ -1339,7 +1349,6 @@
 		     (fi name
 			 (insert-string mark "??")
 			 (with-output-to-mark (out mark)
-			   (ed::msg "name ~A" name)
 			   (let* ((command (getstring name *command-names*))
 				  (function (if command (command-function command)))
 				  (args (if function (function-args function))))
@@ -1507,6 +1516,7 @@
        (move-mark start mark)
        (insert-string mark (lisp::docnode-content doc))
        (filter-info start)))
+#|
     ;; Scribe manual nodes.
     (epsilon-node)
     (make-node)
@@ -2391,4 +2401,6 @@
 	  (or (eq content #\newline)
 	      (insert-character mark content)))
 	 (string
-	  (insert-string mark content)))))))
+	  (insert-string mark content)))))
+|#
+    ))

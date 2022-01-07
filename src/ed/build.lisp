@@ -2,11 +2,7 @@
 
 (in-package "ED")
 
-(defvar *build-target-history* (make-ring 50)
-  "Previous build targets.")
-
-(defvar *build-target-history-pointer* 0
-  "Current position during a historical exploration.")
+(defhistory *build-target-history* *build-target-history-pointer* 50)
 
 (defcommand "Build" (p)
   "Prompt for and build one of the targets defined in Build.lisp in the

@@ -9,7 +9,7 @@
 
 (defvar *last-search-string* ()
   "The last string searched for, as set by `get-search-pattern'.")
-(defvar *last-search-switched* nil
+(defvar *last-search-switched* ()
   "Whether the last search switched to a case sensitive search.")
 (defvar *last-search-pattern*
   (new-search-pattern :string-insensitive :forward "Foo")
@@ -272,22 +272,24 @@ search string.
   (setf (last-command-type) nil)
   (%i-search-echo-refresh "" :forward nil)
   (let* ((point (current-point))
-	 (save-start (copy-mark point :temporary)))
+	 (save-start (copy-mark point :temporary))
+	 (previous-lss *last-search-pattern*))
     (with-mark ((here point))
       (handler-case
-	  (when (eq (catch 'exit-i-search
-		      (%i-search "" point here :forward nil))
-		    :control-g)
-	    (move-mark point save-start)
-	    (invoke-hook abort-hook)
-	    (editor-error "Search exited."))
+	    (when (eq (catch 'exit-i-search
+			(%i-search "" point here :forward nil))
+		      :control-g)
+	      (setq *last-search-switched* previous-lss)
+	      (move-mark point save-start)
+	      (invoke-hook abort-hook)
+	      (editor-error "Search exited."))
 	;; Now signalled in handler of C-g sigint.
 	(edi::editor-top-level-catcher ()
+	  (setq *last-search-switched* previous-lss)
 	  (move-mark point save-start)))
       (if (region-active-p)
 	  (delete-mark save-start)
 	  (push-buffer-mark save-start)))))
-
 
 (defcommand "Reverse Incremental Search" ()
   "Search, initially backwards, for an input string according to
@@ -340,17 +342,20 @@ search string.
   (setf (last-command-type) nil)
   (%i-search-echo-refresh "" :backward nil)
   (let* ((point (current-point))
-	 (save-start (copy-mark point :temporary)))
+	 (save-start (copy-mark point :temporary))
+	 (previous-lss *last-search-switched*))
     (with-mark ((here point))
       (handler-case
 	  (when (eq (catch 'exit-i-search
 		      (%i-search "" point here :backward nil))
 		    :control-g)
+	    (setq *last-search-switched* previous-lss)
 	    (move-mark point save-start)
 	    (invoke-hook abort-hook)
 	    (editor-error "Search exited."))
 	;; Now signalled in handler of C-g sigint.
 	(edi::editor-top-level-catcher ()
+	  (setq *last-search-switched* previous-lss)
 	  (move-mark point save-start)))
       (if (region-active-p)
 	  (delete-mark save-start)
@@ -395,6 +400,7 @@ search string.
   (declare (simple-string string))
   (cond ((let ((character (key-event-char key-event)))
 	   (and character (standard-char-p character)))
+	 (setq *last-search-switched* ())
 	 (%i-search-printed-char key-event string point trailer
 				 direction failure))
 	((or (logical-key-event-p key-event :forward-search)
@@ -409,9 +415,11 @@ search string.
 	   (throw 'exit-i-search :control-g))
 	 :control-g)
 	((logical-key-event-p key-event :quote)
+	 (setq *last-search-switched* ())
 	 (%i-search-printed-char (get-key-event *editor-input* t)
 				 string point trailer direction failure))
 	((equalp key-event #k"C-w")
+	 (setq *last-search-switched* ())
 	 (%i-search-copy-word string point trailer direction failure))
 	((and (zerop (length string)) (logical-key-event-p key-event :exit))
 	 (if (eq direction :forward)
@@ -498,8 +506,7 @@ search string.
 	   (%i-search-echo-refresh "" direction nil)
 	   (%i-search "" point trailer direction nil)))
 	(*last-search-string*
-	 (elet ((string-search-fold-case (if *last-search-switched*
-					     nil
+	 (elet ((string-search-fold-case (fi *last-search-switched*
 					     (value string-search-fold-case))))
 	   (%i-search-echo-refresh *last-search-string* direction nil)
 	   (i-search-pattern *last-search-string* direction)
@@ -514,8 +521,9 @@ search string.
 ;;;
 (defun %i-search-printed-char (key-event string point trailer direction failure)
   (let ((tchar (ext:key-event-char key-event)))
-    (unless tchar (editor-error "Not a text character -- ~S" (key-event-char
-							      key-event)))
+    (unless tchar
+      (editor-error "Not a text character -- ~S" (key-event-char
+						  key-event)))
     (when (interactive)
       (insert-character (buffer-point *echo-area-buffer*) tchar)
       (force-output *echo-area-stream*))

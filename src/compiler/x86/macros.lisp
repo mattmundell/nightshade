@@ -29,6 +29,7 @@
 
 
 ;;; Instruction-like macros.
+
 (defmacro move (dst src)
   "Move SRC into DST unless they are location=."
   (once-only ((n-dst dst)
@@ -92,19 +93,19 @@
 
 ;;;; Allocation helpers.
 
-;;; Two allocation approaches are implemented. A call into C can be
-;;; used where special care can be taken to disable
-;;; interrupts. Alternatively with gencgc inline allocation is possible
-;;; although it isn't interrupt safe.
+;;; Two allocation approaches are implemented.  A call into C can be used
+;;; where special care can be taken to disable interrupts. Alternatively
+;;; with gencgc inline allocation is possible although it isn't interrupt
+;;; safe.
 
-;;; For GENCGC it is possible to inline object allocation, to permit
-;;; this set the following variable to True.
+;;; For GENCGC it is possible to inline object allocation, to permit this
+;;; set the following variable to True.
 (defparameter *maybe-use-inline-allocation* t)
 
 ;;;; Call into C.
 (defun allocation (alloc-tn size &optional inline)
   "Allocate an object with a size in bytes given by Size.
-   The size may be an integer of a TN.
+   The size may be an integer of a TN. FIX \"or a TN\"?
    If Inline is a VOP node-var then it is used to make an appropriate
    speed vs size decision."
   (flet ((load-size (dst-tn size)
@@ -220,9 +221,8 @@
 
 (defmacro with-fixed-allocation ((result-tn type-code size &optional inline)
 				 &rest forms)
-  "Allocate an other-pointer object of fixed Size with a single
-   word header having the specified Type-Code.  The result is placed in
-   Result-TN."
+  "Allocate an other-pointer object of fixed Size with a single word header
+   having the specified Type-Code.  The result is placed in Result-TN."
   `(pseudo-atomic
     (allocation ,result-tn (pad-data-block ,size) ,inline)
     (storew (logior (ash (1- ,size) vm:type-bits) ,type-code) ,result-tn)

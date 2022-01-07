@@ -15,6 +15,7 @@ Process' to this key which would stop the shell itself.
 {command:Shell}
 {evariable:Shell Utility}
 {evariable:Shell Utility Switches}
+{evariable:Shell Utility Command Switches}
 {evariable:Current Shell}
 {evariable:Ask about Old Shells}
 {command:Shell Command Line in Buffer}
@@ -225,14 +226,23 @@ The user may edit process input using commands that are shared with
 
 (defevar "Shell Utility"
   "The `Shell' command uses this as the default command line."
-  :value "/bin/csh")
+  :value "/bin/sh")
 
 (defevar "Shell Utility Switches"
-  "This is a string containing the default command line arguments to the
-   utility in *Shell Utility*.  This is a string since the utility is
-   typically \"/bin/csh\", and this string can contain I/O redirection and
-   other shell directives."
+  "A string containing the command line arguments to the utility in *Shell
+   Utility*, when invoked to run the interactive shell.
+
+   This is a string since the utility is typically \"/bin/sh\", and this
+   string can contain I/O redirection and other shell directives."
   :value "")
+
+(defevar "Shell Utility Command Switches"
+  "A string containing the command line arguments to the utility in *Shell
+   Utility*, when invoked to run a single shell command.
+
+   This is a string since the utility is typically \"/bin/sh\", and this
+   string can contain I/O redirection and other shell directives."
+  :value "-c")
 
 
 ;;;; The Shell, New Shell, and Set Current Shell Commands.
@@ -294,11 +304,9 @@ The user may edit process input using commands that are shared with
 	   (change-to-buffer (value current-shell)))
 	  (t (make-new-shell ())))))
 
-(defvar *shell-command-in-buffer-history* (make-ring 350)
-  "Shell commands previously put into Shell Command Line in Buffer.")
-
-(defvar *shell-command-in-buffer-history-pointer* 0
-  "Current position during a historical exploration.")
+(defhistory *shell-command-in-buffer-history*
+	    *shell-command-in-buffer-history-pointer*
+	    350)
 
 (defcommand "Shell Command Line in Buffer" (p)
   "Run a prompted shell command.  Prompt for a buffer for the output if
@@ -334,15 +342,7 @@ The user may edit process input using commands that are shared with
 			   '*shell-command-in-buffer-history-pointer*)
 			  command-line)))
 	 (buffer-name (if prompt-for-command-p
-			  (let ((name (new-process-buffer-name command
-#|
-				       (if (> (length command) 30)
-					   (concatenate 'simple-string
-							(subseq command 0 26)
-							"...")
-					   command)
-|#
-				       )))
+			  (let ((name (new-process-buffer-name command)))
 			    (if (value prompt-for-shell-buffer-names)
 				(prompt-for-string
 				 :default name
@@ -386,7 +386,9 @@ The user may edit process input using commands that are shared with
 	       (string= (namestring (truename (current-directory)))
 			(namestring (truename buffer-file)))))
 	(editor-error
-	 "Safety assertion failed: Current directory: ~A~%                         Buffer directory : ~A"
+	 "~
+Safety assertion failed: Current directory: ~A~%
+                         Buffer directory : ~A"
 	 (truename (current-directory))
 	 (if (editor-bound-p 'dired-information)
 	     (dired-info-pathname (value dired-information))
@@ -403,30 +405,37 @@ The user may edit process input using commands that are shared with
       (defevar "Process"
 	"The process for Shell and Process buffers."
 	:buffer buffer
-	:value (ext::run-program "/bin/sh" (list "-c" command)
-				 :wait nil
-				 :pty output-stream
-				 :env (frob-environment-list
-				       (car (buffer-windows buffer))
-				       (directory-namestring
-					(buffer-pathname buffer)))
-				 :status-hook #'(lambda (process)
-						  (declare (ignore process))
-						  (update-process-buffer buffer))
-				 :input t :output t)))
-    (let ((exp `(ext::run-program "/bin/sh" ',(list "-c" command)
-				  :wait nil
-				  :pty ,output-stream
-				  :env ',(frob-environment-list
-					  (car (buffer-windows buffer))
-					  (directory-namestring
-					   (buffer-pathname buffer)))
-				  :status-hook #'(lambda (process)
-						   (declare (ignore process))
-						   (update-process-buffer ,buffer))
-				  :input t :output t)))
-      (if (editor-bound-p 'process-start-expression)
-	  (setv process-start-expression exp)
+	:value (ext::run-program
+		(value shell-utility)
+		(list (value shell-utility-command-switches)
+		      command)
+		:wait nil
+		:pty output-stream
+		:env (frob-environment-list
+		      (car (buffer-windows buffer))
+		      (directory-namestring
+		       (buffer-pathname buffer)))
+		:status-hook #'(lambda (process)
+				 (declare (ignore process))
+				 (update-process-buffer buffer))
+		:input t :output t)))
+    (let ((exp `(ext::run-program
+		 (value shell-utility)
+		 ',(list (value shell-utility-command-switches)
+			 command)
+		 :wait nil
+		 :pty ,output-stream
+		 :env ',(frob-environment-list
+			 (car (buffer-windows buffer))
+			 (directory-namestring
+			  (buffer-pathname buffer)))
+		 :status-hook #'(lambda (process)
+				  (declare (ignore process))
+				  (update-process-buffer ,buffer))
+		 :input t :output t)))
+      (if (editor-bound-p 'process-start-expression :buffer buffer)
+	  (setf (variable-value 'process-start-expression :buffer buffer)
+		exp)
 	  (defevar "Process Start Expression"
 	    "The expression called to start the process."
 	    :buffer buffer
@@ -547,6 +556,7 @@ The user may edit process input using commands that are shared with
 
 (defun update-shell-buffer (buffer &optional quiet)
   "Rerun the shell command running in $buffer."
+  (declare (ignore quiet)) ; FIX
   (delete-region (buffer-region buffer))
   (in-directory (buffer-pathname buffer)
     (setf (variable-value 'process :buffer buffer)

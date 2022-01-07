@@ -3,7 +3,7 @@ dynbind.c
 irix-asm-munge.c
 parse.c
 sunos-os.c
-Linux-os.c
+linux-os.c
 gc.c
 irix-os.c
 print.c
@@ -40,7 +40,7 @@ FreeBSD-os.h
 gc.h
 mach-os.h
 save.h
-Linux-os.h
+linux-os.h
 gencgc.h
 mips-lispregs.h
 search.h

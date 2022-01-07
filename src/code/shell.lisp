@@ -2,18 +2,15 @@
 
 (in-package "SHELL")
 
-(export '(~ cd #| dir |# ls mv pwd rm touch))
+(export '(~ && ||
+	  ] ]] >> [ ; > < are used already!
+	  cat cd #| dir |# ech ls mv pwd rm she touch))
 
-(in-package "LISP")
-
-(import '(~ cd #| dir |# ls mv pwd rm touch)
-	"SHELL")
-
-(in-package "SHELL")
+;(import '(~ cd #| dir |# ls mv pwd rm touch) "LISP")
 
 (use-package "EXTENSIONS")
 
-(declaim (inline cd dir ls mv pwd rm touch))
+(declaim (inline cd dir mv pwd rm touch))
 
 (defvar ~ #p"home:")
 
@@ -90,3 +87,58 @@
 (defun touch (directory)
   "Touch file or directory $pathname."
   (touch-file directory))
+
+(defun cat (&rest pathnames)
+  "If $pathnames are given \"conCATenate\" the files in $pathnames: write
+   them sequentially to *standard-output*, otherwise `transfer'
+   *standard-input* to *standard-output*."
+  (if pathnames
+      (dolist (pathname pathnames)
+	(from-file (in pathname) (transfer in *standard-output*)))
+      (transfer *standard-input* *standard-output*)))
+
+(defun she (command)
+  "Pass the string $command to a subshell."
+  (run-program "/bin/sh" (list "-c" command) :output *standard-output*))
+
+(defmacro ] (destination &body body)
+  "Run $body with *standard-output* bound to a stream open on the file
+   $destination.  Truncate $destination beforehand if it exists."
+  `(to-file (*standard-output* ,destination)
+     ,@body))
+
+(defmacro ]] (destination &body body)
+  "Run $body with *standard-output* bound to a stream open on the file
+   $destination.  Append to $destination if it exists."
+  `(to-file (*standard-output* ,destination :if-exists :append)
+     ,@body))
+
+(defmacro >> (destination &body body)
+  "Run $body with *standard-output* bound to a stream open on the file
+   $destination.  Append to $destination if it exists."
+  `(to-file (*standard-output* ,destination :if-exists :append)
+     ,@body))
+
+(defmacro [ (destination &body body)
+  "Run $body with *standard-input* bound to a stream open on the file
+   $destination."
+  `(from-file (*standard-input* ,destination)
+     ,@body))
+
+(defun ech (&rest args)
+  "Print the args to *standard-output* with spaces inbetween, followed by a
+   newline.  Print with `princ'.  Evaluate the arguments."
+  (when args
+    (princ (car args) *standard-output*)
+    (dolist (arg (cdr args))
+      (princ #\space *standard-output*)
+      (princ arg *standard-output*))
+    (princ #\newline *standard-output*)))
+
+(defmacro && (&body body)
+  "Evaluate the elements of $body, exiting if an element returns ()."
+  `(and ,@body))
+
+(defmacro || (&body body)
+  "Evaluate the elements of $body, exiting if an element returns t."
+  `(or ,@body))

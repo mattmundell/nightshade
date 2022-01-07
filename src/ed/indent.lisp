@@ -2,12 +2,14 @@
 
 (in-package "ED")
 
-(export '(delete-horizontal-space indent-region indent-region-for-commands))
+(export '(delete-horizontal-space indent-region indent-region-for-commands
+          maybe-delete-horizontal-space))
 
 #[ Indenting Text
 
 {evariable:Indent Function}
-{evariable:Indent with Tabs}
+{evariable:Tab Indenter}
+{evariable:Space Indenter}
 {evariable:Spaces per Tab}
 {function:ed:indent-region}
 {function:ed:indent-region-for-commands}
@@ -43,11 +45,22 @@
     (dotimes (i tabs) (insert-character mark #\tab))
     (dotimes (i spaces) (insert-character mark #\space))))
 
-(defevar "Indent with Tabs"
+(defevar "Tab Indenter"
   "A function that takes a mark and a number of columns.  The function
    inserts a maximum number of tabs and a minimum number of spaces at the
    mark to move the mark the specified number of columns."
   :value #'indent-using-tabs)
+
+(defun indent-using-spaces (mark column)
+  "Insert spaces at $mark to move mark to $column.  Assume $mark is at the
+   beginning of a line."
+  (dotimes (i column) (insert-character mark #\space)))
+
+(defevar "Space Indenter"
+  "A function that takes a mark and a number of columns.  The function
+   inserts spaces at the mark mark to move the mark the specified number of
+   columns."
+  :value #'indent-using-spaces)
 
 (defun indent-region-for-commands (region)
   "Invoke the function in *Indent Function* on every line in $region."
@@ -75,15 +88,15 @@
 
 (defun generic-indent (mark)
   (let* ((line (mark-line mark))
-	 (prev (do ((line (line-previous line) (line-previous line)))
-		   ((or (null line) (not (blank-line-p line))) line))))
+	 (prev (while ((line (line-previous line) (line-previous line)))
+		      ((and line (blank-line-p line)) line))))
     (or prev (editor-error "First line with text."))
     (line-start mark prev)
     (find-attribute mark :space #'zerop)
     (let ((indentation (mark-column mark)))
       (line-start mark line)
       (delete-horizontal-space mark)
-      (funcall (value indent-with-tabs) mark indentation))))
+      (funcall (value tab-indenter) mark indentation))))
 
 (defattribute "Space"
   "This attribute is used by the indentation commands to determine which
@@ -93,6 +106,14 @@
 (setf (character-attribute :space #\space) 1)
 (setf (character-attribute :space #\tab) 1)
 
+(defun count-horizontal-space (mark)
+  "Return the number of characters with a :space attribute of 1 (as in
+   [System Defined Character Attributes]) on either side of $mark."
+  (with-mark ((start mark))
+    (reverse-find-attribute start :space #'zerop)
+    (find-attribute mark :space #'zerop)
+    (count-characters (region start mark))))
+
 (defun delete-horizontal-space (mark)
   "Delete all characters with a :space attribute of 1 (as in [System
    Defined Character Attributes]) on either side of $mark."
@@ -100,6 +121,17 @@
     (reverse-find-attribute start :space #'zerop)
     (find-attribute mark :space #'zerop)
     (delete-region (region start mark))))
+
+(defun maybe-delete-horizontal-space (mark length)
+  "If there are $length characters with a :space attribute of 1 (as in
+   [System Defined Character Attributes]) on either side of $mark then
+   return (), otherwise delete all those space characters and return t."
+  (with-mark ((start mark))
+    (reverse-find-attribute start :space #'zerop)
+    (find-attribute mark :space #'zerop)
+    (fi* (= (- (mark-column mark) (mark-column start)) length)
+      (delete-region (region start mark))
+      t)))
 
 #[ Indentation
 
@@ -164,7 +196,7 @@ other features such as filling and commenting.
   "Indent the current line so that it is centered between the left margin
    and Fill Column.  With a prefix use the prefix as the width instead of
    `Fill Column'."
-  (let* ((indent-function (value indent-with-tabs))
+  (let* ((indent-function (value tab-indenter))
 	 (region (if (region-active-p)
 		     (current-region)
 		     (region (current-point) (current-point))))
@@ -312,5 +344,5 @@ indentation commands in section [ indentation ].
 		 (let ((new-column (+ p (mark-column mark1))))
 		   (delete-characters mark1 (- (mark-charpos mark1)))
 		   (if (plusp new-column)
-		       (funcall (value indent-with-tabs) mark1 new-column)))))
+		       (funcall (value tab-indenter) mark1 new-column)))))
 	(line-offset mark1 1 0)))))

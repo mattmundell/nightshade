@@ -106,9 +106,9 @@ boolean gencgc_enable_verify_zero_fill = FALSE;
 boolean gencgc_zero_check_during_free_heap = FALSE;
 
 /*
- * The minimum size for a large object.
+ * The minimum size for a large object.  Initialized in gc_init.
  */
-unsigned large_object_size = 4 * PAGE_SIZE;
+unsigned large_object_size;
 
 /*
  * Enable the filtering of stack/register pointers. This could reduce
@@ -1831,7 +1831,7 @@ static void scavenge(lispobj *start, long nwords)
 	lispobj *ptr = (lispobj *) PTR(object);
 	lispobj first_word = *ptr;
 
-	if(first_word == 0x01) {
+	if (first_word == 0x01) {
 	  /* Yep, there be a forwarding pointer. */
 	  *start = ptr[1];
 	  words_scavenged = 1;
@@ -3684,11 +3684,11 @@ static int scav_weak_pointer(lispobj *where, lispobj object)
 
   /* Check if it's already in the list. */
   while(wp != NULL) {
-    if(wp == (struct weak_pointer*) where)
+    if (wp == (struct weak_pointer*) where)
       break;
     wp = wp->next;
   }
-  if(wp == NULL) {
+  if (wp == NULL) {
     /* Add it to the start of the list. */
     wp = (struct weak_pointer*) where;
     if (wp->next != weak_pointers)
@@ -4274,7 +4274,7 @@ static int valid_dynamic_space_pointer(lispobj *pointer)
       return FALSE;
     }
     /* Is it plausible cons? */
-    if((Pointerp(start_addr[0])
+    if ((Pointerp(start_addr[0])
 	|| (start_addr[0] & 3) == 0 /* fixnum */
 	|| TypeOf(start_addr[0]) == type_BaseChar
 	|| TypeOf(start_addr[0]) == type_UnboundMarker)
@@ -4307,7 +4307,7 @@ static int valid_dynamic_space_pointer(lispobj *pointer)
       return FALSE;
     }
     /* Is it plausible?  Not a cons. X should check the headers. */
-    if(Pointerp(start_addr[0]) || (start_addr[0] & 3) == 0) {
+    if (Pointerp(start_addr[0]) || (start_addr[0] & 3) == 0) {
       if (gencgc_verbose)
 	fprintf(stderr, "*Wo2: %x %x %x\n", pointer, start_addr, *start_addr);
       return FALSE;
@@ -5340,7 +5340,7 @@ static int free_oldspace(void)
 
       os_invalidate(page_start, PAGE_SIZE * (last_page - first_page));
       addr = os_validate(page_start, PAGE_SIZE * (last_page - first_page));
-      if(addr == NULL || addr != page_start)
+      if (addr == NULL || addr != page_start)
 	fprintf(stderr, "gc_zero: page moved, 0x%08x ==> 0x%08x!\n",
 		page_start, addr);
     } else {
@@ -5366,7 +5366,7 @@ static void print_ptr(lispobj *addr)
   /* If addr is in the dynamic space then print out the page information. */
   int pi1 = find_page_index((void*) addr);
 
-  if(pi1 != -1)
+  if (pi1 != -1)
     fprintf(stderr, "  %x: page %d  alloc %d unboxed %d gen %d  bytes_used %d  offset %d  dont_move %d\n",
 	    addr, pi1,
 	    PAGE_ALLOCATED(pi1),
@@ -5392,7 +5392,7 @@ static void verify_space(lispobj*start, size_t words)
     size_t count = 1;
     lispobj thing = *(lispobj*) start;
 
-    if(Pointerp(thing)) {
+    if (Pointerp(thing)) {
       int page_index = find_page_index((void*)thing);
       int to_readonly_space = (READ_ONLY_SPACE_START <= thing &&
 		      thing < SymbolValue(READ_ONLY_SPACE_FREE_POINTER));
@@ -5400,7 +5400,7 @@ static void verify_space(lispobj*start, size_t words)
 			 thing < SymbolValue(STATIC_SPACE_FREE_POINTER));
 
       /* Does it point to the dynamic space? */
-      if(page_index != -1) {
+      if (page_index != -1) {
 	/*
 	 * If it's within the dynamic space it should point to a used
 	 * page.  X Could check the offset too.
@@ -5728,7 +5728,7 @@ static void write_protect_generation_pages(int generation)
 
 
 /*
- * Garbage collect a generation. If raise is 0 the remains of the
+ * Garbage collect a generation.  If raise is 0 the remains of the
  * generation are not raised to the next generation.
  */
 static void	garbage_collect_generation(int generation, int raise)
@@ -5915,7 +5915,7 @@ static void	garbage_collect_generation(int generation, int raise)
   generations[generation].alloc_large_start_page = 0;
   generations[generation].alloc_large_unboxed_start_page = 0;
 
-  if(generation >= verify_gens) {
+  if (generation >= verify_gens) {
     if (gencgc_verbose)
       fprintf(stderr, "Checking\n");
     verify_gc();
@@ -5954,7 +5954,7 @@ int	update_x86_dynamic_space_free_pointer(void)
 /*
  * GC all generations below last_gen, raising their objects to the
  * next generation until all generations below last_gen are empty.
- * Then if last_gen is due for a GC then GC it. In the special case
+ * Then if last_gen is due for a GC then GC it.  In the special case
  * that last_gen==NUM_GENERATIONS, the last generation is always
  * GC'ed. The valid range for last_gen is: 0,1,...,NUM_GENERATIONS.
  *
@@ -6042,11 +6042,11 @@ void	collect_garbage(unsigned last_gen)
 		 && gen_av_mem_age(gen) > generations[gen].min_av_mem_age)));
 
   /*
-   * Now if gen-1 was raised all generations before gen are empty.If
+   * Now if gen-1 was raised all generations before gen are empty.  If
    * it wasn't raised then all generations before gen-1 are empty.
    *
    * Now objects within this gen's pages cannot pointer to younger
-   * generations unless they are written to. This can be exploited by
+   * generations unless they are written to.  This can be exploited by
    * write protecting the pages of gen; then when younger generations
    * are GCed only the page written need scanning.
    */
@@ -6101,9 +6101,9 @@ void	collect_garbage(unsigned last_gen)
 
 
 /*
- * The is called by purify when it is finished. All live objects will
- * have been moved to the RO and Static heaps. The dynamic space will
- * need a full re-initialisation. Do not bother having purify flush
+ * This is called by purify when it is finished.  All live objects will
+ * have been moved to the RO and Static heaps.  The dynamic space will
+ * need a full re-initialisation.  Do not bother having purify flush
  * the current allocation region, as the page_tables are re-initialised,
  * and every page is zeroed to be sure.
  */
@@ -6139,7 +6139,7 @@ void	gc_free_heap(void)
 
       os_invalidate(page_start, PAGE_SIZE);
       addr = os_validate(page_start, PAGE_SIZE);
-      if(addr == NULL || addr != page_start)
+      if (addr == NULL || addr != page_start)
 	fprintf(stderr, "gc_zero: page moved, 0x%08x ==> 0x%08x!\n",
 		page_start, addr);
     } else if (gencgc_zero_check_during_free_heap && page < 16384) {
@@ -6207,6 +6207,8 @@ void	gc_free_heap(void)
 void gc_init(void)
 {
   int i;
+
+  large_object_size = 4 * PAGE_SIZE;
 
   gc_init_tables();
 
@@ -6357,7 +6359,7 @@ char *alloc(int nbytes)
       return (void *) new_obj;
     }
 
-    if(bytes_allocated > auto_gc_trigger) {
+    if (bytes_allocated > auto_gc_trigger) {
       /* Double the trigger. */
       auto_gc_trigger *= 2;
       alloc_entered--;
@@ -6424,7 +6426,7 @@ char *alloc(int nbytes)
       return (void *) new_obj;
     }
 
-    if(bytes_allocated > auto_gc_trigger) {
+    if (bytes_allocated > auto_gc_trigger) {
       /* Double the trigger. */
       auto_gc_trigger *= 2;
       alloc_entered--;

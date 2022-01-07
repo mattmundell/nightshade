@@ -94,17 +94,15 @@
 
 ;;;; Commands.
 
-(defvar *compile-command-history* (make-ring 350)
-  "Ring-buffer containing previous compile commands.")
-
-(defvar *compile-command-history-pointer* 0
-  "Current position during a historical exploration.")
+(defhistory *compile-command-history*
+	    *compile-command-history-pointer*
+	    350)
 
 (defcommand "Compile" ()
   "Run a prompted compile shell command."
   (elet ((save-all-files-confirm nil))
     (save-all-files-command))
-  (let ((current-file (buffer-pathname (current-buffer)))
+  (let ( ;(current-file (buffer-pathname (current-buffer)))
 	(*shell-command-in-buffer-history* *compile-command-history*)
 	(*shell-command-in-buffer-history-pointer*
 	 *compile-command-history-pointer*))
@@ -249,7 +247,7 @@
 	    (chi-mark line 0 *special-form-font* :special-form
 		      chi-info)
 	    (mark-after mark)
-	    (chi-mark line (mark-charpos mark) *variable-name-font*
+	    (chi-mark line (mark-charpos mark) *variable-font*
 		      :variable chi-info)
 	    (mark-after mark2)
 	    (chi-mark line (mark-charpos mark2) *original-font*

@@ -157,10 +157,10 @@
   (inst push ebx)
 
   ;; And jump into the function.
-    (inst jmp
-	  (make-ea :byte :base eax
-		   :disp (- (* closure-function-slot word-bytes)
-			    function-pointer-type)))
+  (inst jmp
+	(make-ea :byte :base eax
+		 :disp (- (* closure-function-slot word-bytes)
+			  function-pointer-type)))
 
   ;; All the arguments fit in registers, so load them.
   REGISTER-ARGS

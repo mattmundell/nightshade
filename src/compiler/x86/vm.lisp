@@ -24,7 +24,7 @@
 
 ;;; Byte registers.
 ;;;
-;;; Note: the encoding here is different than that used by the chip.  We
+;;; Note: the encoding here is different from the one used by the chip.  We
 ;;; use this encoding so that the compiler thinks that AX (and EAX) overlap
 ;;; AL and AH instead of AL and CL.
 ;;;
@@ -32,12 +32,12 @@
   (defvar *byte-register-names* (make-array 8 :initial-element nil)))
 ;;;
 (defreg al 0 :byte)
-(defreg ah 1 :byte)
-(defreg cl 2 :byte)
-(defreg ch 3 :byte)
-(defreg dl 4 :byte)
-(defreg dh 5 :byte)
-(defreg bl 6 :byte)
+(defreg ah 1 :byte)    ; CL on chip.
+(defreg cl 2 :byte)    ; DL
+(defreg ch 3 :byte)    ; BL
+(defreg dl 4 :byte)    ; AH
+(defreg dh 5 :byte)    ; CH
+(defreg bl 6 :byte)    ; DH
 (defreg bh 7 :byte)
 ;;;
 (defregset byte-regs al ah cl ch dl dh bl bh)

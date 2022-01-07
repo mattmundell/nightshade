@@ -3,7 +3,7 @@
 (in-package "ED")
 
 (export '(buffer-default-pathname *buffer-history* change-to-buffer
-	  delete-buffer-if-possible find-file-buffer
+	  delete-buffer-if-possible delete-buffer-safely find-file-buffer
 	  pathname-to-buffer-name previous-buffer process-file-options
 	  read-buffer-file write-buffer-file
 	  define-file-option define-file-type-hook))
@@ -28,6 +28,10 @@
 (defvar *file-name-hooks* ()
   "Hooks to run according to file name on reading a file.  Modify with
    `define-file-name-hook'.")
+
+(defvar *file-content-hooks* ()
+  "Hooks to run according to file content on reading a file.  Modify with
+   `define-file-content-hook'.")
 
 (defvar *loader-directive-handlers* ()
   "Hooks to run according to file loader directive on reading a file.
@@ -98,8 +102,8 @@
 			 buffer (trim-subseq string start end))
 		(setq major-mode t)))))))
     (or major-mode
+	;; FIX should this be a content hook?
 	;; Look for "Content-Type: <mime-type>" directive at buffer
-	;; beginning.
 	(with-mark ((mark (buffer-start-mark buffer)))
 	  (let ((string (line-string (mark-line mark))))
 	    (when (and (> (length string) 14)
@@ -113,23 +117,39 @@
 		  (funcall (cdr hook) buffer type)
 		  t)))))
 	(let ((hook))
-	  (when type
-	    ;; Try type hooks.
-	    (setq hook (assoc (string-downcase type) *file-type-hooks*
-			      :test #'string=))
-	    (when hook (funcall (cdr hook) buffer type)))
-	  (or hook
-	      ;; Try name hooks.
-	      (progn
-		(setq hook (assoc (pathname-name pathname)
-				  *file-name-hooks* :test #'string=))
-		(when hook (funcall (cdr hook) buffer type))))
+	  ;; Try name hooks.
+	  (progn
+	    (setq hook (assoc (pathname-name pathname)
+			      *file-name-hooks* :test #'string=))
+	    (when hook (funcall (cdr hook)
+				buffer
+				(pathname-name pathname)
+				pathname)))
 	  (or hook
 	      ;; Try pathname hooks.
 	      (progn
-		(setq hook (assoc (namestring (truename pathname))
-				  *file-pathname-hooks* :test #'string=))
+		(setq hook
+		      (assoc (namestring (truename pathname))
+			     *file-pathname-hooks*
+			     :test
+			     (lambda (name hooks-name)
+			       (and (probe-file hooks-name)
+				    (string= (namestring
+					      (truename hooks-name))
+					     name)))))
 		(when hook (funcall (cdr hook) buffer type))))
+	  (or hook
+	      ;; Try type hooks.
+	      (when type
+		(setq hook (assoc (string-downcase type) *file-type-hooks*
+				  :test #'string=))
+		(when hook (funcall (cdr hook) buffer type))))
+	  (or hook
+	      ;; Try content hooks.
+	      (while ((hooks *file-content-hooks* (cdr hooks)))
+		     (hooks)
+		(if (setq hook (funcall (cdar hooks) buffer))
+		    (return))))
 	  (or hook
 	      ;; Look for shell loader directive (e.g. #!/bin/lisp).
 	      (with-mark ((mark (buffer-start-mark buffer)))
@@ -210,7 +230,6 @@ default major mode.
 
 ;; FIX Consider generic var-setting fallback.
 (define-file-option "Flush-Trailing-Whitespace" (buffer str)
-  (declare (ignore buffer))
   (defevar "Flush Trailing Whitespace"
     "If true then flush trailing whitespace."
     :buffer buffer
@@ -237,9 +256,13 @@ default major mode.
   (declare (ignore type))
   (setf (buffer-major-mode buffer) "C"))
 
-(define-file-type-hook ("c++" "cpp" "cc" "hh") (buffer type)
+(define-file-type-hook ("c++" "cpp" "cc" "hh" "hpp") (buffer type)
   (declare (ignore type))
   (setf (buffer-major-mode buffer) "C++"))
+
+(define-file-type-hook ("csv") (buffer type)
+  (declare (ignore type))
+  (setf (buffer-minor-mode buffer "CSV") t))
 
 ; (define-file-type-hook ("enr")
 ; 		       (buffer type)
@@ -299,34 +322,51 @@ default major mode.
   (setf (buffer-major-mode buffer) "Text"))
 
 (defmacro define-file-pathname-hook (name-list (buffer name) &body body)
-  "Define-File-Pathname-Hook ({Name}*) (Buffer Name) {Form}*
-  Define some code to be evaluated when a file having one of the specified
-  Pathnames is read by a file command.  Buffer is bound to the buffer the
-  file is in, and Name is the actual pathname read."
+  "define-file-pathname-hook ({name}*) ($buffer $name) {form}*
+
+   Define some code to be evaluated when a file having one of the specified
+   Pathnames is read by a file command.  Buffer is bound to the buffer the
+   file is in, and Name is the actual pathname read."
   (let ((fun (gensym)) (str (gensym)))
     `(flet ((,fun (,buffer ,name) ,@body))
        (dolist (,str ',name-list)
-	 (setf (cdr (or (assoc (namestring (truename ,str))
+	 (setf (cdr (or (assoc (namestring ,str)
 			       *file-pathname-hooks* :test #'string=)
-			(car (push (cons (namestring (truename ,str)) nil)
+			(car (push (cons (namestring ,str) nil)
 				   *file-pathname-hooks*))))
 	       #',fun)))))
 
-(defmacro define-file-name-hook (name-list (buffer name) &body body)
+(defmacro define-file-name-hook (name-list (buffer name pathname) &body body)
   "Define-File-Name-Hook ({Name}*) (Buffer Name) {Form}*
    Define some code to be evaluated when a file having one of the specified
    names is read by a file command.  Buffer is bound to the buffer the
    file is in, and Name is the actual name read."
   (let ((fun (gensym)) (str (gensym)))
-    `(flet ((,fun (,buffer ,name) ,@body))
+    `(flet ((,fun (,buffer ,name ,pathname) ,@body))
        (dolist (,str ',name-list)
 	 (setf (cdr (or (assoc ,str *file-name-hooks* :test #'string=)
 			(car (push (cons ,str nil) *file-name-hooks*))))
 	       #',fun)))))
 
-(define-file-name-hook ("Makefile" "GNUmakefile" "GNUMakefile") (buffer name)
-  (declare (ignore name))
+(define-file-name-hook ("Makefile" "GNUmakefile" "GNUMakefile") (buffer name pathname)
+  (declare (ignore name pathname))
   (setf (buffer-major-mode buffer) "Make"))
+
+(define-file-name-hook ("CMakeLists") (buffer name pathname)
+  (declare (ignore name))
+  (if (equal (pathname-type pathname) "txt")
+      (setf (buffer-major-mode buffer) "Shell")))
+
+(defmacro define-file-content-hook (string (buffer) &body body)
+  "Define-File-Content-Hook (String) (Buffer) {Form}*
+
+   Define some code to be evaluated when any file is opened.  Buffer is
+   bound to the buffer the file is in.
+
+   If the code returns true then file option processing ends."
+  (let ((fun (gensym)))
+    `(flet ((,fun (,buffer) ,@body))
+       (push (cons ,string #',fun) *file-content-hooks*))))
 
 (defmacro define-loader-directive-handler (name-list (buffer name) &body body)
   "define-loader-directive-handler ({name}*) (buffer name) {form}*
@@ -766,6 +806,8 @@ the name of the major mode for the buffer.
   "If true when reading a file a read-only file then set the buffer
    read-only, otherwise leave the buffer as writable.")
 
+(declaim (special lisp::*ignore-wildcards*))
+
 (defun find-file-buffer (pathname &optional literally)
   "Return a buffer associated with the file $pathname, reading the file
    into a new buffer if necessary.  Return a second value, T on creation of
@@ -776,40 +818,41 @@ the name of the major mode for the buffer.
    options.
 
    This is the basis of the `Find File' command."
-  (let* ((pathname (pathname pathname))
-	 (trial-pathname (or (probe-file pathname)
-			     (merge-pathnames pathname (dired-current-directory))))
-	 (found (find trial-pathname (the list *buffer-list*)
-		      :key #'buffer-pathname :test #'equal)))
-    (if found
-	;; FIX need to revert if literally and was translated, and vice versa.
-	(if (if *check-disk-version-consistent*
-		(check-disk-version-consistent pathname found)
-		())
-	    (values found ())
-	    (progn
-	      (read-buffer-file pathname found literally)
-	      (values found ())))
-	(let* ((name (pathname-to-buffer-name trial-pathname))
-	       (found (getstring name *buffer-names*))
-	       (use (if found
-			(prompt-for-buffer
-			 :prompt "Buffer to use: "
-			 :help
-			 "Buffer name in use; give another buffer name, or confirm to reuse."
-			 :default found :must-exist ())
-			(make-buffer name)))
-	       (buffer (if (stringp use) (make-buffer use) use)))
-	  (and (buffer-modified buffer)
-	       (prompt-for-y-or-n :prompt
-				  "Buffer is modified, save it? ")
-	       (save-file-command () buffer))
-	  (read-buffer-file pathname buffer literally)
-	  (fi* (file-writable pathname)
-	    (if (value set-buffer-read-only-after-file)
-		(setf (buffer-writable buffer) ()))
-	    (message "Read-only file."))
-	  (values buffer t)))))
+  (let ((lisp::*ignore-wildcards* t)) ;; FIX ::
+    (let* ((pathname (pathname pathname))
+	   (trial-pathname (or (probe-file pathname)
+			       (merge-pathnames pathname (dired-current-directory))))
+	   (found (find trial-pathname (the list *buffer-list*)
+			:key #'buffer-pathname :test #'equal)))
+      (if found
+	  ;; FIX need to revert if literally and was translated, and vice versa.
+	  (if (if *check-disk-version-consistent*
+		  (check-disk-version-consistent pathname found)
+		  ())
+	      (values found ())
+	      (progn
+		(read-buffer-file pathname found literally)
+		(values found ())))
+	  (let* ((name (pathname-to-buffer-name trial-pathname))
+		 (found (getstring name *buffer-names*))
+		 (use (if found
+			  (prompt-for-buffer
+			   :prompt "Buffer to use: "
+			   :help
+			   "Buffer name in use; give another buffer name, or confirm to reuse."
+			   :default found :must-exist ())
+			  (make-buffer name)))
+		 (buffer (if (stringp use) (make-buffer use) use)))
+	    (and (buffer-modified buffer)
+		 (prompt-for-y-or-n :prompt
+				    "Buffer is modified, save it? ")
+		 (save-file-command () buffer))
+	    (read-buffer-file pathname buffer literally)
+	    (fi* (file-writable pathname)
+	      (if (value set-buffer-read-only-after-file)
+		  (setf (buffer-writable buffer) ()))
+	      (message "Read-only file."))
+	    (values buffer t))))))
 
 ;;; Check-Disk-Version-Consistent  --  Internal
 ;;;
@@ -889,7 +932,8 @@ the name of the major mode for the buffer.
      - Invoke *Read File Hook*."
   (setf (buffer-writable buffer) t)
   (delete-region (buffer-region buffer))
-  (let* ((pathname (pathname pathname))
+  (let* ((lisp::*literal-pathnames* t) ; FIX ::
+	 (pathname (pathname pathname))
 	 (probed-pathname (probe-file pathname)))
     (cond (probed-pathname
 	   (read-file probed-pathname (buffer-point buffer))
@@ -948,12 +992,12 @@ the name of the major mode for the buffer.
 		       (prompt-for-file
 			:prompt "Find File Or Dir: "
 			:must-exist ()
-			:help "Name of file or directory to read into a buffer."
+			:help "Enter the name of a file or directory to read into a buffer."
 			:default (or (and p (pathname-at-point))
 				     (buffer-default-pathname
 				      (current-buffer)))))))))
     (if (or url (and pathname (urlp pn)))
-	(if (> p 4)
+	(if (and p (> p 4))
 	    (view-url pn)
 	    (www-command () pn))
 	(if (directoryp pn)
@@ -1050,7 +1094,9 @@ the name of the major mode for the buffer.
 		(message "Added newline at end of buffer."))))))
     (invoke-hook before-write-file-hook buffer)
     (setv pathname-defaults pathname)
-    (write-file (buffer-region buffer) pathname)
+    (write-file (or (buffer-deep-region buffer)
+		    (buffer-region buffer))
+		pathname)
     (let ((tn (truename pathname)))
       (message "~A written." (namestring tn))
       (setf (buffer-modified buffer) ())
@@ -1077,11 +1123,13 @@ the name of the major mode for the buffer.
 			:default (buffer-default-pathname buffer)))))
 
 (defcommand "Save File" (p (buffer (current-buffer)))
-  "Writes the contents of the current buffer out to the associated file and
-   reset the buffer modification flag.  Prompt for an associated file if
-   necessary.  Prompt for confirmation if the file is already up to date
-   with the buffer.  If the file has been modified on disk since the last
-   time it was read, prompt for confirmation before overwriting the file."
+  "Write the contents of the current buffer out to the associated file and
+   reset the buffer modification flag.
+
+   Prompt for an associated file if necessary.  Prompt for confirmation if
+   the file is already up to date with the buffer.  If the file has been
+   modified on disk since the last time it was read, prompt for
+   confirmation before overwriting the file."
   (declare (ignore p))
   (when (or (buffer-modified buffer)
 	    (prompt-for-y-or-n
@@ -1157,7 +1205,7 @@ the name of the major mode for the buffer.
    selected farthest in the past.
 
    On buffer creation, a function in *Make Buffer Hook* adds the buffer to
-   the end of this list.  On buffer deletion, an function in *Delete Buffer
+   the end of this list.  On buffer deletion, a function in *Delete Buffer
    Hook* removes the buffer from this list.
 
    Each buffer occurs in this list exactly once.  The Echo Area buffer
@@ -1173,11 +1221,21 @@ the name of the major mode for the buffer.
 			     (eq x *echo-area-buffer*)))
 		     (the list *buffer-list*)))))
 
+;;; after-buffer
+;;;
+;;; Return the next buffer in *buffer-list*.
+;;;
+(defun after-buffer ()
+  (find-if-not (lambda (b)
+		 (or (eq b (current-buffer))
+		     (eq b *echo-area-buffer*)))
+	       (the list *buffer-list*)))
+
 (defun other-buffer ()
   "Return the buffer in the next window if there is one, else calls
-   previous-buffer."
+   `after-buffer'."
   (if (<= (length *window-list*) 2)
-      (previous-buffer)
+      (after-buffer)
       (window-buffer (next-window (current-window)))))
 
 ;;; ADD-BUFFER-HISTORY-HOOK makes sure every buffer will be visited by
@@ -1199,6 +1257,7 @@ the name of the major mode for the buffer.
 ;;;
 (add-hook delete-buffer-hook 'delete-buffer-history-hook)
 
+
 (defun change-to-buffer (buffer)
   "Switch to $buffer in the current window, maintaining *buffer-history*
    and *buffer-list*."
@@ -1217,13 +1276,28 @@ the name of the major mode for the buffer.
    buffer to be the recently current buffer."
   (let ((new-buf (flet ((frob (b)
 			  (or (eq b buffer) (eq b *echo-area-buffer*))))
-		   (or (find-if-not #'frob (the list *buffer-history*))
-		       (find-if-not #'frob (the list *buffer-list*))))))
+		   (or (find-if-not #'frob (the list *buffer-list*))
+		       (find-if-not #'frob (the list *buffer-history*))))))
     (or new-buf (error "Attempt to delete only buffer ~S." buffer))
     (dolist (w (buffer-windows buffer))
       (setf (window-buffer w) new-buf))
     (if (eq buffer (current-buffer))
 	(setf (current-buffer) new-buf)))
+  (delete-buffer buffer))
+
+(defun delete-buffer-safely (buffer)
+  "Move $buffer off any windows, closing them if necessary, and pass $buffer
+   to `delete-buffer'."
+  (if (eq buffer (current-buffer))
+      (let ((new (or (after-buffer)
+		     (progn
+		       (edi::get-ring-marker)  ; FIX
+		       (after-buffer)))))
+	(dolist (w (buffer-windows buffer))
+	  (setf (window-buffer w) new))
+	(setf (current-buffer) new))
+      (dolist (w (buffer-windows buffer))
+	(delete-window w)))
   (delete-buffer buffer))
 
 (defvar *create-buffer-count* 0)
@@ -1314,16 +1388,13 @@ the name of the major mode for the buffer.
       (select-previous-buffer-command)))
 
 (defcommand "Switch to Buffer" (p buffer-or-name)
-  "Switch to a buffer, creating it if required.  The buffer suggested at
-   the prompt is the next buffer on the buffer list."
+  "Switch to a buffer, creating it if required.  At the prompt suggest the
+   next buffer on the buffer list (as from `after-buffer')."
   (declare (ignore p))
   (change-to-buffer
    (or buffer-or-name
        (prompt-for-buffer :prompt "Switch to Buffer: "
-			  :default (let ((b (car *buffer-list*)))
-				     (if (eq b (current-buffer))
-					 (cadr *buffer-list*)
-					 b))
+			  :default (after-buffer)
 			  :must-exist t))))
 
 ; (defcommand "Switch to Buffer" (p buffer-or-name)
@@ -1404,10 +1475,11 @@ the name of the major mode for the buffer.
 			     (delq b *buffer-list*))
 			 (list b)))
 	    ;; Change to the highest buffer on the list, skipping any
-	    ;; buffer already in a window.
+	    ;; buffer already in a window if *Rotate Buffers Ensure
+	    ;; Unique*.
 	    (let ((buffer-list *buffer-list*))
 	      (if (value rotate-buffers-ensure-unique)
-		  (loop while (buffer-windows (car buffer-list)) do
+		  (while () ((buffer-windows (car buffer-list)))
 		    (pop buffer-list)))
 	      (change-to-buffer (car buffer-list)))))
 	(when (< p 0)
@@ -1466,6 +1538,10 @@ the name of the major mode for the buffer.
   "If true Kill Buffer only prompts to save a modified buffer if there is a
    file associated with the buffer.")
 
+(defevar "Kill Buffer Prompt to Save"
+  "If true Kill Buffer prompts to save a modified buffer."
+  :value t)
+
 (defun kill-current-buffer ()
   "Kill the current buffer.  For recovery from errors."
   (setf (buffer-modified (current-buffer)) ())
@@ -1485,6 +1561,11 @@ the name of the major mode for the buffer.
 				       :default (current-buffer)))))
     (or buffer (editor-error "No buffer named ~S" buffer-name))
     (if (and (buffer-modified buffer)
+	     (if (editor-bound-p 'kill-buffer-prompt-to-save
+				 :buffer buffer)
+		 (variable-value 'kill-buffer-prompt-to-save
+				 :buffer buffer)
+		 (value kill-buffer-prompt-to-save))
 	     (if (value kill-buffer-only-prompt-to-save-file-buffers)
 		 (buffer-pathname buffer)
 		 t)
@@ -1497,12 +1578,12 @@ the name of the major mode for the buffer.
 	(let ((new (if (value kill-buffer-prompt-for-new)
 		       (let ((tem-new
 			      (prompt-for-buffer :prompt "New Buffer: "
-						 :default (previous-buffer)
+						 :default (after-buffer)
  :help "Buffer to change to after the current one is killed.")))
 			 (when (eq tem-new buffer)
 			   (editor-error "You must select a different buffer."))
 			 tem-new)
-		       (previous-buffer))))
+		       (after-buffer))))
 	  (dolist (w (buffer-windows buffer))
 	    (setf (window-buffer w) new))
 	  (setf (current-buffer) new))
@@ -1535,7 +1616,7 @@ the name of the major mode for the buffer.
   "Insert the contents of a prompted buffer at point."
   (let ((point (current-point))
 	(region (buffer-region (prompt-for-buffer
-				:default (previous-buffer)
+				:default (after-buffer)
 				:help
 				"Type the name of a buffer to insert."))))
     ;;
@@ -1588,18 +1669,19 @@ the name of the major mode for the buffer.
       (with-pop-up-display (s)
 	(print-directory pn s :all p)))))
 
-(defcommand "Verbose Directory" (p)
+(defcommand "Verbose Directory" (p pathname)
   "Pop up a directory listing, displaying one file per line with
    information about the file like size and protection.  If an argument is
    supplied, then list hidden (dot) files too.  Prompt for a pathname which
    may contain wildcards in the name and type."
   (let* ((dpn (value pathname-defaults))
-	 (pn (prompt-for-file
-	      :prompt "Verbose Directory: "
-	      :help "Pathname to do directory on."
-	      :default (make-pathname :device (pathname-device dpn)
-				      :directory (pathname-directory dpn))
-	      :must-exist nil)))
+	 (pn (or pathname
+		 (prompt-for-file
+		  :prompt "Verbose Directory: "
+		  :help "Pathname to do directory on."
+		  :default (make-pathname :device (pathname-device dpn)
+					  :directory (pathname-directory dpn))
+		  :must-exist ()))))
     (setf (value pathname-defaults) (merge-pathnames pn dpn))
     (in-directory (or (buffer-pathname (current-buffer))
 		      (directory-namestring dpn))
@@ -1766,19 +1848,34 @@ pagereffile-options.)
    through the previous windows if P is negative.  If there is only one
    window split the window and move to the new window."
   (or p (setq p 1))
-  (or (zerop p)
-      (let* ((next (loop
-		     repeat (abs p)
-		     for window = (current-window)
-		         then (if (plusp p)
-				  (next-window window)
-				  (previous-window window))
-		     finally return window))
+  (if (zerop p)
+      (current-window)
+      (let* ((next (while ((count (abs p) (1- count))
+			   (window (current-window)
+				   (if (plusp p)
+				       (next-window window)
+				       (previous-window window))))
+			  ((plusp count)
+			   window)))
 	     (buffer (window-buffer next)))
 	(or (eq (current-window) *echo-area-window*)
 	    (if (eq next (current-window))
 		(setq next (split-window-command))))
-	(setf (current-buffer) buffer  (current-window) next))))
+	(setf (current-buffer) buffer  (current-window) next)
+	;; Ensure that the current buffer is first on the buffer list.
+	(or (eq (car *buffer-list*) buffer)
+	    (while ((last)
+		    (buffers *buffer-list* (cdr buffers)))
+		   (buffers)
+	      (when (eq (car buffers) buffer)
+		;; Swap the current buffer and the first buffer.
+		(setf (cdr last)
+		      (cons (car *buffer-list*) (cdr buffers)))
+		(setq *buffer-list* (cons buffer (cdr *buffer-list*)))
+		(return))
+	      (setq last buffers)))
+	;; Return the new current window.
+	next)))
 
 (defcommand "Previous Window" (p)
   "Move to the previous window.  If the previous window is the bottom
@@ -1792,7 +1889,7 @@ pagereffile-options.)
    the current window and display starting at the same place as the current
    window."
   (let ((new (make-window (window-display-start (current-window)))))
-    (or new (editor-error "Could not make a new window."))
+    (or new (editor-error "Failed to make a new window."))
     (redisplay-all)  ; So that window moves to include point.
     (setf (current-window) new)))
 
@@ -1830,19 +1927,27 @@ pagereffile-options.)
       (editor-error "Cannot delete only window")
       (delete-window (next-window (current-window)))))
 
-(defcommand "Go to One Window" ()
-  "Deletes all windows leaving one with the *Default Initial Window X*,
-   *Default Initial Window Y*, *Default Initial Window Width*, and *Default
-   Initial Window Height*.  The remaining window retains the contents of
-   the current window."
-  (let ((win (make-window (window-display-start (current-window))
-			  :ask-user t
-			  :x (value default-initial-window-x)
-			  :y (value default-initial-window-y)
-			  :width (value default-initial-window-width)
-			  :height (value default-initial-window-height))))
+(defcommand "Go to Initial Window" ()
+  "Deletes all windows leaving one at *Default Initial Window X*, *Default
+   Initial Window Y*.  The remaining window retains the contents, width and
+   height of the current window."
+  (let* ((current (current-window))
+	 (win (make-window (window-display-start current)
+			   :ask-user t
+			   :x (value default-initial-window-x)
+			   :y (value default-initial-window-y)
+			   :width (value default-initial-window-width)
+			   :height (value default-initial-window-height))))
     (setf (current-window) win)
     (dolist (w *window-list*)
-      (unless (or (eq w win)
-		  (eq w *echo-area-window*))
-	(delete-window w)))))
+      (or (eq w win)
+	  (eq w *echo-area-window*)
+	  (delete-window w)))))
+
+(defcommand "Go to One Window" ()
+  "Delete all windows, leaving the current one."
+  (let ((current (current-window)))
+    (dolist (w *window-list*)
+      (or (eq w current)
+	  (eq w *echo-area-window*)
+	  (delete-window w)))))

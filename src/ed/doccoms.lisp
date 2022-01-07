@@ -99,7 +99,7 @@ key by typing a key.
 
    With a prefix pass the prefix on to the associated command if the key is
    associated with a command."
-  (command-case (:prompt "Doc (type h for Help): "
+  (command-case (:prompt "Doc (type h for options): "
 		 :help "Choose a form of Help by typing one of the following:")
     (#\a "list all commands, variables and attributes Apropos (About) a keyword."
      (apropos-command p))
@@ -137,7 +137,7 @@ key by typing a key.
 ;   (#\q quit, below)
     (#\r "describe the Record for a person or entity, from the .db database."
      (describe-record-command p))
-    (#\s "Switch to message history buffer."
+    (#\s "Switch to the message history buffer."
      (switch-to-messages))
     (#\t "enter the Tutorial."
      (tutorial-command))
@@ -623,7 +623,8 @@ key by typing a key.
 	(package-name (lisp::pkg-info-name package))
 	(doc (lisp::pkg-info-doc package))
 	(istream (make-indenting-stream stream))
-	(value-width (- (value fill-column) 20)))
+	;(value-width (- (value fill-column) 20))
+	)
     (format stream "The ~A package~%~%" package-name)
     (when doc
       (write-string "    " istream)
@@ -638,21 +639,16 @@ key by typing a key.
       (format stream "         Nicknames:")
       (write-string (mapconcat #'identity nicks " " t) stream)
       (terpri stream)
-#|
       (format stream "              Uses:")
       (flet ((string-or-name (package)
 	       (if (packagep package)
 		   (package-name package)
 		   package)))
-	(write-string (mapconcat #'string-or-name (lisp::pkg-info-use-list package) " " t)
+	(write-string (mapconcat #'string-or-name
+				 (lisp::pkg-info-use package)
+				 " " t)
 		      stream)
-	(terpri stream)
-	(format stream "           Used by:")
-	(write-string (mapconcat #'string-or-name (lisp::pkg-info-used-by-list package) " " t)
-		      stream))
-|#
-      )
-    (terpri stream)
+	(terpri stream)))
     (format stream "           Shadows:")
     (write-string (mapconcat #'symbol-name
 			     (lisp::pkg-info-shadows package)
@@ -813,24 +809,42 @@ staying out of trouble or getting out of trouble.
 
 Welcome to the Nightshade text editor.
 
-To exit type "control-x control-z" (press "x" while holding down "control",
-then press "z" while holding down "control").
+Some useful commands:
 
-The help system is available via "control-h".  There is a short tutorial at
-"control-h t" and documentation at "control-h d".
+    control-x control-z    Save All Files and Exit
 
-The command `Find File' opens a file for editing.  `Find File' is bound to
-"control-x control-f".
+        ?  "control-x control-z" means press "x" while holding down
+           "control", then press "z" while holding down "control".
 
-To exit this message, type "q".
+    control-h              Help
+    control-h t            Tutorial
+    control-h d            Info
+
+    control-x control-f    Find File  (open a file)
+
+This buffer is part of the documentation system, so type
+
+    q  to  drop the buffer, exiting this message,
+    d  to  go to the [documentation] contents,
+    i  to  summon the index prompt, and
+    e  to  edit this text.
 ]#
+#|
+
+To turn off this message, clear *Show Welcome on Start*, for example by
+adding
+
+    (setv show-welcome-on-start ())
+
+to the file conf:ed.lisp.
+|#
 
 
 #[ Editor Tutorial
 
 This tutorial introduces the editor to new users.  It is intended to be
-read from inside the editor, and is accessible at any time via "control-h
-t" and via the `Tutorial' command.
+read from inside the editor.  It is accessible at any time via "control-h
+t", which runs the `Tutorial' command.
 
 Typing a space moves a screenfull forward in this text and typing a
 backspace moves a screenfull backward.  It may be a good idea to try those
@@ -860,12 +874,12 @@ keyboards, as described in [Local Setup].
 
 == Commands ==
 
-Commands act on the editor.  Typing "meta-x" followed by the name of the
-command and the return key, invokes that command.  "meta-x" means to press
-the "x" key while holding down the Alt key.  Similar key sequences are
-mentioned throughout this tutorial, for example, "control-x l" means to
-press "x" while holding down a control key (the key usually labelled Ctrl),
-then to release both keys and then to type the "l" key.
+Commands act on the editor.  Typing "meta-x", then typing the name of the
+command, and then typing the return key, will invoke a command.  "meta-x"
+means to press the "x" key while holding down the Alt key.  Similar key
+sequences are mentioned throughout this tutorial, for example, "control-x
+l" means to press "x" while holding down a control key (the key usually
+labeled Ctrl), then to release both keys and then to type the "l" key.
 
 At any time, "control-g" cancels a command.  FIX try "meta-x" "control-g".
 
@@ -877,10 +891,10 @@ Only part of the `Forward Character' command name needed to be typed
 because it is the only command that begins with "forward ch", so the editor
 automatically fills in the rest.
 
-Commands that are likely to be typed often are bound to shorter key
-strokes.  For example, `Forward Character' is bound to "control-f".  Typing
-"control-f" now will move the point one character forward, as if the
-`Forward Character' command had been entered directly.
+Commands that are likely to be typed often are "bound" to shorter key
+strokes.  For example, the `Forward Character' command used above is bound
+to "control-f".  Typing "control-f" now will move the point one character
+forward, as if the `Forward Character' command had been entered directly.
 
 The "f" in "control-f" is for "Forward".  The letters in most key bindings
 are chosen to match the name of the associated command, to ease remembering
@@ -896,8 +910,8 @@ associated with which key sequence.  For example, this buffer is in View
 mode, which is why typing "space" or "backspace" moves forward or backwards
 in the text.
 
-The most basic mode is called Fundamental mode.  Newly created buffers are
-put in Fundamental mode.
+The most basic mode is called Fundamental mode.  The editor initially puts
+newly created buffers in Fundamental mode.
 
 == Windows ==
 
@@ -907,11 +921,11 @@ buffer in the window.  For example, the modeline of the tutorial window
 shows the list of modes for the tutorial buffer, which should include Info
 and View.
 
-The window at the bottom of the editor is the Echo Area window, which is
-always present and is always positioned at the bottom.  It is a special
-window, only being used to display messages and to prompt for input.
+The window at the very bottom of the editor is the Echo Area window, which
+is always present and is always positioned at the bottom.  It is a special
+window, only being used to display messages and prompt for input.
 
-The modeline of the echo area window is called the Status Line.  The Status
+The modeline of the Echo Area window is called the Status Line.  The Status
 Line shows general information, such as the date and the name of the
 computer.
 
@@ -1081,14 +1095,15 @@ a buffer in a special mode called "Dired", which lists the directory and
 provides for modifying and browsing the directory.
 
 Any modifications to a buffer must be saved to be permanent.  Typing
-"control-s" runs the command `Save File', saves the current buffer to file.
+"control-x s" runs the command `Save File', which saves the current buffer
+to file.
 
 == Further Help ==
 
 Typing "control-h" brings up the help system, which prompts for a further
 key for specific help.  For example, "control-h d" brings up the
 documentation system, and "control-h b" lists the bindings available in the
-current buffer..  Typing "h" after "control-h" lists the available help
+current buffer.  Typing "h" after "control-h" lists the available help
 options.
 
 Within the documentation system, the node [Editor] describes the use of the

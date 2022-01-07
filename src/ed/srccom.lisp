@@ -230,7 +230,6 @@ done.
 				   :must-exist nil
 				   :default-string
 				   (value source-compare-destination)))))
-	      (declare (ignore two-checked))
 	      (setq log-buffer (or output-buffer (make-buffer log-buffer)))
 	      (setf (value source-compare-destination)
 		    (buffer-name log-buffer))
@@ -459,7 +458,7 @@ done.
   (unless buffer-b
     (setf buffer-b (prompt-for-buffer :prompt "With buffer: "
 				      :must-exist t
-				      :default (previous-buffer))))
+				      :default (after-buffer))))
   (unless dest-buffer
     (let* ((name (value source-compare-destination))
 	   (temp-default (getstring name *buffer-names*))

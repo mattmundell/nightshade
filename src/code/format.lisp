@@ -317,8 +317,8 @@
          ~:D           Decimal with commas, e.g. 30,000
          ~R            Words ordinal, e.g. one hundred
          ~:R           Words cardinal, e.g. one hundredth
-         ~@R           Roman numerals.
-         ~@:R          Old roman numerals.
+         ~@R           Roman numerals
+         ~@:R          Old roman numerals
 
       Conditionals
 

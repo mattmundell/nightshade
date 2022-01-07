@@ -52,11 +52,10 @@
 (defstruct (descriptor
 	    (:constructor make-descriptor (high low &optional space offset))
 	    (:print-function %print-descriptor))
-  space			      ; The space is descriptor is allocated in.
-  offset		      ; The offset (in words) from the start of
-  ;  that space.
-  high			      ; The high half of the descriptor.
-  low)			      ; The low half of the descriptor.
+  space	     ; The space the descriptor is allocated in.
+  offset     ; The offset (in words) from the start of that space.
+  high	     ; The high half of the descriptor.
+  low)	     ; The low half of the descriptor.
 
 (defun %print-descriptor (des stream depth)
   (declare (ignore depth))
@@ -248,6 +247,9 @@
   "Head of list of functions to be called when the Lisp starts up.")
 
 (defvar *in-cold-load* nil
+  "Used by normal loader.")
+
+(defvar *in-boot-load* nil
   "Used by normal loader.")
 
 
@@ -993,7 +995,7 @@
     result))
 
 
-;;;; Reading FASL files.
+;;;; Cold-reading FASL files.
 
 (defvar *cold-fop-functions* (replace (make-array 256) fop-functions)
   "FOP functions for cold loading.")
@@ -1041,78 +1043,80 @@
 (define-cold-fop (fop-misc-trap) unbound-marker)
 
 (define-cold-fop (fop-character)
-		 (make-character-descriptor (read-arg 3)))
+  (make-character-descriptor (read-arg 3)))
 (define-cold-fop (fop-short-character)
-		 (make-character-descriptor (read-arg 1)))
+  (make-character-descriptor (read-arg 1)))
 
 (define-cold-fop (fop-empty-list) *nil-descriptor*)
 (define-cold-fop (fop-truth) (cold-intern t))
 
 (define-cold-fop (fop-normal-load :nope)
-		 (setq fop-functions *normal-fop-functions*))
+  (setq fop-functions *normal-fop-functions*))
 
 (define-fop (fop-maybe-cold-load 82 :nope)
-	    (when *in-cold-load*
-	      (setq fop-functions *cold-fop-functions*)))
+  (if *in-cold-load*
+      (setq fop-functions *cold-fop-functions*)
+      (if *in-boot-load*
+	  (setq fop-functions *boot-fop-functions*))))
 
 (define-cold-fop (fop-maybe-cold-load :nope))
 
 (clone-cold-fop (fop-struct)
-		(fop-small-struct)
-		(let* ((size (clone-arg))
-		       (result (allocate-boxed-object *dynamic* (1+ size)
-						      vm:instance-pointer-type)))
-		  (write-memory result (make-other-immediate-descriptor
-					size vm:instance-header-type))
-		  (do ((index (1- size) (1- index)))
-		      ((minusp index))
-		    (declare (fixnum index))
-		    (write-indexed result (+ index vm:instance-slots-offset) (pop-stack)))
-		  result))
+ (fop-small-struct)
+ (let* ((size (clone-arg))
+	(result (allocate-boxed-object *dynamic* (1+ size)
+				       vm:instance-pointer-type)))
+   (write-memory result (make-other-immediate-descriptor
+			 size vm:instance-header-type))
+   (do ((index (1- size) (1- index)))
+       ((minusp index))
+     (declare (fixnum index))
+     (write-indexed result (+ index vm:instance-slots-offset) (pop-stack)))
+   result))
 
 ;;; Check for layout redefinition, and possibly clobber old layout w/ new
 ;;; info.
 ;;;
 (define-cold-fop (fop-layout)
-		 (let* ((length (pop-stack))
-			(depth (pop-stack))
-			(inherits (pop-stack))
-			(name (pop-stack))
-			(old (gethash name *cold-layouts*)))
-		   (cond
-		    (old
-		     (when (cold-layout-redefined old inherits depth length)
-		       (restart-case
-			   (error "Loading a reference to class ~S when the compile~
-				   ~%  time definition was incompatible with the current ~
-				   one."
-				  name)
-			 (use-current ()
-				      :report "Ignore the incompatibility, leave class alone."
-				      (warn "Assuming the current definition of ~S is correct, and~@
-					     that the loaded code doesn't care about the ~
-					     incompatibility."
-					    name))
-			 (clobber-it ()
-				     :report "Smash current layout, preserving old code."
-				     (warn "Any old ~S instances will be in a bad way.~@
-					    I hope you know what you're doing..."
-					   name)
+  (let* ((length (pop-stack))
+	 (depth (pop-stack))
+	 (inherits (pop-stack))
+	 (name (pop-stack))
+	 (old (gethash name *cold-layouts*)))
+    (cond
+     (old
+      (when (cold-layout-redefined old inherits depth length)
+	(restart-case
+	    (error "Loading a reference to class ~S when the compile~
+		    ~%  time definition was incompatible with the current ~
+		    one."
+		   name)
+	  (use-current ()
+		       :report "Ignore the incompatibility, leave class alone."
+		       (warn "Assuming the current definition of ~S is correct, and~@
+			      that the loaded code doesn't care about the ~
+			      incompatibility."
+			     name))
+	  (clobber-it ()
+		      :report "Smash current layout, preserving old code."
+		      (warn "Any old ~S instances will be in a bad way.~@
+			     I hope you know what you're doing..."
+			    name)
 
-				     (let ((base (+ vm:instance-slots-offset
-						    kernel:layout-hash-length
-						    1))
-					   (desc (first old)))
-				       (write-indexed desc (+ base 2) inherits)
-				       (write-indexed desc (+ base 3) depth)
-				       (write-indexed desc (+ base 4) length)
-				       (setf (gethash name *cold-layouts*)
-					     (list desc name (descriptor-fixnum length)
-						   (listify-cold-inherits inherits)
-						   (descriptor-fixnum depth)))))))
-		     (first old))
-		    (t
-		     (make-cold-layout name length inherits depth)))))
+		      (let ((base (+ vm:instance-slots-offset
+				     kernel:layout-hash-length
+				     1))
+			    (desc (first old)))
+			(write-indexed desc (+ base 2) inherits)
+			(write-indexed desc (+ base 3) depth)
+			(write-indexed desc (+ base 4) length)
+			(setf (gethash name *cold-layouts*)
+			      (list desc name (descriptor-fixnum length)
+				    (listify-cold-inherits inherits)
+				    (descriptor-fixnum depth)))))))
+      (first old))
+     (t
+      (make-cold-layout name length inherits depth)))))
 
 ;;; Loading symbols...
 
@@ -1538,32 +1542,34 @@
 ;;; Loading code objects and functions.
 
 (define-cold-fop (fop-fset nil)
-		 (let ((fn (pop-stack))
-		       (name (pop-stack)))
-		   (cold-fset name fn)))
+  (let ((fn (pop-stack))
+	(name (pop-stack)))
+    (cold-fset name fn)))
 
 (define-cold-fop (fop-fdefinition)
-		 (cold-fdefinition-object (pop-stack)))
+  (cold-fdefinition-object (pop-stack)))
 
 (define-cold-fop (fop-sanctify-for-execution)
-		 (pop-stack))
+  (pop-stack))
 
 (define-cold-fop (fop-code-format :nope)
-		 (let ((implementation (read-arg 1))
-		       (version (read-arg 1)))
-		   (unless (= implementation (c:backend-fasl-file-implementation c:*backend*))
-		     (error
-		      "~A was compiled for a ~A, but we are trying to build a core for a ~A"
-		      *Fasl-file*
-		      (or (elt c:fasl-file-implementations implementation)
-			  "unknown machine")
-		      (or (elt c:fasl-file-implementations
-			       (c:backend-fasl-file-implementation c:*backend*))
-			  "unknown machine")))
-		   (unless (= version (c:backend-fasl-file-version c:*backend*))
-		     (error
-		      "~A was compiled for a fasl-file version ~A, but we need version ~A"
-		      *Fasl-file* version (c:backend-fasl-file-version c:*backend*)))))
+  (let ((implementation (read-arg 1))
+	(version (read-arg 1)))
+    (or (= implementation
+	   (c:backend-fasl-file-implementation c:*backend*))
+	(error
+	 "~A was compiled for a ~A; trying to build a core for a ~A"
+	 *fasl-file*
+	 (or (elt c:fasl-file-implementations implementation)
+	     "unknown machine")
+	 (or (elt c:fasl-file-implementations
+		  (c:backend-fasl-file-implementation c:*backend*))
+	     "unknown machine")))
+    (or (= version (c:backend-fasl-file-version c:*backend*))
+	(error
+	 "~A was compiled for a fasl-file version ~A; loader is version ~A"
+	 *fasl-file* version
+	 (c:backend-fasl-file-version c:*backend*)))))
 
 (not-cold-fop fop-make-byte-compiled-function)
 
@@ -2296,8 +2302,7 @@
 			   (cold-intern '%initial-function))))
 	       (read-indexed fdefn vm:fdefn-function-slot)))))
       (dolist (space (list *static* *dynamic* *read-only*))
-	(when space
-	  (deallocate-space space))))))
+	(if space (deallocate-space space))))))
 
 (defun write-map-file ()
   (let ((*print-pretty* nil)
@@ -2411,6 +2416,26 @@
     (write-long pages)
     (incf *data-page* pages)))
 
+(defun output-raw-space (space)
+  (force-output *core-file*)
+  (let* ((bytes (* (space-free-pointer space) vm:word-bytes))
+	 (pages (ceiling bytes (c:backend-page-size c:*backend*)))
+	 (total-bytes (* pages (c:backend-page-size c:*backend*))))
+    ;;
+    (file-position *core-file* 0)
+    (format t "Writing ~S byte~:P [~S page~:P] from ~S space~%"
+	    total-bytes pages (space-name space))
+    (force-output)
+    ;;
+    ;; Note: It is assumed that the space allocation routines always
+    ;; allocate whole pages (of size *target-page-size*) and that any empty
+    ;; space between the free pointer and the end of page will be
+    ;; zero-filled.  This will always be true under Mach on machines
+    ;; where the page size is equal.  (RT is 4K, PMAX is 4K, Sun 3 is 8K).
+    ;;
+    (system:output-raw-bytes *core-file* (space-sap space) 0 total-bytes)
+    (force-output *core-file*)))
+
 (defun write-initial-core-file (name version initial-function)
   (format t "[Building Initial Core File (version ~D) in file ~S: ~%"
 	  version (namestring name))
@@ -2450,5 +2475,255 @@
       ;;
       (write-long end-entry-type-code)
       (write-long 2)))
+  (format t "done]~%")
+  (force-output))
+
+
+;;;; Boot-reading FASL files.
+
+(defvar *boot-fop-functions* (replace (make-array 256)
+				      *cold-fop-functions*)
+  "FOP functions for boot loading.")
+
+(defvar *normal-fop-functions*)
+
+;;; Define-Boot-FOP  --  Internal
+;;;
+;;; Like Define-FOP in load, but looks up the code, and stores into the
+;;; *boot-fop-functions* vector.
+;;;
+(defmacro define-boot-fop ((name &optional (pushp t)) &rest forms)
+  (let ((fname (concat-pnames 'boot- name))
+	(code (get name 'fop-code)))
+    `(progn
+       (defun ,fname ()
+	 ,@(if (eq pushp :nope)
+	       forms
+	       `((with-fop-stack ,pushp ,@forms))))
+       ,@(if code
+	     `((setf (svref *boot-fop-functions* ,code) #',fname))
+	     (warn "~S is not a defined FOP." name)))))
+
+;;; Error-Boot-Fop  --  Internal
+;;;
+;;; Define a fop to cause an error during boot load.
+;;;
+(defmacro error-boot-fop (name)
+  `(define-boot-fop (,name)
+		    (error "~S encountered during boot load." ',name)))
+
+(error-boot-fop fop-push)
+(error-boot-fop fop-byte-push)
+(error-boot-fop fop-empty-list)
+(error-boot-fop fop-truth)
+(error-boot-fop fop-symbol-save)
+(error-boot-fop fop-small-symbol-save)
+(error-boot-fop fop-symbol-in-package-save)
+(error-boot-fop fop-small-symbol-in-package-save)
+(error-boot-fop fop-symbol-in-byte-package-save)
+(error-boot-fop fop-small-symbol-in-byte-package-save)
+(error-boot-fop fop-uninterned-symbol-save)
+(error-boot-fop fop-uninterned-small-symbol-save)
+(error-boot-fop fop-package)
+(error-boot-fop fop-list)
+(error-boot-fop fop-list*)
+(error-boot-fop fop-list-1)
+(error-boot-fop fop-list-2)
+(error-boot-fop fop-list-3)
+(error-boot-fop fop-list-4)
+(error-boot-fop fop-list-5)
+(error-boot-fop fop-list-6)
+(error-boot-fop fop-list-7)
+(error-boot-fop fop-list-8)
+(error-boot-fop fop-list*-1)
+(error-boot-fop fop-list*-2)
+(error-boot-fop fop-list*-3)
+(error-boot-fop fop-list*-4)
+(error-boot-fop fop-list*-5)
+(error-boot-fop fop-list*-6)
+(error-boot-fop fop-list*-7)
+(error-boot-fop fop-list*-8)
+(error-boot-fop fop-integer)
+(error-boot-fop fop-small-integer)
+(error-boot-fop fop-word-integer)
+(error-boot-fop fop-byte-integer)
+(error-boot-fop fop-string)
+(error-boot-fop fop-small-string)
+(error-boot-fop fop-vector)
+(error-boot-fop fop-small-vector)
+(error-boot-fop fop-uniform-vector)
+(error-boot-fop fop-small-uniform-vector)
+(error-boot-fop fop-int-vector)
+(error-boot-fop fop-uniform-int-vector)
+(error-boot-fop fop-single-float)
+(error-boot-fop fop-double-float)
+(error-boot-fop fop-struct)
+(error-boot-fop fop-small-struct)
+(error-boot-fop fop-eval)
+(error-boot-fop fop-eval-for-effect)
+(error-boot-fop fop-funcall)
+(error-boot-fop fop-funcall-for-effect)
+(error-boot-fop fop-code)
+(error-boot-fop fop-small-code)
+(error-boot-fop fop-pop-for-effect)
+(error-boot-fop fop-misc-trap)
+(error-boot-fop fop-character)
+(error-boot-fop fop-short-character)
+(error-boot-fop fop-ratio)
+(error-boot-fop fop-complex)
+(error-boot-fop fop-fset)
+(error-boot-fop fop-lisp-symbol-save)
+(error-boot-fop fop-lisp-small-symbol-save)
+(error-boot-fop fop-keyword-symbol-save)
+(error-boot-fop fop-keyword-small-symbol-save)
+(error-boot-fop fop-array)
+(error-boot-fop fop-alter-code)
+(error-boot-fop fop-byte-alter-code)
+(error-boot-fop fop-function-entry)
+(error-boot-fop fop-foreign-fixup)
+(error-boot-fop fop-rplaca)
+(error-boot-fop fop-rplacd)
+(error-boot-fop fop-svset)
+(error-boot-fop fop-nthcdr)
+(error-boot-fop fop-structset)
+(error-boot-fop fop-end-header)
+
+(define-boot-fop (fop-code-format :nope)
+  (let ((implementation (read-arg 1))
+	(version (read-arg 1)))
+    (or (= implementation
+	   (c:backend-fasl-file-implementation c:*backend*))
+	(error
+	 "~A was compiled for a ~A; trying to build boot code for a ~A"
+	 *fasl-file*
+	 (or (elt c:fasl-file-implementations implementation)
+	     "unknown machine")
+	 (or (elt c:fasl-file-implementations
+		  (c:backend-fasl-file-implementation c:*backend*))
+	     "unknown machine")))
+    (or (= version (c:backend-fasl-file-version c:*backend*))
+	(error
+	 "~A was compiled for a fasl-file version ~A; loader is version ~A"
+	 *Fasl-file* version (c:backend-fasl-file-version c:*backend*)))))
+
+(define-boot-fop (fop-assembler-code)
+  (let* ((length (read-arg 4))
+	 #|
+	 (header-size
+	  ;; Note: we round the number of constants up to assure that
+	  ;; the code vector will be properly aligned.
+	  (round-up vm:code-constants-offset 2))
+	 |#
+	 (des (allocate-descriptor *read-only*
+				   ;(+ (ash header-size vm:word-shift) length)
+				   (+ (ash 0 vm:word-shift) length)
+				   vm:other-pointer-type)))
+    #|
+    (write-memory des
+		  (make-other-immediate-descriptor header-size
+						   vm:code-header-type))
+    (write-indexed des vm:code-code-size-slot
+		   (make-fixnum-descriptor
+		    (ash (+ length (1- (ash 1 vm:word-shift)))
+			 (- vm:word-shift))))
+    (write-indexed des vm:code-entry-points-slot *nil-descriptor*)
+    (write-indexed des vm:code-debug-info-slot *nil-descriptor*)
+    |#
+    (read-n-bytes *fasl-file*
+		  (descriptor-sap des)
+		  #| (ash header-size vm:word-shift) |# 0
+		  length)
+    (format t "  assembler-code: wrote ~A bytes to ~A.~%" length (descriptor-sap des))
+    des))
+
+(define-boot-fop (fop-assembler-routine)
+  (let* ((routine (pop-stack))
+	 (des (pop-stack))
+	 (offset (calc-offset des (read-arg 4))))
+    (record-cold-assembler-routine
+     routine
+     (+ (logandc2 (descriptor-bits des) vm:lowtag-mask) offset))
+    (format t "  assembler-routine: read.~%")
+    des))
+
+(define-boot-fop (fop-assembler-fixup)
+  (let* ((routine (pop-stack))
+	 (kind (pop-stack))
+	 (code-object (pop-stack))
+	 (offset (read-arg 4)))
+    (record-cold-assembler-fixup routine code-object offset kind)
+    (format t "  assembler-fixup: read.~%")
+    code-object))
+
+;;; Boot-Load loads stuff into the boot image being built by rebinding the
+;;; Fop-Functions table to a table of boot loading functions.
+
+(defun boot-load (filename)
+  "Loads the file named by $filename into the boot load image being built."
+  (let* ((*normal-fop-functions* fop-functions)
+	 (fop-functions *boot-fop-functions*)
+	 (*in-boot-load* t)
+	 *cold-assembler-routines*
+	 *cold-assembler-fixups* )
+    (with-open-file (file (merge-pathnames
+			   filename
+			   (make-pathname
+			    :type (c:backend-fasl-file-type c:*backend*)))
+			  :element-type '(unsigned-byte 8))
+      (load file :verbose nil))
+    (resolve-assembler-fixups)
+#|
+    (when (c:backend-featurep :x86)
+      (output-load-time-code-fixups))
+|#
+    ))
+
+
+;;;; CD boot image.
+
+(defvar *cd-boot-name* "cd-boot.core")
+
+(defun build-cd-boot-image (files &optional
+				  (image-name *cd-boot-name*))
+  "Build a bootable CD image from the .assem files specified in $files and
+   write it to a file named $image-name."
+  ;(initialize-spaces)
+  (macrolet ((frob (sym name identifier addr)
+	       `(if ,sym
+		    (setf (space-free-pointer ,sym) 0)
+		    (setf ,sym
+			  (make-space ,name ,identifier ,addr)))))
+    (frob *read-only* :read-only read-only-space-id
+      #| vm:target-read-only-space-start |# 0))
+  (format t "read only space is at ~A: ~A~%"
+	  (space-sap *read-only*) *read-only*)
+  ;;
+  (unwind-protect
+      (progn
+	(dolist (file (if (listp files)
+			  files
+			  (list files)))
+	  (let ((file (truename
+		       (merge-pathnames file
+					(make-pathname
+					 :type
+					 (c:backend-fasl-file-type
+					  c:*backend*))))))
+	    (write-line (namestring file))
+	    (boot-load file))
+	  (maybe-gc))
+	(write-boot-file image-name))
+    (dolist (space (list *read-only*))
+      (if space (deallocate-space space)))))
+
+(defun write-boot-file (name)
+  (format t "[Building Boot File in file ~S: ~%" (namestring name))
+  (force-output)
+  (let ((*data-page* 0))
+    (with-open-file (*core-file* name
+				 :direction :output
+				 :element-type '(unsigned-byte 8)
+				 :if-exists :rename-and-delete)
+      (output-raw-space *read-only*)))
   (format t "done]~%")
   (force-output))

@@ -1,12 +1,14 @@
 ;;; Interface to .db -- mini entity (org/person) oriented database.
-;;; FIX mini contact database? contacts.lisp
+;; FIX mini contact database? contacts.lisp
 
 (in-package "DB")
 
 (export '(db-record-forename db-record-surname db-record-akas
-	  db-record-emails db-record-url db-record-full-name
-	  db-record-address
-	  add-record find-record find-records write-record
+	  db-record-emails db-record-notes db-record-url
+	  db-record-full-name db-record-address
+	  add-record find-record free-record find-records
+	  find-records-any get-record write-record
+	  field set-field subfields-p
 	  address-line-1 address-town address-code address-country
 	  ensure-db-read get-db-table
 	  read-db save-db set-db-modified ensure-db-saved))
@@ -31,6 +33,7 @@
 
 (declaim (inline db-record-forename db-record-surname
 		 db-record-akas db-record-emails db-record-url
+		 db-record-notes
 		 db-record-address address-line-1 address-town
 		 db-record-full-name))
 
@@ -53,6 +56,10 @@
 (defun db-record-url (record)
   "Return the URL field of .db Record."
   (cdr (assoc 'URL (aref record 7))))
+
+(defun db-record-notes (record)
+  "Return the notes field of .db $record."
+  (cdr (assoc 'NOTES (aref record 7))))
 
 (defun db-record-address (record)
   "Return the first address of .db Record."
@@ -79,6 +86,125 @@
   (string-trim " " (format () "~A ~A"
 			   (db-record-forename record)
 			   (db-record-surname record))))
+
+(defun field (record name &optional subname)
+  "Return the value of field $name in $record.
+
+   If $subname is given return the subfield $subname.  If subfield has
+   multiple elements return them in a string, separating them by a \", \"."
+  (let* ((sub-position)
+	 (position (position name *db-headings*
+			     :test
+			     (lambda (name head)
+			       (if (listp head)
+				   (setq sub-position t)
+				   (string= name
+					    (symbol-name head)))))))
+    (when position
+      (let ((field (if sub-position
+		       (cdr (or (assoc name (aref record position)
+				       :test #'string=)
+				(error "Field must exist: ~A" name)))
+		       (aref record position))))
+	(if subname
+	    (let ((subfield (find subname field
+				  :test (lambda (name ele)
+					  (string= (aref ele 0)
+						   name)))))
+	      (when subfield
+		(if (<= (length subfield) 2)
+		    ;; Single element.
+		    (aref subfield 1)
+		    ;; Multiple elements, join them.
+		    (macrolet ((maybe-add-comma ()
+				 '(if (plusp (length rest))
+				      (setq rest
+					    (concatenate 'simple-string
+							 ", " rest)))))
+		      ;; First convert any ()'s to ""'s.
+		      (map-into subfield
+				(lambda (ele)
+				  (or ele ""))
+				subfield)
+		      ;; Then join.
+		      (reduce (lambda (ele rest)
+				(concatenate
+				 'simple-string
+				 (etypecase ele
+				   (string ele)
+				   (list (reduce (lambda (ele rest)
+						   (concatenate
+						    'simple-string
+						    ele ", " rest))
+						 ele)))
+				 ", "
+				 rest))
+			      subfield :start 1)))))
+	    field)))))
+
+(defun set-field (record name subname &rest values)
+  "Set field $name in $record to the first of $values.  If $subname is
+   given set subfield $subname of field $name to the $values.
+
+   If $name names a new field then add the field with $value.
+
+   Return $values on success.
+
+   Signal an error on failing to find the field."
+  (let* ((extension-p)
+	 (position (position name *db-headings*
+			     :test
+			     (lambda (name head)
+			       (if (listp head)
+				   (setq extension-p t)
+				   (string= name
+					    (symbol-name head)))))))
+    (if subname
+	(let ((field (aref record position)))
+	  (if extension-p
+	      (error "Subname given with extension field: ~A with ~A"
+		     subname name))
+	  (let ((subfield (find subname field
+				:test (lambda (name ele)
+					(string= (aref ele 0)
+						 name)))))
+	    (if subfield
+		(map-into subfield #'identity
+			  (cons subname values))
+		(setf (aref record position)
+		      (cons (apply #'vector
+				   subname
+				   values)
+			    field)))))
+	(if extension-p
+	    (if (car values)
+		(if (position name (aref record position)
+			      :test #'string= :key #'car)
+		    ;; Existing field.
+		    (setf (cdr (assoc name (aref record position)
+				      :test #'string=))
+			  (car values))
+		    ;; New field.
+		    (setf (aref record position)
+			  (append (aref record position)
+				  (list (cons (intern name "DB")
+					      (car values))))))
+		;; Remove the field.
+		(delete-if (lambda (ele)
+			     (string= (car ele) name))
+			   (aref record position)))
+	    (setf (aref record position) (car values))))
+    (db:set-db-modified)
+    (values-list values)))
+;;
+(defsetf field set-field
+  "Set field $name in $record to $value.  Return true if the value was
+   set.")
+
+;; FIX move to contacts.lisp
+(defun subfields-p (field)
+  "Return true if $field can have subfields."
+  (member field '("ADDRESSES" "PHONES") :test #'string=))
 
 (defun ensure-db-read (&optional message)
   "Ensure that the .db database is in memory."
@@ -175,11 +301,17 @@
   (set-db-modified)
   (push record *db-records*))
 
+(defun free-record (record)
+  "Release $record from .db, setting *db-modified*."
+  (set-db-modified)
+  (setq *db-records* (delq record *db-records*)))
+
 (defun write-record (stream record)
-  "Write .db Record to Stream."
-  (let ((*field-number* 0)
+  "Write .db $record to $stream."
+  (let ((stream (lisp::make-indenting-stream stream))
+	(*field-number* 0)
 	(heading-format (format () "~~~DA:" 20))
-	(sub-heading-format (format () "    ~~~DA:" 16)))
+	(sub-heading-format (format () "~C~~~DA:" #\tab 16)))
     (map ()
 	 (lambda (field)
 	   (when field
@@ -187,40 +319,70 @@
 	       (cons
 		(typecase (car field)
 		  (string
-		   (format stream heading-format (nth *field-number* *db-headings*))
+		   (format stream heading-format
+			   (nth *field-number* *db-headings*))
 		   (if (or (plusp (length (car field))) (cdr field))
 		       (write-string " " stream))
 		   (format stream "~A" (car field))
 		   (if (cdr field)
-		       (mapcar (lambda (ele) (format stream ", ~A" ele)) (cdr field)))
-		   (format stream "~%"))
+		       (mapcar (lambda (ele) (format stream ", ~A" ele))
+			       (cdr field)))
+		   (format stream "~&"))
 		  (vector
-		   (format stream "~A~%" (nth *field-number* *db-headings*))
-		   (dolist (subrecord field)
-		     (format stream sub-heading-format (aref subrecord 0))
-		     (if (plusp (length subrecord))
-			 (write-string " " stream))
+		   (let ((field-name (nth *field-number*
+					  *db-headings*)))
+		     (format stream "~A~%" field-name)
+		     (dolist (subfield field)
+		       (format stream sub-heading-format
+			       (aref subfield 0))
+		       (format stream " ~A"
+			       (field record
+				      field-name
+				      (aref subfield 0)))
+#|
 		     (let ((*first* t))
 		       (every (lambda (ele)
 				(if *first*
 				    (setq *first* ())
-				    (format stream "~A" ele))
+				    (if (plusp (length ele))
+					(format stream " ~A" ele)))
 				t)
-			      subrecord))
-		     (format stream "~%")))
+			      subfield))
+|#
+		       (format stream "~&"))))
 		  (cons
 		   (dolist (alistrecord field)
 		     (format stream heading-format (car alistrecord))
-		     (format stream " ~A~%" (cdr alistrecord))))))
+		     ;; FIX this breaks generality, mv write-record to contacts.lisp
+		     (if (string= (car alistrecord) "NOTES")
+			 (progn
+			   (setf (lisp::indenting-stream-indentation
+				  stream)
+				 4)
+			   (format stream "~%~A~&" (cdr alistrecord))
+			   (setf (lisp::indenting-stream-indentation
+				  stream)
+				 0))
+			 (progn
+			   (write-char #\space stream)
+			   (format stream "~A~&" (cdr alistrecord))))))))
 	       (string
-		(format stream heading-format (nth *field-number* *db-headings*))
+		(format stream heading-format
+			(nth *field-number* *db-headings*))
 		(when (plusp (length field))
 		  (write-string " " stream)
-		  (format stream "~A~%" field)))
+		  (format stream "~A" field))
+		(terpri stream))
 	       (vector
 		(format stream "#~%"))))
 	   (incf *field-number*))
 	 record)))
+
+(defun get-record (record)
+  "Return the portion of the db list headed by $record."
+  (while ((records *db-records* (cdr records)))
+	 (records)
+    (if (eq record (car records)) (return records))))
 
 (defun find-record (name)
   "Return record with Name in *db-records* if any, else ()."
@@ -275,12 +437,12 @@
 	(name-len (length name)))
     (delete-duplicates
      (append (keep-if (lambda (field)
-			(let ((db-forename (string-upcase (aref field 0))))
+			(let ((db-forename (string-upcase (db-record-forename field))))
 			  (if (>= (length db-forename) name-len)
 			      (string= db-forename name :end1 name-len))))
 		      *db-records*)
 	     (keep-if (lambda (field)
-			(let ((db-surname (string-upcase (aref field 0))))
+			(let ((db-surname (string-upcase (db-record-surname field))))
 			  (if (>= (length db-surname) name-len)
 			      (string= db-surname name :end1 name-len))))
 		      *db-records*)
@@ -291,4 +453,33 @@
 				(if (>= (length db-aka) name-len)
 				    (string= (string-upcase db-aka) aka
 					     :end1 name-len)))))
+		      *db-records*)))))
+
+;; TODO + search TAGS in `find-*'
+
+(defun find-records-any (name)
+  "Return a list of the records in *db-records* that contain the string
+   $name anywhere in the forename, surname or AKA fields."
+  (let ((name (string-upcase name)))
+    (delete-duplicates
+     (append (keep-if (lambda (field)
+			(let ((db-forename (string-upcase
+					    (db-record-forename
+					     field))))
+			  (search name db-forename)))
+		      *db-records*)
+	     (keep-if (lambda (field)
+			(let ((db-surname (string-upcase
+					   (db-record-surname field))))
+			  (search name db-surname)))
+		      *db-records*)
+	     (keep-if (lambda (field)
+			(find name (db-record-akas field)
+			      :test
+			      (lambda (aka db-aka)
+				(search aka (string-upcase db-aka)))))
+		      *db-records*)
+	     (keep-if (lambda (field)
+			(let ((db-notes (string-upcase (db-record-notes field))))
+			  (search name db-notes)))
 		      *db-records*)))))

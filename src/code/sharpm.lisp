@@ -51,8 +51,10 @@
 				   (setq char (read-char stream t))
 				   (setq level (1+ level))))
 			    (write-char prev out)))))
-      ;; FIX make relative to root? (n:src/)
-      ,(if (pathname stream) (namestring (pathname stream)))
+      ,(let ((pathname (pathname stream)))
+	 (if pathname
+	     (subseq (namestring pathname)
+		     (length (namestring (truename "n:src/"))))))
       ,pos)))
 
 (defun sharp-backslash (stream backslash numarg)
@@ -440,10 +442,12 @@
 	    (parse-namestring namestring)))))
 
 (defun sharp-true (stream sub-char numarg)
+  (declare (ignore stream))
   (ignore-numarg sub-char numarg)
   t)
 
 (defun sharp-false (stream sub-char numarg)
+  (declare (ignore stream))
   (ignore-numarg sub-char numarg)
   ())
 

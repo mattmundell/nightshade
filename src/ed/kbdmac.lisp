@@ -16,6 +16,7 @@ command.
 {evariable:Define Keyboard Macro Key Confirm}
 {command:Keyboard Macro Query}
 {command:Name Keyboard Macro}
+{command:Free Command}
 
 Many keyboard macros are not for customization, but rather for one-shot
 use, a typical example being performing some operation on each line of a file.
@@ -307,7 +308,7 @@ keyboard macro.
 ;;; argument is a repetition count.
 ;;;
 (defun make-kbdmac ()
-  (let ((code (nreverse *current-kbdmac*))
+  (let ((code (reverse *current-kbdmac*))
 	(input (copy-seq *kbdmac-input*)))
     (if (zerop (length input))
 	#'(lambda (p)
@@ -425,7 +426,6 @@ keyboard macro.
 	    (make-kbdmac)))
     (setf (buffer-minor-mode (current-buffer) "Def") nil)))
 
-
 (defcommand "End Keyboard Macro" ()
   "End the definition of a keyboard macro."
   (or *defining-a-keyboard-macro*
@@ -449,21 +449,43 @@ keyboard macro.
    into a named command, which is kept when another keyboard macro is
    defined so that several keyboard macros can be kept around at once.  The
    resulting command may also be bound to a key using `Bind Key', in the
-   same way any other command is."
+   same way any other command is.
+
+   The command can be free'd up afterwards with `Free Command'."
   (declare (ignore p))
   (or name
-      (setq name (prompt-for-string
-		  :prompt "Macro name: "
-		  :help "String name of command to make from keyboard macro.")))
+      (setq name
+	    (prompt-for-string
+	     :prompt "Macro name: "
+	     :help
+	     "String name of command to make from keyboard macro.")))
   (make-command
    name "This is a named keyboard macro."
-   (command-function (getstring "Last Keyboard Macro" *command-names*)))
+   (command-function (getstring "Last Keyboard Macro"
+				*command-names*)))
   ;; FIX another above, what happens when command overwritten?
-  (push (list name
-	      *current-kbdmac*
-	      *kbdmac-input*
-	      *kbdmac-transcript*)
-	*named-kbdmacs*))
+  (setq *named-kbdmacs*
+	(cons (list name
+		    *current-kbdmac*
+		    *kbdmac-input*
+		    *kbdmac-transcript*)
+	      (delete name *named-kbdmacs*
+		      :test #'string= :key #'car))))
+
+(defcommand "Free Command" ()
+  "Free up a prompted command."
+  (let ((name
+	 (prompt-for-keyword (list *command-names*)
+			     :must-exist t
+			     :prompt "Command: "
+			     :help "Enter the name of an editor command."
+			     :history *extended-command-history*
+			     :history-pointer
+			     '*extended-command-history-pointer*)))
+    (free-command name)
+    (setq *named-kbdmacs*
+	  (delete name *named-kbdmacs*
+		  :test #'string= :key #'car))))
 
 (defcommand "Keyboard Macro Query" ()
   "Conditionalize the execution of a keyboard macro.  Return immediately
@@ -533,12 +555,13 @@ keyboard macro.
 			  :if-exists :new-version
 			  :direction :output)
     (dolist (named *named-kbdmacs*)
-      (write (list (car named)
-		   (cadr named)
-		   (cons 'list (map 'list #'eval (caddr named)))
-		   (cons 'list (map 'list #'eval (cadddr named))))
-	     :stream stream
-	     :readably t)
+      (let ((*package* (find-package "ED")))
+	(write (list (car named)
+		     (cadr named)
+		     (cons 'list (map 'list #'eval (caddr named)))
+		     (cons 'list (map 'list #'eval (cadddr named))))
+	       :stream stream
+	       :readably t))
       (terpri stream))
     ;; Write it last so that `read-keyboard-macro-file' reads it last.
     (write (list t *current-kbdmac*
@@ -557,7 +580,8 @@ keyboard macro.
 			  :if-does-not-exist ())
     (when stream
       (loop
-	(let ((list (read stream ())))
+	(let ((list (let ((*package* (find-package "ED")))
+		      (read stream ()))))
 	  (or list (return))
 	  (destructuring-bind (name current input transcript)
 			      list
@@ -579,9 +603,9 @@ keyboard macro.
 
      t               always save
      :prompt         prompt for confirmation if any macros exist
-     :named-prompt   prompt for confirmation if any macros exist
-     ()              always skip saving."
-  :value :prompt)
+     :named-prompt   prompt for confirmation if any named macros exist
+     ()              always forego saving."
+  :value t)
 
 (defun save-keyboard-macros ()
   ;; FIX prompt to save keyboard macros defined this session, if so add
@@ -609,6 +633,7 @@ keyboard macro.
 (add-hook exit-hook 'save-keyboard-macros)
 
 (after-editor-initializations
- (if (config:probe-config-file kbdmacs-save-name)
-     (read-keyboard-macros-file
-      (config:config-pathname kbdmacs-save-name))))
+ (or (ext:get-command-line-switch "noinit")
+     (if (config:probe-config-file kbdmacs-save-name)
+	 (read-keyboard-macros-file
+	  (config:config-pathname kbdmacs-save-name)))))

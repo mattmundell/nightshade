@@ -762,9 +762,9 @@ various modes.
   old)
 
 (defun find-pattern (mark search-pattern)
-  "Find a match of $search-pattern starting at $mark.  Move $mark moved to
-   the beginning of the match and return the number of characters matched.
-   If the search fails then leave $mark the same and return ()."
+  "Find a match of $search-pattern starting at $mark.  Move $mark to the
+   beginning of the match and return the number of characters matched.  If
+   the search fails then leave $mark the same and return ()."
   (close-line)
   (multiple-value-bind (line start matched)
 		       (funcall (search-pattern-search-function search-pattern)

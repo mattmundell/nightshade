@@ -78,7 +78,7 @@
 						     (cdr input)))
 			   (symbol
 			    (ext:make-stream-command input)))))))))
-  nil)
+  ())
 
 ;;; TS-STREAM-SET-LINE-LENGTH -- Internal Interface.
 ;;;

@@ -228,7 +228,7 @@ The following switches can occur on the command line:
 
     specifies to enter the editor.  A file to edit may be
     specified by placing the name of the file between the program name
-    (usually \"nightshade\") and the first switch.
+    (usually "nightshade") and the first switch.
 
   % -eval
 
@@ -258,6 +258,11 @@ The following switches can occur on the command line:
     be loaded during the normal start up sequence.  Also, this switch
     suppresses the loading of an editor init file when the editor is
     started up with the -edit switch.
+
+  % -xoff
+
+    specifies that the editor must run in the terminal instead of as an X
+    application
 
   % -load
 

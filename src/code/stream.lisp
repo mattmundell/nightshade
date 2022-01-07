@@ -433,14 +433,18 @@
 	      char)))))
 
 (defun read-n-bytes (stream buffer start numbytes &optional (eof-errorp t))
-  "Reads Numbytes bytes into the Buffer starting at Start, returning the number
-   of bytes read.
-   -- If EOF-ERROR-P is true, an END-OF-FILE condition is signalled if
-      end-of-file is encountered before Count bytes have been read.
-   -- If EOF-ERROR-P is false, READ-N-BYTES reads as much data is currently
-      available (up to count bytes.)  On pipes or similar devices, this
-      function returns as soon as any adata is available, even if the amount
-      read is less than Count and eof has not been hit."
+  "Read $numbytes bytes into $buffer starting at $start, returning the
+   number of bytes read.
+
+   If $eof-error-p is true, signal an END-OF-FILE condition if end-of-file
+   is encountered before $count bytes have been read.
+
+   If $eof-error-p is false, read as much data is currently available (up
+   to count bytes).  On pipes or similar devices, this function reads only
+   as much data as is immediately available, even if the amount read is
+   less than $count and EOF has not been hit."
+  ;; FIX was ... function returns as soon as any adata is available, even
+  ;; if the amount ...
   (declare (type lisp-stream stream)
 	   (type index numbytes start)
 	   (type (or (simple-array * (*)) system-area-pointer) buffer))
@@ -1090,7 +1094,13 @@
   (case operation
     (:file-position
      (if arg1
-	 (setf (string-input-stream-current stream) arg1)
+	 (setf (string-input-stream-current stream)
+	       (cond ((eq arg1 :start) 0)
+		     ((eq arg1 :end) (string-input-stream-end stream))
+		     ((typep arg1 '(integer 0)) arg1)
+		     (t
+		      (error "Invalid position given to file-position: ~S"
+			     arg1))))
 	 (string-input-stream-current stream)))
     (:file-length (length (string-input-stream-string stream)))
     (:unread (decf (string-input-stream-current stream)))
@@ -1296,7 +1306,9 @@
   ;; The stream we're based on:
   stream
   ;; How much we indent on each line:
-  (indentation 0))
+  (indentation 0)
+  ;; Whether to indent the next character:
+  (indent-p t))
 
 (setf (documentation 'make-indenting-stream 'function)
  "Returns an ouput stream which indents its output by some amount.")
@@ -1320,23 +1332,30 @@
 
 (defun indenting-out (stream char)
   (let ((sub-stream (indenting-stream-stream stream)))
-    (write-char char sub-stream)
     (if (char= char #\newline)
-	(indenting-indent stream sub-stream))))
+	(setf (indenting-stream-indent-p stream) t)
+	(when (indenting-stream-indent-p stream)
+	  (indenting-indent stream sub-stream)
+	  (setf (indenting-stream-indent-p stream) ())))
+    (write-char char sub-stream)))
 
 ;;; Indenting-Sout writes a string to an indenting stream.
 
 (defun indenting-sout (stream string start end)
   (declare (simple-string string) (fixnum start end))
-  (do ((i start)
-       (sub-stream (indenting-stream-stream stream)))
-      ((= i end))
+  (until ((i start)
+	  (sub-stream (indenting-stream-stream stream)))
+	 ((= i end))
     (let ((newline (position #\newline string :start i :end end)))
       (cond (newline
+	     (if (= newline end)
+		 (setf (indenting-stream-indent-p stream) t))
+	     (or (= newline i)
+		 (indenting-indent stream sub-stream))
 	     (write-string* string sub-stream i (1+ newline))
-	     (indenting-indent stream sub-stream)
 	     (setq i (+ newline 1)))
 	    (t
+	     (indenting-indent stream sub-stream)
 	     (write-string* string sub-stream i end)
 	     (setq i end))))))
 

@@ -423,11 +423,11 @@ the primary (first) address from the list returned by
 				 (funcall on-connect wire addr)
 	      (setf on-death death-fn)
 	      okay))
-      (system:add-fd-handler socket :input
-	#'(lambda (socket)
-	    (declare (ignore socket))
-	    (serve-requests wire on-death)))
-      (ext:close-socket socket))))
+	(system:add-fd-handler socket :input
+			       #'(lambda (socket)
+				   (declare (ignore socket))
+				   (serve-requests wire on-death)))
+	(ext:close-socket socket))))
 
 ;;; REQUEST-SERVER structure
 ;;;

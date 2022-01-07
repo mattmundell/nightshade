@@ -513,13 +513,17 @@ Docstrings.
 
 
 ;;;; Multiple value macros.
-
-;;; Multiple-Value-XXX  --  Public
 ;;;
 ;;; All the multiple-value receiving forms are defined in terms of
 ;;; Multiple-Value-Call.
+
+;;; multiple-value-setq  --  Public
 ;;;
 (defmacro multiple-value-setq (varlist value-form)
+  "multiple-value-setq (var*) $value-form
+
+   Set the variables in $varlist to the corresponding values returned from
+   $value-form."
   (or (and (listp varlist) (every #'symbolp varlist))
       (error "Varlist is not a list of symbols: ~S." varlist))
   (let ((temps (mapcar #'(lambda (x) (declare (ignore x)) (gensym)) varlist)))
@@ -528,8 +532,15 @@ Docstrings.
 		     `(setq ,var ,temp))
 		 varlist temps)
        ,(car temps))))
+
+;;; multiple-value-bind  --  Public
 ;;;
 (defmacro multiple-value-bind (varlist value-form &body body)
+  "multiple-value-bind (var*) $value-form
+
+   Like `let', for multiple values.  Bind the variables in $varlist to the
+   corresponding values returned from $value-form for the duration of
+   $body."
   (or (and (listp varlist) (every #'symbolp varlist))
       (error "Varlist is not a list of symbols: ~S." varlist))
   (if (= (length varlist) 1)
@@ -540,13 +551,20 @@ Docstrings.
 				  (declare (ignore ,ignore))
 				  ,@body)
 	   ,value-form))))
+
+;;; multiple-value-list  --  Public
 ;;;
 (defmacro multiple-value-list (value-form)
+  "multiple-value-list $value-form
+
+   Return all the values returned by $value-form as a single list."
   `(multiple-value-call #'list ,value-form))
 
+;;; nth-value  --  Public
+;;;
 (defmacro nth-value (n form)
-  "Evaluates FORM and returns the Nth value (zero based).  This involves no
-   consing when N is a trivial constant integer."
+  "Evaluate $form and return the $n'th value (zero based).  This involves
+   no consing when $n is a trivial constant integer."
   (if (integerp n)
       (let ((dummy-list nil)
             (keeper (gensym "KEEPER-")))

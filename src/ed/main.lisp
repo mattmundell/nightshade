@@ -15,10 +15,16 @@
 
 #[ Editor
 
-This document describes the editor, which is the primary Nightshade user
-interface.  The editor is based on the CMUCL editor, Hemlock, which
-resembles the ITS/TOPS-20 Emacs.  More recent additions have been heavily
-influenced by GNU Emacs (as at 2006).
+This document describes the editor, which is the primary user interface to
+Nightshade.
+
+At its core the editor is a text editor, that is, a program for editing
+plain text files.  Various extensions to the basic editing functionality
+provide extensive features and a growing number of applications.
+
+The editor is based on the CMUCL editor, Hemlock, which resembles the
+ITS/TOPS-20 Emacs.  More recent additions have been heavily influenced by
+GNU Emacs (as at 2006).
 
 {function:ed}
 
@@ -39,26 +45,28 @@ influenced by GNU Emacs (as at 2006).
 #[ Applications
 
 The editor is extended with a growing number of applications.  The
-"Applications" submenu of the [menu] lists these applications.
+"Applications" submenu of the [menu] lists the applications.  Links to
+documentation for some of them follow.
 
-[ The Mail Interface          ]  Reading and sending mail.
-[ The Netnews Interface       ]  Reading and posting to NNTP newsgroups.
-[ Dired Mode                  ]  The file manager.
-[ The Package Manager         ]  Install and manage software.
+[ Mail                 ]  Read and send electronic mail.
+[ Netnews              ]  Read and post to NNTP newsgroups.
+[ IRC                  ]  Instant chat.
+[ Gopher               ]  Browse Gopher sites.
+[ Dired Mode           ]  Manage files and directories.
+[ The Package Manager  ]  Install and manage software.
 ]#
 
 #[ Editor Introduction
+
+This manual describes the editor commands and other user visible features.
+It also describes simple customizations.  The [Editor Extension] manual is
+available for complete documentation of editor customization and extension.
 
 The editor follows in the tradition of Emacs and the Lisp Machine editor
 ZWEI.  In its basic form, it has almost the same command set as ITS/TOPS-20
 Emacs, and similar features such as multiple windows and extended commands,
 as well as built in documentation.  Whenever some powerful feature of the
 editor is described, it is likely to have been directly inspired by Emacs.
-
-This manual describes the editor commands and other user visible features
-and then goes on to tell how to make simple customizations.  The [Editor
-Extension] manual is also available for complete documentation of the
-editor primitives with which commands are written.
 
 [ The Point and The Cursor ]
 [ Notation                 ]
@@ -404,8 +412,8 @@ This chapter describes auxillary utilities.
     "A hook called with the `editor-error' args when a recursive edit is
      terminated.")
   (defevar "Buffer Major Mode Hook"
-    "A hook is called with the buffer and the new mode when a buffer's
-     major mode is changed.")
+    "A hook called with the buffer and the new mode when a buffer's major
+     mode is changed.")
   (defevar "Buffer Minor Mode Hook"
     "A hook called when the presence of a minor mode in a buffer changes.
      The arguments are the buffer, the mode affected and t or () depending
@@ -498,8 +506,7 @@ This chapter describes auxillary utilities.
 		 (modeline-field :%)
 		 (modeline-field :space)
 		 ;(modeline-field :position)
-		 ;; FIX :buffer-directory  cp buffer-pathname-ml-field-fun in window.lisp
-		 (modeline-field :buffer-pathname)))
+		 (modeline-field :buffer-directory)))
   (defevar "Default Status Line Fields"
     "The initial list of modeline-fields for the echo area window
      modeline."
@@ -542,7 +549,13 @@ This chapter describes auxillary utilities.
   (defevar "Schedule Event Hook"
     "Invoked on the event when an event is scheduled.")
   (defevar "Notify GC"
-    "If true print a message before and after garbage collection."))
+    "If true print a message before and after garbage collection.")
+  (defevar "Load and Save Histories"
+    "If true, load saved history on start and save histories on exit."
+    :value t)
+  (defevar "Prompt Guide"
+    "If true, guide prompting when the prompted value must exist."
+    :value t))
 
 
 ;;;; Site init.
@@ -668,6 +681,8 @@ This chapter describes auxillary utilities.
     "Function called with the region whenever a region is killed or saved.")
   (defevar "Activate Region Hook"
     "Function called whenever the region is activated.")
+  (defevar "Pacify Region Hook"
+    "Function called whenever the region is pacified.")
 
   (setf *key-event-history* (make-ring 60))
   (setf (ext:search-list "ginfo:") '("/usr/share/info/"))
@@ -724,10 +739,10 @@ The [ Editor Extension ] Manual describes these functions in detail.
    time.")
 
 (defmacro after-editor-initializations (&rest forms)
-  "Causes forms to be executed after the editor has been initialized
-   (including loading the initialization file).  Forms supplied with
-   successive uses of this macro will be executed after forms supplied with
-   previous uses."
+  "Cause $forms to be executed after the editor has been initialized
+   (including loading the initialization file).  Execute forms supplied
+   with successive uses of this macro after forms supplied with previous
+   uses."
   `(push #'(lambda () ,@forms) *after-editor-initializations-funs*))
 
 #[ Entering and Leaving the Editor
@@ -742,9 +757,13 @@ The [ Editor Extension ] Manual describes these functions in detail.
 
 (defun ed (&optional arg
 	   &key (init t)
-	        (xoff (find "xoff" ext:*command-line-switches*
-			    :test #'string=
-			    :key #'ext:cmd-switch-name))
+	        (xoff (or (find "xoff" ext:*command-line-switches*
+				:test #'string=
+				:key #'ext:cmd-switch-name)
+			  (member (file-namestring
+				   ext:*command-line-utility-name*)
+				  '("net" "nit")
+				  :test #'string=)))
 	        (display (cdr (assoc :display ext:*environment-list*))))
   "Invoke the editor.
 
@@ -767,6 +786,8 @@ The [ Editor Extension ] Manual describes these functions in detail.
   (let ((*in-the-editor* t)
 	(*busy* t)
 	(display (unless *editor-has-been-entered*
+		   (to-file (out "conf:clean-exit")
+		     (write () :stream out) (terpri out))
 		   (setf (ext:search-list "ginfo:") '("/usr/share/info/"))
 		   ;; Hack the busy modeline field for X.
 		   #+clx
@@ -777,6 +798,7 @@ The [ Editor Extension ] Manual describes these functions in detail.
 		   ;; Make `windowed-monitor-p' work for init.
 		   (setf *editor-windowed-input* (fi xoff display))
 		   (maybe-load-init init)
+		   (maybe-load-histories init)
 		   ;; Device dependent initializaiton.
 		   (init-raw-io display xoff))))
     (handler-bind
@@ -787,7 +809,7 @@ The [ Editor Extension ] Manual describes these functions in detail.
 					   (return-from ed)))))
       (site-wrapper-macro
        (let ((continue t)) ; Flag for stopping exit in an exit-hook.
-	 (loop while continue do
+	 (while () (continue)
 	   (catch 'editor-exit
 	     (or *editor-has-been-entered*
 		 (block ed-init
@@ -841,8 +863,8 @@ The [ Editor Extension ] Manual describes these functions in detail.
 		     (block ed-command-loop
 		       (handler-case
 			   ;(handler-case
-			   (handler-bind ((error #'lisp-error-error-handler))
-			                  ;(type-error #'lisp-error-error-handler))
+			   (handler-bind ((type-error #'lisp-error-error-handler)
+					  (error #'lisp-error-error-handler))
 			     (progn
 			       (invoke-hook ed::abort-hook)  ; control-g
 			       (%command-loop)))
@@ -862,6 +884,7 @@ The [ Editor Extension ] Manual describes these functions in detail.
 				       (window-hunk (current-window)))))
 			  (funcall (device-exit device) device))
 			(invoke-debugger condition))))))))))
+  (to-file (out "conf:clean-exit") (write t :stream out) (terpri out))
   (if (value ed::quit-on-exit) (quit)))
 
 (defun maybe-load-init (init)

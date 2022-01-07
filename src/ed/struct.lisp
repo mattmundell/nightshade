@@ -187,6 +187,7 @@ A buffer is an environment within the editor consisting of:
   "An editor buffer object."
   %name			      ; name of the buffer (a string)
   %region		      ; the buffer's region
+  %deep-region		      ; the underlying region, if any
   %pathname		      ; associated pathname
   modes			      ; list of buffer's mode names
   mode-objects		      ; list of buffer's mode objects
@@ -810,6 +811,8 @@ a local area network to determine information).
   "Set the current buffer, FIX doing necessary stuff.")
 (defsetf mark-kind %set-mark-kind "Set the kind of mark.")
 (defsetf buffer-region %set-buffer-region "Set a buffer's region.")
+(defsetf buffer-deep-region %set-buffer-deep-region
+  "Set a buffer's deep region.")
 (defsetf command-name %set-command-name
   "Change an editor command's name.")
 (defsetf line-string %set-line-string

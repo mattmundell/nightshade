@@ -534,7 +534,8 @@
 	(destructuring-bind (name &optional (default nil default-p)
 				  &key (type nil type-p)
 				  (read-only nil ro-p)
-				  (doc nil doc-p))
+				  ;(doc nil doc-p)
+				  )
 			    spec
 	  (values name default default-p type type-p read-only ro-p #| doc doc-p |#)))
        (t

@@ -48,7 +48,7 @@ Also useful to continuously refresh a shell command.
 	(setf (variable-value 'refresh-function :buffer buffer)
 	      lambda)
 	(defevar "Refresh Function"
-	  "The number of seconds between refreshes of this buffer."
+	  "The function used to refresh this buffer."
 	  :value lambda
 	  :buffer buffer))
     (let ((frequency (or frequency

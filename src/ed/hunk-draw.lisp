@@ -69,7 +69,7 @@
 	       ,x ,y ,fore-color ,back-color ,string ,start ,end)
 |#
        (xlib:with-gcontext (,gcontext :font ,font
-				      :function xlib:boole-copy)
+				      :function xlib:x-boole-copy)
 	 (if ,fore-color
 	     (setf (xlib:gcontext-foreground ,gcontext) ,fore-color))
 	 (if ,back-color
@@ -210,7 +210,7 @@
 		     :height height :depth (xlib:screen-root-depth screen)
 		     :drawable (xlib:screen-root screen))))
 	(xlib:with-gcontext
-	    (gcontext :function xlib:boole-1
+	    (gcontext :function xlib:x-boole-1
 		      :foreground
 		      (color-pixel
 		       (bitmap-device-display
@@ -307,7 +307,7 @@
 		     :height height :depth (xlib:screen-root-depth screen)
 		     :drawable (xlib:screen-root screen))))
 	(xlib:with-gcontext
-	    (gcontext :function xlib:boole-1
+	    (gcontext :function xlib:x-boole-1
 		      :foreground
 		      (color-pixel
 		       (bitmap-device-display
@@ -539,7 +539,7 @@
 (defun cursor-invert-center ()
   (let ((family (bitmap-hunk-font-family *cursor-hunk*))
 	(gcontext (bitmap-hunk-gcontext *cursor-hunk*)))
-    (xlib:with-gcontext (gcontext :function xlib:boole-invert)
+    (xlib:with-gcontext (gcontext :function xlib:x-boole-invert)
       (xlib:draw-rectangle (bitmap-hunk-xwindow *cursor-hunk*)
 			   gcontext
 			   (+ hunk-left-border
@@ -559,7 +559,7 @@
 (defun cursor-invert ()
   (let ((family (bitmap-hunk-font-family *cursor-hunk*))
 	(gcontext (bitmap-hunk-gcontext *cursor-hunk*)))
-    (xlib:with-gcontext (gcontext :function xlib:boole-invert)
+    (xlib:with-gcontext (gcontext :function xlib:x-boole-invert)
       (xlib:draw-rectangle (bitmap-hunk-xwindow *cursor-hunk*)
 			   gcontext
 			   (+ hunk-left-border

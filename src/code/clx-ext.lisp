@@ -7,7 +7,8 @@
 	  default-clx-event-handler
 	  flush-display-events carefully-add-font-paths
 
-	  serve-key-press serve-key-release serve-keymap-notify serve-button-press
+	  serve-key-press serve-key-release #| serve-keymap-notify |#
+	  serve-button-press
 	  serve-button-release serve-motion-notify serve-enter-notify
 	  serve-leave-notify serve-focus-in serve-focus-out
 	  serve-exposure serve-graphics-exposure serve-no-exposure
@@ -272,8 +273,8 @@
   (macrolet ((dispatch (event-key &rest args)
 	       `(multiple-value-bind (object object-set)
 				     (lisp::map-xwindow event-window)
+		  (format t "set-event-handler event-window type ~A~%" (type-of event-window))
 #|
-		  (warn "dispatch event-window ~A" event-window)
 		  (warn "dispatch event-key ~A" ,event-key)
 		  (maphash (lambda (k v)
 			     (warn "k ~A~%v ~A" k v)
@@ -306,15 +307,19 @@
 		  (setf result t))))
     (let ((*process-clx-event-display* display)
 	  (result nil))
+
 #|
       ;; FIX
-      (warn "peeking")
+      ;(warn "peeking")
       (xlib:event-case (display :timeout 0)
 	(t (event-window event-key)
-	   (format t "event-key: ~A  (event-window ~A)~%" event-key event-window)
+	   (or (eq event-key :NO-EXPOSURE)
+	       (format t "event-key: ~A  (event-window drawable ~A)~%"
+		       event-key (xlib::window-x-drawable event-window)))
 	   ()))
-      (warn "peeked")
+      ;(warn "peeked")
 |#
+
       (xlib:event-case (display :timeout 0)
 	((:KEY-PRESS :KEY-RELEASE :BUTTON-PRESS :BUTTON-RELEASE)
 	 (event-key event-window root child same-screen-p
@@ -425,9 +430,10 @@
 (defun flush-display-events (display)
   "Flush all the events in $display's event queue, including the current
    event, in case called from within an event handler."
+  (format t "flush-display-events~%")
   (xlib:discard-current-event display)
   (xlib:event-case (display :discard-p t :timeout 0)
-    (t () nil)))
+    (t () ())))
 
 
 ;;;; Key and button service.
@@ -499,11 +505,13 @@
    detail, and send-event-p."
   (setf (gethash :focus-out (lisp::object-set-table object-set)) fun))
 
+#|
 (defun serve-keymap-notify (object-set fun)
   "Associate a method in the object-set with :keymap events.  The method is
    called on the object the event occurred, event key, event window, key
    vector and send-event-p."
   (setf (gethash :keymap-notify (lisp::object-set-table object-set)) fun))
+|#
 
 
 ;;;; Exposure service.

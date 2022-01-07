@@ -30,7 +30,7 @@
 #include "FreeBSD-os.h"
 #else
 #ifdef __linux__
-#include "Linux-os.h"
+#include "linux-os.h"
 #endif
 #endif
 #endif

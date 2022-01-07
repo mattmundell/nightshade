@@ -9,7 +9,7 @@
   "Flush dir recursively."
   (do-files (file dir :recurse t)
     (if (directoryp file)
-	(delete-dir file)
+	(flush-tree file)
 	(delete-file file)))
   (delete-dir dir))
 

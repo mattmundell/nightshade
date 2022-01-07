@@ -11,6 +11,7 @@
 	  delete-string clrstring
 	  do-strings)) ; in extensions.lisp
 
+;; FIX {function:
 #[ String-table Functions
 
 String tables are similar to hash tables in that they associate a value

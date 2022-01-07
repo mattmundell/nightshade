@@ -17,16 +17,16 @@
 The wire package provides for sending data along wires.  The remote package
 sits on top of this package.  All data sent with a given output routine
 must be read in the remote process with the complementary fetching routine.
-For example, if you send so a string with `wire-output-string', the remote
+For example, if you send a string with `wire-output-string', the remote
 process must know to use `wire-get-string'.  To avoid rigid data transfers
 and complicated code, the interface supports sending tagged data.  With
 tagged data, the system sends a tag announcing the type of the next data,
 and the remote system takes care of fetching the appropriate type.
 
-When using interfaces at the wire level instead of the RPC level,
-the remote process must read everything sent by these routines.  If
-the remote process leaves any input on the wire, it will later
-mistake the data for an RPC request causing unknown lossage.
+When using interfaces at the wire level instead of the RPC level, the
+remote process must read everything sent by these routines.  If the remote
+process leaves any input on the wire, it will later mistake the data for an
+RPC request causing unknown lossage.
 
 [ Untagged Data ]
 [ Tagged Data   ]
@@ -64,17 +64,17 @@ data.
 
 #[ Tagged Data
 
-When using these routines, the system automatically transmits and interprets
-the tags, so both ends can figure out what kind of data transfers
-occur.  Sending tagged data allows a greater variety of data types: integers
-inclusively less than 32 bits in length, symbols, lists, and remote-objects
-([Remote Objects]).  The system sends symbols as two strings, the
-package name and the symbol name.  The package must exist remotely,
-else the remote process signals an error.  FIX The system ignores other slots of
-symbols.  Lists may be any tree of the above valid data types.  To send other
-data types you must represent them in terms of these supported types.  For
-example, you could use `prin1-to-string' locally, send the string, and use
-`read-from-string' remotely.
+When using these routines, the system automatically transmits and
+interprets the tags, so both ends can figure out what kind of data
+transfers occur.  Sending tagged data allows a greater variety of data
+types: integers inclusively less than 32 bits in length, symbols, lists,
+and remote-objects ([Remote Objects]).  The system sends symbols as two
+strings, the package name and the symbol name.  The package must exist
+remotely, else the remote process signals an error.  FIX The system ignores
+other slots of symbols.  Lists may be any tree of the above valid data
+types.  To send other data types you must represent them in terms of these
+supported types.  For example, you could use `prin1-to-string' locally,
+send the string, and use `read-from-string' remotely.
 
 {function:wire:wire-output-object}
 {function:wire:wire-get-object}
@@ -337,10 +337,10 @@ of the Unix manual pages.
 ;;; we get any data, set the ibuf-end index.
 ;;;
 (defun fill-input-buffer (wire)
-  "Read data off the socket, filling the input buffer. The buffer is
-   cleared first. If fill-input-buffer returns, it is guarenteed that there
-   will be at least one byte in the input buffer. If EOF was reached, as
-   wire-eof error is signaled."
+  "Read data off the socket, filling the input buffer.  Clear the buffer
+   first.  If fill-input-buffer returns, it is guaranteed that there will
+   be at least one byte in the input buffer.  If EOF was reached, signal a
+   wire-eof error."
   (setf (wire-ibuf-offset wire) 0
 	(wire-ibuf-end wire) 0)
   (let ((fd (wire-fd wire))

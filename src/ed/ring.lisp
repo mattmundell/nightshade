@@ -1,6 +1,6 @@
 ;;; A ring-buffer type and access functions.
 ;;;
-;;; FIX mv to code:?
+;;; FIX mv to code:?  mv to a package.
 
 (in-package "EDI")
 
@@ -35,8 +35,7 @@ various modes and commands maintain as a history mechanism.
 ;;; indices first.
 ;;;
 (defstruct (ring (:predicate ringp)
-		 (:constructor internal-make-ring)
-		 (:print-function %print-ring))
+		 (:constructor internal-make-ring))
   "Used with `ring-push' and other ring functions to implement ring
    buffers."
   (first -1 :type fixnum)	   ; The index of the first position used.
@@ -56,7 +55,7 @@ various modes and commands maintain as a history mechanism.
    $delete-function is a function that each value is passed to before it
    falls off the end.  $size must be greater than zero."
   (or (and (fixnump size) (> size 0))
-      (error "Ring size, ~S is not a positive fixnum." size))
+      (error "Ring size must be a positive fixnum: ~S." size))
   (internal-make-ring :delete-function delete-function
 		      :vector (make-array size)
 		      :bound  (1- (- size))))

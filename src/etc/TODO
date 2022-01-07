@@ -1,6 +1,7 @@
-towards a public domain computer		-*- outline -*-
---------------------------------
+public domain computation, communication and information -*- outline -*-
+--------------------------------------------------------
 
+    based on ease of copying
 	allow reuse of the work in any way
 	    leaving any moral and ethical choice,judgement to the user
 		giving entirely,everything, building on what has been given
@@ -9,6 +10,7 @@ towards a public domain computer		-*- outline -*-
 	reduce the legal weight on the project
 	strengthen the weakest
 
+	moonshine
     belladonna
     mindhouse mindhome
 
@@ -41,6 +43,10 @@ towards a public domain computer		-*- outline -*-
 			   ;       Copyright (c) Massachusetts Institute of Technology, 1989        ;
 			   ;------------------------------------------------------------------------;
 		   maybe just rewrite it?
+		serve-event.lisp 522
+			;; Doesn't work -- ACK
+			;(setf (handler-active handler) t)
+			who is ACK?  Akira Kurihara?  reverted only log of Akira
 	revert rest of sys to public domain
 		ok to refer to perm lic'd works?
 			maybe ask byacc author (Robert Corbett)
@@ -75,6 +81,7 @@ incl builder
 				   save saves as alternative (like editing in a vc dir)
 				   ~build replaces existing (like building local and committing vc)
 				(towards ~ continual/lazy source optimization)
+		;;; End of xxx.lisp.
 		docs
 			flush first line of para
 			/home/matt/src/nightshade/src/compiler/mips/random-doc.txt
@@ -276,6 +283,7 @@ replace dependencies on copyrighted code
 		dict interface  pd version incl data
 		dictd, dict client
 		add system services i.e. replace unix kernel
+		http://www.iana.org/assignments/port-numbers
 cnc
 	http://www.linuxcnc.org/
 		based on ENC, which is pd   where is ENC?
@@ -365,6 +373,8 @@ update screenshots (maybe incl desktop shot with many xterms)
 consider fixed-width font
 
 * documentation
+
+all eg unix cmds prepend prompt $, all lisp prepend *, note in [Documentation Conventions]
 
 finish generating docs
 	build  type error on build (enable defparser to see)
@@ -1133,8 +1143,6 @@ clear function binding of a symbol how?
 
 public domain
 
-nsr ns ner ne  (nsr = ns repl)
-
 copy from work to aon and back only transfered distrib files
   eg interface,motif left in :src/nightshade.work-pre-aon-2007-01-02-merge/
 
@@ -1159,16 +1167,16 @@ list keyboard macros
 ** nb for work
 
     mail
+		mail to prompt
 		work reply-to,from when re work
-	robot close when dired /proc/robot/  closing file handles?
-	dired /proc/robot/nodes/
-	cvs  cancel during commit
-		 commit many at once  must prompt,add any if new
+			rply  depends on  folder of msg, sender
+			send  depends on current network
+	cvs, svn
+		 cancel during commit
 		 which have been updated?
 		 update single line
 		 ~ refresh on file write ~hook  (to show mod)
 		 conflicts?
-	svn
 	cmp highlighting
 	compile  hi   rtio/uspace.h: In function...    hilights too much
 				  err on certain output
@@ -1186,19 +1194,16 @@ list keyboard macros
 		--
 		//root@thoth/etc/cfengine/cfagent.conf   ; absolute
 		//root@thoth:cfagent.conf   ; relative
+		:cfagent.conf               ; relative to local user home
 		//root@thoth!cfagent.conf   ; relative to thoth PATH
 		ssh://thoth:cfagent.conf    ; explicit protocol, relative to user home
 		http://machine.domain/f.ext
 		ftp://user@x/file.ext
 		etc;AUTHORS 				; search list
 		//thoth/etc;AUTHORS 		; search list on remote machine
-	hex mode
 	terminal interface
-	Search  limit len of line in output (in case binary)
-			    in search if enter  Hex Mode
-			    truncate display lines
 	auto-switch to root with confirm
-	some way of merging to home dir
+	some way of merging work dir to home dir
 
 ** vaguely ok for everyday work for an experienced (probably emacsen) user
 
@@ -1247,7 +1252,7 @@ www interface
 info readers
     err when call next ref in leaf node buffer
     index, goto node, searching, menu
-many lang modes  asm (pd egs), forth, shell
+many lang modes  asm (pd egs), forth, shell, changelog, tex
     indent
     context highlighting
 	fill
@@ -1268,6 +1273,8 @@ mail
 	headers  threading
 	tests  smtp,pop  :tmp/mh
     #forw [] +folder 1 22
+SIGWINCH
+backspace,rubout  x,term
 m-x Tail,Head  related replacing shell
     maybe just handle via buffer  (ie buffer only loads what it needs from disk)
 	account for code:shell.lisp  maybe same name and same pipe mech
@@ -1280,7 +1287,7 @@ finish easy way to transfer addns
     merge version stamps instd of time stamps
 sometimes diary ckp to 0 size (think maybe from show-diary-entries)
 dired file type  y   chown
-ed::msg  (format t "...")  (f t "...") (out "") (err  (mess
+ed:: msg  (format t "...")  (f t "...") (out "") (err  (mess
 (defun test () "doc string") should return ()
 xterm, linux console, check rxvt
 Search  flag to search inside compressed files
@@ -1305,7 +1312,8 @@ top-level index
    ~desktop?     use ~/Desktop/?
    recent documents, apps
 menu  config (like variable persistence)
-irc, jabber
+improve irc
+maybe jabber
 may need sftp at some point
 Edit Editor Variable Definition
 	perhaps a transform on defevar that adds: (setf (variable-source 'spaces-per-tab) #pt)
@@ -1331,7 +1339,6 @@ ni man pg  weird chars
            update date,version with version
 auto filling that adjusts to leading indentation
 	(ie if 1st 2 lines of para indented same for rest)
-re-isearch  seems to always treat previous input as case-sensitive Case
 equiv socat
 equiv shell |
 	streams, using easy with-* macros?
@@ -1434,12 +1441,6 @@ mail  attach file  suggest type, type completion
 	  cleanup,finish mime parsing
 		  other types of attachment encoding
 	  exit recursive draft edits when send
-m-x links
-	replacement for browser bookmarks
-    buffer of :links
-	submenus for dirs with links files
-		links:subdir/
-	commands for movement, editing and for viewing links
 native web browser
 	start with http retriever
     need frames?  maybe like generaliz of emacs header lines
@@ -1448,6 +1449,7 @@ native web browser
     generate parser defn from dtd,schema?
 chars like £ (pound sign)  these (at least pound) work in emacs
 	unicode?
+	utf-8
 
 clear out FIXes
 
@@ -2030,6 +2032,8 @@ pixmap hack.
 ** more
 
 (most recent last)
+
+on pause     (format t "Paused.  `fg' returns Nightshade..."))
 
 interrupt h-c sudo processes
 e sys procs  sudo if proc ownd by root

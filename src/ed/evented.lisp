@@ -124,8 +124,7 @@
        :prompt "Cancel event? "
        :default nil :must-exist t)
     (remove-scheduled-event
-     (edi::tq-event-function
-      (event-at-mark (current-point))))
+     (event-at-mark (current-point)))
     (evented-refresh-command)))
 
 (defun refresh-evented-buffer (&optional event)

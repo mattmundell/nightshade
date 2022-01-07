@@ -7,6 +7,8 @@
 
 (in-package "EDI")
 
+(export '(*termcap-file*))
+
 #|
 (to-file (out ":tmp/tc")
   (format out "~A" (get-termcap "pcansi")))
@@ -19,13 +21,15 @@ The editor can also be used with ASCII terminals and terminal emulators.
 Capabilities that depend on X Windows (such as mouse commands) are not
 available, but nearly everything else can be done.
 
-[ Terminal Initialization ]
+[ Terminal Initialization ]  Speed and capabilities (the termcap file).
 [ Terminal Input          ]
 [ Terminal Redisplay      ]
 [ Terminal Emulators      ]  Notes on setting up various emulators.
 ]#
 
 #[ Terminal Initialization
+
+== Speed ==
 
 For best redisplay performance, it is very important to set the terminal
 speed:
@@ -36,14 +40,47 @@ Often when running the editor using TTY redisplay, the editor will actually
 be talking to a PTY whose speed is initialized to infinity.  In reality,
 the terminal will be much slower, resulting in the editor's output getting
 way ahead of the terminal.  This prevents the editor from briefly stopping
-redisplay to allow the terminal to catch up.  See also hvarrefScroll Redraw
-Ratio.
+redisplay to allow the terminal to catch up.  This is also affected by
+*Scroll Redraw Ratio*, as described in [ Terminal Redisplay].
 
-The terminal control sequences are obtained from the termcap database using the
-normal Unix conventions.  The "TERM" environment variable holds the
-terminal type.  The "TERMCAP" environment variable can be used to override
-the default termcap database (in "/etc/termcap").  The size of the terminal
-can be altered from the termcap default through the use of:
+== Capabilities ==
+
+The editor reads the capabilities of the terminal (mostly the terminal
+control sequences) from the termcap database, according to the old Unix
+conventions.  The "TERM" environment variable holds the type of the current
+terminal.  The editor locates the termcap database, in order, by searching
+for
+
+  * the file or data specified by the TERMCAP environment variable
+
+  * the file specified by edi::*termcap-file*
+
+  * the file library:termcap
+
+  * the file /etc/termcap.
+
+
+A prepared termcap file is available at
+
+    http://www.mundell.ukfsn.org/nightshade/termcap.bz2
+
+Alternatively the same file can be generated with a command such as
+
+    for f in `find /lib/terminfo/`; do infocmp -Cr `basename $f` 2> /dev/null; done > termcap
+
+
+Example commands that start the editor with a TERMCAP variable are
+
+    TERMCAP=/home/ni/etc/termcap nightshade -edit
+
+and
+
+    export TERMCAP=/home/ni/etc/termcap
+    nightshade -edit
+
+
+The following command alters the size of the terminal from the termcap
+value:
 
     stty rows height columns width
 ]#
@@ -125,12 +162,16 @@ completion of the command.
 
 ;;;; Interface for device creating code.
 
+(defvar *termcap-file* ()
+  "File of terminal capability descriptions.  Overridden if there is a
+   TERMCAP environment variable.")
+
 (defun get-termcap (name)
-  "Look in TERMCAP environment variable for terminal capabilities or a
-   file to use.  If it is a file, look for name in it.  If it is a description
-   of the capabilities, use it, and don't look for name anywhere.  If TERMCAP
-   is undefined, look for name in termcap-file.  An error is signaled if it
-   cannot find the terminal capabilities."
+  "Look in TERMCAP environment variable for terminal capabilities or a file
+   to use.  If it is a file, look for $name in it.  If it is a description
+   of the capabilities, use it, and don't look for $name anywhere.  If
+   TERMCAP is undefined, look for $name in termcap-file.  Signal an error
+   on failure to find the terminal capabilities."
   (let ((termcap-env-var (get-termcap-env-var)))
     (if (and termcap-env-var
 	     (> (length termcap-env-var) 0))
@@ -143,11 +184,23 @@ completion of the command.
 	    (with-input-from-string (s termcap-env-var)
 	      (skip-termcap-names s)
 	      (parse-fields s)))
-	(with-open-file (s termcap-file)
-	  (if (find-termcap-entry name s)
-	      (parse-fields s)
-	      (error "Unknown Terminal ~S in file ~S."
-		     name termcap-file))))))
+	(if *termcap-file*
+	    (with-open-file (s *termcap-file*)
+	      (if (find-termcap-entry name s)
+		  (parse-fields s)
+		  (error "Unknown Terminal ~S in file ~S."
+			 name *termcap-file*)))
+	    (if (probe-file "library:termcap")
+		(with-open-file (s "library:termcap")
+		  (if (find-termcap-entry name s)
+		      (parse-fields s)
+		      (error "Unknown Terminal ~S in file ~S."
+			     name "library:termcap")))
+		(with-open-file (s termcap-file)
+		  (if (find-termcap-entry name s)
+		      (parse-fields s)
+		      (error "Unknown Terminal ~S in file ~S."
+			     name termcap-file))))))))
 
 (proclaim '(inline termcap))
 (defun termcap (name termcap)
@@ -309,6 +362,7 @@ completion of the command.
 (deftermcap "AF" :string :adjust-fg)
 (deftermcap "AB" :string :adjust-bg)
 
+;; FIX where these from? termcap?
 #|
 rxvt|rxvt terminal emulator (X Window System):\
 	:am:eo:km:mi:ms:xn:xo:\

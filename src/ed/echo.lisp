@@ -1,25 +1,31 @@
-;;; Echo Area stuff.
+;; Echo Area stuff.
 
 ;; FIX replace :default* w :suggest*
 
 (in-package "EDI")
 
 (export '(*echo-area-buffer* *echo-area-stream* *echo-area-window*
-	  *parse-starting-mark* *parse-input-region* *last-parse-input-string*
+	  *parse-starting-mark* *parse-input-region*
+	  *last-parse-input-string*
 	  *parse-verification-function* *parse-string-tables*
-	  *parse-value-must-exist* *parse-default* *parse-default-string*
-	  *parse-prompt* *parse-help* *parse-history* *parse-history-pointer*
-	  *parse-initial-string*
+	  *parse-value-must-exist* *parse-default*
+	  *parse-default-string*
+	  *parse-prompt* *parse-help* *parse-history*
+	  *parse-history-pointer* *parse-initial-string*
 	  clear-echo-area message msg loud-message
-	  prompt-for-buffer prompt-for-date prompt-for-file prompt-for-integer
+	  prompt-for-buffer prompt-for-date prompt-for-file
+	  prompt-for-integer
 	  prompt-for-keyword prompt-for-expression prompt-for-string
 	  prompt-for-variable prompt-for-yes-or-no prompt-for-y-or-n
 	  prompt-for-key-event prompt-for-key prompt-for-mode
 	  prompt-in-buffer
 	  *logical-key-event-names* logical-key-event-p
 	  logical-key-event-documentation logical-key-event-name
-	  logical-key-event-key-events define-logical-key-event *parse-type*
-	  current-variable-tables))
+	  logical-key-event-key-events define-logical-key-event
+	  *parse-type*
+	  current-variable-tables
+	  defhistory load-histories maybe-load-histories
+	  maybe-save-histories save-histories))
 
 #[ The Echo Area
 
@@ -273,6 +279,9 @@ by binding a collection of special variables.
 (defvar *parse-history-pointer* 0
   "History pointer for the current parse.")
 
+(defvar *parse-guide-p* ()
+  "True to enable guided parsing.")
+
 
 #[ Echo Area Functions
 
@@ -487,28 +496,232 @@ example:
 					 (symbol-value *parse-history-pointer*))))
 	  (insert-string point "] ")))))
 
-(defun parse-for-something (&optional (initial (or *parse-initial-string*
-						   "")))
-  (setq *last-parse-input-string* nil)
-  (display-prompt-nicely)
-  (let ((start-window (current-window)))
-    (move-mark *parse-starting-mark* (buffer-point *echo-area-buffer*))
-    (if initial (insert-string (buffer-point *echo-area-buffer*) initial))
-    (setf (current-window) *echo-area-window*)
-    (unwind-protect
-	(use-buffer *echo-area-buffer*
-		    (recursive-edit nil))
-      (setf (current-window) start-window))))
+(declaim (special *parse-input-words* *parse-input-string*))
 
+(defun highlight-completions-line (line chi-info)
+  (let ((mark (mark line 0)))
+    (if (zerop (character-attribute :whitespace (next-character mark)))
+	(push (color-mark line 0 :comment)
+	      (ed::ch-info-font-marks chi-info))
+	(case *parse-type*
+	  (:file)
+	  (:keyword
+	   (when (find-attribute mark :whitespace #'zerop)
+	     ;; FIX bind input,words outside
+	     (let* ((input *parse-input-string*)
+		    (words *parse-input-words*)
+		    (string (line-string line)))
+	       (declare (simple-string input))
+	       (multiple-value-bind
+		   (prefix key)
+		   (complete-string input *parse-string-tables*)
+		 (if (and (plusp (length string))
+			  (member key '(:complete :unique))
+			  (string= string prefix :start1 1))
+		     (push (color-mark line 1 :string)
+			   (ed::ch-info-font-marks chi-info))
+		     (while ((line-length (line-length line))
+			     (words words (cdr words))
+			     (start 0 (position #\space
+						string
+						:start (+ start 1))))
+			    ((and words start))
+		       (push (color-mark line (+ start 1) :special-form)
+			     (ed::ch-info-font-marks chi-info))
+		       (push (color-mark line
+					 (+ start 1 (length (car words)))
+					 :window-foreground)
+			     (ed::ch-info-font-marks chi-info))
+		       (if (>= start line-length) (return))))))))))))
+
+(defun highlight-visible-completions-buffer (buffer)
+  (ed::highlight-visible-chi-buffer buffer highlight-completions-line))
+
+(defmode "Completions" :major-p t)
+
+(declaim (special *completions-buffer* *completions-window*))
+
+(defun refresh-completions ()
+  (let* ((buffer *completions-buffer*)
+	 (mark (progn
+		 (delete-region (buffer-region buffer))
+		 (copy-mark (buffer-point buffer)
+			    :right-inserting))))
+    (buffer-start (buffer-point buffer))
+    (with-output-to-mark (s mark)
+      (let ((help (typecase *parse-help*
+		    (list (if *parse-help*
+			      (apply #'format nil *parse-help*)
+			      "There is no parse help."))
+		    (string *parse-help*)
+		    (t "Parse help is not a string or list: ~S" *parse-help*)))
+	    (input (region-to-string *parse-input-region*)))
+	(cond
+	 ((eq *parse-type* :keyword)
+	  (write-line help s)
+	  (if (plusp (length (string-trim '(#\space #\tab #\newline)
+					  input)))
+	      (let ((strings (ed::find-all-completions input *parse-string-tables*)))
+		(cond (strings
+		       (write-line "Possible completions:" s)
+		       (dolist (string strings)
+			 (write-char #\space s)
+			 (write-line string s)))
+		      (t
+		       (write-line
+			"There are no possible completions." s))))))
+	 ((and (eq *parse-type* :file) (plusp (length input)))
+	  (let ((pns (ambiguous-files (region-to-string *parse-input-region*)
+				      (or *parse-default* "") #| FIX |#)))
+	    (declare (list pns))
+	    (write-line help s)
+	    (cond (pns
+		   (write-line "Possible completions:" s)
+		   (let ((width (- (window-width (current-window)) 27)))
+		     (dolist (pn pns)
+		       (let* ((dir (directory-namestring pn))
+			      (len (length dir)))
+			 (unless (<= len width)
+			   (let ((slash (position #\/ dir
+						  :start (+ (- len width) 3))))
+			     (setf dir
+				   (if slash
+				       (concatenate 'string "..."
+						    (subseq dir slash))
+				       "..."))))
+			 (format s " ~A~25T ~A~%"
+				 (file-namestring pn) dir)))))
+		  (t
+		   (write-line
+		    "There are no possible completions." s)))))
+	 (t
+	  (insert-string mark help)
+	  (insert-character mark #\newline)))))
+    (buffer-start mark)
+    (let* ((*parse-input-string*  (region-to-string *parse-input-region*))
+	   (*parse-input-words* (split *parse-input-string* #\space)))
+      (highlight-visible-completions-buffer buffer))))
+
+(defun parse-for-something (&optional (initial
+				       (or *parse-initial-string*
+					   "")))
+  (multiple-value-bind (*parse-default-string*
+			*parse-default*
+			*parse-history*)
+		       (fi (or ed::*defining-a-keyboard-macro*
+			       ed::*in-a-keyboard-macro*)
+			   (values *parse-default-string*
+				   *parse-default*
+				   *parse-history*))
+    (setq *last-parse-input-string* nil)
+    (display-prompt-nicely)
+    (let ((start-window (current-window))
+	  (previous-mode (buffer-major-mode *echo-area-buffer*)))
+      (if (string= previous-mode "Echo Area")
+	  (setq previous-mode "Fundamental"))
+      (move-mark *parse-starting-mark* (buffer-point *echo-area-buffer*))
+      (if initial
+	  (insert-string (buffer-point *echo-area-buffer*) initial))
+      (if *parse-guide-p*
+	  (with-pop-up-window (*completions-buffer*
+			       *completions-window*
+			       :buffer-name "Guide"
+			       :modes '("Completions"))
+	    (unwind-protect
+		(progn
+		  (add-hook ed::after-command-hook #'refresh-completions)
+		  (refresh-completions)
+		  (setf (current-window) *echo-area-window*)
+		  (setf (buffer-major-mode *echo-area-buffer*) "Echo Area")
+		  (unwind-protect
+		      (use-buffer *echo-area-buffer*
+				  (recursive-edit nil))
+		    (setf (buffer-major-mode *echo-area-buffer*) previous-mode)
+		    (setf (current-window) start-window)))
+	      (remove-hook ed::after-command-hook #'refresh-completions)))
+	  (progn
+	    (setf (current-window) *echo-area-window*)
+	    (setf (buffer-major-mode *echo-area-buffer*) "Echo Area")
+	    (unwind-protect
+		(use-buffer *echo-area-buffer*
+			    (recursive-edit nil))
+	      (setf (buffer-major-mode *echo-area-buffer*) previous-mode)
+	      (setf (current-window) start-window)))))))
+
+
+;;;; Histories.
+
+;;; *histories*  --  Internal
+;;;
+;;; A list of all the histories.
+;;;
+(defvar *histories* ())
+
+(defmacro defhistory (history-variable pointer-variable size)
+  "defhistory $history-variable $pointer-variable $size
+
+   Define a history of size $size.  Define a variable $history-variable
+   holding the history.  Define a variable $pointer-variable with value 0."
+  `(progn
+     (defvar ,history-variable (make-ring ,size))
+     (defvar ,pointer-variable 0)
+     (push (list ',history-variable ',pointer-variable) *histories*)))
+
+;;; load-histories  --  Public
+;;;
+(defun load-histories ()
+  "Load any saved histories."
+  (load (config:config-pathname "histories")
+	:if-does-not-exist ()))
+
+;;; maybe-save-histories  --  Public
+;;;
+(defun maybe-save-histories ()
+  (if (value ed::load-and-save-histories) (save-histories)))
+
+;;; maybe-load-histories  --  Public
+;;;
+(defun maybe-load-histories (init)
+  (and init
+       (value ed::load-and-save-histories)
+       (prog1 (load-histories)
+	 (add-hook ed::exit-hook 'maybe-save-histories))))
+
+;;; save-histories  --  Public
+;;;
+(defun save-histories ()
+  "Save all histories listed in *histories*.  `defhistory' creates a
+   history and adds it to *histories*."
+  (to-file (out (config:config-pathname "histories"))
+    (format out
+     ";;; Auto-generated file.  Usually overwritten when editor exits.~%~
+      (in-package \"EDI\")~%")
+    (let ((*package* (find-package "EDI")))
+      (dolist (history *histories*)
+	(let* ((ring-symbol (car history))
+	       (ring (eval ring-symbol))
+	       (pointer-symbol (cadr history))
+	       (pointer (eval pointer-symbol))
+	       (ring-symbol-string
+		(with-output-to-string (out)
+		  (prin1 ring-symbol out)))
+	       (pointer-symbol-string
+		(with-output-to-string (out)
+		  (prin1 pointer-symbol out))))
+	  (format out "(setf ~
+                       ~A ~D~%      ~
+                       (ring-first ~A) ~S~%      ~
+                       (ring-bound ~A) ~S~%      ~
+                       (ring-vector ~A)~%      ~S)~%"
+		  pointer-symbol-string pointer
+		  ring-symbol-string (edi::ring-first ring)
+		  ring-symbol-string (edi::ring-bound ring)
+		  ring-symbol-string (edi::ring-vector ring)))))))
 
 
 ;;;; Buffer prompting.
 
-(defvar *buffer-input-history* (make-ring 350)
-  "This ring-buffer contains previously input buffer names.")
-
-(defvar *buffer-input-history-pointer* 0
-  "Current position during a historical exploration.")
+(defhistory *buffer-input-history* *buffer-input-history-pointer* 350)
 
 (defun prompt-for-buffer (&key ((:must-exist *parse-value-must-exist*) t)
 			       default
@@ -538,7 +751,9 @@ example:
 			  (t nil)))
 	(*parse-verification-function* #'buffer-verification-function)
 	(*parse-input-region* *echo-parse-input-region*)
-	(*parse-starting-mark* *echo-parse-starting-mark*))
+	(*parse-starting-mark* *echo-parse-starting-mark*)
+	(*parse-guide-p* (and (value ed::prompt-guide)
+			      *parse-value-must-exist*)))
     (parse-for-something)))
 
 (defun buffer-verification-function (string)
@@ -567,11 +782,7 @@ example:
 
 ;;;; Date prompting.
 
-(defvar *date-input-history* (make-ring 50)
-  "This ring-buffer contains previously input dates.")
-
-(defvar *date-input-history-pointer* 0
-  "Current position during a historical exploration.")
+(defhistory *date-input-history* *date-input-history-pointer* 50)
 
 (defun prompt-for-date (&key default
 			     ((:default-string *parse-default-string*))
@@ -587,6 +798,7 @@ example:
 	 #'(lambda (string)
 	     (let ((time (parse-time string)))
 	       (if time (list time) ()))))
+	(*parse-default* (or default *parse-default-string*))
 	(*parse-input-region* *echo-parse-input-region*)
 	(*parse-starting-mark* *echo-parse-starting-mark*))
     (parse-for-something)))
@@ -594,11 +806,7 @@ example:
 
 ;;;; File Prompting.
 
-(defvar *file-input-history* (make-ring 350)
-  "This ring-buffer contains previously input filenames.")
-
-(defvar *file-input-history-pointer* 0
-  "Current position during a historical exploration.")
+(defhistory *file-input-history* *file-input-history-pointer* 350)
 
 (defun prompt-for-file (&key ((:must-exist *parse-value-must-exist*) t)
 			     default
@@ -620,26 +828,29 @@ example:
 ;;	(*parse-initial-string* (if default (directory-namestring default) #|FIX|# ""))
 	(*parse-type* :file)
 	(*parse-input-region* *echo-parse-input-region*)
-	(*parse-starting-mark* *echo-parse-starting-mark*))
+	(*parse-starting-mark* *echo-parse-starting-mark*)
+	(*parse-guide-p* (value ed::prompt-guide)))
     (parse-for-something)))
 
 (defun file-verification-function (string)
-  (let ((pn (pathname-or-lose (if string (ed::filter-tildes string)))))
-    (when pn
-      (if (wild-pathname-p pn)
-	  (list pn)
-	  (let ((merge
-		 (when *parse-default*
-		   (cond ((directory-name-p pn) ; Was directoryp, wildcard errors.
-			  (merge-pathnames pn *parse-default*))
-			 (t
-			  (merge-pathnames pn
-					   (directory-namestring
-					    *parse-default*)))))))
-	    (cond ((probe-file pn) (list pn))
-		  ((and merge (probe-file merge)) (list merge))
-		  ((not *parse-value-must-exist*) (list (or merge pn)))
-		  (t ())))))))
+  (when string
+    (let ((pn (pathname-or-lose (ed::filter-tildes string))))
+      (when pn
+	(if (fi lisp::*literal-pathnames* ; FIX ::
+		(wild-pathname-p pn))
+	    (list pn)
+	    (let ((merge
+		   (when *parse-default*
+		     (cond ((directory-name-p pn) ; Was directoryp, wildcard errors.
+			    (merge-pathnames pn *parse-default*))
+			   (t
+			    (merge-pathnames pn
+					     (directory-namestring
+					      *parse-default*)))))))
+	      (cond ((probe-file pn) (list pn))
+		    ((and merge (probe-file merge)) (list merge))
+		    ((not *parse-value-must-exist*) (list (or merge pn)))
+		    (t ()))))))))
 
 ;;; PATHNAME-OR-LOSE tries to convert string to a pathname using
 ;;; PARSE-NAMESTRING.  If it succeeds, this returns the pathname.  Otherwise,
@@ -683,14 +894,14 @@ example:
   (let ((*parse-verification-function* #'keyword-verification-function)
 	(*parse-type* :keyword)
 	(*parse-input-region* *echo-parse-input-region*)
-	(*parse-starting-mark* *echo-parse-starting-mark*))
+	(*parse-starting-mark* *echo-parse-starting-mark*)
+	(*parse-guide-p* (and (value ed::prompt-guide)
+			      *parse-value-must-exist*)))
     (parse-for-something)))
 
-(defvar *variable-prompt-history* (make-ring 50)
-  "Variable previously put into the echo area.")
-
-(defvar *variable-prompt-history-pointer* 0
-  "The variable prompt history position during historical explorations.")
+(defhistory *variable-prompt-history*
+	    *variable-prompt-history-pointer*
+	    50)
 
 ;; FIX prompt-for-editor-variable
 (defun prompt-for-variable (&key ((:must-exist *parse-value-must-exist*) t)
@@ -711,7 +922,9 @@ example:
 	(*parse-verification-function* #'keyword-verification-function)
 	(*parse-type* :keyword)
 	(*parse-input-region* *echo-parse-input-region*)
-	(*parse-starting-mark* *echo-parse-starting-mark*))
+	(*parse-starting-mark* *echo-parse-starting-mark*)
+	(*parse-guide-p* (and (value ed::prompt-guide)
+			      *parse-value-must-exist*)))
     (parse-for-something)))
 
 (defun current-variable-tables (&optional (where :current))
@@ -765,11 +978,7 @@ example:
 
 ;;;; Integer, expression, and string prompting.
 
-(defvar *integer-prompt-history* (make-ring 30)
-  "Ring-buffer containing strings previously input in the echo area.")
-
-(defvar *integer-prompt-history-pointer* 0
-  "The echo history position during historical explorations.")
+(defhistory *integer-prompt-history* *integer-prompt-history-pointer* 30)
 
 (defun prompt-for-integer (&key ((:must-exist *parse-value-must-exist*) t)
 				default
@@ -795,11 +1004,9 @@ example:
 (defvar editor-eof '(())
   "An object that won't be EQ to anything read.")
 
-(defvar *expression-prompt-history* (make-ring 350)
-  "Expressions previously put into the echo area.")
-
-(defvar *expression-prompt-history-pointer* 0
-  "Current position during a historical exploration.")
+(defhistory *expression-prompt-history*
+	    *expression-prompt-history-pointer*
+	    350)
 
 (defun prompt-for-expression (&key ((:must-exist *parse-value-must-exist*) t)
 				   (default nil defaultp)
@@ -826,14 +1033,11 @@ example:
 	(*parse-starting-mark* *echo-parse-starting-mark*))
       (parse-for-something)))
 
-(defvar *string-prompt-history* (make-ring 350)
-  "Strings previously put into the echo area.")
-
-(defvar *string-prompt-history-pointer* 0
-  "Current position during a historical exploration.")
+(defhistory *string-prompt-history* *string-prompt-history-pointer* 350)
 
 (defun prompt-for-string (&key ((:default *parse-default*))
 			       ((:default-string *parse-default-string*))
+			       (initial)
 			       (trim ())
 			       ((:prompt *parse-prompt*) "String: ")
 			       ((:help *parse-help*) "Type a string.")
@@ -850,18 +1054,14 @@ example:
 				string))))
 	(*parse-input-region* *echo-parse-input-region*)
 	(*parse-starting-mark* *echo-parse-starting-mark*))
-    (parse-for-something)))
+    (parse-for-something initial)))
 
-(defvar *mode-prompt-history* (make-ring 35)
-  "Modes previously put into the echo area.")
-
-(defvar *mode-prompt-history-pointer* 0
-  "Current position during a historical exploration.")
+(defhistory *mode-prompt-history* *mode-prompt-history-pointer* 35)
 
 (defun prompt-for-mode (&key ((:default *parse-default*))
 			     ((:default-string *parse-default-string*))
-			     ((:prompt *parse-prompt*) "Mode: ")
-			     ((:help *parse-help*) "Enter a mode.")
+			     ((:prompt *parse-prompt*) "File mode: ")
+			     ((:help *parse-help*) "Enter a file mode, e.g. a+w.")
 			     ((:history *parse-history*)
 			      *mode-prompt-history*)
 			     ((:history-pointer *parse-history-pointer*)
@@ -889,11 +1089,7 @@ example:
 
 ;;;; Yes-or-no and y-or-n prompting.
 
-(defvar *yes-or-no-history* (make-ring 2)
-  "This ring-buffer contains previous input to `prompt-for-yes-or-no'.")
-
-(defvar *yes-or-no-history-pointer* 0
-  "Current position during a historical exploration.")
+(defhistory *yes-or-no-history* *yes-or-no-history-pointer* 2)
 
 (defvar *yes-or-no-string-table*
   (make-string-table :initial-contents '(("Yes" . t) ("No" . nil))))
@@ -1049,11 +1245,7 @@ example:
 
 ;;;; Prompting with a buffer.
 
-(defvar *buffer-input-history* (make-ring 350)
-  "This ring-buffer contains entries previously input via a buffer.")
-
-(defvar *buffer-input-history-pointer* 0
-  "Current position during a historical exploration.")
+(defhistory *buffer-input-history* *buffer-input-history-pointer* 350)
 
 (defun prompt-in-buffer (buffer
 			 &key ((:default *parse-default*))

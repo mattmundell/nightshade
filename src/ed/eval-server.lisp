@@ -145,7 +145,7 @@ for the remote and wire packages.
 
 (defevar "Slave Utility"
   "The pathname of the utility used to start slave Lisps.  The utility is
-   past the arguments specified by the list of strings *Slave Utility
+   passed the arguments specified by the list of strings *Slave Utility
    Switches*.
 
    This is useful primarily when running customized Lisp systems.
@@ -439,7 +439,7 @@ message.
   (let ((lisp (os-namestring (merge-pathnames (value slave-utility) "path:")
 			     t t)))
     (or lisp
-	(editor-error "Can't find ``~S'' in your path to run."
+	(editor-error "Failed to find \"~S\" in \"path:\"."
 		      (value slave-utility)))
     (multiple-value-bind (slave background)
 			 (if name
@@ -719,10 +719,10 @@ commands only use this for compiling files.
 ;;; MADE-BUFFERS-FOR-TYPESCRIPT -- Internal Interface.
 ;;;
 ;;; Run in the slave by the editor with the two buffers' info structures,
-;;; actually remote-objects in the slave.  Does any necessary stream hacking.
-;;; Return nil to make sure no weird objects try to go back over the wire
-;;; since the editor calls this in the slave for value.  The editor does this
-;;; for synch'ing, not for values.
+;;; actually remote-objects in the slave.  Does any necessary stream
+;;; hacking.  Return false to make sure no weird objects try to go back
+;;; over the wire since the editor calls this in the slave for value.  The
+;;; editor does this for synch'ing, not for values.
 ;;;
 (defun made-buffers-for-typescript (slave-info background-info)
   (macrolet ((frob (symbol new-value)
@@ -741,7 +741,7 @@ commands only use this for compiling files.
 		(wire:remote wire
 		  (slave-gc-notify-before
 		   slave-info
-		   (format nil
+		   (format ()
 			   "~%[GC threshold exceeded with ~:D bytes in use.  ~
 			   Commencing GC.]~%"
 			   bytes-in-use)))
@@ -751,7 +751,7 @@ commands only use this for compiling files.
 		(wire:remote wire
 		  (slave-gc-notify-after
 		   slave-info
-		   (format nil
+		   (format ()
 			   "[GC completed with ~:D bytes retained and ~:D ~
 			   bytes freed.]~%[GC will next occur when at least ~
 			   ~:D bytes are in use.]~%"
@@ -765,7 +765,7 @@ commands only use this for compiling files.
     (frob *query-io* *standard-input*)
     (frob *trace-output* *standard-input*))
   (setf *background-io* (connect-stream background-info))
-  nil)
+  ())
 
 ;;; SLAVE-GC-NOTIFY-BEFORE and SLAVE-GC-NOTIFY-AFTER -- internal
 ;;;
@@ -1137,7 +1137,7 @@ servers for a Lisp process:
 
     Lisp will go immediately into the editor finding the file file.txt.
 
-  % -slave [name]
+  % -slave name
 
     This switch causes the Lisp process to become a slave of the editor process
     name.  An editor Lisp determines name when it allows connections from

@@ -124,7 +124,13 @@ struct page {
  * write protected.
  */
 
+// FIX other POSIXes too?
+#ifdef __linux__
+#include <unistd.h>
+#define PAGE_SIZE sysconf(_SC_PAGESIZE)
+#else
 #define PAGE_SIZE 4096
+#endif
 
 extern unsigned dynamic_space_pages;
 extern struct page *page_table;

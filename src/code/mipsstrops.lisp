@@ -101,6 +101,7 @@
 	   (type (or simple-string system-area-pointer) string)
 	   (fixnum start end mask))
   "%SP-Find-Character-With-Attribute String, Start, End, Table, Mask
+
    The codes of the characters of String from Start to End are used as
    indices into the Table, which is a U-Vector of 8-bit bytes.  When the
    number picked up from the table bitwise ANDed with Mask is non-zero, the

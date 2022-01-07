@@ -379,7 +379,7 @@ Handlers].
 ;;; signal mask to block all blockable signals, sets *interrupt-pending*
 ;;; and returns without handling the signal.
 ;;;
-;;; When we drop out the without interrupts, we check to see if
+;;; When we drop out the block-interrupts, we check to see if
 ;;; *interrupt-pending* has been set.  If so, we call do-pending-interrupt,
 ;;; which generates a SIGTRAP.  The C code invokes the handler for the
 ;;; saved signal instead of the SIGTRAP after replacing the signal mask in

@@ -62,16 +62,17 @@ the simplest ones are the most often used.
 The editor is entered by using the Lisp ed function.  Simply typing (ed)
 will enter the editor, leaving you in the state that you were in when you
 left it.  The first time the editor is entered the current buffer will be
-`Main' or `Welcome'.  The -edit command-line switch may also be used to
-enter the editor, as described in [ Command Line Options ].
+"Main" or the "Welcome" documentation.  The -edit command-line switch may
+also be used to enter the editor, as described in [ Command Line Options ].
 
-ed may optionally be given a file name or a symbol argument.  Typing (ed
-filename) will cause the specified file to be read into the editor, as
+`ed' may optionally be given a file name or a symbol argument.  Typing (ed
+"filename") will cause the specified file to be read into the editor, as
 though by `Find File'.  Typing (ed symbol) will pretty-print the definition
 of the symbol into a buffer whose name is obtained by adding "Edit " to the
 beginning of the symbol's name.
 
 {command:Exit}
+{command:Save All Files and Exit}
 {command:Pause}
 ]#
 
@@ -127,6 +128,25 @@ screen of text.  Related to `Delete Blank Lines'.
 	 (current-point)
 	 (make-string p :initial-element char))
 	(insert-character (current-point) char))))
+
+(defcommand "Self Insert Silently" (p)
+  "Insert into the buffer the character corresponding to the key-event
+   typed to invoke the command.  If a prefix argument is supplied, then
+   insert the character that many times.
+
+   Clear the buffer modification flag afterwards."
+  "Insert into the buffer the last key event typed.  If a prefix argument
+   is supplied, then insert the character that many times.
+
+   Clear the buffer modification flag afterwards."
+  (let ((char (ext:key-event-char *last-key-event-typed*)))
+    (or char (editor-error "Failed to insert last character."))
+    (if (and p (> p 1))
+	(insert-string
+	 (current-point)
+	 (make-string p :initial-element char))
+	(insert-character (current-point) char))
+    (setf (buffer-modified (current-buffer)) ())))
 
 (defcommand "Quoted Insert" (p)
   "Read a character from the terminal and insert it.  With prefix argument,
@@ -347,9 +367,8 @@ delimiting character.
       (setq *target-column* (mark-column mark))))
 
 (defevar "Next Line Insert"
-  "If a true value then `Next Line' inserts lines apon reaching the buffer
-   end."
-  :value t)
+  "If a true value then `Next Line' inserts lines upon reaching the buffer
+   end.")
 
 (defcommand "Next Line" (p)
   "Moves the point to the next line, while remaining the same distance
@@ -559,11 +578,9 @@ remedy this situation.
 ;;;
 (add-hook window-buffer-hook #'reset-window-display-recentering)
 
-(defvar *extended-command-history* (make-ring 350)
-  "This ring-buffer contains previously input extended commands.")
-
-(defvar *extended-command-history-pointer* 0
-  "Current position during a historical exploration.")
+(defhistory *extended-command-history*
+	    *extended-command-history-pointer*
+	    350)
 
 #[ Extended Commands
 
@@ -577,7 +594,8 @@ A command is invoked as an extended command by typing its name to the
 (defun call-command (name function p)
   "Call command $name with prefix argument $p."
   (let ((function (command-function function))
-	(bindings (visible-command-bindings function)))
+	(bindings (fi *in-a-keyboard-macro*
+		      (visible-command-bindings function))))
     (unwind-protect
 	(funcall function p)
       (if bindings
@@ -588,6 +606,7 @@ A command is invoked as an extended command by typing its name to the
 	    (setf (aref msg (- (length msg) 2)) #\.)
 	    (message msg))))))
 
+;; FIX Run Command? Command?
 (defcommand "Extended Command" (p)
   "Prompt in the echo area for the name of a command, and then invoke that
    command.  The prefix argument is passed through to the command invoked.
@@ -600,7 +619,7 @@ A command is invoked as an extended command by typing its name to the
   (multiple-value-bind (name function)
 		       (prompt-for-keyword (list *command-names*)
 					   :prompt "Command: "
-					   :help "Name of an editor command"
+					   :help "Enter the name of an editor command."
 					   :history *extended-command-history*
 					   :history-pointer
 					   '*extended-command-history-pointer*)

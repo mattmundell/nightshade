@@ -98,7 +98,8 @@ searching, replacing, and compiling groups.
 	       "Type the name of the file group you wish to become the active group.")))
 	 (old (getstring group-name *file-groups*))
 	 (pathname
-	  (fi (wild-pathname-p group-name)
+	  (fi (or lisp::*literal-pathnames* ; FIX ::
+		  (wild-pathname-p group-name))
 	      (or pathname
 		  (if (and old (not p))
 		      old
@@ -427,9 +428,9 @@ searching, replacing, and compiling groups.
   (get-search-pattern string :forward)
   (collect ((matches))
     (do-active-group (file recurse backups t)
-      (do ((won (find-pattern (current-point) *last-search-pattern*)
-		(find-pattern (current-point) *last-search-pattern*)))
-	  ((fi won))
+      (while ((won (find-pattern (current-point) *last-search-pattern*)
+		   (find-pattern (current-point) *last-search-pattern*)))
+	     (won)
        (let ((point (current-point))
 	     (buffer (current-buffer)))
 	 (character-offset point won)

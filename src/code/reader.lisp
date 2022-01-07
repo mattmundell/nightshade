@@ -540,7 +540,7 @@ Eight characters are treated specially by the reader.
 (defun read-delimited-list (endchar &optional
 				    (input-stream *standard-input*)
 				    recursive-p)
-  "Read values from $input-stream until the next character after an value's
+  "Read values from $input-stream until the next character after a value's
    representation is $endchar.  Return a list of the values read."
   (declare (ignore recursive-p))
   (do ((char (flush-whitespace input-stream)

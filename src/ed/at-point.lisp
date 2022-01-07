@@ -89,9 +89,11 @@
 (defun pathname-at-point (&optional (mark (current-point)))
   "If point is on the name of a file return the name, else return nil.
    This might be slow for long filenames (> 150 characters)."
+  ;; FIX mv to tests
   ;; Tests: /home/ /home/] [/home] /home/. /home/x
   ;;        / xx /xxx xxx/xxx xxxx/x x/xxxx //
   ;;        : target: x: x:x xx:x x:xx x/x:x
+  ;;        \\\"target:tools/worldload.lisp\\
   (let ((ch (next-character mark)))
     (if (zerop (character-attribute :whitespace ch))
 	(let ((mark-1 (copy-mark mark))
@@ -109,7 +111,10 @@
 				     (spos (position #\/ substr)))
 				(if (if cpos
 					(or (and spos (> cpos spos))
-					    (search-list-defined-p substr ()))
+					    ;; Errors can come from weird
+					    ;; backslashing.
+					    (ignore-errors
+					     (search-list-defined-p substr ())))
 					t)
 				    (parse-namestring substr
 						      ()  ;; FIX host
@@ -119,12 +124,17 @@
 			(start 0 (incf start))
 			(end (length str))
 			(name (parse-name end) (parse-name end)))
-		       ((and name (probe-file name))
+		       ((and name
+			     ;; Errors can come from weird backslashing.
+			     (ignore-errors (probe-file name)))
 			name)
 		    (do* ((end2 end (decf end2))
 			  (name (parse-name end2) (parse-name end2)))
 			 (nil)
-		      (when (and name (probe-file name))
+		      (when (and name
+				 ;; Errors can come from weird
+				 ;; backslashing.
+				 (ignore-errors (probe-file name)))
 			(return-from pathname-at-point name))
 		      (if (eq end2 (1+ pos))
 			  (return nil)))

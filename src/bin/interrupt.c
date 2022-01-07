@@ -289,7 +289,7 @@ interrupt_handle_now(HANDLER_ARGS)
         fake_foreign_function_call(context);
 
     if (handler.c == (void (*)(HANDLER_ARGS)) SIG_DFL)
-	/* This can happen if someone tries to ignore or default on of the */
+	/* This can happen if someone tries to ignore or default one of the */
 	/* signals we need for runtime support, and the runtime support */
 	/* decides to pass on it.  */
 	lose("interrupt_handle_now: No handler for signal %d?\n", signal);

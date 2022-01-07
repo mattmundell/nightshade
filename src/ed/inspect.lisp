@@ -24,6 +24,23 @@
       (invoke-restart-interactively
        (nth (prompt-for-integer :prompt "Restart number: ") cases)))))
 
+(defcommand "Restart from Error Self" ()
+  "Attempt to restart from the error numbered by the last key typed."
+  (when (editor-bound-p 'inspect-condition :buffer (current-buffer))
+    (let ((char (ext:key-event-char *last-key-event-typed*)))
+      (or char (editor-error "Failed to get last character."))
+      (let ((cases (compute-restarts))
+	    (number (- (char-code char) (char-code #\0))))
+	(declare (list cases))
+	(or (plusp (length cases)) (editor-error "Too few restarts."))
+	(or (and (>= number 0) (< number (length cases)))
+	    (editor-error "Restart number out of range."))
+#|
+	(with-pop-up-display (s :height (1+ (length cases)))
+	  (debug::show-restarts cases s))
+|#
+	(invoke-restart-interactively (nth number cases))))))
+
 (defcommand "Enter Break Loop" ()
   "Enter a break loop."
   (when (editor-bound-p 'inspect-condition :buffer (current-buffer))
@@ -152,7 +169,7 @@
 		      (char-offset (aref (or (di:debug-source-start-positions d-source)
 					     (error "No start positions map."))
 					 local-tlf-offset)))
-		 (let ((*debug-editor-source-data*))
+		 (progn ;let ((*debug-editor-source-data*))
 		   (msg "~A" (namestring name))
 		   (ed::edit-source-location (namestring name)
 					     (di:debug-source-created d-source)
@@ -400,9 +417,16 @@ affect the `Current Eval Server'.
     (or (probe-file pn)
 	(editor-error "Source file no longer exists: ~A." name))
     (multiple-value-bind (buffer newp) (find-file-buffer pn)
+      (declare (ignore newp))
       (let ((date (buffer-write-date buffer))
 	    (point (buffer-point buffer)))
-	(when newp (push-buffer-mark (copy-mark point) nil))
+#|
+	(when newp
+	  ;(push-buffer-mark (copy-mark point) nil))
+	  ; FIX should be ~~
+	  (setf (mark-kind mark) :right-inserting)
+	  (ring-push mark (value buffer-mark-ring)))
+|#
 	(buffer-start point)
 	;;
 	;; Get to the top-level form in the buffer.

@@ -6,20 +6,20 @@
 #       (to show the err,backt)?
 
 #cd $1
-#exec $1/lisp/lisp -core $1/lisp/kernel.core  -eval "(progn (setf (search-list \"target:\") '(\"$1/\" \"$1/../src/\")) (load (open \"target:tools/worldload.lisp\"))"
+#exec $1/bin/lisp -core $1/bin/kernel.core  -eval "(progn (setf (search-list \"target:\") '(\"$1/\" \"$1/../src/\")) (load (open \"target:tools/worldload.lisp\"))"
 
-cd $1/lisp/
-$1/lisp/nightshade -core $1/lisp/kernel.core << EOF
+cd $1/bin/
+$1/bin/nightshade -core $1/bin/kernel.core << EOF
 (setf (search-list "target:") '("$1/" "$1/../src/"))
-(declaim (special *load-target))
-(setf *save-target* "/usr/local/nightshade/src/")
+(declaim (special lisp::*save-target))
+(setf lisp::*save-target* "/usr/local/nightshade/src/")
 (load (open "target:tools/worldload.lisp"))
 (quit)
 EOF
 
 #!/bin/csh -f
 #
-# $argv[1]/lisp/lisp -core $argv[1]/lisp/kernel.core << EOF
+# $argv[1]/bin/lisp -core $argv[1]/bin/kernel.core << EOF
 # (setf (search-list "target:") '("$argv[1]/" "$argv[1]/../src/"))
 # (load (open "target:tools/worldload.lisp"))
 # EOF

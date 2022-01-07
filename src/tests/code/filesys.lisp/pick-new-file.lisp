@@ -29,6 +29,18 @@
       (dolist (name (names))
 	(delete-file name)))))
 
+(deftest pick-new-file (() pick-new-file-3)
+  "Test `pick-new-file' where the first choice exists already."
+  (let ((name (format () "/tmp/a~D-~D"
+		      (unix:unix-getpid) (1+ *last-new-code*))))
+    (touch-file name)
+    (let ((new (pick-new-file "/tmp/a~D-~D")))
+      (prog1
+	  (string= (namestring name)
+		   (namestring new))
+	(if (probe-file name) (delete-file name))
+	(if (probe-file new) (delete-file new))))))
+
 
 ;;;; File argument.
 

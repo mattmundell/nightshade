@@ -1,5 +1,5 @@
-PATH1 = ../../src/lisp
-PATH2 = ../../p86/lisp
+PATH1 = ../../src/bin
+PATH2 = ../../p86/bin
 vpath %.h $(PATH2):$(PATH1)
 vpath %.c $(PATH2):$(PATH1)
 vpath %.S $(PATH2):$(PATH1)

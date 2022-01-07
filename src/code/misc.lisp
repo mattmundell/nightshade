@@ -410,7 +410,7 @@ value is 3.
 
 FIX Where does the language end and the library begin?
    primitives
-
+   compiler
 
 [ Read         ]      Reading programs into the system.
 [ Evaluate     ]      Applying a function to some values.
@@ -849,13 +849,13 @@ Define a function `f'.
     (defun f ()
       3)
 
-The definition, a form, is a list.
+The definition is also list.
 
 Evaluate a call to `f',
 
     (f)
 
-The call returns 3.  The call, a form, is a list.
+The call returns 3.  The call is also list.
 
 Define another function `g', which takes an argument, uses the return from
 `f' and has a documentation string.
@@ -882,7 +882,7 @@ Define a variable *a* which is initialized to 3.
 The definition, a form, is a list.
 
 `Defvar' creates "special" variables, so *a* is special: it has dynamic
-binding.  That is, *a* is always in scope.  Naming special with stars like
+binding.  That is, *a* is always in scope.  Naming specials with stars like
 that is a convention.
 
 Define a function which binds a variable and references *a*.
@@ -924,5 +924,5 @@ which returns 4, because the value of x is false.
 
 == More ==
 
-That's the very basics.  The [Lisp] manual is more thorough.
+That's the very basics.  The [Lisp] manual aims to be more thorough.
 ]#

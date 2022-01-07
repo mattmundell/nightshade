@@ -673,8 +673,8 @@ is rare.
 ;;; the divisor.
 ;;;
 (defun ceiling (number &optional (divisor 1))
-  "Returns the smallest integer not less than number, or number/divisor.
-   The second returned value is the remainder."
+  "Return the smallest integer not less than number, or number/divisor.
+   Return as a second value the remainder."
   (multiple-value-bind (tru rem) (truncate number divisor)
     (if (and (not (zerop rem))
 	     (if (minusp divisor)

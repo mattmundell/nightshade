@@ -13,10 +13,10 @@
 Foreign object files are loaded into the running Lisp process by
 `load-foreign'.  First, it runs the linker on the files and libraries,
 creating an absolute Unix object file.  This object file is then loaded
-into into the currently running Lisp.  The external symbols defining
-routines and variables are made available for future external references
-(e.g.  by `extern-alien'.)  `load-foreign' must be run before any of the
-defined symbols are referenced.
+into the currently running Lisp.  The external symbols defining routines
+and variables are made available for future external references (e.g.  by
+`extern-alien').  `load-foreign' must be run before any of the defined
+symbols are referenced.
 
 Note that if a Lisp core image is saved (using `save-lisp'), all loaded
 foreign code is lost when the image is restarted.
@@ -61,7 +61,7 @@ foreign code is lost when the image is restarted.
 	 (addr (int-sap *foreign-segment-free-pointer*))
 	 (new-ptr (+ *foreign-segment-free-pointer* memory-needed)))
     (when (> new-ptr (+ foreign-segment-start foreign-segment-size))
-      (error "Not enough memory left."))
+      (error "Memory full."))
     (setf *foreign-segment-free-pointer* new-ptr)
     (allocate-system-memory-at addr memory-needed)
     addr))

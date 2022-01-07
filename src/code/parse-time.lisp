@@ -416,7 +416,6 @@ and printing time in various formats are available.
 
 ;;; Internet numerical time zone, e.g. RFC1123, in hours and minutes.
 ; (defun izone (thing)
-;   (ed::msg "t ~A" thing)
 ;   (if (integerp thing)
 ;       (multiple-value-bind (hours mins)
 ; 	  (truncate thing 100)
@@ -669,7 +668,6 @@ and printing time in various formats are available.
 
 ;;; Internet numerical time zone, e.g. RFC1123, in hours and minutes.
 ; (defun deal-with-izone (form-value parsed-values)
-;   (ed::msg "f ~A" form-value)
 ;   (multiple-value-bind (hours mins)
 ; 		       (truncate form-value 100)
 ;     (setf (decoded-time-zone parsed-values) (- (+ hours (/ mins 60))))))

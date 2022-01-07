@@ -1,7 +1,7 @@
 .\" Nightshade man page.
 .\" FIX pull in intro from Info
 .\"
-.TH NIGHTSHADE 1 "August 8, 2008"
+.TH NIGHTSHADE 1 "January 07, 2008"
 .AT 3
 .SH NAME
 nightshade \- a Lisp environment
@@ -76,8 +76,14 @@ is the decimal number of the socket to connect to.
 .\"
 .TP 10n
 .BR NIGHTSHADELIB
-This variable points to the `lib/' directory holding `lisp.core' and other
-files used by Lisp at run-time.  The default is `/usr/local/lib/nightshade/lib'.
+The `lib/' directory holding `lisp.core' and other files used by Nightshade
+at run-time.  Setting this variable overrides the standard location, which
+is `/usr/local/lib/nightshade/lib'.
+.TP
+.BR TERMCAP
+The terminal capabilities file.  Required by the editor when running under
+a terminal.  Setting this variable overrides the standard location, which
+is `/etc/termcap'.
 .\" .TP
 .\" .BR CMUCL_EMPTYFILE
 .\" [SunOS only] If `df /tmp' shows `swap' as the filesystem for the `/tmp'
@@ -119,7 +125,7 @@ Nightshade is installed.
 .BR bin/nightshade
 The lisp startup program.  This directory should be in PATH.
 .TP
-.BR lib/nightshade/nightshade.core
+.BR lib/nightshade/lisp.core
 The suspended Lisp image.
 .TP
 .BR lib/site-init.lisp
@@ -141,22 +147,39 @@ Init files can be compiled.
 .BR ~/.nightshade/ed.lisp
 User editor initialization file, loaded when the editor starts.
 .PP
-.\" .SH SEE ALSO
+.\"
+.SH ERRORS
+.\"
+Many.  Known errors are marked with "FIX" in the source.  etc:TODO is a
+rough todo list.  Please send any feedback to matt@mundell.ukfsn.org.
+.PP
+.\"
+.SH AUTHORS
+.\"
+Nightshade is based on the public domain portions of release 18c of CMUCL.
+The authors include the authors of the original code at CMU, contributers
+to the subsequent CMUCL internet-based project, and people who have
+dedicated code to the public domain.
+.\"
+The "Authors" documentation node lists all authors.
+.\"
+.\"
+.SH SEE ALSO
+.\"
+The full documentation, available in the editor via the `Info' command
+(bound to "control-h d").
+.\"
+The project home page online
+.\"
+.BR http://www.mundell.ukfsn.org/nightshade/
+.\"
 .\"
 .\" FIX describe very basic ed intro exit
 .\"
 .SH COPYING
 .\"
-Nightshade is most probably in the public domain.  Further
-details at http://www.mundell.ukfsn.org/nightshade/public.html.
+Nightshade is entirely Free Software.  Nightshade is most probably also
+entirely in the public domain (further details at
+http://www.mundell.ukfsn.org/nightshade/public.html).
 .\" FIX more details
 .\"
-.\" .SH SEE ALSO
-.\" The documentation in the editor, available via c-h i or M-x Info.
-.\"
-.\" .SH AUTHORS
-.\" The ``CMU Common Lisp User's Manual'',
-.\" .br
-.\" the ``Hemlock User's Manual'', and
-.\" .br
-.\" the ``Hemlock Command Implementor's Manual''

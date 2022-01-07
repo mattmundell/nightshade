@@ -157,7 +157,7 @@ Body.
 
 (deftest summarize-message ("   1   15-Apr    104 To: totest@toto.o test 1b                                Bod
 "
-			    summarize-message-6)
+			    summarize-message-7)
   "Test `summarize-message' where the date is more than a year ago, using a
    relative pathname."
   (with-test-dir (dir "Mail/folder/")
@@ -183,7 +183,7 @@ Body.
 
 (deftest summarize-message ("   1 - 15-Apr    138 To: totest@toto.o test 1b                                Bod
 "
-			    summarize-message-7)
+			    summarize-message-8)
   "Test `summarize-message' where the message has a replied field."
   (with-test-dir (dir "Mail/folder/")
     (letf (((search-list "home:") (list dir)))
@@ -208,7 +208,7 @@ Body.
 
 (deftest summarize-message ("   1 - 15-Apr    135 To: totest@toto.o test 1b                                Bod
 "
-			    summarize-message-8)
+			    summarize-message-9)
   "Test `summarize-message' where the message has a broken replied field."
   (with-test-dir (dir "Mail/folder/")
     (letf (((search-list "home:") (list dir)))
@@ -235,7 +235,7 @@ Body.
 ;                                                                                  trailing space to here
 (deftest summarize-message ("   1   15-Apr     97 Tess              test 1b                              
 "
-			    summarize-message-9)
+			    summarize-message-10)
   "Test `summarize-message' with an empty body and where the From name must
    be stipped."
   (with-test-dir (dir "Mail/folder/")
@@ -257,7 +257,7 @@ Date: 15 Apr 2000 16:02:10 +0100
 
 (deftest summarize-message ("   1   15-Apr   107K ftest@ttt.org     test 1b                                123
 "
-			    summarize-message-10)
+			    summarize-message-11)
   "Test `summarize-message' with message size between 1K and 1M."
   (with-test-dir (dir "Mail/folder/")
     (letf (((search-list "home:") (list dir)))
@@ -284,7 +284,7 @@ Date: 15 Apr 2000 16:02:10 +0100
 #| FIX how to do this fast?
 (deftest summarize-message ("   1   15-Apr   107K To: totest@toto.o test 1b                                123
 "
-			    summarize-message-11)
+			    summarize-message-12)
   "Test `summarize-message' with message size bigger than 1M."
   (with-test-dir (dir "Mail/folder/")
     (letf (((search-list "home:") (list dir)))
@@ -312,7 +312,7 @@ Date: 15 Apr 2000 16:02:10 +0100
 
 (deftest summarize-message ("   1   15-Apr     96 To: totest@toto.o                                        Bod
 "
-			    summarize-message-12)
+			    summarize-message-13)
   "Test `summarize-message' where the subject is empty."
   (with-test-dir (dir "Mail/folder/")
     (letf (((search-list "home:") (list dir)))

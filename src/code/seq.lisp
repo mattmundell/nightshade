@@ -2004,7 +2004,16 @@ FIX
 (defun position (item sequence &key from-end (test #'eql) test-not (start 0)
 		 end key)
   "Return the zero-origin index of the first element in $sequence
-   satisfying the $test with the given $item, else ()."
+   satisfying the $test with the given $item, else ().
+
+   For example
+
+     (position #\c \"abcd\")                =>  2
+     (position '(#\c #\b) \"abcd\"
+               :test (lambda (one two)
+                       (member two one)))   =>  1
+     (position 7 '(7 1 7) :test #'<)        =>  ()
+     (position 7 '(7 1 7) :test #'>)        =>  1"
   (seq-dispatch sequence
     (list-position* item sequence from-end test test-not start end key)
     (vector-position* item sequence from-end test test-not start end key)))
@@ -2086,10 +2095,11 @@ FIX
 ;;; an error to supply nil for its value.  We must test for end being nil
 ;;; in the body of the function, and this is actually done in the support
 ;;; routines for other reasons (see above).
+;;;
 (defun find (item sequence &key from-end (test #'eql) test-not (start 0)
 		  end key)
-  "Return the first element in SEQUENCE satisfying the test (default is
-   EQL) with the given ITEM."
+  "Return the first element in $sequence satisfying the test (default is
+   `eql') with the given $item."
   (declare (fixnum start))
   (seq-dispatch sequence
     (list-find* item sequence from-end test test-not start end key)
@@ -2449,7 +2459,6 @@ FIX
 	     (return index2)))))
 
 )
-
 (defun search (sequence1 sequence2 &key from-end (test #'eql) test-not
 	       (start1 0) end1 (start2 0) end2 key)
   "A search is conducted using EQL for the first subsequence of sequence2
@@ -2493,21 +2502,54 @@ FIX in resulting build, on c-x r
      (result)))
 |#
 (defun split (sequence separators &key (start 0) end)
-  "Split the portion of Sequence from Start to End according to Separators.
-   Return a list of the resulting subsequences.  If Separators is a list
-   split at every item in the list, otherwise split at Separators."
+  "Split the portion of $sequence from $start to $end according to
+   $separators.  Return a list of the resulting subsequences.
+
+   If $separators is a list split at every item in the list, otherwise
+   split at $separators."
   (when sequence
     (collect ((result))
       (if (listp separators)
-	  (loop for pos = (position separators sequence :start start :end end
-				    ;; FIX are position,member arg orders consistent?
-				    :test (lambda (one two) (member two one)))
-	    do
-	    (result (subseq sequence start pos))
-	    (or pos (return))
-	    (setq start (1+ pos)))
-	  (loop for pos = (position separators sequence :start start :end end) do
-	    (result (subseq sequence start pos))
-	    (or pos (return))
-	    (setq start (1+ pos))))
+	  (loop
+	    (let ((pos (position separators sequence
+				 :start start :end end
+				 :test (lambda (one two)
+					 (member two one)))))
+	      (result (subseq sequence start pos))
+	      (or pos (return))
+	      (setq start (1+ pos))))
+	  (loop
+	    (let ((pos (position separators sequence
+				 :start start :end end)))
+	      (result (subseq sequence start pos))
+	      (or pos (return))
+	      (setq start (1+ pos)))))
       (result))))
+
+#|
+TODO consider updating `search' to treat list $sequence1 as multiple searches
+(defun split (separator sequence
+			&key
+			(start 0) end
+			(test #'eql))
+  "Split the portion of $sequence from $start to $end at $separator
+   according to $test.  Return a list of the resulting subsequences.
+
+   (split #\, "a,b") => ("a" "b")
+   (split ", " "a, b") => ("a" "b")
+   (split '(#\, #\;) "a,b;c") => ("a" "b" "c")
+   (split '("," ";") "a,b;c") => ("a" "b" "c")
+   ?(split '("," #\;) "a,b;c") => ("a" "b" "c")
+   (split '(", " ";") "a,b;c") => ("a,b" "c")"
+  (when sequence
+    (collect ((result))
+      (let ((separator-length (length separator)))
+	(loop
+	  (let ((pos (search separator sequence
+			     :start2 start :end2 end
+			     :test test)))
+	    (result (subseq sequence start pos))
+	    (or pos (return))
+	    (setq start (+ pos separator-length)))))
+      (result))))
+|#

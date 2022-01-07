@@ -177,7 +177,7 @@
 	    (handler-bind
 		((error #'(lambda (condition)
 			    (unless (typep condition 'c::compiler-error)
-			      (format t "~A" condition)
+			      (format t "~A~2&" condition)
 			      (format *error-output* "~2&~A~2&"
 				      condition)
 			      (when proceed
@@ -242,10 +242,12 @@
 			  (os-namestring file)))
 		    input-files)))
       (cond ((null write-date)
-	     (format t "~S out of date.~%" (namestring output-file))
+	     (format t "~S is out of date, recreating.~%"
+		     (namestring output-file))
 	     (run-program "/bin/cat" input-namestrings
 			  :output output-file
 			  :if-output-exists :supersede
 			  :error t))
 	    (t
-	     (format t "~S up to date.~%" (namestring output-file)))))))
+	     (format t "~S is already up to date.~%"
+		     (namestring output-file)))))))

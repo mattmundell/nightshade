@@ -1912,9 +1912,9 @@ the first value will always be true, often t.
 ;;; passed as an argument.
 
 (defun unix-dup (fd)
-  "Unix-dup duplicates an existing file descriptor (given as the
-   argument) and return it.  If FD is not a valid file descriptor, NIL
-   and an error number are returned."
+  "Unix-dup duplicates an existing file descriptor (given as the argument)
+   and returns it.  If FD is not a valid file descriptor, NIL and an error
+   number are returned."
   (declare (type unix-fd fd))
   (int-syscall ("dup" int) fd))
 
@@ -2091,9 +2091,8 @@ the first value will always be true, often t.
   (void-syscall ("link" c-string c-string) name1 name2))
 
 (defun unix-symlink (name1 name2)
-  "Unix-symlink creates a symbolic link named name2 to the file
-   named name1.  NIL and an error number is returned if the call
-   is unsuccessful."
+  "Unix-symlink creates a symbolic link named name2 to the file named
+   name1.  NIL and an error number are returned if the call fails."
   (declare (type unix-pathname name1 name2))
   (void-syscall ("symlink" c-string c-string) name1 name2))
 
@@ -3324,8 +3323,18 @@ in at a time in poll.")
 
 ;;;; Support routines for dealing with unix pathnames.
 
-(export '(unix-file-kind unix-maybe-prepend-current-directory
+(export '(unix-file-kind unix-file-kind-from-mode
+	  unix-maybe-prepend-current-directory
 	  unix-resolve-links unix-simplify-pathname))
+
+(defun unix-file-kind-from-mode (mode)
+  "Return the file type in $mode: :file, :directory, :link or :special."
+  (declare (type fixnum mode))
+  (let ((kind (logand mode s-ifmt)))
+    (cond ((eql kind s-ifdir) :directory)
+	  ((eql kind s-ifreg) :file)
+	  ((eql kind s-iflnk) :link)
+	  (t :special))))
 
 (defun unix-file-kind (name &optional check-for-links)
   "Return the type of $name: :file, :directory, :link, :special, or ()."
@@ -3336,12 +3345,7 @@ in at a time in poll.")
 			   (unix-stat name))
     (declare (type (or fixnum null) mode)
 	     (ignore dev ino))
-    (when res
-      (let ((kind (logand mode s-ifmt)))
-	(cond ((eql kind s-ifdir) :directory)
-	      ((eql kind s-ifreg) :file)
-	      ((eql kind s-iflnk) :link)
-	      (t :special))))))
+    (when res (unix-file-kind-from-mode mode))))
 
 (defun unix-maybe-prepend-current-directory (name)
   (declare (simple-string name))

@@ -116,7 +116,7 @@
 (defun indent-for-sgml (mark)
   (line-start mark)
   (delete-horizontal-space mark)
-  (funcall (value indent-with-tabs) mark (sgml-indentation mark)))
+  (funcall (value tab-indenter) mark (sgml-indentation mark)))
 
 (defevar "Indent Function"
   "Indentation function invoked by the `Indent' command.  The function

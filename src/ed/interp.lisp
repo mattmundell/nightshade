@@ -3,7 +3,7 @@
 (in-package "EDI")
 
 (export '(bind-key delete-key-binding get-command map-bindings
-	  make-command command-name command-bindings
+	  make-command free-command command-name command-bindings
 	  visible-command-bindings last-command-type
 	  prefix-argument exit *invoke-hook* key-translation))
 
@@ -317,7 +317,7 @@ bindings in a mode are transparent.
    before removing the binding.
 
    $kind is the kind of binding to delete, one of :global, :mode or
-   :buffer.  If kind is :mode, $where is the mode name, and if kind is
+   :buffer.  If kind is :mode, then $where is the mode name, and if kind is
    :buffer, then $where is the buffer."
   (set-table-entry (get-right-table kind where)
 		   (translate-key (crunch-key key))
@@ -430,6 +430,15 @@ bindings in a mode are transparent.
      (t
       (setf (getstring name *command-names*)
 	    (internal-make-command name documentation function))))))
+
+;;; FREE-COMMAND -- Public.
+;;;
+(defun free-command (name)
+  "Free the editor command $name, including any bindings."
+  (let ((command (getstring name *command-names*)))
+    (dolist (binding (command-bindings command))
+      (apply #'delete-key-binding binding))
+    (delete-string name *command-names*)))
 
 ;;; COMMAND-NAME, %SET-COMMAND-NAME -- Public.
 ;;;
@@ -705,20 +714,21 @@ command interpreter recursively using the function `recursive-edit'.
 			       (throw 'command-loop-catcher nil)))))
 	(clearf *busy*)
 	(loop
-	  (unless (eq *current-buffer* *echo-area-buffer*)
+	  (unless (eq *current-window* *echo-area-window*)
 	    (if (buffer-modified *echo-area-buffer*) (clear-echo-area))
-	    (unless (or (zerop (length cmd))
-			(not (value ed::key-echo-delay)))
-	      (editor-sleep (value ed::key-echo-delay))
-	      (unless (listen-editor-input *editor-input*)
-		(clear-echo-area)
-		(if (hyper-p cmd)
-		    (progn
-		      (write-string "Hyper-" *echo-area-stream*)
-		      (redisplay))
-		    (dotimes (i (length cmd))
-		      (ext:print-pretty-key (aref cmd i) *echo-area-stream*)
-		      (write-char #\space *echo-area-stream*))))))
+	    (or (zerop (length cmd))
+		(when (value ed::key-echo-delay)
+		  (editor-sleep (value ed::key-echo-delay))
+		  (unless (listen-editor-input *editor-input*)
+		    (clear-echo-area)
+		    (if (hyper-p cmd)
+			(progn
+			  (write-string "Hyper-" *echo-area-stream*)
+			  (redisplay))
+			(dotimes (i (length cmd))
+			  (ext:print-pretty-key (aref cmd i)
+						*echo-area-stream*)
+			  (write-char #\space *echo-area-stream*)))))))
 	  (vector-push-extend (get-key-event *editor-input*) cmd)
 	  (or (eq *current-buffer* *echo-area-buffer*)
 	      (when (hyper-p cmd)

@@ -24,25 +24,25 @@
   "Test `coerce-folder-name' with a short name."
   (coerce-folder-name "f"))
 
-(deftest coerce-folder-name ("+f" coerce-folder-name-4)
+(deftest coerce-folder-name ("+f" coerce-folder-name-5)
   "Test `coerce-folder-name' with a short name with a leading +."
   (coerce-folder-name "+f"))
 
 (deftest coerce-folder-name ("+looabcdefghijklmnopqrstuvwxyzoongfolder"
-			     coerce-folder-name-5)
+			     coerce-folder-name-6)
   "Test `coerce-folder-name' with a long name."
   (coerce-folder-name "looabcdefghijklmnopqrstuvwxyzoongfolder"))
 
 (deftest coerce-folder-name ("+looabcdefghijklmnopqrstuvwxyzoongfolder"
-			     coerce-folder-name-6)
+			     coerce-folder-name-7)
   "Test `coerce-folder-name' with a long name with a leading +."
   (coerce-folder-name "+looabcdefghijklmnopqrstuvwxyzoongfolder"))
 
-(deftest coerce-folder-name ("+folder/subfolder" coerce-folder-name-7)
+(deftest coerce-folder-name ("+folder/subfolder" coerce-folder-name-8)
   "Test `coerce-folder-name' on a folder with a subfolder."
   (coerce-folder-name "folder/subfolder"))
 
-(deftest coerce-folder-name ("+folder/subfolder" coerce-folder-name-8)
+(deftest coerce-folder-name ("+folder/subfolder" coerce-folder-name-9)
   "Test `coerce-folder-name' on a folder with a subfolder."
   (coerce-folder-name "+folder/subfolder"))
 

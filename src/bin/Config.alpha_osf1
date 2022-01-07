@@ -1,4 +1,4 @@
-P1=../../src/lisp
+P1=../../src/bin
 CPPFLAGS = -I.-I/usr/include -I$(P1) -I-
 CC = cc -g #-migrate
 LD = ld

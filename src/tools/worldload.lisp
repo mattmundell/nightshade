@@ -3,6 +3,8 @@
 
 (in-package "LISP")
 
+(declaim (special *save-target*))
+
 ;;; Since it is unlikely that native code top-level forms are moved
 ;;; before being executed during worldload it is probably safe to load
 ;;; these into the dynamic space under CGC even without enabling
@@ -108,6 +110,8 @@
 #-runtime (maybe-byte-load "code:terminal")
 #-runtime (maybe-byte-load "code:sync")
 #-runtime (maybe-byte-load "code:packagem")
+#-runtime (maybe-byte-load "code:cd")
+#-runtime (maybe-byte-load "code:css")
 
 ;;#+clx #-runtime (maybe-byte-load "code:xlib")
 ;;#+clx #-runtime (maybe-byte-load "code:clx-ext")

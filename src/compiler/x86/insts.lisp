@@ -1309,7 +1309,7 @@
    (maybe-emit-operand-size-prefix segment :word)
    (emit-byte segment #b10011000)))
 
-;;; CWDE -- Convert Word To Double Word Extened.  EAX <- sign_xtnd(AX)
+;;; CWDE -- Convert Word To Double Word Extended.  EAX <- sign_xtnd(AX)
 ;;;
 (define-instruction cwde (segment)
   (:emitter
@@ -1689,11 +1689,19 @@
    (typecase where
      (label
       (emit-byte segment #b11101000)
-      (emit-back-patch segment 4
-		       #'(lambda (segment posn)
-			   (emit-dword segment
-				       (- (label-position where)
-					  (+ posn 4))))))
+      (ecase *default-operand-size*
+	(:dword
+	 (emit-back-patch segment 4
+			  #'(lambda (segment posn)
+			      (emit-dword segment
+					  (- (label-position where)
+					     (+ posn 4))))))
+	(:word
+	 (emit-back-patch segment 2
+			  #'(lambda (segment posn)
+			      (emit-word segment
+					 (- (label-position where)
+					    (+ posn 2))))))))
      (fixup
       (emit-byte segment #b11101000)
       (emit-relative-fixup segment where))
@@ -1724,12 +1732,12 @@
 	       (let ((disp (- (label-position where posn delta-if-after)
 			      (+ posn 2))))
 		 (when (<= -128 disp 127)
-		       (emit-byte segment
-				  (dpb (conditional-opcode cond)
-				       (byte 4 0)
-				       #b01110000))
-		       (emit-byte-displacement-backpatch segment where)
-		       t)))
+		   (emit-byte segment
+			      (dpb (conditional-opcode cond)
+				   (byte 4 0)
+				   #b01110000))
+		   (emit-byte-displacement-backpatch segment where)
+		   t)))
 	   #'(lambda (segment posn)
 	       (let ((disp (- (label-position where) (+ posn 6))))
 		 (emit-byte segment #b00001111)
@@ -1758,7 +1766,7 @@
 	  (emit-relative-fixup segment where))
 	 (t
 	  (unless (or (ea-p where) (tn-p where))
-		  (error "Don't know what to do with ~A" where))
+	    (error "Don't know what to do with ~A" where))
 	  (emit-byte segment #b11111111)
 	  (emit-ea segment where #b100)))))
 

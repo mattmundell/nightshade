@@ -211,7 +211,7 @@ three different approaches to establishing communication:
     requiring the use of Lisp object representations.  The main difficulty
     with this approach is that either the foreign program must be written
     with Lisp interaction in mind, or a substantial amount of foreign
-    ``glue'' code must be written to perform the translation.
+    "glue" code must be written to perform the translation.
 
   * The Lisp system can automatically convert objects back and forth between
     the Lisp and foreign representations.  This is convenient, but
@@ -353,7 +353,8 @@ can call `free' on the result of `make-alien', and Lisp code can call
 {function:alien:make-alien}
 {function:alien:free-alien}
 
-The function `with-alien' stack-allocates Aliens.
+The function `with-alien' stack-allocates Aliens (described in [Local Alien
+Variables]).
 ]#
 
 #[ Alien Function Calls
@@ -1957,13 +1958,13 @@ convert from one name syntax into the other.  The macros `extern-alien',
        and return a pointer to it.  As a result the result must be changed
        to an array before being deref'ed to read or write elements:
 
-	 (defvar *foo* (make-alien (array char 10)))
+         (defvar *foo* (make-alien (array char 10)))
 
-	 (type-of *foo*)
-	   => (alien (* (array (signed 8) 10)))
+         (type-of *foo*)
+           => (alien (* (array (signed 8) 10)))
 
-	 (setf (deref (deref *foo*) 0) 10)
-	   => 10
+         (setf (deref (deref *foo*) 0) 10)
+           => 10
 
        Use $size as the first dimension for the array.
 

@@ -8,13 +8,21 @@
 	  defun-doc-to-latex doc-to-latex
 	  return-from-many return-from-row))
 
-;;; FIX move to manual (pkg doc? reader doc), complete
+;;; TODO the emit versions should produce as much of the final
+;;;      doc as possible
+;;;      ie they should recurse into descendent nodes first to find
+;;;      out if the descendents are static and evaluate those
+;;;      that are static and output code to write the text resulting
+;;;      from the static nodes (instead of outputting code which writes
+;;;      text for every single descendent in the tree separately).
+
+;;; FIX move to manual (pkg doc? reader doc linked from pkg doc), complete
 ;;;
 ;;; The defun-doc-to-* macros convert a description of a document into a
 ;;; function that produces the document in a given format.  For example
 ;;; `defun-doc-to-text' produces a function that produces a plain text
 ;;; version of the document given to defun-doc-to-text.  A document
-;;; description is a list of lists where each list is a part of the
+;;; description is a list of lists where each of the lists is a part of the
 ;;; document.  The content produced by each node can be static or dynamic.
 ;;;
 ;;; For example
@@ -29,11 +37,12 @@
 ;;; call to `db-record-full-name' is made when the document is rendered or
 ;;; converted.
 ;;;
-;;; A string node results in output to the stream in the variable `stream',
+;;; A string node results in output to the stream in the variable *stream*,
 ;;; as does a data node if the associated function call returns a true
 ;;; value.
 ;;;
-;;; Node types: string, data, rule, row, table, section, many, ref.
+;;; Node types: string, data, rule, row, table, description, section, many,
+;;; ref.
 
 
 ;;;; Description accessors.
@@ -104,6 +113,8 @@
 (declaim (special *emit* *first* *indent* *indents*
 		  *column-widths* *fill-widths* *section-depth*))
 
+(defvar *verbatim* ())
+
 ;; FIX use flet instead of labels  (somehow fix to keep functions)
 ;;        may be rqrd for cont (if every used)
 ;; FIX can the emit-switched cases combine?
@@ -111,12 +122,12 @@
 ;;         some sort of combined compiler,interpreter implementation
 ;;     combination exploring in test.lisp
 (defmacro translate-doc-to-text (emit &body body)
-  "If EMIT is true return code that will translate a document description
-   (list of nodes) into the body of a function that will produce plain text
-   for the documents described by that description i.e. compile a function
-   that will produce the defined document.  Otherwise return the body of an
-   interpreter that will produce a document in plain text given a
-   description (list of nodes) i.e. compile a doc definition to text
+  "If $emit is true then return code that will translate $body, a document
+   description (a list of nodes), into the body of a function that will
+   produce plain text for the documents described by $body i.e. compile a
+   function that will produce the defined document.  Otherwise return the
+   body of an interpreter that will produce a document in plain text given
+   a description (list of nodes) i.e. compile a doc definition to text
    document translator."
   `(labels
        ((open-line ()
@@ -140,29 +151,39 @@
 				   (i 0 (1+ i)))
 				  (cell)
 			     ;; A cell is a list of nodes.
-			     (while ((cells)
+			     (while ((nodes)
 				     (node (car cell) (cdr node)))
 				    (node
-				     (row-out (nreverse cells)))
+				     (row-out
+				      ;; Beware, generating a var called
+				      ;; nodes too.
+				      `(let* ((nodes (list ,@(nreverse
+							      nodes)))
+					      (max (nthcdr ,i
+							   *column-widths*))
+					      (width (+ (reduce #'+
+								nodes
+								:key
+								#'length)
+							3))) ; FIX *space-between-columns*
+					 ;(format t "nodes ~A~%" nodes)
+					 ;(format t "w ~A m ~A c ~A~%" width max *column-widths*)
+					 (if max
+					     (if (< (car max) width)
+						 (setf (car max) width))
+					     (setq *column-widths*
+						   (append *column-widths*
+							   (list width))))
+					 nodes)))
 			       (push
 				`(let* ((ss (make-string-output-stream))
 					(stream (lisp::make-indenting-stream
 						 ss)))
 				   ,(write-generic-node node)
 				   (let* ((str (get-output-stream-string
-						ss))
-					  (max (nthcdr ,i
-						       *column-widths*))
-					  (width (+ (length str)
-						    3)))
-				     (if max
-					 (if (< (car max) width)
-					     (setf (car max) width))
-					 (setq *column-widths*
-					       (append *column-widths*
-						       (list width))))
+						ss)))
 				     str))
-				cells)))
+				nodes)))
 			   (row-out))))
 		    (loop for row = rows then (gnode-next row) while row do
 		      (if (eq (intern (symbol-name (gnode-type row)) "DOC")
@@ -199,11 +220,26 @@
 					 (i 0 (1+ i)))
 					(cell)
 				   ;; A cell is a list of nodes.
-				   (while ((cells)
+				   (while ((nodes)
 					   (node (car cell)
 						 (cdr node)))
-					  (nodes
-					   (row-out (nreverse cells)))
+					  (node
+					   (let* ((nodes
+						   (nreverse nodes))
+						  (max (nthcdr
+							i
+							*column-widths*))
+						  (width (+ (reduce #'+ nodes
+								    :key #'length)
+							    3))) ; FIX *space-between-columns*
+					     (if max
+						 (if (< (car max) width)
+						     (setf (car max) width))
+						 (setq *column-widths*
+						       (append
+							*column-widths*
+							(list width))))
+					     (row-out nodes)))
 				     ;; Simulate binding of `stream', as
 				     ;; "call" to write-generic-node
 				     ;; jumps out of binding.
@@ -217,20 +253,9 @@
 					    (write-generic-node node)
 					  (setq stream old-stream))
 					(let* ((str (get-output-stream-string
-						     ss))
-					       (max (nthcdr
-						     i
-						     *column-widths*))
-					       (width (+ (length str) 3)))
-					  (if max
-					      (if (< (car max) width)
-						  (setf (car max) width))
-					      (setq *column-widths*
-						    (append
-						     *column-widths*
-						     (list width))))
+						     ss)))
 					  str))
-				      cells)))
+				      nodes)))
 				 (out (row-out)))))
 			  ;; FIX note there can only be one many per row ((table ((many ((row..
 			  (if (eq (intern (symbol-name (gnode-type row)) "DOC")
@@ -287,20 +312,24 @@
 			(len (length string)))
 		   (if fill-width
 		       (let ((fill-width (- fill-width *indent*)))
-			 (loop for end = fill-width then (+ end fill-width) do
+			 (while ((end fill-width (+ end fill-width)))
+				(t)
 			   (when (>= end len)
 			     (write-string string stream :start start)
 			     (if ,fill
-				 (write-string (make-string (- end len)
-							    :initial-element #\space)
+				 (write-string (make-string
+						(- end len)
+						:initial-element #\space)
 					       stream))
 			     (return))
-			   (loop
-			     for new-end from end downto start
-			     until (char= (char string new-end) #\space)
-			     finally (or (eq start new-end)
-					 (setq end new-end)))
-			   (write-line string stream :start start :end end)
+			   (until ((new-end end (1- new-end)))
+				  ((or (< new-end start)
+				       (char= (char string new-end)
+					      #\space))
+				   (or (>= start new-end)
+				       (setq end new-end))))
+			   (write-line string stream
+				       :start start :end end)
 			   (setq start (incf end))))
 		       ;; For buffer-rows.
 		       (write-string string stream :start start))
@@ -309,20 +338,28 @@
 		       (len (length string)))
 		  (if fill-width
 		      (let ((fill-width (- fill-width *indent*)))
-			(loop for end = fill-width then (+ end fill-width) do
+			;; Write the line in portions, to keep the text to
+			;; a certain width.
+			(while ((end fill-width (+ end fill-width)))
+			       (t)
 			  (when (>= end len)
+			    ;; Enough space on line, write the rest.
 			    (write-string string stream :start start)
 			    (when fill
-			      (write-string (make-string (- end len)
-							 :initial-element #\space)
+			      (write-string (make-string
+					     (- end len)
+					     :initial-element #\space)
 					    stream))
 			    (return))
-			  (loop
-			    for new-end from end downto start
-			    until (char= (char string new-end) #\space)
-			    finally (or (eq start new-end)
-					(setq end new-end)))
-			  (write-line string stream :start start :end end)
+			  ;; Move end backwards to the beginning of a word.
+			  (until ((new-end end (1- new-end)))
+				 ((or (< new-end start)
+				      (char= (char string new-end)
+					     #\space))
+				  (or (>= start new-end)
+				      (setq end new-end))))
+			  (write-line string stream
+				      :start start :end end)
 			  (setq start (incf end))))
 		      ;; For buffer-rows.
 		      (write-string string stream))
@@ -335,16 +372,20 @@
 		    '`(let ((cont t))
 			,(push-indentation args)
 			(catch 'end-many
-			  (loop while (and ,(write-generic-nodes (gnode-content node))
-					   cont)
-			    finally return cont))
+			  (while ()
+				 ((and ,(write-generic-nodes
+					 (gnode-content node))
+				       cont)
+				  cont)))
 			,(pop-indentation args))
 		    '(let ((cont t))
 		       (push-indentation args)
 		       (catch 'end-many
-			 (loop while (and (write-generic-nodes (gnode-content node))
-					  cont)
-			   finally return cont))
+			 (while ()
+				((and (write-generic-nodes
+				       (gnode-content node))
+				      cont)
+				 cont)))
 		       (pop-indentation args)))))
 	    (interpret
 	     ,(if (eval emit)
@@ -355,22 +396,26 @@
 	    (list
 	     ,(if (eval emit)
 		  '(collect ((out))
-		     (loop for item = (gnode-content node) then (gnode-next item) while item do
+		     (while ((item (gnode-content node) (gnode-next item)))
+			    (item)
 		       (out (open-line))
 		       (out '(write-string "- " stream))
 		       (out (push-absolute-indentation 2))
-		       (out `(setq last ,(write-generic-node item)))
+		       (out `(let ((*first*))
+			       (setq last ,(write-generic-node item))))
 		       (out (pop-absolute-indentation))
 		       (out '(fresh-line stream)))
 		     `(let ((last))
 			(progn ,@(out))
 			last))
 		  '(let ((last))
-		     (loop for item = (gnode-content node) then (gnode-next item) while item do
+		     (while ((item (gnode-content node) (gnode-next item)))
+			    (item)
 		       (open-line)
 		       (write-string "- " stream)
 		       (push-absolute-indentation 2)
-		       (setq last (write-generic-node item))
+		       (let ((*first*))
+			 (setq last (write-generic-node item)))
 		       (pop-absolute-indentation)
 		       (fresh-line stream))
 		     last)))
@@ -407,11 +452,11 @@
 	       ,(if (eval emit)
 		    '`(progn
 			#|
-		       let* ((props (ed::style styles :section ,(car args)))
-			     (width (ed::style-property props :width))
-			     (margin-left (ed::style-property props
+		       let* ((props (css:style styles :section ,(car args)))
+			     (width (css:style-property props :width))
+			     (margin-left (css:style-property props
 							      :margin-left))
-			     (margin-right (ed::style-property props
+			     (margin-right (css:style-property props
 							       :margin-right))
 			     (portion (if width
 					  (style-size-to-portion width)
@@ -454,11 +499,11 @@
 			    ;,(pop-indentation (list t portion))
 			    (decf *section-depth*))))
 		    '(progn
-		       #| let* ((props (ed::style styles :section (car args)))
-			    (width (ed::style-property props :width))
-			    (margin-left (ed::style-property props
+		       #| let* ((props (css:style styles :section (car args)))
+			    (width (css:style-property props :width))
+			    (margin-left (css:style-property props
 							     :margin-left))
-			    (margin-right (ed::style-property props
+			    (margin-right (css:style-property props
 							      :margin-right))
 			    (portion (if width
 					 (style-size-to-portion width)
@@ -527,8 +572,10 @@
 				    ,(push-absolute-indentation 'old-width)))
 			      (while ((node (car cells) (cdr node)))
 				     (node)
-				;; FIX why output cdr node?
-				,(output-string '(car node) '(cdr node)))
+				,(output-string '(car node)
+						;; Either last node in row
+						;; or fill.
+						'(fi (cdr node) (cdr cells))))
 			      (if (plusp col)
 				  ,(pop-absolute-indentation)))
 			    (terpri stream))
@@ -554,8 +601,10 @@
 				   (push-absolute-indentation old-width)))
 			     (while ((node (car cells) (cdr node)))
 				    (node)
-			       ;; FIX why cdr node?
-			       (output-string (car node) (cdr node)))
+			       (output-string (car node)
+					      ;; Either last node in row or
+					      ;; fill.
+					      (fi (cdr node) (cdr cells))))
 			     (if (plusp col)
 				 (pop-absolute-indentation)))
 			   (terpri stream))
@@ -590,8 +639,10 @@
 				    ,(push-absolute-indentation 'old-width)))
 			      (while ((node (car cells) (cdr node)))
 				     (node)
-				;; FIX why output cdr node?
-				,(output-string '(car node) '(cdr node)))
+				,(output-string '(car node)
+						;; Either last node in row
+						;; or fill.
+						'(fi (cdr node) (cdr cells))))
 			      (if (plusp col)
 				  ,(pop-absolute-indentation)))
 			    (terpri stream))
@@ -617,8 +668,10 @@
 				   (push-absolute-indentation old-width)))
 			     (while ((node (car cells) (cdr node)))
 				    (node)
-			       ;; FIX why cdr node?
-			       (output-string (car node) (cdr node)))
+			       (output-string (car node)
+					      ;; Either last node in row or
+					      ;; fill.
+					      (fi (cdr node) (cdr cells))))
 			     (if (plusp col)
 				 (pop-absolute-indentation)))
 			   (terpri stream))
@@ -627,11 +680,11 @@
 	    (rule
 	     (let ((args (gnode-args node)))
 	       ,(if (eval emit)
-		    '`(let* ((props (ed::style styles :hr ,(car args)))
-			     (width (ed::style-property props :width))
-			     (margin-left (ed::style-property props
+		    '`(let* ((props (css:style styles :hr ,(car args)))
+			     (width (css:style-property props :width))
+			     (margin-left (css:style-property props
 							      :margin-left))
-			     (margin-right (ed::style-property props
+			     (margin-right (css:style-property props
 							       :margin-right))
 			     (portion (if width
 					  (style-size-to-portion width)
@@ -647,12 +700,11 @@
 			  (write-char #\- stream))
 			(terpri stream)
 			t)
-		    `(let* ((props (progn
-				     (ed::style styles :hr (car args))))
-			    (width (ed::style-property props :width))
-			    (margin-left (ed::style-property props
+		    `(let* ((props (css:style styles :hr (car args)))
+			    (width (css:style-property props :width))
+			    (margin-left (css:style-property props
 							     :margin-left))
-			    (margin-right (ed::style-property props
+			    (margin-right (css:style-property props
 							      :margin-right))
 			    (portion (if width
 					 (style-size-to-portion width)
@@ -717,11 +769,13 @@
 	(write-generic-nodes (nodes)
 	  ,(if (eval emit)
 	       '(collect ((out))
-		  (loop for node = nodes then (gnode-next node) while node do
+		  (while ((node nodes (gnode-next node)))
+			 (node)
 		    (out (write-generic-node node)))
 		  `(progn ,@(out)))
 	       '(let ((last))
-		  (loop for node = nodes then (gnode-next node) while node do
+		  (while ((node nodes (gnode-next node)))
+			 (node)
 		    (setq last (write-generic-node node)))
 		  last))))
      ,@body))
@@ -735,8 +789,8 @@
 			     (fill-width 72)
 			     (*indent* 0)
 			     *indents*)
-       "Write a particular text document on STREAM according to STYLES with
-	FILL-WIDTH."
+       "Write a particular text document on $stream according to $styles
+	with $fill-width."
        (let ((stream (lisp::make-indenting-stream stream))
 	     (*section-depth* 0) (*column-widths*) (*fill-widths*) (*first* t))
 	 ,(write-generic-nodes (eval nodes))))))
@@ -746,7 +800,7 @@
 			   (fill-width 72)
 			   (*indent* 0)
 			   *indents*)
-  "Write the document described by NODES to STREAM as plain text."
+  "Write the document described by $nodes to $stream as plain text."
   ;; FIX stream may already be indenting
   (translate-doc-to-text () (write-generic-nodes nodes)))
 
@@ -755,7 +809,7 @@
 			  (fill-width 72)
 			  (*indent* 0)
 			  *indents*)
-  "Write the document described by NODES to STREAM as plain text."
+  "Write the document described by $nodes to $stream as plain text."
   ;; FIX stream may already be indenting?
   (let ((stream (lisp::make-indenting-stream stream))
 	(*section-depth* 0) (*column-widths*) (*fill-widths*) (*first* t))
@@ -794,29 +848,39 @@
 				   (i 0 (1+ i)))
 				  (cell)
 			     ;; A cell is a list of nodes.
-			     (while ((cells)
+			     (while ((nodes)
 				     (node (car cell) (cdr node)))
 				    (node
-				     (row-out (nreverse cells)))
+				     (row-out
+				      ;; Beware, generating a var called
+				      ;; nodes too.
+				      `(let* ((nodes (list ,@(nreverse
+							      nodes)))
+					      (max (nthcdr ,i
+							   *column-widths*))
+					      (width (+ (reduce #'+
+								nodes
+								:key
+								#'length)
+							3))) ; FIX *space-between-columns*
+					 ;(format t "nodes ~A~%" nodes)
+					 ;(format t "w ~A m ~A c ~A~%" width max *column-widths*)
+					 (if max
+					     (if (< (car max) width)
+						 (setf (car max) width))
+					     (setq *column-widths*
+						   (append *column-widths*
+							   (list width))))
+					 nodes)))
 			       (push
 				`(let* ((ss (make-string-output-stream))
 					(stream (lisp::make-indenting-stream
 						 ss)))
 				   ,(write-generic-node node)
 				   (let* ((str (get-output-stream-string
-						ss))
-					  (max (nthcdr ,i
-						       *column-widths*))
-					  (width (+ (length str)
-						    3)))
-				     (if max
-					 (if (< (car max) width)
-					     (setf (car max) width))
-					 (setq *column-widths*
-					       (append *column-widths*
-						       (list width))))
+						ss)))
 				     str))
-				cells)))
+				nodes)))
 			   (row-out))))
 		    (loop for row = rows then (gnode-next row) while row do
 		      (if (eq (intern (symbol-name (gnode-type row)) "DOC")
@@ -836,58 +900,61 @@
 		       (progn ,@(out))
 		       (buffer-list))))
 	       '(collect ((out))
-		  ;(format t "rows: ~A~%" rows)
-		  (unwind-protect
-		      (loop for row = rows then (gnode-next row) while row do
-			(flet
-			    ((collect-row (row)
-			       (collect ((row-out))
-				 (while ((cell (gnode-content row)
-					       (gnode-next cell))
-					 (i 0 (1+ i)))
-					(cell)
-				   ;; A cell is a list of nodes.
-				   (while ((cells)
-					   (node (car cell) (cdr node)))
-					  (node
-					   (row-out (nreverse cells)))
-				     ;; Simulate binding of `stream', as
-				     ;; "call" to write-generic-node
-				     ;; jumps out of binding.
-				     (push
-				      (let ((ss (make-string-output-stream))
-					    (old-stream stream))
-					(setq stream
-					      (lisp::make-indenting-stream
-					       ss))
-					(unwind-protect
-					    (write-generic-node node)
-					  (setq stream old-stream))
-					(let* ((str (get-output-stream-string
-						     ss))
-					       (max (nthcdr
-						     i
-						     *column-widths*))
-					       (width (+ (length str) 3)))
-					  (if max
-					      (if (< (car max) width)
-						  (setf (car max) width))
-					      (setq *column-widths*
-						    (append
-						     *column-widths*
-						     (list width))))
-					  str))
-				      cells)))
-				 (out (row-out)))))
-			  ;; FIX note there can only be one many per row ((table ((many ((row..
-			  (if (eq (intern (symbol-name (gnode-type row)) "DOC")
-				  'many)
-			      (catch 'end-many
-				(loop
-				  (catch 'end-row
-				    (collect-row (gnode-content row)))))
-			      (catch 'end-row (collect-row row))))))
-		  ;(format t "(out): ~A~%" (out)) ;; FIX
+		  (while ((row rows (gnode-next row)))
+			 (row)
+		    (flet
+			((collect-row (row)
+			   (collect ((row-out))
+			     (while ((cell (gnode-content row)
+					   (gnode-next cell))
+				     (i 0 (1+ i)))
+				    (cell)
+			       ;; A cell is a list of nodes.
+			       (while ((nodes)
+				       (node (car cell)
+					     (cdr node)))
+				      (node
+				       (let* ((nodes
+					       (nreverse nodes))
+					      (max (nthcdr
+						    i
+						    *column-widths*))
+					      (width (+ (reduce #'+ nodes
+								:key #'length)
+							3))) ; FIX *space-between-columns*
+					 (if max
+					     (if (< (car max) width)
+						 (setf (car max) width))
+					     (setq *column-widths*
+						   (append
+						    *column-widths*
+						    (list width))))
+					 (row-out nodes)))
+				 ;; Simulate binding of `stream', as
+				 ;; "call" to write-generic-node
+				 ;; jumps out of binding.
+				 (push
+				  (let ((ss (make-string-output-stream))
+					(old-stream stream))
+				    (setq stream
+					  (lisp::make-indenting-stream
+					   ss))
+				    (unwind-protect
+					(write-generic-node node)
+				      (setq stream old-stream))
+				    (let* ((str (get-output-stream-string
+						 ss)))
+				      str))
+				  nodes)))
+			     (out (row-out)))))
+		      ;; FIX note there can only be one many per row ((table ((many ((row..
+		      (if (eq (intern (symbol-name (gnode-type row)) "DOC")
+			      'many)
+			  (catch 'end-many
+			    (loop
+			      (catch 'end-row
+				(collect-row (gnode-content row)))))
+			  (catch 'end-row (collect-row row)))))
 		  (out))))
 	(output-string (string)
 	  ,(if (eval emit)
@@ -1028,8 +1095,7 @@
 			(while ((row row-buffer (cdr row)))
 			       (row)
 			  (format stream "<TR~A>" class)
-			  (while ((cells (car row) (cdr cells))
-				  (col 0 (1+ col)))
+			  (while ((cells (car row) (cdr cells)))
 				 (cells)
 			    (format stream "<TD~A>" class)
 			    (while ((nodes (car cells) (cdr nodes)))
@@ -1051,8 +1117,7 @@
 		       (while ((row row-buffer (cdr row)))
 			      (row)
 			 (format stream "<TR~A>" class)
-			 (while ((cells (car row) (cdr cells))
-				 (col 0 (1+ col)))
+			 (while ((cells (car row) (cdr cells)))
 				(cells)
 			   (format stream "<TD~A>" class)
 			   (while ((nodes (car cells) (cdr nodes)))
@@ -1258,7 +1323,7 @@
 			  sheet
 			  (*indent* 0)
 			  *indents*)
-  "Write the document described by NODES to STREAM as HTML."
+  "Write the document described by $nodes to $stream as HTML."
   ;; FIX stream may already be indenting?
   (let ((stream (lisp::make-indenting-stream stream))
 	(*column-widths*) (*first* t))
@@ -1281,10 +1346,10 @@
        ((begin-wrap-styles (type class)
 	  ;; FIX maybe buffer the end forms for end-wrap-styles
 	  ,(if (eval emit)
-	       '`(let* ((props (ed::style styles ,type ,class))
-			(font-weight (ed::style-property props :font-weight))
-			(margin-left (ed::style-property props :margin-left))
-			(margin-right (ed::style-property props :margin-right)))
+	       '`(let* ((props (css:style styles ,type ,class))
+			(font-weight (css:style-property props :font-weight))
+			(margin-left (css:style-property props :margin-left))
+			(margin-right (css:style-property props :margin-right)))
 		   ;; FIX precedence?
 		   (if font-weight
 		       (cond ((string= (string-upcase font-weight) "BOLD")
@@ -1297,7 +1362,7 @@
 			       "\\begin{adjustwidth}{\\textwidth * ~A}{\\textwidth * ~A}~%"
 			       (style-size-to-portion margin-left)
 			       (style-size-to-portion margin-right)))
-		   (let ((width (ed::style-property props :width)))
+		   (let ((width (css:style-property props :width)))
 		     (if width
 			 (format stream
 				 "\\changetext{}{- \\textwidth * ~A}{}{}{}~%"
@@ -1306,10 +1371,10 @@
 			margin-right
 			(string= (string-upcase margin-right) "AUTO")
 			(format stream "\\centering~%")))
-	       '(let* ((props (ed::style styles type class))
-		       (font-weight (ed::style-property props :font-weight))
-		       (margin-left (ed::style-property props :margin-left))
-		       (margin-right (ed::style-property props :margin-right)))
+	       '(let* ((props (css:style styles type class))
+		       (font-weight (css:style-property props :font-weight))
+		       (margin-left (css:style-property props :margin-left))
+		       (margin-right (css:style-property props :margin-right)))
 		  ;; FIX precedence?
 		  (if font-weight
 		      (cond ((string= (string-upcase font-weight) "BOLD")
@@ -1319,7 +1384,7 @@
 			      "\\begin{adjustwidth}{\\textwidth * ~A}{\\textwidth * ~A}~%"
 			      (style-size-to-portion margin-left)
 			      (style-size-to-portion margin-right)))
-		  (let ((width (ed::style-property props :width)))
+		  (let ((width (css:style-property props :width)))
 		    (if width
 			(format stream
 				"\\changetext{}{- \\textwidth * ~A}{}{}{}~%"
@@ -1330,30 +1395,30 @@
 		       (format stream "\\centering~%")))))
 	(end-wrap-styles (type class)
 	  ,(if (eval emit)
-	       '`(let* ((props (ed::style styles ,type ,class))
-			(font-weight (ed::style-property props :font-weight))
-			(width (ed::style-property props :width)))
+	       '`(let* ((props (css:style styles ,type ,class))
+			(font-weight (css:style-property props :font-weight))
+			(width (css:style-property props :width)))
 		   (if width
 		       (let ((ratio (style-size-to-portion width)))
 			 (format stream
 				 "\\changetext{}{\\textwidth * ~A / ~A - \\textwidth}{}{}{}~%"
 				 (denominator ratio)
 				 (numerator ratio))))
-		   (if (ed::style-property props :margin-left)
+		   (if (css:style-property props :margin-left)
 		       (format stream "\\end{adjustwidth}~%"))
 		   (if font-weight
 		       (cond ((string= (string-upcase font-weight) "BOLD")
 			      (format stream "}~%")))))
-	       '(let* ((props (ed::style styles type class))
-		       (font-weight (ed::style-property props :font-weight))
-		       (width (ed::style-property props :width)))
+	       '(let* ((props (css:style styles type class))
+		       (font-weight (css:style-property props :font-weight))
+		       (width (css:style-property props :width)))
 		  (if width
 		      (let ((ratio (style-size-to-portion width)))
 			(format stream
 				"\\changetext{}{\\textwidth * ~A / ~A - \\textwidth}{}{}{}~%"
 				(denominator ratio)
 				(numerator ratio))))
-		  (if (ed::style-property props :margin-left)
+		  (if (css:style-property props :margin-left)
 		      (format stream "\\end{adjustwidth}~%"))
 		  (if font-weight
 		      (cond ((string= (string-upcase font-weight) "BOLD")
@@ -1379,29 +1444,39 @@
 				   (i 0 (1+ i)))
 				  (cell)
 			     ;; A cell is a list of nodes.
-			     (while ((cells)
+			     (while ((nodes)
 				     (node (car cell) (cdr node)))
-				    (nodes
-				     (row-out (nreverse cells)))
+				    (node
+				     (row-out
+				      ;; Beware, generating a var called
+				      ;; nodes too.
+				      `(let* ((nodes (list ,@(nreverse
+							      nodes)))
+					      (max (nthcdr ,i
+							   *column-widths*))
+					      (width (+ (reduce #'+
+								nodes
+								:key
+								#'length)
+							3))) ; FIX *space-between-columns*
+					 ;(format t "nodes ~A~%" nodes)
+					 ;(format t "w ~A m ~A c ~A~%" width max *column-widths*)
+					 (if max
+					     (if (< (car max) width)
+						 (setf (car max) width))
+					     (setq *column-widths*
+						   (append *column-widths*
+							   (list width))))
+					 nodes)))
 			       (push
 				`(let* ((ss (make-string-output-stream))
 					(stream (lisp::make-indenting-stream
 						 ss)))
 				   ,(write-generic-node node)
 				   (let* ((str (get-output-stream-string
-						ss))
-					  (max (nthcdr ,i
-						       *column-widths*))
-					  (width (+ (length str)
-						    3)))
-				     (if max
-					 (if (< (car max) width)
-					     (setf (car max) width))
-					 (setq *column-widths*
-					       (append *column-widths*
-						       (list width))))
+						ss)))
 				     str))
-				cells)))
+				nodes)))
 			   (row-out))))
 		    (loop for row = rows then (gnode-next row) while row do
 		      (if (eq (intern (symbol-name (gnode-type row)) "DOC")
@@ -1421,58 +1496,61 @@
 		       (progn ,@(out))
 		       (buffer-list))))
 	       '(collect ((out))
-		  (unwind-protect
-		      (loop for row = rows then (gnode-next row) while row do
-			(flet
-			    ((collect-row (row)
-			       (collect ((row-out))
-				 (while ((cell (gnode-content row)
-					       (gnode-next cell))
-					 (i 0 (1+ i)))
-					(cell)
-				   ;; A cell is a list of nodes.
-				   (while ((cells)
-					   (node (car cell)
-						 (cdr node)))
-					  (nodes
-					   (row-out (nreverse cells)))
-				     ;; Simulate binding of `stream', as
-				     ;; "call" to write-generic-node
-				     ;; jumps out of binding.
-				     (push
-				      (let ((ss (make-string-output-stream))
-					    (old-stream stream))
-					(setq stream
-					      (lisp::make-indenting-stream
-					       ss))
-					(unwind-protect
-					    (write-generic-node node)
-					  (setq stream old-stream))
-					(let* ((str (get-output-stream-string
-						     ss))
-					       (max (nthcdr
-						     i
-						     *column-widths*))
-					       (width (+ (length str) 3)))
-					  (if max
-					      (if (< (car max) width)
-						  (setf (car max) width))
-					      (setq *column-widths*
-						    (append
-						     *column-widths*
-						     (list width))))
-					  str))
-				      cells)))
-				 (out (row-out)))))
-			  ;; FIX note there can only be one many per row
-			  ;;     ((table ((many ((row..
-			  (if (eq (intern (symbol-name (gnode-type row)) "DOC")
-				  'many)
-			      (catch 'end-many
-				(loop
-				  (catch 'end-row
-				    (collect-row (gnode-content row)))))
-			      (catch 'end-row (collect-row row))))))
+		  (while ((row rows (gnode-next row)))
+			 (row)
+		    (flet
+			((collect-row (row)
+			   (collect ((row-out))
+			     (while ((cell (gnode-content row)
+					   (gnode-next cell))
+				     (i 0 (1+ i)))
+				    (cell)
+			       ;; A cell is a list of nodes.
+			       (while ((nodes)
+				       (node (car cell)
+					     (cdr node)))
+				      (node
+				       (let* ((nodes
+					       (nreverse nodes))
+					      (max (nthcdr
+						    i
+						    *column-widths*))
+					      (width (+ (reduce #'+ nodes
+								:key #'length)
+							3))) ; FIX *space-between-columns*
+					 (if max
+					     (if (< (car max) width)
+						 (setf (car max) width))
+					     (setq *column-widths*
+						   (append
+						    *column-widths*
+						    (list width))))
+					 (row-out nodes)))
+				 ;; Simulate binding of `stream', as
+				 ;; "call" to write-generic-node
+				 ;; jumps out of binding.
+				 (push
+				  (let ((ss (make-string-output-stream))
+					(old-stream stream))
+				    (setq stream
+					  (lisp::make-indenting-stream
+					   ss))
+				    (unwind-protect
+					(write-generic-node node)
+				      (setq stream old-stream))
+				    (let* ((str (get-output-stream-string
+						 ss)))
+				      str))
+				  nodes)))
+			     (out (row-out)))))
+		      ;; FIX note there can only be one many per row ((table ((many ((row..
+		      (if (eq (intern (symbol-name (gnode-type row)) "DOC")
+			      'many)
+			  (catch 'end-many
+			    (loop
+			      (catch 'end-row
+				(collect-row (gnode-content row)))))
+			  (catch 'end-row (collect-row row)))))
 		  (out))))
 	(output-string (string)
 	  ,(if (eval emit)
@@ -1490,14 +1568,18 @@
 	       ,(if (eval emit)
 		    '`(let ((cont t))
 			(catch 'end-many
-			  (loop while (and ,(write-generic-nodes (gnode-content node))
-					   cont)
-			    finally return cont)))
+			  (while ()
+				 ((and ,(write-generic-nodes
+					 (gnode-content node))
+				       cont)
+				  cont))))
 		    '(let ((cont t))
 		       (catch 'end-many
-			 (loop while (and (write-generic-nodes (gnode-content node))
-					  cont)
-			   finally return cont))))))
+			 (while ()
+				((and (write-generic-nodes
+				       (gnode-content node))
+				      cont)
+				 cont)))))))
 	    (interpret
 	     ,(if (eval emit)
 		  '`(%doc-to-latex ,(car (gnode-content node))
@@ -1559,17 +1641,18 @@
 	       ,(if (eval emit)
 		    ;; FIX buffer paragraph else may output when
 		    ;;     return-from-many
-		    '`(progn
-			,(open-line)
-			(if ,(car args)
-			    ,(begin-wrap-styles :verbatim (car args)))
-			(format stream "\\begin{verbatim}~%")
-			(prog1 ,(write-generic-nodes (gnode-content node))
-			  (fresh-line stream)
-			  (format stream "\\end{verbatim}~%")
+		    (let ((*verbatim* t))
+		      '`(progn
+			  ,(open-line)
 			  (if ,(car args)
-			      ,(end-wrap-styles :verbatim (car args)))))
-		    '(progn
+			      ,(begin-wrap-styles :verbatim (car args)))
+			  (format stream "\\begin{verbatim}~%")
+			  (prog1 ,(write-generic-nodes (gnode-content node))
+			    (fresh-line stream)
+			    (format stream "\\end{verbatim}~%")
+			    (if ,(car args)
+				,(end-wrap-styles :verbatim (car args))))))
+		    '(let ((*verbatim* t))
 		       (open-line)
 		       (if (car args)
 			   (begin-wrap-styles :verbatim (car args)))
@@ -1637,9 +1720,9 @@
 			  (if ,(car args)
 			      ,(begin-wrap-styles :table (car args)))
 			  (if ,(car args)
-			      (let* ((props (ed::style styles :table ,(car args)))
-				     (margin-left (ed::style-property props :margin-left))
-				     (margin-right (ed::style-property props :margin-right)))
+			      (let* ((props (css:style styles :table ,(car args)))
+				     (margin-left (css:style-property props :margin-left))
+				     (margin-right (css:style-property props :margin-right)))
 				(if (or margin-left margin-right)
 				    (let ((margin-left (style-size-to-portion margin-left))
 					  (margin-right (style-size-to-portion margin-right)))
@@ -1657,7 +1740,8 @@
 			  (while ((row row-buffer (cdr row)))
 				 (row)
 			    (while ((cells (car row) (cdr cells))
-				    (col 0 (1+ col)))
+				    ;(col 0 (1+ col))
+				    )
 				   (cells)
 			      (while ((nodes (car cells) (cdr nodes)))
 				     (nodes)
@@ -1676,9 +1760,9 @@
  			 (if (car args)
 			     (begin-wrap-styles :table (car args)))
 			 (if (car args)
-			     (let* ((props (ed::style styles :table (car args)))
-				    (margin-left (ed::style-property props :margin-left))
-				    (margin-right (ed::style-property props :margin-right)))
+			     (let* ((props (css:style styles :table (car args)))
+				    (margin-left (css:style-property props :margin-left))
+				    (margin-right (css:style-property props :margin-right)))
 			       (if (or margin-left margin-right)
 				   (let ((margin-left (style-size-to-portion margin-left))
 					 (margin-right (style-size-to-portion margin-right)))
@@ -1696,7 +1780,8 @@
 			 (while ((row row-buffer (cdr row)))
 				(row)
 			   (while ((cells (car row) (cdr cells))
-				   (col 0 (1+ col)))
+				   ;(col 0 (1+ col))
+				   )
 				  (cells)
 			     (while ((nodes (car cells) (cdr nodes)))
 				    (nodes)
@@ -1708,7 +1793,6 @@
 			     (end-wrap-styles :table (car args))))
 		       t))))
 	    (description
-	     ;; FIX just copied in from table above
 	     (let* ((rows (gnode-content node))
 		    (args (gnode-args node)))
 	       ,(if (eval emit)
@@ -1719,35 +1803,26 @@
 			  ,(open-line)
 			  (if ,(car args)
 			      ,(begin-wrap-styles :table (car args)))
-			  (if ,(car args)
-			      (let* ((props (ed::style styles :table ,(car args)))
-				     (margin-left (ed::style-property props :margin-left))
-				     (margin-right (ed::style-property props :margin-right)))
-				(if (or margin-left margin-right)
-				    (let ((margin-left (style-size-to-portion margin-left))
-					  (margin-right (style-size-to-portion margin-right)))
-				      (format stream
-					      "\\begin{tabularx}{\\textwidth * ~A}{@{\\extracolsep{\\fill}}"
-					      (- 1 (+ margin-left margin-right))))
-				    (format stream
-					    "\\begin{tabularx}{\\textwidth}{@{\\extracolsep{\\fill}}")))
-			      (format stream
-				      "\\begin{tabularx}{\\textwidth}{@{\\extracolsep{\\fill}}"))
-			  (loop repeat (1- (apply #'longest-length row-buffer)) do
-			    (write-char #\l stream))
-			  (write-char #\X stream)
-			  (format stream "}~%")
+			  (format stream
+				  "\\begin{description}~%")
 			  (while ((row row-buffer (cdr row)))
 				 (row)
-			    (while ((cells (car row) (cdr cells))
-				    (col 0 (1+ col)))
+			    (when (car row)
+			      (format stream "\\item [")
+			      (while ((nodes (caar row) (cdr nodes))
+				      ;(col 0)
+				      )
+				     (nodes)
+				,(output-string '(car nodes)))
+			      (format stream "] "))
+			    (while ((cells (cdar row) (cdr cells))
+				    ;(col 0 (1+ col))
+				    )
 				   (cells)
 			      (while ((nodes (car cells) (cdr nodes)))
 				     (nodes)
-				,(output-string '(car nodes)))
-			      (if (cdr cells) (write-string "&" stream)))
-			    (format stream "\\\\~%"))
-			  (format stream "\\end{tabularx}~%")
+				,(output-string '(car nodes)))))
+			  (format stream "\\end{description}~%")
 			  (if ,(car args)
 			      ,(end-wrap-styles :table (car args))))
 			t)
@@ -1758,35 +1833,25 @@
 			 (open-line)
  			 (if (car args)
 			     (begin-wrap-styles :table (car args)))
-			 (if (car args)
-			     (let* ((props (ed::style styles :table (car args)))
-				    (margin-left (ed::style-property props :margin-left))
-				    (margin-right (ed::style-property props :margin-right)))
-			       (if (or margin-left margin-right)
-				   (let ((margin-left (style-size-to-portion margin-left))
-					 (margin-right (style-size-to-portion margin-right)))
-				     (format stream
-					     "\\begin{tabularx}{\\textwidth * ~A}{@{\\extracolsep{\\fill}}"
-					     (- 1 (+ margin-left margin-right))))
-				   (format stream
-					   "\\begin{tabularx}{\\textwidth}{@{\\extracolsep{\\fill}}")))
-			     (format stream
-				     "\\begin{tabularx}{\\textwidth}{@{\\extracolsep{\\fill}}"))
-			 (loop repeat (1- (apply #'longest-length row-buffer)) do
-			   (write-char #\l stream))
-			 (write-char #\X stream)
-			 (format stream "}~%")
+			 (format stream "\\begin{description}~%")
 			 (while ((row row-buffer (cdr row)))
 				(row)
-			   (while ((cells (car row) (cdr cells))
-				   (col 0 (1+ col)))
+			    (when (car row)
+			      (format stream "\\item [")
+			      (while ((nodes (caar row) (cdr nodes))
+				      ;(col 0)
+				      )
+				     (nodes)
+				(output-string (car nodes)))
+			      (format stream "] "))
+			   (while ((cells (cdar row) (cdr cells))
+				   ;(col 0 (1+ col))
+				   )
 				  (cells)
 			     (while ((nodes (car cells) (cdr nodes)))
 				    (nodes)
-			       (output-string (car nodes)))
-			     (if (cdr cells) (write-string "&" stream)))
-			   (format stream "\\\\~%"))
-			 (format stream "\\end{tabularx}~%")
+			       (output-string (car nodes)))))
+			 (format stream "\\end{description}~%")
 			 (if (car args)
 			     (end-wrap-styles :table (car args))))
 		       t))))
@@ -1797,8 +1862,8 @@
 			,(open-line)
 			(if ,(car args)
 			    ,(begin-wrap-styles :hr (car args)))
-			(let* ((props (ed::style styles :hr ,(car args)))
-			       (prop (ed::style-property props :width)))
+			(let* ((props (css:style styles :hr ,(car args)))
+			       (prop (css:style-property props :width)))
 			  (if prop
 			      (format stream "\\rule{\\textwidth}{0.1pt}~%")
 			      (format stream "\\hrulefill~%")))
@@ -1809,8 +1874,8 @@
 		       (open-line)
 		       (if (car args)
 			   (begin-wrap-styles :hr (car args)))
-		       (let* ((props (ed::style styles :hr (car args)))
-			      (prop (ed::style-property props :width)))
+		       (let* ((props (css:style styles :hr (car args)))
+			      (prop (css:style-property props :width)))
 			 (if prop
 			     (format stream "\\rule{\\textwidth}{0.1pt}~%")
 			     (format stream "\\hrulefill~%")))
@@ -1844,6 +1909,7 @@
 					  "MAILTO:")
 				 (encode-email (safe-subseq link 7))
 				 link)))))
+#|
 	    (string
 	     ,(if (eval emit)
 		  '(output-string
@@ -1856,6 +1922,19 @@
 				(string-right-trim '(#\newline)
 						   (gnode-single-content
 						    node))))))
+|#
+	    (string
+	     ,(if (eval emit)
+		  (if *verbatim*
+		      '(output-string (gnode-single-content node))
+		      '(output-string
+			(substitute #\space #\newline
+				    (gnode-single-content node))))
+		  '(if *verbatim*
+		       (output-string (gnode-single-content node))
+		       (output-string
+			(substitute #\space #\newline
+				    (gnode-single-content node))))))
 	    (data
 	     ,(if (eval emit)
 		  '`(let ((result ,(gnode-single-content node)))
@@ -1873,11 +1952,13 @@
 	(write-generic-nodes (nodes)
 	  ,(if (eval emit)
 	       '(collect ((out))
-		  (loop for node = nodes then (gnode-next node) while node do
+		  (while ((node nodes (gnode-next node)))
+			 (node)
 		    (out (write-generic-node node)))
 		  `(progn ,@(out)))
 	       '(let ((last))
-		  (loop for node = nodes then (gnode-next node) while node do
+		  (while ((node nodes (gnode-next node)))
+			 (node)
 		    (setq last (write-generic-node node)))
 		  last))))
      ,@body))
@@ -1934,7 +2015,7 @@
 			    styles
 			    (*indent* 0)
 			    *indents*)
-  "Write the document described by NODES to STREAM as LaTeX."
+  "Write the document described by $nodes to $stream as LaTeX."
   ;; FIX stream may already be indenting
   (translate-doc-to-latex () (write-generic-nodes nodes)))
 
@@ -1942,7 +2023,7 @@
 			   styles
 			   (*indent* 0)
 			   *indents*)
-  "Write the document described by NODES to STREAM as LaTeX."
+  "Write the document described by $nodes to $stream as LaTeX."
   ;; FIX stream may already be indenting?
   (let ((stream (lisp::make-indenting-stream stream))
 	(*column-widths*) (*first* t) (*section-depth* 0))

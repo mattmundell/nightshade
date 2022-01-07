@@ -164,7 +164,7 @@ FIX deftest
   (in-directory directory
     ;(format t "In ~A~%" directory)
     (let ((client-manifest (read-manifest ".manifest")))
-      (loop for entry in client-manifest do
+      (dolist (entry client-manifest)
 	(let ((entry-name (manifest-entry-name entry)))
 	  ;(format t "Considering ~A~%" entry-name)
 	  (if (directoryp entry-name :check-for-links t)
@@ -172,6 +172,7 @@ FIX deftest
 	      (let ((file-time (file-write-date entry-name
 						:check-for-links t))
 		    (entry-time (manifest-entry-time entry)))
+		;(format t "file-time: ~A~%" file-time)
 		(if file-time
 		    (when (if entry-time (> file-time entry-time) t)
 		      (format t "Updating ~A in ~A to ~A.~%"
@@ -180,13 +181,19 @@ FIX deftest
 		    (progn
 		      (format t "Marking ~A as subtracted (~A).~%"
 			      entry-name
-			      (if (minusp entry-time)
-				  entry-time
-				  (- entry-time)))
+			      (if entry-time
+				  (if (minusp entry-time)
+				      entry-time
+				      (- entry-time))
+				  -1))
 		      (setf (manifest-entry-time entry)
-			    (if (minusp entry-time)
-				entry-time (- entry-time)))))))))
-      (update-manifest-file client-manifest))))
+			    (if entry-time
+				(if (minusp entry-time)
+				    entry-time (- entry-time))
+				-1))))))))
+      (update-manifest-file client-manifest))
+    ;(format t "Out ~A~%" directory)
+    ))
 
 (defun yesp-function (&key prompt)
   (declare (ignore prompt))
@@ -195,6 +202,13 @@ FIX deftest
 (defvar *yesp-function* #'yesp-function
   "Function used to query to continue after each verbose message in
    `merge-directory-from-server'.")
+
+(defun y-or-n-p-function (&key prompt)
+  (apply #'y-or-n-p prompt))
+;;;
+(defvar *y-or-n-p-function* #'y-or-n-p-function
+  "Function used to query to remove file on client if removed on server and
+   modified on client.")
 
 (defun merge-directory-from-server (server directory &optional verbose-p)
   "Recursively merge any additions in DIRECTORY on SERVER into the current
@@ -240,11 +254,12 @@ FIX deftest
 		      (when (if (> (file-write-date server-entry-name)
 				   (- server-mod-time))
 				;; Client file modified after server subtraction.
-				;; FIX ed provide *query-io*, and show stdout properly
-				(y-or-n-p
-				 :prompt (format ()
-						 "~A modified on client and removed on server.  Remove on client?"
-						 server-entry-name))
+				;; FIX ed provide *query-io*, and show
+				;; stdout properly, so y-or-n-p will work
+				;; directly
+				(funcall *y-or-n-p-function*
+				 :prompt `("~A modified on client and removed on server.  Remove on client?"
+					   ,server-entry-name))
 				t)
 			;; Subtract the file from the client, recursively.
 			(format t "Subtracting ~A/~A.~%"
