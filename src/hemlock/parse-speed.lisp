@@ -1,0 +1,59 @@
+(defstruct
+    (V-NODE
+     (:CONSTRUCTOR MAKE-V-NODE
+		   (&KEY HEMLOCK::CONTENT HEMLOCK::NEXT HEMLOCK::PREVIOUS HEMLOCK::PARENT))
+     (:INCLUDE HEMLOCK::NODE))
+  "A V node.")
+
+(defun BUFFER-PARSE-V
+       (&OPTIONAL HEMLOCK::NEXT HEMLOCK::PREVIOUS HEMLOCK::PARENT)
+  "Return a node parsed from *mark* according to the BUFFER-PARSE-V rule."
+  (message "b-p-v")
+  (LET ((HEMLOCK::PARENT
+	 (MAKE-V-NODE :NEXT
+		      HEMLOCK::NEXT
+		      :PREVIOUS
+		      HEMLOCK::PREVIOUS
+		      :PARENT
+		      HEMLOCK::PARENT)))
+    (message "in let")
+    (SETF (HEMLOCK::NODE-CONTENT HEMLOCK::PARENT)
+	  (LET ((HEMLOCK::PREVIOUS NIL))
+	    (MULTIPLE-VALUE-BIND
+		(HEMLOCK::HEAD HEMLOCK::PREVIOUS)
+		(HEMLOCK::PRIMITIVE-BUFFER-PARSE-STRING "abc"
+							NIL
+							HEMLOCK::PREVIOUS
+							HEMLOCK::PARENT)
+	      (message "head: ~A~%" hemlock::head)
+	      (OR HEMLOCK::HEAD (RETURN-FROM BUFFER-PARSE-V))
+	      (message "head again: ~A~%" hemlock::head)
+	      (VALUES HEMLOCK::HEAD HEMLOCK::PREVIOUS))))
+    (message "after set")
+    (WHEN HEMLOCK::PREVIOUS
+      (SETF (HEMLOCK::NODE-NEXT HEMLOCK::PREVIOUS) HEMLOCK::PARENT))
+    (message "b-p-v end")
+    (VALUES HEMLOCK::PARENT HEMLOCK::PARENT)))
+
+;; This one is twice as fast as the one above.
+(defun BUFFER-PARSE-V
+       (&OPTIONAL HEMLOCK::NEXT HEMLOCK::PREVIOUS HEMLOCK::_PARENT)
+  "Return a node parsed from *mark* according to the BUFFER-PARSE-V rule."
+  (LET ((HEMLOCK::PARENT))
+    (LET ((HEMLOCK::PREVIOUS NIL))
+      (MULTIPLE-VALUE-BIND
+	  (HEMLOCK::HEAD HEMLOCK::PREVIOUS)
+	  (HEMLOCK::PRIMITIVE-BUFFER-PARSE-STRING "abc"
+						  NIL
+						  HEMLOCK::PREVIOUS
+						  HEMLOCK::PARENT)
+	(OR HEMLOCK::HEAD (RETURN-FROM BUFFER-PARSE-V))
+	(setq hemlock::parent
+	      (MAKE-V-NODE :NEXT HEMLOCK::NEXT
+			   :CONTENT HEMLOCK::HEAD
+			   :PARENT HEMLOCK::_PARENT))))
+    (WHEN HEMLOCK::PREVIOUS
+      (SETF (HEMLOCK::NODE-NEXT HEMLOCK::PREVIOUS) HEMLOCK::PARENT)
+      (SETF (HEMLOCK::NODE-PREVIOUS HEMLOCK::PARENT) HEMLOCK::PREVIOUS))
+    (VALUES HEMLOCK::PARENT HEMLOCK::PARENT)))
+
