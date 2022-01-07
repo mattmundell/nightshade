@@ -14,7 +14,7 @@
 ;;;
 ;;; The source and target directories (variables src and target) are either
 ;;; supplied or set to "./src" and "./build/".  Similarly the systems to
-;;; compile can be set via the system variable.
+;;; compile can be set via the systems variable.
 
 (in-package "USER")
 
@@ -24,9 +24,9 @@
 (defvar target (if src (format nil "~A/../build/" src) "./build/")
   "Destination directory for the build.")
 
-(defvar systems '(:lisp :compiler :hemlock :kernel)
+(defvar systems '(:lisp :compiler :ed :kernel)
   "A list of systems to build.  Members of the list can be any of :code,
-   :compiler, :hemlock and :kernel (the lisp kernel core), in any order")
+   :compiler, :ed and :kernel (the lisp kernel core), in any order")
 
 (defun preserve-logs (dir)
   "Backup previous log files."
@@ -73,7 +73,7 @@
   (setf (search-list "target:") `(,target ,src))
 
   (format t "Loading setup...")
-  (setq *compile-verbose* nil *compile-print* nil) 
+  (setq *compile-verbose* nil *compile-print* nil)
   (load "target:tools/setup" :if-source-newer :load-source)
   (setf *interactive* nil *gc-verbose* nil)
   ;; FIX quiet warning about def of comf
@@ -93,9 +93,9 @@
     (format t "Compiling compiler...")
     (load "target:tools/comcom"))
 
-  (when (position :hemlock systems)
-    (format t "Compiling Hemlock...")
-    (load "target:tools/hemcom"))
+  (when (position :ed systems)
+    (format t "Compiling Editor...")
+    (load "target:tools/edcom"))
 
   (when (position :kernel systems)
     (format t "Compiling kernel core...")

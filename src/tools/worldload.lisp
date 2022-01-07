@@ -70,7 +70,7 @@
 	#+alpha "target:assembly/alpha/"
 	#+ppc "target:assembly/ppc/"
 	"target:assembly/"))
-(setf (ext:search-list "hem:") '("target:hemlock/"))
+(setf (ext:search-list "ed:") '("target:ed/"))
 (setf (ext:search-list "clx:") '("target:clx/"))
 (setf (ext:search-list "pcl:") '("target:pcl/"))
 (setf (ext:search-list "tools:") '("target:tools/"))
@@ -146,10 +146,10 @@
 	  :environment-name (concatenate 'string (c:backend-name c:*backend*)
 					 " backend")))
 
-;;; Hemlock.
+;;; Editor.
 ;;;
 #-(or no-hemlock runtime)
-(maybe-byte-load "target:hemlock/hemlock-library")
+(maybe-byte-load "target:ed/ed-library")
 
 #+(or no-compiler runtime) (proclaim '(special *target-sl*))
 #-(or no-compiler runtime) (defvar *target-sl*)
@@ -164,7 +164,7 @@
 (lisp::clear-all-search-lists)
 
 ;;; Set up a default for modules and target:
-;;; 
+;;;
 (setf (search-list "modules:") '("./"))
 (setf (search-list "target:") *target-sl*)
 
@@ -184,7 +184,7 @@
   (setq +++ nil)
   (setq *** nil)
   (setq /// nil)
-  ;; 
+  ;;
   ;; Enable the garbage collector.  But first fake it into thinking that
   ;; we don't need to garbage collect.  The save-lisp is going to call purify
   ;; so any garbage will be collected then.
@@ -214,7 +214,7 @@
   (setq *features*
 	(nreverse
 	 (set-difference
-	  *features* 
+	  *features*
 	  '(:runtime :no-compiler :no-pcl :no-clx :no-clm :no-hemlock))))
   (save-lisp *target-core-name*
              :root-structures

@@ -88,7 +88,7 @@
       (load "library:subsystems/clm-library"))
     (when load-hemlock
       (setf *features* (delete :no-hemlock *features* :test #'eq))
-      (load "library:subsystems/hemlock-library"))
+      (load "library:subsystems/ed-library"))
     (dolist (f other) (load f))
     
     (setq *info-environment*

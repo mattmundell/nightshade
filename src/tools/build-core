@@ -1,9 +1,21 @@
-#!/bin/csh -f
+#!/bin/sh
 #
 #  build-core -- build full lisp core.
 
-$argv[1]/lisp/lisp -core $argv[1]/lisp/kernel.core << EOF
-(setf (search-list "target:") '("$argv[1]/" "$argv[1]/../src/"))
+# FIX how to make this quit explicitly so that if backtrace process still alive?
+
+#cd $1
+#exec $1/lisp/lisp -core $1/lisp/kernel.core  -eval "(progn (setf (search-list \"target:\") '(\"$1/\" \"$1/../src/\")) (load (open \"target:tools/worldload.lisp\"))"
+
+$1/lisp/lisp -core $1/lisp/kernel.core << EOF
+(setf (search-list "target:") '("$1/" "$1/../src/"))
 (load (open "target:tools/worldload.lisp"))
 (quit)
 EOF
+
+#!/bin/csh -f
+#
+# $argv[1]/lisp/lisp -core $argv[1]/lisp/kernel.core << EOF
+# (setf (search-list "target:") '("$argv[1]/" "$argv[1]/../src/"))
+# (load (open "target:tools/worldload.lisp"))
+# EOF

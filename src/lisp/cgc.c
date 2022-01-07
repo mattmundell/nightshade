@@ -1,4 +1,4 @@
-/* cgc.c -*- Mode: C; comment-column: 40; -*-
+/* cgc.c -*- Mode: C -*-
  * $Header: /project/cmucl/cvsroot/src/lisp/cgc.c,v 1.9 2000/10/24 13:32:30 dtc Exp $
  *
  * Conservative Garbage Collector for CMUCL x86.
@@ -37,7 +37,6 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/resource.h>
-
 
 #define dprintf(t,exp) if(t){printf exp ; fflush(stdout);}
 
@@ -197,7 +196,7 @@ void print_clusters()
     print_cluster(cluster);
 }
 #endif /* TESTING */
-  
+
 
 /* Allocation/deallocation routines */
 
@@ -2070,4 +2069,3 @@ component_ptr_from_pc(lispobj *pc)
 
   return (NULL);
 }
-

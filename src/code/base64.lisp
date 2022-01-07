@@ -1,10 +1,7 @@
-;;;; This file implements the Base64 transfer encoding algorithm as
-;;;; defined in RFC 1521 by Borensten & Freed, September 1993.
-;;;;
-;;;; Written by Juri Pakaste <juri@iki.fi>. It is in the public
-;;;; domain. Input is welcome.
-;;;;
-;;;; $Id: base64.lisp,v 1.2 2002/05/09 07:32:33 juri Exp $
+;;; -*- Package: Base64 -*-
+;;;
+;;; The Base64 transfer encoding algorithm, as defined in RFC 1521 by
+;;; Borensten and Freed, September 1993.
 
 (defpackage "BASE64"
   (:use "CL")

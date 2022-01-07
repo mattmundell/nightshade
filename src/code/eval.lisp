@@ -19,7 +19,7 @@
 	  return function setq psetq apply funcall
 	  progv flet labels macrolet
 	  mapcar maplist mapc mapl mapcan mapcon
-	  tagbody prog prog* go 
+	  tagbody prog prog* go
 	  values multiple-values-limit
 	  values-list multiple-value-list multiple-value-call
 	  multiple-value-prog1 multiple-value-bind multiple-value-setq
@@ -28,14 +28,14 @@
 	  function-lambda-expression
           ;;
           ;; Declaration symbols referenced in the cold load.
-          declare special 
+          declare special
 	  ;;
 	  ;; Magical markers...
 	  lambda &optional &rest &key &aux &body &whole
 	  &allow-other-keys &environment))
 
 #| Not implemented:
-*evalhook* *applyhook* evalhook applyhook 
+*evalhook* *applyhook* evalhook applyhook
 |#
 
 (export '(eval::interpreted-function-p
@@ -95,7 +95,7 @@
 	    (:constructor %make-interpreted-function)
 	    (:print-function
 	     (lambda (s stream d)
-	       (declare (ignore d)) 
+	       (declare (ignore d))
 	       (print-unreadable-object (s stream :identity t)
 		 (cl::output-interpreted-function s stream)))))
   ;;
@@ -142,7 +142,7 @@
      :WARN  -- Print a warning, but declare the variable special (the default.)
       T     -- Quietly declare the variable special.
       NIL   -- Never declare the variable, giving warnings on each use.")
-  
+
 
 ;;; EVAL  --  Public
 ;;;
@@ -150,7 +150,7 @@
 ;;;
 (defun eval (original-exp)
   "Evaluates its single arg in a null lexical environment, returns the
-  result or results."
+   result or results."
   (declare (optimize (safety 1)))
   (let ((exp (macroexpand original-exp)))
     (typecase exp
@@ -327,7 +327,7 @@
 ;;; INVOKE-MACROEXPAND-HOOK -- public.
 ;;;
 ;;; The X3J13 cleanup FUNCTION-TYPE:X3J13-MARCH-88 specifies that:
-;;; 
+;;;
 ;;; "7. Clarify that the value of *MACROEXPAND-HOOK* is first coerced to a
 ;;;     function before being called as the expansion interface hook by
 ;;;     MACROEXPAND-1."
@@ -335,7 +335,7 @@
 ;;; This is a handy utility function that does just such a coercion.  It also
 ;;; stores the result back in *macroexpand-hook* so we don't have to coerce
 ;;; it again.
-;;; 
+;;;
 (defun invoke-macroexpand-hook (fun form env)
   "Invoke *MACROEXPAND-HOOK* on FUN, FORM, and ENV after coercing it to
    a function."

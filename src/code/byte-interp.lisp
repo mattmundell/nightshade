@@ -61,7 +61,7 @@
 	    (:type kernel:funcallable-structure)
 	    (:print-function
 	     (lambda (s stream d)
-	       (declare (ignore d)) 
+	       (declare (ignore d))
 	       (print-unreadable-object (s stream :identity t)
 		 (format stream "Byte closure ~S"
 			 (byte-function-name (byte-closure-function s)))))))
@@ -575,7 +575,7 @@
   (error "Undefined XOP."))
 
 ;;; *BYTE-XOPS* -- Simple vector of the XOP functions.
-;;; 
+;;;
 (declaim (type (simple-vector 256) *byte-xops*))
 (defvar *byte-xops*
   (make-array 256 :initial-element #'undefined-xop))
@@ -583,7 +583,7 @@
 ;;; DEFINE-XOP -- internal.
 ;;;
 ;;; Define a XOP function and install it in *BYTE-XOPS*.
-;;; 
+;;;
 (eval-when (compile eval)
   (defmacro define-xop (name lambda-list &body body)
     (let ((defun-name (symbolicate "BYTE-" name "-XOP")))
@@ -596,7 +596,7 @@
 ;;; BREAKPOINT -- Xop.
 ;;;
 ;;; This is spliced in by the debugger in order to implement breakpoints.
-;;; 
+;;;
 (define-xop breakpoint (component old-pc pc fp)
   (declare (type code-component component)
 	   (type pc old-pc)
@@ -623,7 +623,7 @@
   (byte-interpret component pc fp))
 
 ;;; MAKE-CLOSURE -- Xop.
-;;; 
+;;;
 (define-xop make-closure (component old-pc pc fp)
   (declare (type code-component component)
 	   (ignore old-pc)
@@ -735,7 +735,7 @@
 ;;; tail-calling the byte interpreter) to the pc returned by BREAKUP.
 ;;; If we are thrown to, then we branch to the address encoded in the 3 bytes
 ;;; following the catch XOP.
-;;; 
+;;;
 (define-xop catch (component old-pc pc fp)
   (declare (type code-component component)
 	   (ignore old-pc)
@@ -771,7 +771,7 @@
 ;;; This is exactly like THROW, except that the tag is the last thing on
 ;;; the stack instead of the first.  This is used for RETURN-FROM (hence the
 ;;; name).
-;;; 
+;;;
 (define-xop return-from (component old-pc pc fp)
   (declare (type code-component component)
 	   (type pc old-pc)
@@ -841,7 +841,7 @@
 ;;; Unwind-protects are handled significantly different in the byte compiler
 ;;; and the native compiler.  Basically, we just use the native-compiler's
 ;;; unwind-protect, and let it worry about continuing the unwind.
-;;; 
+;;;
 (define-xop unwind-protect (component old-pc pc fp)
   (declare (type code-component component)
 	   (ignore old-pc)
@@ -903,7 +903,7 @@
   (let ((fun (fdefinition predicate)))
     (setf (gethash type *byte-type-predicates*) fun)
     (setf (gethash fun *byte-predicate-types*) type)))
-	    
+
 
 ;;; LOAD-TYPE-PREDICATE  --  Internal
 ;;;
@@ -925,7 +925,7 @@
 		  type))
 	    type))))
 
-  
+
 ;;; TYPE-CHECK -- Xop.
 ;;;
 ;;;    Check the type of the value on the top of the stack.  The type is
@@ -950,7 +950,7 @@
 		 :expected-type (if (functionp type)
 				    (gethash type *byte-predicate-types*)
 				    (type-specifier type))))))
-    
+
     (byte-interpret component new-pc fp)))
 
 
@@ -985,7 +985,7 @@
 ;;;
 ;;; This encoding is rather hard wired into BYTE-INTERPRET due to the binary
 ;;; dispatch tree.
-;;; 
+;;;
 
 #+nil (declaim (start-block byte-interpret byte-interpret-byte
 			    invoke-xep invoke-local-entry-point))
@@ -995,7 +995,7 @@
 ;;; BYTE-INTERPRET -- Internal Interface.
 ;;;
 ;;; Main entry point to the byte interpreter.
-;;; 
+;;;
 (defun byte-interpret (component pc fp)
   (declare (type code-component component)
 	   (type pc pc)
@@ -1513,4 +1513,3 @@
 	  (byte-interpret old-component (- old-pc) old-fp)))))
 
 ;(declaim (end-block byte-interpret byte-interpret-byte invoke-xep))
-

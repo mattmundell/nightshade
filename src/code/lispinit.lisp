@@ -11,7 +11,7 @@
 ;;;
 ;;; Initialization stuff for CMU Common Lisp, plus some other random functions
 ;;; that we don't have any better place for.
-;;; 
+;;;
 ;;; Written by Skef Wholey and Rob MacLachlan.
 ;;;
 (in-package :lisp)
@@ -38,7 +38,7 @@
 
 ;;; Random information:
 
-(defvar *lisp-implementation-version* "-1")
+(defvar *lisp-implementation-version* "0.0+")
 
 
 ;;; Must be initialized in %INITIAL-FUNCTION before the DEFVAR runs...
@@ -342,7 +342,7 @@
 	(cons
 	 (case (car fun)
 	   (:load-time-value
-	    (setf (svref *load-time-values* (third fun)) 
+	    (setf (svref *load-time-values* (third fun))
 		  (funcall (second fun))))
 	   (:load-time-value-fixup
 	    #-gengc
@@ -396,7 +396,7 @@
   #-gengc (setf *already-maybe-gcing* nil)
   #+gengc (setf *gc-verbose* t)
   (terpri)
-  (princ "PD CMU Common Lisp kernel core image ")
+  (princ "Nightshade kernel core image ")
   (princ (lisp-implementation-version))
   (princ ".")
   (terpri)
@@ -572,7 +572,7 @@
   +, ///, //, /, and -."
   (setf - form)
   (let ((results (multiple-value-list
-		  (if (and (fboundp 'commandp)(funcall 'commandp form))
+		  (if (and (fboundp 'commandp) (funcall 'commandp form))
 		      (funcall 'invoke-command-interactive form)
 		      (eval form)))))
     (finish-standard-output-streams)

@@ -241,7 +241,7 @@
 				     entries))))))
 
 ;;; PROCESS-ENTRY-NODE-P -- Internal.
-;;; 
+;;;
 (defun process-entry-node-p (entry)
   (let ((entry-cleanup (entry-cleanup entry)))
     (dolist (nlx (environment-nlx-info (node-environment entry))

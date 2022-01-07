@@ -197,12 +197,12 @@
 (defun unix-get-errno ())
 
 ;;; GET-UNIX-ERROR-MSG -- public.
-;;; 
+;;;
 (defun get-unix-error-msg (&optional (error-number unix-errno))
   "Returns a string describing the error number which was returned by a
   UNIX system call."
   (declare (type integer error-number))
-  
+
   (unix-get-errno)
   (if (array-in-bounds-p *unix-errors* error-number)
       (svref *unix-errors* error-number)
@@ -212,7 +212,7 @@
   `(let ((result (alien-funcall (extern-alien ,name (function int ,@arg-types))
 				,@args)))
      (if (minusp result)
-         (progn 
+         (progn
            (unix-get-errno)
 	   (values nil unix-errno))
 	 ,success-form)))
@@ -295,7 +295,7 @@
 
 (defconstant fd-setsize 1024)
 (defconstant nfdbits 32)
-  
+
 (def-alien-type nil
   (struct fd-set
 	  (fds-bits (array fd-mask #.(/ fd-setsize nfdbits)))))
@@ -457,7 +457,7 @@
    or NIL and an error  number otherwise.
 
    This interface is made obsolete by UNIX-OPEN."
-  
+
   (declare (type unix-pathname name)
 	   (type unix-file-mode mode))
   (int-syscall ("creat" c-string int) name mode))
@@ -467,14 +467,14 @@
 (defconstant o_read    o_rdonly "Open for reading")
 (defconstant o_write   o_wronly "Open for writing")
 
-(defconstant o_rdonly  0 "Read-only flag.") 
+(defconstant o_rdonly  0 "Read-only flag.")
 (defconstant o_wronly  1 "Write-only flag.")
 (defconstant o_rdwr    2 "Read-write flag.")
 (defconstant o_accmode 3 "Access mode mask.")
 
 #-alpha
 (progn
-  (defconstant o_creat   #o100 "Create if nonexistant flag. (not fcntl)") 
+  (defconstant o_creat   #o100 "Create if nonexistant flag. (not fcntl)")
   (defconstant o_excl    #o200 "Error if already exists. (not fcntl)")
   (defconstant o_noctty  #o400 "Don't assign controlling tty. (not fcntl)")
   (defconstant o_trunc   #o1000 "Truncate flag. (not fcntl)")
@@ -487,7 +487,7 @@
   (defconstant o_async   #o20000 "Asynchronous I/O"))
 #+alpha
 (progn
-  (defconstant o_creat   #o1000 "Create if nonexistant flag. (not fcntl)") 
+  (defconstant o_creat   #o1000 "Create if nonexistant flag. (not fcntl)")
   (defconstant o_trunc   #o2000 "Truncate flag. (not fcntl)")
   (defconstant o_excl    #o4000 "Error if already exists. (not fcntl)")
   (defconstant o_noctty  #o10000 "Don't assign controlling tty. (not fcntl)")
@@ -552,7 +552,7 @@
 	    (l-pid pid-t)))
 
 ;;; Define some more compatibility macros to be backward compatible with
-;;; BSD systems which did not managed to hide these kernel macros. 
+;;; BSD systems which did not managed to hide these kernel macros.
 
 (defconstant FAPPEND  o_append "depricated stuff")
 (defconstant FFSYNC   o_fsync  "depricated stuff")
@@ -561,7 +561,7 @@
 (defconstant FNDELAY  o_ndelay "depricated stuff")
 
 
-;;; grp.h 
+;;; grp.h
 
 ;;;  POSIX Standard: 9.2.1 Group Database Access	<grp.h>
 
@@ -585,7 +585,7 @@
 #+nil
 (defun unix-getgrent ()
   "Read an entry from the group-file stream, opening it if necessary."
-  
+
   (let ((result (alien-funcall (extern-alien "getgrent"
 					     (function (* (struct group)))))))
     (declare (type system-area-pointer result))
@@ -597,7 +597,7 @@
 (defun unix-getgrgid (id)
   "Search for an entry with a matching group ID."
   (declare (type gid-t id))
-  
+
   (let ((result (alien-funcall (extern-alien "getgrgid"
 					     (function (* (struct group))
 						       gid-t))
@@ -611,7 +611,7 @@
 (defun unix-getgrnam (name)
   "Search for an entry with a matching group ID."
   (declare (type simple-string name))
-  
+
   (let ((result (alien-funcall (extern-alien "getgrnam"
 					     (function (* (struct group))
 						       c-string))
@@ -643,7 +643,7 @@
     (c-line unsigned-char) ; line discipline
     (c-cc (array unsigned-char #.+NCC+)))) ; control characters
 
-;;; modem lines 
+;;; modem lines
 (defconstant tiocm-le  1)
 (defconstant tiocm-dtr 2)
 (defconstant tiocm-rts 4)
@@ -656,9 +656,9 @@
 (defconstant tiocm-cd  tiocm-car)
 (defconstant tiocm-ri  #x80)
 
-;;; ioctl (fd, TIOCSERGETLSR, &result) where result may be as below 
+;;; ioctl (fd, TIOCSERGETLSR, &result) where result may be as below
 
-;;; line disciplines 
+;;; line disciplines
 (defconstant N-TTY    0)
 (defconstant N-SLIP   1)
 (defconstant N-MOUSE  2)
@@ -669,83 +669,83 @@
 
 ;;; ioctls.h
 
-;;; Routing table calls. 
-(defconstant siocaddrt	#x890B) ;; add routing table entry	
-(defconstant siocdelrt	#x890C) ;; delete routing table entry	
-(defconstant siocrtmsg	#x890D) ;; call to routing system	
+;;; Routing table calls.
+(defconstant siocaddrt	#x890B) ;; add routing table entry
+(defconstant siocdelrt	#x890C) ;; delete routing table entry
+(defconstant siocrtmsg	#x890D) ;; call to routing system
 
 ;;; Socket configuration controls.
-(defconstant siocgifname #x8910) ;; get iface name		
-(defconstant siocsiflink #x8911) ;; set iface channel		
-(defconstant siocgifconf #x8912) ;; get iface list		
-(defconstant siocgifflags #x8913) ;; get flags			
-(defconstant siocsifflags #x8914) ;; set flags			
-(defconstant siocgifaddr #x8915) ;; get PA address		
-(defconstant siocsifaddr #x8916) ;; set PA address		
-(defconstant siocgifdstaddr #x8917  ) ;; get remote PA address 
-(defconstant siocsifdstaddr #x8918  ) ;; set remote PA address 
-(defconstant siocgifbrdaddr #x8919  ) ;; get broadcast PA address 
-(defconstant siocsifbrdaddr #x891a  ) ;; set broadcast PA address 
-(defconstant siocgifnetmask #x891b  ) ;; get network PA mask  
-(defconstant siocsifnetmask #x891c  ) ;; set network PA mask  
-(defconstant siocgifmetric #x891d  ) ;; get metric   
-(defconstant siocsifmetric #x891e  ) ;; set metric   
-(defconstant siocgifmem #x891f  ) ;; get memory address (BSD) 
-(defconstant siocsifmem #x8920  ) ;; set memory address (BSD) 
-(defconstant siocgifmtu #x8921  ) ;; get MTU size   
-(defconstant siocsifmtu #x8922  ) ;; set MTU size   
-(defconstant siocsifhwaddr #x8924  ) ;; set hardware address  
-(defconstant siocgifencap #x8925  ) ;; get/set encapsulations       
+(defconstant siocgifname #x8910) ;; get iface name
+(defconstant siocsiflink #x8911) ;; set iface channel
+(defconstant siocgifconf #x8912) ;; get iface list
+(defconstant siocgifflags #x8913) ;; get flags
+(defconstant siocsifflags #x8914) ;; set flags
+(defconstant siocgifaddr #x8915) ;; get PA address
+(defconstant siocsifaddr #x8916) ;; set PA address
+(defconstant siocgifdstaddr #x8917  ) ;; get remote PA address
+(defconstant siocsifdstaddr #x8918  ) ;; set remote PA address
+(defconstant siocgifbrdaddr #x8919  ) ;; get broadcast PA address
+(defconstant siocsifbrdaddr #x891a  ) ;; set broadcast PA address
+(defconstant siocgifnetmask #x891b  ) ;; get network PA mask
+(defconstant siocsifnetmask #x891c  ) ;; set network PA mask
+(defconstant siocgifmetric #x891d  ) ;; get metric
+(defconstant siocsifmetric #x891e  ) ;; set metric
+(defconstant siocgifmem #x891f  ) ;; get memory address (BSD)
+(defconstant siocsifmem #x8920  ) ;; set memory address (BSD)
+(defconstant siocgifmtu #x8921  ) ;; get MTU size
+(defconstant siocsifmtu #x8922  ) ;; set MTU size
+(defconstant siocsifhwaddr #x8924  ) ;; set hardware address
+(defconstant siocgifencap #x8925  ) ;; get/set encapsulations
 (defconstant siocsifencap #x8926)
-(defconstant siocgifhwaddr #x8927  ) ;; Get hardware address  
-(defconstant siocgifslave #x8929  ) ;; Driver slaving support 
+(defconstant siocgifhwaddr #x8927  ) ;; Get hardware address
+(defconstant siocgifslave #x8929  ) ;; Driver slaving support
 (defconstant siocsifslave #x8930)
-(defconstant siocaddmulti #x8931  ) ;; Multicast address lists 
+(defconstant siocaddmulti #x8931  ) ;; Multicast address lists
 (defconstant siocdelmulti #x8932)
-(defconstant siocgifindex #x8933  ) ;; name -> if_index mapping 
-(defconstant siogifindex SIOCGIFINDEX ) ;; misprint compatibility :-) 
-(defconstant siocsifpflags #x8934  ) ;; set/get extended flags set 
+(defconstant siocgifindex #x8933  ) ;; name -> if_index mapping
+(defconstant siogifindex SIOCGIFINDEX ) ;; misprint compatibility :-)
+(defconstant siocsifpflags #x8934  ) ;; set/get extended flags set
 (defconstant siocgifpflags #x8935)
-(defconstant siocdifaddr #x8936  ) ;; delete PA address  
-(defconstant siocsifhwbroadcast #x8937 ) ;; set hardware broadcast addr 
-(defconstant siocgifcount #x8938  ) ;; get number of devices 
+(defconstant siocdifaddr #x8936  ) ;; delete PA address
+(defconstant siocsifhwbroadcast #x8937 ) ;; set hardware broadcast addr
+(defconstant siocgifcount #x8938  ) ;; get number of devices
 
-(defconstant siocgifbr #x8940  ) ;; Bridging support  
-(defconstant siocsifbr #x8941  ) ;; Set bridging options  
+(defconstant siocgifbr #x8940  ) ;; Bridging support
+(defconstant siocsifbr #x8941  ) ;; Set bridging options
 
-(defconstant siocgiftxqlen #x8942  ) ;; Get the tx queue length 
-(defconstant siocsiftxqlen #x8943  ) ;; Set the tx queue length  
+(defconstant siocgiftxqlen #x8942  ) ;; Get the tx queue length
+(defconstant siocsiftxqlen #x8943  ) ;; Set the tx queue length
 
 
-;;; ARP cache control calls. 
-;;  0x8950 - 0x8952  * obsolete calls, don't re-use 
-(defconstant siocdarp #x8953  ) ;; delete ARP table entry 
-(defconstant siocgarp #x8954  ) ;; get ARP table entry  
-(defconstant siocsarp #x8955  ) ;; set ARP table entry  
+;;; ARP cache control calls.
+;;  0x8950 - 0x8952  * obsolete calls, don't re-use
+(defconstant siocdarp #x8953  ) ;; delete ARP table entry
+(defconstant siocgarp #x8954  ) ;; get ARP table entry
+(defconstant siocsarp #x8955  ) ;; set ARP table entry
 
-;;; RARP cache control calls. 
-(defconstant siocdrarp #x8960  ) ;; delete RARP table entry 
-(defconstant siocgrarp #x8961  ) ;; get RARP table entry  
-(defconstant siocsrarp #x8962  ) ;; set RARP table entry  
+;;; RARP cache control calls.
+(defconstant siocdrarp #x8960  ) ;; delete RARP table entry
+(defconstant siocgrarp #x8961  ) ;; get RARP table entry
+(defconstant siocsrarp #x8962  ) ;; set RARP table entry
 
-;;; Driver configuration calls 
+;;; Driver configuration calls
 
-(defconstant siocgifmap #x8970  ) ;; Get device parameters 
-(defconstant siocsifmap #x8971  ) ;; Set device parameters 
+(defconstant siocgifmap #x8970  ) ;; Get device parameters
+(defconstant siocsifmap #x8971  ) ;; Set device parameters
 
-;;; DLCI configuration calls 
+;;; DLCI configuration calls
 
-(defconstant siocadddlci #x8980  ) ;; Create new DLCI device 
-(defconstant siocdeldlci #x8981  ) ;; Delete DLCI device  
+(defconstant siocadddlci #x8980  ) ;; Create new DLCI device
+(defconstant siocdeldlci #x8981  ) ;; Delete DLCI device
 
-;;; Device private ioctl calls. 
+;;; Device private ioctl calls.
 
 ;; These 16 ioctls are available to devices via the do_ioctl() device
 ;; vector.  Each device should include this file and redefine these
 ;; names as their own. Because these are device dependent it is a good
-;; idea _NOT_ to issue them to random objects and hope. 
+;; idea _NOT_ to issue them to random objects and hope.
 
-(defconstant siocdevprivate	#x89F0	) ;; to 89FF 
+(defconstant siocdevprivate	#x89F0	) ;; to 89FF
 
 
 ;;;  mathcalls.h
@@ -791,7 +791,7 @@
 (def-math-rtn "cbrt" 1) ; returns cuberoot
 
 #+nil
-(def-math-rtn "copysign" 2) ;Return X with its signed changed to Y's. 
+(def-math-rtn "copysign" 2) ;Return X with its signed changed to Y's.
 
 #+nil
 (def-math-rtn "cabs" 2) ;Return `sqrt(X*X + Y*Y)'.
@@ -1392,7 +1392,7 @@ length LEN and type TYPE."
 	nil
       result)))
 
-;; 
+;;
 
 #+nil
 (defun unix-lckpwdf ()
@@ -1514,7 +1514,7 @@ length LEN and type TYPE."
 ;; c_iflag bits
 (def-enum ash 1 tty-ignbrk tty-brkint tty-ignpar tty-parmrk tty-inpck
 	  tty-istrip tty-inlcr tty-igncr tty-icrnl tty-iuclc
-	  tty-ixon tty-ixany tty-ixoff 
+	  tty-ixon tty-ixany tty-ixoff
 	  tty-imaxbel)
 
 ;; c_oflag bits
@@ -1582,7 +1582,7 @@ length LEN and type TYPE."
 (defconstant tty-b230400 #o0010003)
 (defconstant tty-b460800 #o0010004)
 (defconstant tty-cibaud	  #o002003600000) ; input baud rate (not used)
-(defconstant tty-crtscts	  #o020000000000) ;flow control 
+(defconstant tty-crtscts	  #o020000000000) ;flow control
 
 ;; c_lflag bits
 (def-enum ash 1 tty-isig tty-icanon tty-xcase tty-echo tty-echoe
@@ -1591,7 +1591,7 @@ length LEN and type TYPE."
 	  tty-echoke tty-flusho
 	  tty-pendin tty-iexten)
 
-;;; tcflow() and TCXONC use these 
+;;; tcflow() and TCXONC use these
 (def-enum + 0 tty-tcooff tty-tcoon tty-tcioff tty-tcion)
 
 ;; tcflush() and TCFLSH use these */
@@ -1663,7 +1663,7 @@ length LEN and type TYPE."
 ;;; timebits.h
 
 ;; A time value that is accurate to the nearest
-;; microsecond but also has a range of years.  
+;; microsecond but also has a range of years.
 (def-alien-type nil
   (struct timeval
 	  (tv-sec #-alpha time-t #+alpha int)		; seconds
@@ -1693,7 +1693,7 @@ length LEN and type TYPE."
 	    (int-syscall ("execve"
 			  (* char) system-area-pointer system-area-pointer)
 			 (vector-sap program) argv envp)))
-      ;; 
+      ;;
       ;; Deallocate memory
       (when argv
 	(system:deallocate-system-memory argv argv-bytes))
@@ -1843,7 +1843,7 @@ length LEN and type TYPE."
 
 (defun unix-chdir (path)
   ;; FIX return?
-  "Given a file path string, unix-chdir changes the current working 
+  "Given a file path string, unix-chdir changes the current working
    directory to the one specified."
   (declare (type unix-pathname path))
   (void-syscall ("chdir" c-string) path))
@@ -1871,7 +1871,7 @@ length LEN and type TYPE."
 
 ;;; Unix-dup2 makes the second file-descriptor describe the same file
 ;;; as the first. If the second file-descriptor points to an open
-;;; file, it is first closed. In any case, the second should have a 
+;;; file, it is first closed. In any case, the second should have a
 ;;; value which is a valid file-descriptor.
 
 (defun unix-dup2 (fd1 fd2)
@@ -1927,7 +1927,7 @@ length LEN and type TYPE."
   "Unix-getpgrp returns the group-id of the calling process."
   (int-syscall ("getpgrp")))
 
-;;; Unix-setpgid sets the group-id of the process specified by 
+;;; Unix-setpgid sets the group-id of the process specified by
 ;;; "pid" to the value of "pgrp".  The process must either have
 ;;; the same effective user-id or be a super-user process.
 
@@ -2135,7 +2135,7 @@ length LEN and type TYPE."
 		    (t
 		     (values nil errno)))))
       (unix-sigsetmask old-sigs))))
-  
+
 (defsetf tty-process-group (&optional fd) (pgrp)
   "Set the tty-process-group for the unix file-descriptor FD to PGRP.  If not
   supplied, FD defaults to /dev/tty."
@@ -2211,7 +2211,7 @@ length LEN and type TYPE."
 (defun unix-vhangup ()
  "Revoke access permissions to all processes currently communicating
   with the control terminal, and then send a SIGHUP signal to the process
-  group of the control terminal." 
+  group of the control terminal."
  (int-syscall ("vhangup")))
 
 #+nil
@@ -2309,7 +2309,7 @@ length LEN and type TYPE."
 
 (def-alien-type nil
     (struct utimbuf
-	    (actime time-t) ; Access time. 
+	    (actime time-t) ; Access time.
 	    (modtime time-t))) ; Modification time.
 
 ;;; Unix-utimes changes the accessed and updated times on UNIX
@@ -2379,7 +2379,7 @@ length LEN and type TYPE."
 
 ;; Event types that can be polled for.  These bits may be set in `events'
 ;; to indicate the interesting event types; they will appear in `revents'
-;; to indicate the status of the file descriptor.  
+;; to indicate the status of the file descriptor.
 
 (defconstant POLLIN  #o1 "There is data to read.")
 (defconstant POLLPRI #o2 "There is urgent data to read.")
@@ -2574,11 +2574,11 @@ in at a time in poll.")
 			    read-fds write-fds exception-fds
 			    timeout-secs &optional (timeout-usecs 0))
   "Perform the UNIX select(2) system call."
-  (declare (type (integer 0 #.FD-SETSIZE) num-descriptors) 
-	   (type (or (alien (* (struct fd-set))) null) 
-		 read-fds write-fds exception-fds) 
-	   (type (or null (unsigned-byte 31)) timeout-secs) 
-	   (type (unsigned-byte 31) timeout-usecs) 
+  (declare (type (integer 0 #.FD-SETSIZE) num-descriptors)
+	   (type (or (alien (* (struct fd-set))) null)
+		 read-fds write-fds exception-fds)
+	   (type (or null (unsigned-byte 31)) timeout-secs)
+	   (type (unsigned-byte 31) timeout-usecs)
 	   (optimize (speed 3) (safety 0) (inhibit-warnings 3)))
   `(let ((timeout-secs ,timeout-secs))
      (with-alien ((tv (struct timeval)))
@@ -2704,7 +2704,8 @@ in at a time in poll.")
 	     (extract-stat-results buf)
 	     name (addr buf))))
 
-;;; Unix-chmod accepts a path and a mode and changes the mode to the new mode.
+;;; Unix-chmod accepts a path and a mode and changes the mode to the new
+;;; mode.
 
 ;; FIX (unix-chmod "xx" "a+w") would be cool too
 (defun unix-chmod (path mode)
@@ -2727,7 +2728,7 @@ in at a time in poll.")
       readall           Read by all.
       writeall          Write by all.
       execoth           Execute (search directory) by all.
-  
+
   It returns T on successfully completion; NIL and an error number
   otherwise."
   (declare (type unix-pathname path)
@@ -2735,7 +2736,7 @@ in at a time in poll.")
   (void-syscall ("chmod" c-string int) path mode))
 
 ;;; Unix-fchmod accepts a file descriptor ("fd") and a file protection mode
-;;; ("mode") and changes the protection of the file described by "fd" to 
+;;; ("mode") and changes the protection of the file described by "fd" to
 ;;; "mode".
 
 (defun unix-fchmod (fd mode)
@@ -2822,7 +2823,7 @@ in at a time in poll.")
 	    (tv-sec long)   ;Seconds
 	    (tv-nsec long))) ;Nanoseconds
 
-;; Used by other time functions. 
+;; Used by other time functions.
 
 (def-alien-type nil
     (struct tm
@@ -2836,7 +2837,7 @@ in at a time in poll.")
 	    (tm-yday int)  ; Days in year.[0-365]
 	    (tm-isdst int) ;  DST.		[-1/0/1]
 	    (tm-gmtoff long) ;  Seconds east of UTC.
-	    (tm-zone c-string))) ; Timezone abbreviation.  
+	    (tm-zone c-string))) ; Timezone abbreviation.
 
 #+nil
 (defun unix-clock ()
@@ -2909,12 +2910,12 @@ in at a time in poll.")
 ;;; sys/time.h
 
 ;; Structure crudely representing a timezone.
-;;   This is obsolete and should never be used. 
+;;   This is obsolete and should never be used.
 (def-alien-type nil
   (struct timezone
     (tz-minuteswest int)		; minutes west of Greenwich
     (tz-dsttime	int)))			; type of dst correction
-     
+
 (declaim (inline unix-gettimeofday))
 (defun unix-gettimeofday ()
   "If it works, unix-gettimeofday returns 5 values: T, the seconds and
@@ -2923,7 +2924,7 @@ in at a time in poll.")
    returns NIL and the errno."
   (with-alien ((tv (struct timeval))
 	       (tz (struct timezone)))
-    (syscall* ("gettimeofday" (* (struct timeval)) 
+    (syscall* ("gettimeofday" (* (struct timeval))
 			      (* (struct timezone)))
 	      (values T
 		      (slot tv 'tv-sec)
@@ -2952,7 +2953,7 @@ in at a time in poll.")
 
 
 ;; Type of the second argument to `getitimer' and
-;; the second and third arguments `setitimer'. 
+;; the second and third arguments `setitimer'.
 (def-alien-type nil
   (struct itimerval
     (it-interval (struct timeval))	; timer interval
@@ -3026,7 +3027,7 @@ in at a time in poll.")
 	    (time time-t)      ; Seconds since epoch, as from `time'.
 	    (millitm short)    ; Additional milliseconds.
 	    (timezone int)     ; Minutes west of GMT.
-	    (dstflag short)))  ; Nonzero if Daylight Savings Time used. 
+	    (dstflag short)))  ; Nonzero if Daylight Savings Time used.
 
 #+nil
 (defun unix-fstime (timebuf)
@@ -3113,11 +3114,11 @@ in at a time in poll.")
 (def-unix-error EROFS 30 "Read-only file system")
 (def-unix-error EMLINK 31 "Too many links")
 (def-unix-error EPIPE 32 "Broken pipe")
-;;; 
+;;;
 ;;; Math
 (def-unix-error EDOM 33 "Math argument out of domain")
 (def-unix-error ERANGE 34 "Math result not representable")
-;;; 
+;;;
 (def-unix-error  EDEADLK         35     "Resource deadlock would occur")
 (def-unix-error  ENAMETOOLONG    36     "File name too long")
 (def-unix-error  ENOLCK          37     "No record locks available")
@@ -3486,14 +3487,14 @@ in at a time in poll.")
 
 ;;;
 ;;; STRING-LIST-TO-C-STRVEC	-- Internal
-;;; 
+;;;
 ;;; STRING-LIST-TO-C-STRVEC is a function which takes a list of
 ;;; simple-strings and constructs a C-style string vector (strvec) --
 ;;; a null-terminated array of pointers to null-terminated strings.
 ;;; This function returns two values: a sap and a byte count.  When the
 ;;; memory is no longer needed it should be deallocated with
 ;;; vm_deallocate.
-;;; 
+;;;
 (defun string-list-to-c-strvec (string-list)
   ;;
   ;; Make a pass over string-list to calculate the amount of memory
@@ -3515,13 +3516,13 @@ in at a time in poll.")
       (dolist (s string-list)
 	(declare (simple-string s))
 	(let ((n (length s)))
-	  ;; 
+	  ;;
 	  ;; Blast the string into place
 	  (kernel:copy-to-system-area (the simple-string s)
 				      (* vm:vector-data-offset vm:word-bits)
 				      string-sap 0
 				      (* (1+ n) vm:byte-bits))
-	  ;; 
+	  ;;
 	  ;; Blast the pointer to the string into place
 	  (setf (sap-ref-sap vec-sap i) string-sap)
 	  (setf string-sap (sap+ string-sap (round-bytes-to-words (1+ n))))

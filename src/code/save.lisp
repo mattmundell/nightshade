@@ -242,15 +242,14 @@
    functions are called with an output stream argument.")
 
 (setf (getf *herald-items* :common-lisp)
-      `("PD CMU Common Lisp "
+      `("Nightshade "
 	,#'(lambda (stream)
 	     (write-string (lisp-implementation-version) stream))
 	", running on "
 	,#'(lambda (stream) (write-string (machine-instance) stream))))
 
 (setf (getf *herald-items* :subsystems)
-      '(terpri
-	"Loaded subsystems:"))
+      '(terpri "Loaded subsystems:"))
 
 ;;; PRINT-HERALD  --  Public
 ;;;

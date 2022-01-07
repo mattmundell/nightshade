@@ -1,4 +1,4 @@
- ;;; -*- Mode: Lisp; Package: Lisp -*-
+;;; -*- Mode: Lisp; Package: Lisp -*-
 ;;;
 ;;; **********************************************************************
 ;;; This code was written as part of the CMU Common Lisp project at
@@ -60,8 +60,8 @@
 	  "target:assembly/ppc/array.assem"
 	  "target:assembly/ppc/arith.assem"
 	  "target:assembly/ppc/alloc.assem"))
-    
-    
+
+
 
     "target:code/type-boot"
     "target:code/fdefinition"

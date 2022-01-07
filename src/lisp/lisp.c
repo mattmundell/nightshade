@@ -118,27 +118,27 @@ int main(int argc, char *argv[], char *envp[])
                 fprintf(stderr, "can only specify one core file.\n");
                 exit(1);
 	      }
-            core = *++argptr;
-            if (core == NULL)
+	    core = *++argptr;
+	    if (core == NULL)
 	      {
 		fprintf(stderr, "-core must be followed by the name of the core file to use.\n");
-                exit(1);
+		exit(1);
 	      }
 	  }
         else if (strcmp(arg, "-dynamic-space-size") == 0)
 	  {
-            char *str = *++argptr;
+	    char *str = *++argptr;
             if (str == NULL)
 	      {
-                fprintf(stderr, "-dynamic-space-size must be followed by the size to use in MBytes.\n");
-                exit(1);
+		fprintf(stderr, "-dynamic-space-size must be followed by the size to use in MBytes.\n");
+		exit(1);
 	      }
 	    dynamic_space_size = atoi(str) * 1024 * 1024;
 	    if (dynamic_space_size > DYNAMIC_SPACE_SIZE)
 	      {
-                fprintf(stderr, "-dynamic-space-size must be no greater than %d MBytes.\n",
+		fprintf(stderr, "-dynamic-space-size must be no greater than %d MBytes.\n",
 			DYNAMIC_SPACE_SIZE / (1024 * 1024));
-                exit(1);
+		exit(1);
 	      }
 	  }
 	else if (strcmp(arg, "-monitor") == 0)
@@ -172,7 +172,7 @@ int main(int argc, char *argv[], char *envp[])
 		if (stat(buf, &statbuf) == 0) {
 		    core = buf;
 		    break;
-		}
+		  }
 	    } while (*lib++ == ':');
 
 	    if (core == NULL)
