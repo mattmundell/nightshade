@@ -2,6 +2,8 @@ Mad project from 2006 aimed at creating a public domain Lisp OS.  I spent most o
 
 For info on building the system see the [System Building](https://github.com/mattmundell/nightshade/blob/a01f22b5b88b0a72948e8daf295034b9d614b44f/src/code/build.lisp#L102) docs in the source (especially [Build Tools](https://github.com/mattmundell/nightshade/blob/a01f22b5b88b0a72948e8daf295034b9d614b44f/src/code/build.lisp#L283), [Compiling the C](https://github.com/mattmundell/nightshade/blob/a01f22b5b88b0a72948e8daf295034b9d614b44f/src/code/build.lisp#L310), etc).
 
+Note that Nightshade will segfault on recent systems due to stack protection being turned on.  I last had it working on Ubuntu 20.04.
+
 ## Changes
 
 ### Changes from 1g to 1h (2009-05-01):
