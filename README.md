@@ -4,6 +4,8 @@ For info on building the system see the [System Building](https://github.com/mat
 
 Note that Nightshade will segfault on recent systems due to stack protection being turned on.  I last had it working on Ubuntu 20.04.
 
+![Screenshot of Dired](shot--file-manager.png)
+
 ## Changes
 
 ### Changes from 1g to 1h (2009-05-01):
